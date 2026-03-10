@@ -1,0 +1,70 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+.pnp/
+.pnp.js
+
+# ─── Build Output ─────────────────────────────────────────────────────────────
+dist/
+build/
+.next/
+out/
+
+# ─── Environment / Secrets ───────────────────────────────────────────────────
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+# Keep .env.example (do NOT ignore it)
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+C:temp*.log
+
+# ─── TypeScript ───────────────────────────────────────────────────────────────
+*.tsbuildinfo
+tsconfig.tsbuildinfo
+
+# ─── Prisma ───────────────────────────────────────────────────────────────────
+# Keep schema.prisma and seed.ts, ignore generated client
+new-app/backend/node_modules/.prisma/
+
+# ─── Storage uploads (keep folder structure, ignore content) ─────────────────
+new-app/backend/storage/desain/*
+new-app/backend/storage/interior/*
+new-app/backend/storage/laporan-docs/*
+new-app/backend/storage/sipil-docs/*
+!new-app/backend/storage/**/.gitkeep
+
+# ─── Cypress / E2E Tests ─────────────────────────────────────────────────────
+new-app/e2e-tests/node_modules/
+new-app/frontend/cypress/screenshots/
+new-app/frontend/cypress/videos/
+
+# ─── OS & IDE ────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── Claude Code (local only) ─────────────────────────────────────────────────
+.claude/
+
+# ─── Misc ────────────────────────────────────────────────────────────────────
+*.tmp
+*.bak
+coverage/
+.nyc_output/
+
+# ─── Personal / scratch files ────────────────────────────────────────────────
+new-app/backend/src/index-Jerry.ts
+new-app/backend/prisma/check-perms.ts
+new-app/backend/prisma/check-reimburse.ts
+new-app/backend/prisma/delete-invoices.ts
+new-app/backend/prisma/add-reimburse-all-perm.ts

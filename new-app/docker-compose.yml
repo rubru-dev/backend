@@ -1,0 +1,90 @@
+version: "3.9"
+
+services:
+  # ─────────────────────────────────────────────────────
+  # PostgreSQL Database
+  # ─────────────────────────────────────────────────────
+  db:
+    image: postgres:16-alpine
+    container_name: stockopname_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-stockopname}
+      POSTGRES_USER: ${POSTGRES_USER:-stockopname}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-secret}
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-stockopname}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─────────────────────────────────────────────────────
+  # Express.js Backend
+  # ─────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: stockopname_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-stockopname}:${POSTGRES_PASSWORD:-secret}@db:5432/${POSTGRES_DB:-stockopname}
+      SECRET_KEY: ${SECRET_KEY}
+      DEBUG: ${DEBUG:-false}
+      PORT: 8000
+      CORS_ORIGINS: "http://localhost:3000,${FRONTEND_URL:-http://localhost:3000}"
+      CORS_ALLOW_ALL: "false"
+      STORAGE_PATH: storage
+      FONNTE_TOKEN: ${FONNTE_TOKEN:-}
+      FONNTE_API_URL: https://api.fonnte.com/send
+      META_ADS_ACCESS_TOKEN: ${META_ADS_ACCESS_TOKEN:-}
+      META_ADS_AD_ACCOUNT_ID: ${META_ADS_AD_ACCOUNT_ID:-}
+      META_ADS_API_VERSION: v21.0
+      APP_URL: ${APP_URL:-http://localhost:8000}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ./backend/storage:/app/storage
+
+  # ─────────────────────────────────────────────────────
+  # Next.js Frontend
+  # ─────────────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: stockopname_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXTAUTH_URL: ${FRONTEND_URL:-http://localhost:3000}
+      NEXTAUTH_SECRET: ${SECRET_KEY}
+      NEXT_PUBLIC_API_URL: ${APP_URL:-http://localhost:8000}
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  # ─────────────────────────────────────────────────────
+  # Redis (optional: for caching and sessions)
+  # ─────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: stockopname_redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - redis_data:/data
+
+volumes:
+  postgres_data:
+  redis_data:

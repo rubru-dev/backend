@@ -1,0 +1,2039 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model AbsenTukangItem {
+  id              BigInt        @id @default(autoincrement())
+  absen_tukang_id BigInt
+  tukang_name     String?       @db.VarChar(255)
+  hadir           Boolean       @default(true)
+  keterangan      String?       @db.VarChar(255)
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  absen_tukang   AbsenTukang @relation(fields: [absen_tukang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("absen_tukang_items")
+}
+
+model AbsenTukang {
+  id                     BigInt                @id @default(autoincrement())
+  adm_finance_project_id BigInt?
+  tanggal                DateTime?             @db.Date
+  keterangan             String?
+  created_by             BigInt?
+  created_at             DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime              @default(now()) @db.Timestamptz(6)
+  items     AbsenTukangItem[]
+  adm_finance_project   AdmFinanceProject? @relation(fields: [adm_finance_project_id], references: [id], onUpdate: NoAction)
+  creator                  User?                @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  @@map("absen_tukangs")
+}
+
+model ActivityLog {
+  id           BigInt   @id @default(autoincrement())
+  log_name     String?  @db.VarChar(255)
+  description  String
+  subject_type String?  @db.VarChar(255)
+  subject_id   BigInt?
+  causer_type  String?  @db.VarChar(255)
+  causer_id    BigInt?
+  properties   Json?
+  event        String?  @db.VarChar(255)
+  batch_uuid   String?  @db.Uuid
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([causer_type, causer_id], map: "idx_activity_log_causer")
+  @@index([event], map: "idx_activity_log_event")
+  @@index([subject_type, subject_id], map: "idx_activity_log_subject")
+  @@map("activity_log")
+}
+
+model AdContentMetric {
+  id                   BigInt             @id @default(autoincrement())
+  meta_ads_campaign_id BigInt
+  date                 DateTime           @db.Date
+  impressions          BigInt             @default(0)
+  reach                BigInt             @default(0)
+  clicks               Int                @default(0)
+  ctr                  Decimal            @default(0) @db.Decimal(10, 4)
+  spend                Decimal            @default(0) @db.Decimal(15, 2)
+  likes                Int                @default(0)
+  comments             Int                @default(0)
+  shares               Int                @default(0)
+  video_views          Int                @default(0)
+  engagement_rate      Decimal            @default(0) @db.Decimal(10, 4)
+  cost_per_result      Decimal            @default(0) @db.Decimal(15, 2)
+  roas                 Decimal            @default(0) @db.Decimal(10, 4)
+  frequency            Decimal            @default(0) @db.Decimal(10, 4)
+  conversions          Int                @default(0)
+  data_source          String             @default("manual") @db.VarChar(50)
+  created_at           DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime           @default(now()) @db.Timestamptz(6)
+  meta_ads_campaigns   MetaAdsCampaign @relation(fields: [meta_ads_campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([meta_ads_campaign_id, date])
+  @@index([meta_ads_campaign_id], map: "idx_ad_content_metrics_campaign")
+  @@index([date], map: "idx_ad_content_metrics_date")
+  @@map("ad_content_metrics")
+}
+
+model AdmFinanceItem {
+  id                   BigInt               @id @default(autoincrement())
+  periode_id           BigInt
+  description          String?
+  qty                  Decimal              @default(1) @db.Decimal(15, 3)
+  unit_price           Decimal              @default(0) @db.Decimal(15, 2)
+  total                Decimal              @default(0) @db.Decimal(15, 2)
+  status               String               @default("aktif") @db.VarChar(50)
+  created_at           DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime             @default(now()) @db.Timestamptz(6)
+  periode AdmFinancePeriode @relation(fields: [periode_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([periode_id], map: "idx_adm_finance_items_periode")
+  @@map("adm_finance_items")
+}
+
+model AdmFinancePeriode {
+  id                       BigInt              @id @default(autoincrement())
+  termin_id                BigInt
+  nama_periode             String?             @db.VarChar(255)
+  tanggal_mulai            DateTime?           @db.Date
+  tanggal_selesai          DateTime?           @db.Date
+  budget                   Decimal             @default(0) @db.Decimal(15, 2)
+  is_approved              Boolean             @default(false)
+  approved_by              BigInt?
+  approved_at              DateTime?           @db.Timestamptz(6)
+  budget_warning_threshold Decimal?            @db.Decimal(15, 2)
+  budget_warning_sent      Boolean             @default(false)
+  status                   String              @default("aktif") @db.VarChar(50)
+  created_at               DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime            @default(now()) @db.Timestamptz(6)
+  items        AdmFinanceItem[]
+  approver                    User?              @relation(fields: [approved_by], references: [id], onUpdate: NoAction)
+  termin      AdmFinanceTermin @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([termin_id], map: "idx_adm_finance_periodes_termin")
+  @@map("adm_finance_periodes")
+}
+
+model AdmFinanceProject {
+  id                    BigInt                @id @default(autoincrement())
+  nama_proyek           String?               @db.VarChar(255)
+  klien                 String?               @db.VarChar(255)
+  jenis                 String?               @db.VarChar(50)
+  lead_id               BigInt?
+  proyek_berjalan_id    BigInt?
+  lokasi                String?
+  tanggal_mulai         DateTime?             @db.Date
+  tanggal_selesai       DateTime?             @db.Date
+  jumlah_termin         Int                   @default(0)
+  status                String                @default("aktif") @db.VarChar(50)
+  created_by            BigInt?
+  created_at            DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime              @default(now()) @db.Timestamptz(6)
+  absen_tukangs         AbsenTukang[]
+  cashflows             ProjekCashflow[]
+  list_materials        ProjekListMaterial[]
+  purchase_requests     ProjekPR[]
+  dokumens              ProjekDokumen[]
+  creator               User?                 @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  lead                  Lead?                 @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  proyek_berjalan       ProyekBerjalan?       @relation(fields: [proyek_berjalan_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  termins               AdmFinanceTermin[]
+  gaji_tukangs          GajiTukang[]
+  surat_jalans          SuratJalan[]
+  tukang_registries     TukangRegistry[]
+  @@map("adm_finance_projects")
+}
+
+model AdmFinanceTermin {
+  id                   BigInt                 @id @default(autoincrement())
+  project_id           BigInt
+  nama_termin          String                 @db.VarChar(255)
+  tanggal              DateTime?              @db.Date
+  budget               Decimal                @default(0) @db.Decimal(15, 2)
+  deposit_awal         Decimal                @default(0) @db.Decimal(15, 2)
+  hf_signed_at         DateTime?              @db.Timestamptz(6)
+  hf_signed_by         BigInt?
+  hf_name              String?                @db.VarChar(255)
+  hf_signature         String?                @db.Text
+  status               String                 @default("aktif") @db.VarChar(50)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  periodes             AdmFinancePeriode[]
+  deposits             ProjekTerminDeposit[]
+  cashflow_items       ProjekCashflow[]
+  project              AdmFinanceProject      @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("adm_finance_termins")
+}
+
+model ProjekTerminDeposit {
+  id           BigInt           @id @default(autoincrement())
+  termin_id    BigInt
+  jumlah       Decimal          @default(0) @db.Decimal(15, 2)
+  catatan      String?
+  hf_signed_at DateTime?        @db.Timestamptz(6)
+  hf_signed_by BigInt?
+  hf_name      String?          @db.VarChar(255)
+  hf_signature String?          @db.Text
+  created_at   DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime         @default(now()) @db.Timestamptz(6)
+  termin       AdmFinanceTermin @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("projek_termin_deposits")
+}
+
+model AdministrasiKantorItem {
+  id                     BigInt               @id @default(autoincrement())
+  administrasi_kantor_id BigInt
+  description            String?
+  qty                    Decimal              @default(1) @db.Decimal(15, 3)
+  amount                 Decimal              @default(0) @db.Decimal(15, 2)
+  created_at             DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime             @default(now()) @db.Timestamptz(6)
+  administrasi_kantor   AdministrasiKantor @relation(fields: [administrasi_kantor_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("administrasi_kantor_items")
+}
+
+model AdministrasiKantor {
+  id                        BigInt                      @id @default(autoincrement())
+  lead_id                   BigInt?
+  tanggal                   DateTime?                   @db.Date
+  keterangan                String?
+  created_by                BigInt?
+  created_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime                    @default(now()) @db.Timestamptz(6)
+  items AdministrasiKantorItem[]
+  creator                     User?                      @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  lead                     Lead?                      @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  @@map("administrasi_kantors")
+}
+
+model Reimburse {
+  id                      BigInt           @id @default(autoincrement())
+  tanggal                 DateTime?        @db.Date
+  user_id                 BigInt?
+  kategori                String?          @db.VarChar(100)
+  keterangan              String?
+  total                   Decimal          @default(0) @db.Decimal(15, 2)
+  status                  String           @default("Pending") @db.VarChar(50)
+  alasan_tolak            String?
+  head_finance_id         BigInt?
+  head_finance_at         DateTime?        @db.Timestamptz(6)
+  head_finance_signature  String?          @db.Text
+  admin_finance_id        BigInt?
+  admin_finance_at        DateTime?        @db.Timestamptz(6)
+  admin_finance_signature String?          @db.Text
+  created_by              BigInt?
+  created_at              DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime         @default(now()) @db.Timestamptz(6)
+  user          User?           @relation("reimburse_karyawan", fields: [user_id], references: [id], onUpdate: NoAction)
+  head_finance  User?           @relation("reimburse_head_finance", fields: [head_finance_id], references: [id], onUpdate: NoAction)
+  admin_finance User?           @relation("reimburse_admin_finance", fields: [admin_finance_id], references: [id], onUpdate: NoAction)
+  creator       User?           @relation("reimburse_creator", fields: [created_by], references: [id], onUpdate: NoAction)
+  items         ReimburseItem[]
+  buktis        ReimburseBukti[]
+  @@map("reimburses")
+}
+
+model ReimburseItem {
+  id           BigInt    @id @default(autoincrement())
+  reimburse_id BigInt
+  deskripsi    String?
+  jumlah       Decimal   @default(0) @db.Decimal(15, 2)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  reimburse    Reimburse @relation(fields: [reimburse_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("reimburse_items")
+}
+
+model ReimburseBukti {
+  id           BigInt    @id @default(autoincrement())
+  reimburse_id BigInt
+  data         String    @db.Text
+  nama         String?   @db.VarChar(255)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  reimburse    Reimburse @relation(fields: [reimburse_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("reimburse_buktis")
+}
+
+model AlembicVersion {
+  version_num String @id(map: "alembic_version_pkc") @db.VarChar(32)
+  @@map("alembic_version")
+}
+
+model AppSetting {
+  id         BigInt   @id @default(autoincrement())
+  key        String   @unique @db.VarChar(255)
+  value      Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  @@map("app_settings")
+}
+
+model BarangTermin {
+  id                BigInt           @id @default(autoincrement())
+  termin_id         BigInt
+  warehouse_id      BigInt?
+  stok_warehouse_id BigInt?
+  barang_id         BigInt?
+  quantity          Decimal          @default(0) @db.Decimal(15, 3)
+  jumlah_sisa       Decimal          @default(0) @db.Decimal(15, 3)
+  price             Decimal          @default(0) @db.Decimal(15, 2)
+  total_harga       Decimal          @default(0) @db.Decimal(15, 2)
+  supplier          String?          @db.VarChar(255)
+  satuan            String?          @db.VarChar(50)
+  status            String?          @db.VarChar(50)
+  tanggal_pemakaian DateTime?        @db.Date
+  keterangan        String?
+  created_at        DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime         @default(now()) @db.Timestamptz(6)
+  barang           Barang?         @relation(fields: [barang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  stok_warehouse   StokWarehouse? @relation(fields: [stok_warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  termin           Termin          @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  warehouse        Warehouse?      @relation(fields: [warehouse_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@index([tanggal_pemakaian], map: "idx_barang_termins_tanggal")
+  @@index([termin_id], map: "idx_barang_termins_termin")
+  @@map("barang_termins")
+}
+
+model Barang {
+  id                      BigInt                    @id @default(autoincrement())
+  kategori_id             BigInt?
+  nama                    String                    @db.VarChar(255)
+  supplier                String?                   @db.VarChar(255)
+  price                   Decimal                   @default(0) @db.Decimal(15, 2)
+  satuan                  String?                   @db.VarChar(50)
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  barang_termins          BarangTermin[]
+  kategori        KategoriBarang?         @relation(fields: [kategori_id], references: [id], onUpdate: NoAction)
+  stock_opname_rapp_items StockOpnameRappItem[]
+  stok_warehouses         StokWarehouse[]
+  surat_jalan_items       SuratJalanItem[]
+  transfer_items          TransferItem[]
+  @@map("barangs")
+}
+
+model BdReport {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt?
+  bulan      Int?
+  tahun      Int?
+  data       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("bd_reports")
+}
+
+model BonHarianFile {
+  id            BigInt      @id @default(autoincrement())
+  bon_harian_id BigInt
+  file_path     String?     @db.VarChar(500)
+  original_name String?     @db.VarChar(255)
+  created_at    DateTime    @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime    @default(now()) @db.Timestamptz(6)
+  bon_harian   BonHarian @relation(fields: [bon_harian_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("bon_harian_files")
+}
+
+model BonHarian {
+  id               BigInt             @id @default(autoincrement())
+  projek_id        BigInt
+  tanggal          DateTime?          @db.Date
+  penerima         String?            @db.VarChar(255)
+  keterangan       String?
+  created_by       BigInt?
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  files BonHarianFile[]
+  creator            User?             @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  projek          Projek            @relation(fields: [projek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("bon_harians")
+}
+
+model ContentCreatorReport {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt?
+  bulan      Int?
+  tahun      Int?
+  data       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("content_creator_reports")
+}
+
+model ContentTimeline {
+  id              BigInt    @id @default(autoincrement())
+  user_id         BigInt?
+  title           String?   @db.VarChar(255)
+  content_type    String?   @db.VarChar(100)
+  deadline        DateTime? @db.Date
+  approval_status String    @default("pending") @db.VarChar(50)
+  produksi_status String?   @db.VarChar(50)
+  bulan           Int?
+  tahun           Int?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  judul           String?   @db.VarChar(255)
+  deskripsi       String?
+  platform        String?   @db.VarChar(100)
+  tanggal_publish DateTime? @db.Date
+  tanggal_upload  DateTime? @db.Date
+  status          String?   @default("Draft") @db.VarChar(50)
+  file_path       String?   @db.VarChar(500)
+  planning_status String?   @default("pending") @db.VarChar(50)
+  upload_status   String?   @db.VarChar(50)
+  catatan_revisi    String?
+  hd_bd_signature   String?   @db.Text
+  hd_bd_signed_at   DateTime? @db.Timestamptz(6)
+  task_image        String?   @db.Text
+  user           User?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("content_timelines")
+}
+
+model InteriorTimeline {
+  id              BigInt                 @id @default(autoincrement())
+  nama_proyek     String?                @db.VarChar(200)
+  lead_id         BigInt?
+  tanggal_mulai   DateTime?              @db.Date
+  tanggal_selesai DateTime?              @db.Date
+  created_by      BigInt?
+  created_at      DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime               @default(now()) @db.Timestamptz(6)
+  items           InteriorTimelineItem[]
+  creator         User?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  lead            Lead?                  @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  @@map("interior_timelines")
+}
+
+model InteriorTimelineItem {
+  id                    BigInt            @id @default(autoincrement())
+  interior_timeline_id  BigInt
+  item_pekerjaan        String?
+  pic                   BigInt?
+  status                String?           @db.VarChar(50)
+  tanggal_mulai         DateTime?         @db.Date
+  target_selesai        DateTime?         @db.Date
+  file_bukti            String?           @db.VarChar(500)
+  created_at            DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime          @default(now()) @db.Timestamptz(6)
+  interior_timeline     InteriorTimeline  @relation(fields: [interior_timeline_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                  User?             @relation(fields: [pic], references: [id], onUpdate: NoAction)
+  @@map("interior_timeline_items")
+}
+
+model DesainTimelineItem {
+  id                 BigInt           @id @default(autoincrement())
+  desain_timeline_id BigInt
+  item_pekerjaan     String?
+  pic                BigInt?
+  status             String?          @db.VarChar(50)
+  tanggal_mulai      DateTime?        @db.Date
+  target_selesai     DateTime?        @db.Date
+  file_bukti         String?          @db.VarChar(500)
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime         @default(now()) @db.Timestamptz(6)
+  desain_timeline   DesainTimeline @relation(fields: [desain_timeline_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user              User?           @relation(fields: [pic], references: [id], onUpdate: NoAction)
+  @@map("desain_timeline_items")
+}
+
+model DesainTimeline {
+  id                    BigInt                  @id @default(autoincrement())
+  lead_id               BigInt?
+  jenis_desain          String?                 @db.VarChar(100)
+  bulan                 Int?
+  tahun                 Int?
+  tanggal_mulai         DateTime?               @db.Date
+  tanggal_selesai       DateTime?               @db.Date
+  created_by            BigInt?
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  items DesainTimelineItem[]
+  creator                 User?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  lead                 Lead?                  @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  @@map("desain_timelines")
+}
+
+model DesignReport {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt?
+  bulan      Int?
+  tahun      Int?
+  data       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("design_reports")
+}
+
+model FinanceReport {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt?
+  bulan      Int?
+  tahun      Int?
+  data       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("finance_reports")
+}
+
+model FollowUpClient {
+  id             BigInt    @id @default(autoincrement())
+  lead_id        BigInt
+  user_id        BigInt?
+  tanggal        DateTime? @db.Date
+  catatan        String?
+  next_follow_up DateTime? @db.Date
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  lead          Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user          User?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("follow_up_clients")
+}
+
+model GajiTukangItem {
+  id              BigInt          @id @default(autoincrement())
+  gaji_tukang_id  BigInt
+  tukang_id       BigInt?
+  tukang_name     String?         @db.VarChar(255)
+  hari_kerja      Int             @default(0)
+  daily_rate      Decimal         @default(0) @db.Decimal(15, 2)
+  kasbon_dipotong Decimal         @default(0) @db.Decimal(15, 2)
+  subtotal        Decimal         @default(0) @db.Decimal(15, 2)
+  created_at      DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime        @default(now()) @db.Timestamptz(6)
+  gaji_tukang     GajiTukang      @relation(fields: [gaji_tukang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tukang_reg      TukangRegistry? @relation(fields: [tukang_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  @@map("gaji_tukang_items")
+}
+
+model GajiTukang {
+  id                     BigInt                  @id @default(autoincrement())
+  adm_finance_project_id BigInt?
+  bulan                  Int?
+  tahun                  Int?
+  tanggal_mulai          DateTime?               @db.Date
+  tanggal_selesai        DateTime?               @db.Date
+  total_hari_kerja       Int                     @default(0)
+  total_gaji             Decimal                 @default(0) @db.Decimal(15, 2)
+  created_by             BigInt?
+  af_signed_by           BigInt?
+  af_signed_at           DateTime?               @db.Timestamptz(6)
+  af_signature           String?                 @db.Text
+  hf_signed_by           BigInt?
+  hf_signed_at           DateTime?               @db.Timestamptz(6)
+  hf_signature           String?                 @db.Text
+  created_at             DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                @default(now()) @db.Timestamptz(6)
+  items               GajiTukangItem[]
+  adm_finance_project AdmFinanceProject?      @relation(fields: [adm_finance_project_id], references: [id], onUpdate: NoAction)
+  creator             User?                   @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  kwitansis           KwitansiGajiTukang[]
+  @@map("gaji_tukangs")
+}
+
+model InvoiceItem {
+  id          BigInt   @id @default(autoincrement())
+  invoice_id  BigInt
+  description String?
+  quantity    Decimal  @default(1) @db.Decimal(15, 3)
+  unit_price  Decimal  @default(0) @db.Decimal(15, 2)
+  subtotal    Decimal  @default(0) @db.Decimal(15, 2)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  invoices    Invoice @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("invoice_items")
+}
+
+model Invoice {
+  id                                BigInt          @id @default(autoincrement())
+  lead_id                           BigInt?
+  invoice_number                    String?         @db.VarChar(100)
+  tanggal                           DateTime?       @db.Date
+  catatan                           String?
+  ppn_percentage                    Decimal         @default(0) @db.Decimal(5, 2)
+  subtotal                          Decimal         @default(0) @db.Decimal(15, 2)
+  ppn_amount                        Decimal         @default(0) @db.Decimal(15, 2)
+  grand_total                       Decimal         @default(0) @db.Decimal(15, 2)
+  status                            String          @default("draft") @db.VarChar(50)
+  approved_by                       BigInt?
+  approved_at                       DateTime?       @db.Timestamptz(6)
+  signature_path                    String?         @db.VarChar(500)
+  rejection_note                    String?
+  created_by                        BigInt?
+  head_finance_id                   BigInt?
+  head_finance_at                   DateTime?       @db.Timestamptz(6)
+  head_finance_signature            String?         @db.Text
+  admin_finance_id                  BigInt?
+  admin_finance_at                  DateTime?       @db.Timestamptz(6)
+  admin_finance_signature           String?         @db.Text
+  created_at                        DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at                        DateTime        @default(now()) @db.Timestamptz(6)
+  items                     InvoiceItem[]
+  approver      User?  @relation("invoices_approved_byTousers", fields: [approved_by], references: [id], onUpdate: NoAction)
+  creator       User?  @relation("invoices_created_byTousers", fields: [created_by], references: [id], onUpdate: NoAction)
+  head_finance  User?  @relation("invoices_head_financeTousers", fields: [head_finance_id], references: [id], onUpdate: NoAction)
+  admin_finance User?  @relation("invoices_admin_financeTousers", fields: [admin_finance_id], references: [id], onUpdate: NoAction)
+  lead                             Lead?          @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  kwitansi                         Kwitansi?
+  @@map("invoices")
+}
+
+model KanbanCardLabel {
+  kanban_card_id  BigInt
+  kanban_label_id BigInt
+  kanban_cards    KanbanCard  @relation(fields: [kanban_card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  kanban_labels   KanbanLabel @relation(fields: [kanban_label_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([kanban_card_id, kanban_label_id])
+  @@map("kanban_card_labels")
+}
+
+model KanbanCard {
+  id                 BigInt               @id @default(autoincrement())
+  column_id          BigInt
+  title              String
+  description        String?
+  assigned_user_id   BigInt?
+  deadline           DateTime?            @db.Date
+  urutan             Int                  @default(0)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  color              String?              @db.VarChar(50)
+  kanban_card_labels KanbanCardLabel[]
+  assigned_user              User?               @relation(fields: [assigned_user_id], references: [id], onUpdate: NoAction)
+  kanban_columns     KanbanColumn       @relation(fields: [column_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  comments    KanbanComment[]
+  labels      KanbanLabel[]
+
+  @@index([column_id], map: "idx_kanban_cards_column")
+  @@index([assigned_user_id], map: "idx_kanban_cards_user")
+  @@map("kanban_cards")
+}
+
+model KanbanColumn {
+  id           BigInt         @id @default(autoincrement())
+  title        String         @db.VarChar(255)
+  urutan       Int            @default(0)
+  created_at   DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime       @default(now()) @db.Timestamptz(6)
+  color        String?        @default("#e2e8f0") @db.VarChar(50)
+  cards KanbanCard[]
+  @@map("kanban_columns")
+}
+
+model KanbanComment {
+  id           BigInt       @id @default(autoincrement())
+  card_id      BigInt
+  user_id      BigInt?
+  comment      String
+  created_at   DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime     @default(now()) @db.Timestamptz(6)
+  kanban_cards KanbanCard @relation(fields: [card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users        User?       @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("kanban_comments")
+}
+
+model KanbanLabel {
+  id                 BigInt               @id @default(autoincrement())
+  card_id            BigInt
+  label_name         String?              @db.VarChar(100)
+  color              String?              @db.VarChar(50)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  kanban_card_labels KanbanCardLabel[]
+  kanban_cards       KanbanCard         @relation(fields: [card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("kanban_labels")
+}
+
+model KategoriBarang {
+  id         BigInt    @id @default(autoincrement())
+  nama       String    @db.VarChar(255)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime  @default(now()) @db.Timestamptz(6)
+  barangs    Barang[]
+  @@map("kategori_barangs")
+}
+
+model KwitansiGajiTukang {
+  id                 BigInt          @id @default(autoincrement())
+  gaji_tukang_id     BigInt?
+  tukang_id          BigInt?
+  tukang_name        String?         @db.VarChar(255)
+  jumlah_gaji        Decimal         @default(0) @db.Decimal(15, 2)
+  kasbon_dipotong    Decimal         @default(0) @db.Decimal(15, 2)
+  tanggal_pembayaran DateTime?       @db.Date
+  penerima           String?         @db.VarChar(255)
+  created_at         DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime        @default(now()) @db.Timestamptz(6)
+  gaji_tukang        GajiTukang?     @relation(fields: [gaji_tukang_id], references: [id], onUpdate: NoAction)
+  tukang_reg         TukangRegistry? @relation(fields: [tukang_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  @@map("kwitansi_gaji_tukangs")
+}
+
+model TukangRegistry {
+  id                     BigInt            @id @default(autoincrement())
+  adm_finance_project_id BigInt
+  nama                   String            @db.VarChar(255)
+  jabatan                String?           @db.VarChar(100)
+  upah_harian            Decimal           @default(0) @db.Decimal(15, 2)
+  user_id                BigInt?
+  is_active              Boolean           @default(true)
+  created_at             DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime          @default(now()) @db.Timestamptz(6)
+  adm_finance_project    AdmFinanceProject @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user                   User?             @relation("tukang_registry_user", fields: [user_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  absen_fotos            TukangAbsenFoto[]
+  cashbounds             TukangCashbound[]
+  gaji_items             GajiTukangItem[]
+  kwitansi_items         KwitansiGajiTukang[]
+  @@map("tukang_registries")
+}
+
+model TukangAbsenFoto {
+  id             BigInt          @id @default(autoincrement())
+  tukang_id      BigInt
+  tanggal        DateTime        @db.Date
+  foto           String?         @db.Text
+  foto_timestamp DateTime?       @db.Timestamptz(6)
+  status         String          @default("Pending") @db.VarChar(50)
+  approved_by    BigInt?
+  approved_at    DateTime?       @db.Timestamptz(6)
+  catatan        String?
+  created_by     BigInt?
+  created_at     DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime        @default(now()) @db.Timestamptz(6)
+  tukang         TukangRegistry  @relation(fields: [tukang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  approver       User?           @relation("absen_foto_approver", fields: [approved_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  creator        User?           @relation("absen_foto_creator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  @@map("tukang_absen_fotos")
+}
+
+model TukangCashbound {
+  id             BigInt         @id @default(autoincrement())
+  tukang_id      BigInt
+  jumlah           Decimal        @db.Decimal(15, 2)
+  jumlah_dipotong  Decimal        @default(0) @db.Decimal(15, 2)
+  catatan          String?
+  tanggal          DateTime       @db.Date
+  sudah_dipotong   Boolean        @default(false)
+  created_at     DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
+  tukang         TukangRegistry @relation(fields: [tukang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("tukang_cashbounds")
+}
+
+model Kwitansi {
+  id              BigInt    @id @default(autoincrement())
+  invoice_id      BigInt?   @unique
+  nomor_kwitansi  String?   @db.VarChar(100)
+  tanggal         DateTime? @db.Date
+  jumlah_diterima Decimal   @default(0) @db.Decimal(15, 2)
+  penerima        String?   @db.VarChar(255)
+  keterangan      String?
+  metode_bayar    String?   @db.VarChar(100)
+  detail_bayar    String?   @db.VarChar(255)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  invoice        Invoice? @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("kwitansis")
+}
+
+model LampiranTermin {
+  id            BigInt   @id @default(autoincrement())
+  termin_id     BigInt
+  file_path     String?  @db.VarChar(500)
+  original_name String?  @db.VarChar(255)
+  created_at    DateTime @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime @default(now()) @db.Timestamptz(6)
+  termin       Termin  @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("lampiran_termins")
+}
+
+model LaporanHarian {
+  id              BigInt   @id @default(autoincrement())
+  user_id         BigInt?
+  modul           String   @db.VarChar(100)
+  kegiatan        String
+  kendala         String?
+  created_at      DateTime @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+  tanggal_mulai   DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
+  tanggal_selesai DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
+  user           User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([modul], map: "idx_laporan_harians_modul")
+  @@map("laporan_harians")
+}
+
+model Lead {
+  id                                    BigInt                  @id @default(autoincrement())
+  user_id                               BigInt?
+  nama                                  String                  @db.VarChar(255)
+  nomor_telepon                         String?                 @db.VarChar(50)
+  alamat                                String?
+  sumber_leads                          String?                 @db.VarChar(100)
+  keterangan                            String?
+  jenis                                 String?                 @db.VarChar(50)
+  week                                  Int?
+  status                                String?                 @default("Low") @db.VarChar(50)
+  tipe                                  String?                 @db.VarChar(50)
+  bulan                                 Int?
+  tahun                                 Int?
+  rencana_survey                        String?                 @default("Tidak") @db.VarChar(10)
+  tanggal_survey                        DateTime?               @db.Date
+  pic_survey                            String?                 @db.VarChar(255)
+  survey_approval_status                String?                 @db.VarChar(50)
+  survey_approved_by                    BigInt?
+  survey_approved_at                    DateTime?               @db.Timestamptz(6)
+  foto_survey                           String?                 @db.Text
+  created_at                            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at                            DateTime                @default(now()) @db.Timestamptz(6)
+  jam_survey                            String?                 @db.VarChar(10)
+  modul                                 String?                 @db.VarChar(50)
+  adm_finance_projects                  AdmFinanceProject[]
+  administrasi_kantors                  AdministrasiKantor[]
+  desain_timelines                      DesainTimeline[]
+  interior_timelines                    InteriorTimeline[]
+  follow_ups                     FollowUpClient[]
+  invoices                              Invoice[]
+  survey_approver User?                  @relation("leads_survey_approved_byTousers", fields: [survey_approved_by], references: [id], onUpdate: NoAction)
+  user            User?                  @relation("leads_user_idTousers", fields: [user_id], references: [id], onUpdate: NoAction)
+  proyek_berjalans                      ProyekBerjalan[]
+  proyek_interiors                      ProyekInterior[]
+  sales_kanban_cards                    SalesKanbanCard[]
+  stock_opname_projects                 StockOpnameProject[]
+  admin_kanban_cards                    AdminKanbanCard[]
+  telemarketing_kanban_cards            TelemarketingKanbanCard[]
+
+  @@index([bulan, tahun], map: "idx_leads_bulan_tahun")
+  @@index([status], map: "idx_leads_status")
+  @@index([tipe], map: "idx_leads_tipe")
+  @@index([user_id], map: "idx_leads_user_id")
+  @@index([modul], map: "ix_leads_modul")
+  @@map("leads")
+}
+
+model LeadsReport {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt?
+  bulan      Int?
+  tahun      Int?
+  data       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("leads_reports")
+}
+
+model MetaAdsCampaign {
+  id                    BigInt                  @id @default(autoincrement())
+  meta_campaign_id      String?                 @db.VarChar(100)
+  meta_adset_id         String?                 @db.VarChar(100)
+  meta_ad_id            String?                 @unique @db.VarChar(100)
+  campaign_name         String?                 @db.VarChar(255)
+  ad_name               String?                 @db.VarChar(255)
+  platform              String                  @default("Meta") @db.VarChar(50)
+  status                String                  @default("aktif") @db.VarChar(50)
+  start_date            DateTime?               @db.Date
+  end_date              DateTime?               @db.Date
+  daily_budget          Decimal                 @default(0) @db.Decimal(15, 2)
+  total_budget          Decimal                 @default(0) @db.Decimal(15, 2)
+  content_type          String?                 @db.VarChar(100)
+  content_description   String?
+  thumbnail             String?                 @db.VarChar(500)
+  data_source           String                  @default("manual") @db.VarChar(50)
+  last_synced_at        DateTime?               @db.Timestamptz(6)
+  created_by            BigInt?
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  content_metrics    AdContentMetric[]
+  creator                 User?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  chat_metrics WhatsappChatMetric[]
+  @@map("meta_ads_campaigns")
+}
+
+model Notification {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type            String    @db.VarChar(255)
+  notifiable_type String    @db.VarChar(255)
+  notifiable_id   BigInt
+  data            Json
+  read_at         DateTime? @db.Timestamptz(6)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([notifiable_type, notifiable_id], map: "idx_notifications_notifiable")
+  @@map("notifications")
+}
+
+model Permission {
+  id               BigInt             @id @default(autoincrement())
+  name             String             @unique @db.VarChar(100)
+  module           String             @db.VarChar(50)
+  label            String             @db.VarChar(255)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  role_permissions RolePermission[]
+  @@map("permissions")
+}
+
+model PicProjectReport {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt?
+  bulan      Int?
+  tahun      Int?
+  data       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("pic_project_reports")
+}
+
+model ProjectDocument {
+  id                BigInt   @id @default(autoincrement())
+  documentable_type String   @db.VarChar(100)
+  documentable_id   BigInt
+  file_path         String?  @db.VarChar(500)
+  original_name     String?  @db.VarChar(255)
+  uploaded_by       BigInt?
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+  users             User?   @relation(fields: [uploaded_by], references: [id], onUpdate: NoAction)
+
+  @@index([documentable_type, documentable_id], map: "idx_project_documents_documentable")
+  @@map("project_documents")
+}
+
+model ProjectLink {
+  id               BigInt   @id @default(autoincrement())
+  linkable_type    String   @db.VarChar(100)
+  linkable_id      BigInt
+  title            String   @db.VarChar(255)
+  url              String   @db.VarChar(1000)
+  catatan          String?  @db.Text
+  created_by       BigInt?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  users            User?    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+
+  @@index([linkable_type, linkable_id], map: "idx_project_links_linkable")
+  @@map("project_links")
+}
+
+model SipilUsageLog {
+  id            BigInt         @id @default(autoincrement())
+  proyek_id     BigInt
+  item_ref_type String         @db.VarChar(50)
+  item_ref_id   BigInt
+  item_nama     String         @db.VarChar(500)
+  item_satuan   String?        @db.VarChar(100)
+  qty_pakai     Decimal        @db.Decimal(15, 4)
+  tanggal       DateTime       @db.Date
+  catatan       String?        @db.Text
+  created_by    BigInt?
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  proyek        ProyekBerjalan @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator       User?          @relation("sipil_usage_log_creator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  @@index([proyek_id, tanggal], map: "idx_sipil_usage_logs_proyek")
+  @@map("sipil_usage_logs")
+}
+
+model Projek {
+  id              BigInt        @id @default(autoincrement())
+  nama            String        @db.VarChar(255)
+  tanggal_mulai   DateTime?     @db.Date
+  tanggal_selesai DateTime?     @db.Date
+  pic_user_id     BigInt?
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime      @default(now()) @db.Timestamptz(6)
+  bon_harians     BonHarian[]
+  pic           User?        @relation(fields: [pic_user_id], references: [id], onUpdate: NoAction)
+  termins         Termin[]
+  @@map("projeks")
+}
+
+model ProyekBerjalanTask {
+  id                      BigInt                  @id @default(autoincrement())
+  termin_id               BigInt
+  nama_pekerjaan          String?                 @db.VarChar(255)
+  tanggal_mulai           DateTime?               @db.Date
+  tanggal_selesai         DateTime?               @db.Date
+  status                  String                  @default("Belum Mulai") @db.VarChar(50)
+  assigned_to             BigInt?
+  created_at              DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                @default(now()) @db.Timestamptz(6)
+  assigned_user                   User?                  @relation(fields: [assigned_to], references: [id], onUpdate: NoAction)
+  termin ProyekBerjalanTermin @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tanggal_selesai], map: "idx_pb_tasks_deadline")
+  @@index([status], map: "idx_pb_tasks_status")
+  @@index([termin_id], map: "idx_pb_tasks_termin")
+  @@map("proyek_berjalan_tasks")
+}
+
+model ProyekBerjalanTermin {
+  id                    BigInt                  @id @default(autoincrement())
+  proyek_berjalan_id    BigInt
+  urutan                Int                     @default(0)
+  nama                  String?                 @db.VarChar(255)
+  tanggal_mulai         DateTime?               @db.Date
+  tanggal_selesai       DateTime?               @db.Date
+  rab                   Decimal                 @default(0) @db.Decimal(15, 2)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  tasks                       ProyekBerjalanTask[]
+  rapp_material_kategoris     RappMaterialKategori[]
+  rapp_sipil_items            RappSipilItem[]
+  rapp_vendor_kategoris       RappVendorKategori[]
+  proyek_berjalan      ProyekBerjalan        @relation(fields: [proyek_berjalan_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("proyek_berjalan_termins")
+}
+
+model RappMaterialKategori {
+  id          BigInt               @id @default(autoincrement())
+  termin_id   BigInt
+  kode        String?              @db.VarChar(10)
+  nama        String               @db.VarChar(255)
+  urutan      Int                  @default(0)
+  created_at  DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime             @default(now()) @db.Timestamptz(6)
+  items       RappMaterialItem[]
+  termin      ProyekBerjalanTermin @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_material_kategoris")
+}
+
+model RappMaterialItem {
+  id            BigInt               @id @default(autoincrement())
+  kategori_id   BigInt
+  material      String               @db.VarChar(500)
+  vol           Decimal              @default(0) @db.Decimal(15, 4)
+  sat           String?              @db.VarChar(50)
+  harga_satuan  Decimal              @default(0) @db.Decimal(15, 2)
+  jumlah        Decimal              @default(0) @db.Decimal(15, 2)
+  urutan        Int                  @default(0)
+  created_at    DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime             @default(now()) @db.Timestamptz(6)
+  kategori      RappMaterialKategori @relation(fields: [kategori_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_material_items")
+}
+
+model RappSipilItem {
+  id            BigInt               @id @default(autoincrement())
+  termin_id     BigInt
+  nama          String               @db.VarChar(500)
+  vol           Decimal?             @db.Decimal(15, 4)
+  sat           String?              @db.VarChar(50)
+  harga_satuan  Decimal?             @db.Decimal(15, 2)
+  keterangan    String?              @db.VarChar(500)
+  jumlah        Decimal              @default(0) @db.Decimal(15, 2)
+  urutan        Int                  @default(0)
+  created_at    DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime             @default(now()) @db.Timestamptz(6)
+  termin        ProyekBerjalanTermin @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_sipil_items")
+}
+
+model RappVendorKategori {
+  id          BigInt               @id @default(autoincrement())
+  termin_id   BigInt
+  nama        String               @db.VarChar(255)
+  urutan      Int                  @default(0)
+  created_at  DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime             @default(now()) @db.Timestamptz(6)
+  items       RappVendorItem[]
+  termin      ProyekBerjalanTermin @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_vendor_kategoris")
+}
+
+model RappVendorItem {
+  id            BigInt             @id @default(autoincrement())
+  kategori_id   BigInt
+  nama          String             @db.VarChar(500)
+  vol           Decimal            @default(0) @db.Decimal(15, 4)
+  sat           String?            @db.VarChar(50)
+  harga_satuan  Decimal            @default(0) @db.Decimal(15, 2)
+  jumlah        Decimal            @default(0) @db.Decimal(15, 2)
+  urutan        Int                @default(0)
+  created_at    DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime           @default(now()) @db.Timestamptz(6)
+  kategori      RappVendorKategori @relation(fields: [kategori_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_vendor_items")
+}
+
+model ProyekBerjalan {
+  id                      BigInt                    @id @default(autoincrement())
+  nama_proyek             String?                   @db.VarChar(255)
+  adm_finance_projects    AdmFinanceProject[]
+  lead_id                 BigInt?
+  lokasi                  String?
+  nilai_rab               Decimal                   @default(0) @db.Decimal(15, 2)
+  tanggal_mulai           DateTime?                 @db.Date
+  tanggal_selesai         DateTime?                 @db.Date
+  created_by              BigInt?
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  termins ProyekBerjalanTermin[]
+  sipil_usage_logs SipilUsageLog[]
+  pic                   User?                    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  lead                   Lead?                    @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  @@map("proyek_berjalans")
+}
+
+model ProyekInteriorTask {
+  id                      BigInt                  @id @default(autoincrement())
+  termin_id               BigInt
+  nama_pekerjaan          String?                 @db.VarChar(255)
+  assigned_to             BigInt?
+  tanggal_mulai           DateTime?               @db.Date
+  tanggal_selesai         DateTime?               @db.Date
+  status                  String                  @default("Belum Mulai") @db.VarChar(50)
+  created_at              DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                @default(now()) @db.Timestamptz(6)
+  assigned_user                   User?                  @relation(fields: [assigned_to], references: [id], onUpdate: NoAction)
+  termin ProyekInteriorTermin @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("proyek_interior_tasks")
+}
+
+model ProyekInteriorTermin {
+  id                    BigInt                  @id @default(autoincrement())
+  proyek_interior_id    BigInt
+  urutan                Int                     @default(0)
+  nama                  String?                 @db.VarChar(255)
+  tanggal_mulai         DateTime?               @db.Date
+  tanggal_selesai       DateTime?               @db.Date
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  tasks                       ProyekInteriorTask[]
+  rapp_material_kategoris     RappInteriorMaterialKategori[]
+  rapp_sipil_items            RappInteriorSipilItem[]
+  rapp_vendor_kategoris       RappInteriorVendorKategori[]
+  proyek_interior             ProyekInterior        @relation(fields: [proyek_interior_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("proyek_interior_termins")
+}
+
+model ProyekInterior {
+  id                      BigInt                    @id @default(autoincrement())
+  nama_proyek             String?                   @db.VarChar(255)
+  lead_id                 BigInt?
+  lokasi                  String?
+  budget                  Decimal                   @default(0) @db.Decimal(15, 2)
+  tanggal_mulai           DateTime?                 @db.Date
+  tanggal_selesai         DateTime?                 @db.Date
+  created_by              BigInt?
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  termins                 ProyekInteriorTermin[]
+  rapp_material_kategoris RappInteriorMaterialKategori[]
+  rapp_sipil_items        RappInteriorSipilItem[]
+  rapp_vendor_kategoris   RappInteriorVendorKategori[]
+  pic                     User?                    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  lead                    Lead?                    @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  @@map("proyek_interiors")
+}
+
+model RappInteriorMaterialKategori {
+  id          BigInt                         @id @default(autoincrement())
+  proyek_id   BigInt
+  termin_id   BigInt
+  kode        String?                        @db.VarChar(10)
+  nama        String                         @db.VarChar(255)
+  urutan      Int                            @default(0)
+  created_at  DateTime                       @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime                       @default(now()) @db.Timestamptz(6)
+  items       RappInteriorMaterialItem[]
+  proyek      ProyekInterior                 @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  termin      ProyekInteriorTermin           @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_interior_material_kategoris")
+}
+
+model RappInteriorMaterialItem {
+  id            BigInt                       @id @default(autoincrement())
+  kategori_id   BigInt
+  material      String                       @db.VarChar(500)
+  vol           Decimal                      @default(0) @db.Decimal(15, 4)
+  sat           String?                      @db.VarChar(50)
+  harga_satuan  Decimal                      @default(0) @db.Decimal(15, 2)
+  jumlah        Decimal                      @default(0) @db.Decimal(15, 2)
+  urutan        Int                          @default(0)
+  created_at    DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime                     @default(now()) @db.Timestamptz(6)
+  kategori      RappInteriorMaterialKategori @relation(fields: [kategori_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_interior_material_items")
+}
+
+model RappInteriorSipilItem {
+  id            BigInt               @id @default(autoincrement())
+  proyek_id     BigInt
+  termin_id     BigInt
+  nama          String               @db.VarChar(500)
+  vol           Decimal              @default(0) @db.Decimal(15, 4)
+  sat           String?              @db.VarChar(50)
+  harga_satuan  Decimal              @default(0) @db.Decimal(15, 2)
+  jumlah        Decimal              @default(0) @db.Decimal(15, 2)
+  urutan        Int                  @default(0)
+  created_at    DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime             @default(now()) @db.Timestamptz(6)
+  proyek        ProyekInterior       @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  termin        ProyekInteriorTermin @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_interior_sipil_items")
+}
+
+model RappInteriorVendorKategori {
+  id          BigInt                       @id @default(autoincrement())
+  proyek_id   BigInt
+  termin_id   BigInt
+  nama        String                       @db.VarChar(255)
+  urutan      Int                          @default(0)
+  created_at  DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime                     @default(now()) @db.Timestamptz(6)
+  items       RappInteriorVendorItem[]
+  proyek      ProyekInterior               @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  termin      ProyekInteriorTermin         @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_interior_vendor_kategoris")
+}
+
+model RappInteriorVendorItem {
+  id            BigInt                     @id @default(autoincrement())
+  kategori_id   BigInt
+  vendor        String                     @db.VarChar(500)
+  vol           Decimal                    @default(0) @db.Decimal(15, 4)
+  sat           String?                    @db.VarChar(50)
+  harga_satuan  Decimal                    @default(0) @db.Decimal(15, 2)
+  jumlah        Decimal                    @default(0) @db.Decimal(15, 2)
+  urutan        Int                        @default(0)
+  created_at    DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at    DateTime                   @default(now()) @db.Timestamptz(6)
+  kategori      RappInteriorVendorKategori @relation(fields: [kategori_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("rapp_interior_vendor_items")
+}
+
+model FonteeReminderRule {
+  id           BigInt   @id @default(autoincrement())
+  feature      String   @db.VarChar(100)
+  label        String   @db.VarChar(255)
+  days_before  Int      @default(3)
+  is_active    Boolean  @default(true)
+  role_ids     BigInt[]
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  @@map("fontee_reminder_rules")
+}
+
+model RolePermission {
+  role_id       BigInt
+  permission_id BigInt
+  permission   Permission @relation(fields: [permission_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  role         Role       @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([role_id, permission_id])
+  @@map("role_permissions")
+}
+
+model Role {
+  id               BigInt             @id @default(autoincrement())
+  name             String             @unique @db.VarChar(100)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  permissions RolePermission[]
+  users       UserRole[]
+  @@map("roles")
+}
+
+model SalesKanbanCard {
+  id                    BigInt                  @id @default(autoincrement())
+  column_id             BigInt
+  lead_id               BigInt?
+  tipe_pekerjaan        String?                 @db.VarChar(100)
+  title                 String
+  description           String?
+  assigned_user_id      BigInt?
+  deadline              DateTime?               @db.Date
+  projeksi_sales        Decimal?                @db.Decimal(15, 2)
+  urutan                Int                     @default(0)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  color                 String?                 @db.VarChar(50)
+  assigned_user                 User?                  @relation(fields: [assigned_user_id], references: [id], onUpdate: NoAction)
+  column  SalesKanbanColumn    @relation(fields: [column_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lead                 Lead?                  @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  comments SalesKanbanComment[]
+  labels   SalesKanbanLabel[]
+
+  @@index([column_id], map: "idx_sales_kanban_cards_column")
+  @@map("sales_kanban_cards")
+}
+
+model SalesKanbanColumn {
+  id                 BigInt               @id @default(autoincrement())
+  title              String               @db.VarChar(255)
+  urutan             Int                  @default(0)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  color              String?              @default("#e2e8f0") @db.VarChar(50)
+  cards SalesKanbanCard[]
+  @@map("sales_kanban_columns")
+}
+
+model SalesKanbanComment {
+  id                 BigInt             @id @default(autoincrement())
+  card_id            BigInt
+  user_id            BigInt?
+  comment            String
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime           @default(now()) @db.Timestamptz(6)
+  card SalesKanbanCard @relation(fields: [card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user              User?             @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("sales_kanban_comments")
+}
+
+model SalesKanbanLabel {
+  id                 BigInt             @id @default(autoincrement())
+  card_id            BigInt
+  label_name         String?            @db.VarChar(100)
+  color              String?            @db.VarChar(50)
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime           @default(now()) @db.Timestamptz(6)
+  card SalesKanbanCard @relation(fields: [card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("sales_kanban_labels")
+}
+
+model SalesReport {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt?
+  bulan      Int?
+  tahun      Int?
+  data       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("sales_reports")
+}
+
+model Session {
+  id            String  @id @db.VarChar(255)
+  user_id       BigInt?
+  ip_address    String? @db.VarChar(45)
+  user_agent    String?
+  payload       String
+  last_activity Int
+  user         User?  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("sessions")
+}
+
+model SocialMediaAccount {
+  id                         BigInt                 @id @default(autoincrement())
+  platform                   String                 @db.VarChar(50)
+  account_name               String?                @db.VarChar(255)
+  username                   String?                @db.VarChar(255)
+  profile_url                String?                @db.VarChar(500)
+  tiktok_access_token        String?
+  tiktok_refresh_token       String?
+  tiktok_open_id             String?                @db.VarChar(255)
+  tiktok_token_expires_at    DateTime?              @db.Timestamptz(6)
+  instagram_access_token     String?
+  instagram_user_id          String?                @db.VarChar(100)
+  instagram_page_id          String?                @db.VarChar(100)
+  instagram_token_expires_at DateTime?              @db.Timestamptz(6)
+  youtube_channel_id         String?                @db.VarChar(100)
+  youtube_access_token       String?
+  youtube_refresh_token      String?
+  youtube_token_expires_at   DateTime?              @db.Timestamptz(6)
+  is_active                  Boolean                @default(true)
+  last_synced_at             DateTime?              @db.Timestamptz(6)
+  created_at                 DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at                 DateTime               @default(now()) @db.Timestamptz(6)
+  social_media_metrics       SocialMediaMetric[]
+  post_metrics               SocialMediaPostMetric[]
+  @@map("social_media_accounts")
+}
+
+model SocialMediaMetric {
+  id                      BigInt                @id @default(autoincrement())
+  social_media_account_id BigInt
+  date                    DateTime              @db.Date
+  followers               BigInt                @default(0)
+  posts_count             Int                   @default(0)
+  likes                   Int                   @default(0)
+  comments                Int                   @default(0)
+  ig_reach                Int                   @default(0)
+  ig_impressions          Int                   @default(0)
+  ig_saves                Int                   @default(0)
+  ig_shares               Int                   @default(0)
+  ig_story_views          Int                   @default(0)
+  tiktok_views            BigInt                @default(0)
+  tiktok_likes            Int                   @default(0)
+  tiktok_followers        BigInt                @default(0)
+  youtube_subscribers     BigInt                @default(0)
+  youtube_views           BigInt                @default(0)
+  created_at              DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime              @default(now()) @db.Timestamptz(6)
+  social_media_accounts   SocialMediaAccount @relation(fields: [social_media_account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([social_media_account_id, date])
+  @@index([social_media_account_id], map: "idx_social_media_metrics_account")
+  @@index([date], map: "idx_social_media_metrics_date")
+  @@map("social_media_metrics")
+}
+
+// Per-post/per-content metrics (manual entry or API sync)
+model SocialMediaPostMetric {
+  id                 BigInt             @id @default(autoincrement())
+  account_id         BigInt
+  judul_konten       String?            @db.VarChar(255)
+  link_konten        String?            @db.VarChar(500)
+  post_id_platform   String?            @db.VarChar(255)
+  tanggal            DateTime           @db.Date
+  views              BigInt             @default(0)
+  likes              Int                @default(0)
+  comments           Int                @default(0)
+  shares             Int                @default(0)
+  saves              Int                @default(0)
+  reach              BigInt             @default(0)
+  watch_time_minutes Decimal?           @db.Decimal(10, 2)
+  engagement_rate    Decimal?           @db.Decimal(10, 4)
+  data_source        String             @default("manual") @db.VarChar(50)
+  created_at         DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime           @default(now()) @db.Timestamptz(6)
+  account            SocialMediaAccount @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@index([account_id])
+  @@index([tanggal])
+  @@map("social_media_post_metrics")
+}
+
+// Global monthly targets per platform (not per-account)
+model SocialMediaTarget {
+  id                        BigInt   @id @default(autoincrement())
+  platform                  String   @db.VarChar(50)   // INSTAGRAM | TIKTOK | YOUTUBE
+  bulan                     Int
+  tahun                     Int
+  target_views              BigInt   @default(0)
+  target_likes              Int      @default(0)
+  target_comments           Int      @default(0)
+  target_shares             Int      @default(0)
+  target_saves              Int      @default(0)
+  target_reach              BigInt   @default(0)
+  target_watch_time_minutes Decimal? @db.Decimal(10, 2)
+  target_engagement_rate    Decimal? @db.Decimal(10, 4)
+  created_at                DateTime @default(now()) @db.Timestamptz(6)
+  updated_at                DateTime @default(now()) @db.Timestamptz(6)
+  @@unique([platform, bulan, tahun])
+  @@index([bulan, tahun])
+  @@map("social_media_targets")
+}
+
+model StockOpnameProject {
+  id                   BigInt                 @id @default(autoincrement())
+  lead_id              BigInt?
+  nama_client          String?                @db.VarChar(255)
+  lokasi               String?
+  tanggal_mulai        DateTime?              @db.Date
+  tanggal_selesai      DateTime?              @db.Date
+  jumlah_termin        Int                    @default(0)
+  created_by           BigInt?
+  status               String                 @default("aktif") @db.VarChar(50)
+  created_at           DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime               @default(now()) @db.Timestamptz(6)
+  creator                User?                 @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  lead                Lead?                 @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  termins StockOpnameTermin[]
+  @@map("stock_opname_projects")
+}
+
+model StockOpnameRappItem {
+  id                       BigInt                     @id @default(autoincrement())
+  termin_id                BigInt
+  barang_id                BigInt?
+  nama_pekerjaan           String?                    @db.VarChar(255)
+  qty_rapp                 Decimal                    @default(0) @db.Decimal(15, 3)
+  qty_tersisa              Decimal                    @default(0) @db.Decimal(15, 3)
+  harga_manual             Decimal                    @default(0) @db.Decimal(15, 2)
+  total                    Decimal                    @default(0) @db.Decimal(15, 2)
+  budget                   Decimal                    @default(0) @db.Decimal(15, 2)
+  is_freeform              Boolean                    @default(false)
+  created_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime                   @default(now()) @db.Timestamptz(6)
+  barang                  Barang?                   @relation(fields: [barang_id], references: [id], onUpdate: NoAction)
+  termin     StockOpnameTermin       @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  usage_items StockOpnameUsageItem[]
+
+  @@index([termin_id], map: "idx_so_rapp_items_termin")
+  @@map("stock_opname_rapp_items")
+}
+
+model StockOpnameTermin {
+  id                      BigInt                    @id @default(autoincrement())
+  project_id              BigInt
+  termin_ke               Int
+  nama                    String?                   @db.VarChar(255)
+  status                  String                    @default("aktif") @db.VarChar(50)
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  rapp_items StockOpnameRappItem[]
+  project   StockOpnameProject     @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_so_termins_project")
+  @@map("stock_opname_termins")
+}
+
+model StockOpnameUsageItem {
+  id                      BigInt                  @id @default(autoincrement())
+  rapp_item_id            BigInt
+  tanggal_pakai           DateTime?               @db.Date
+  qty_dipakai             Decimal                 @default(0) @db.Decimal(15, 3)
+  catatan                 String?
+  created_by              BigInt?
+  created_at              DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                @default(now()) @db.Timestamptz(6)
+  creator                   User?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  rapp_item StockOpnameRappItem @relation(fields: [rapp_item_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([rapp_item_id], map: "idx_so_usage_items_rapp")
+  @@map("stock_opname_usage_items")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model StokWarehouse {
+  id             BigInt           @id @default(autoincrement())
+  warehouse_id   BigInt
+  barang_id      BigInt?
+  nama_barang    String?          @db.VarChar(255)
+  quantity       Decimal          @default(0) @db.Decimal(15, 3)
+  price          Decimal          @default(0) @db.Decimal(15, 2)
+  supplier       String?          @db.VarChar(255)
+  total_harga    Decimal          @default(0) @db.Decimal(15, 2)
+  satuan         String?          @db.VarChar(50)
+  is_custom      Boolean          @default(false)
+  created_at     DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime         @default(now()) @db.Timestamptz(6)
+  barang_termins BarangTermin[]
+  barang        Barang?         @relation(fields: [barang_id], references: [id], onUpdate: NoAction)
+  warehouse     Warehouse       @relation(fields: [warehouse_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("stok_warehouses")
+}
+
+model SuratJalanItem {
+  id             BigInt       @id @default(autoincrement())
+  surat_jalan_id BigInt
+  barang_id      BigInt?
+  nama_barang    String?      @db.VarChar(255)
+  description    String?      @db.VarChar(255)
+  qty            Decimal      @default(0) @db.Decimal(15, 3)
+  satuan         String?      @db.VarChar(50)
+  created_at     DateTime     @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime     @default(now()) @db.Timestamptz(6)
+  barang        Barang?     @relation(fields: [barang_id], references: [id], onUpdate: NoAction)
+  surat_jalan   SuratJalan @relation(fields: [surat_jalan_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("surat_jalan_items")
+}
+
+model SuratJalan {
+  id                     BigInt                @id @default(autoincrement())
+  adm_finance_project_id BigInt?
+  no_dokumen             String?               @db.VarChar(150)
+  nomor_surat            String?               @db.VarChar(100)
+  tanggal                DateTime?             @db.Date
+  penerima               String?               @db.VarChar(255)
+  no_telp                String?               @db.VarChar(50)
+  keterangan             String?
+  af_signature           String?               @db.Text
+  af_signed_at           DateTime?             @db.Timestamptz(6)
+  af_signed_by           BigInt?
+  af_name                String?               @db.VarChar(255)
+  created_by             BigInt?
+  created_at             DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime              @default(now()) @db.Timestamptz(6)
+  items      SuratJalanItem[]
+  adm_finance_project   AdmFinanceProject? @relation(fields: [adm_finance_project_id], references: [id], onUpdate: NoAction)
+  creator                  User?                @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  @@map("surat_jalans")
+}
+
+model TelemarketingReport {
+  id         BigInt   @id @default(autoincrement())
+  user_id    BigInt?
+  bulan      Int?
+  tahun      Int?
+  data       Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  users      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("telemarketing_reports")
+}
+
+model TerminHistory {
+  id         BigInt   @id @default(autoincrement())
+  termin_id  BigInt
+  user_id    BigInt?
+  action     String?  @db.VarChar(100)
+  old_values Json?
+  new_values Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  updated_at DateTime @default(now()) @db.Timestamptz(6)
+  termin    Termin  @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user      User?   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("termin_histories")
+}
+
+model Termin {
+  id               BigInt             @id @default(autoincrement())
+  projek_id        BigInt
+  nama             String             @db.VarChar(255)
+  tanggal_mulai    DateTime?          @db.Date
+  tanggal_selesai  DateTime?          @db.Date
+  status           String?            @db.VarChar(50)
+  lampiran         Json?
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  barang_termins   BarangTermin[]
+  lampiran_termins LampiranTermin[]
+  histories TerminHistory[]
+  projek          Projek            @relation(fields: [projek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([tanggal_selesai], map: "idx_termins_deadline")
+  @@index([projek_id], map: "idx_termins_projek")
+  @@map("termins")
+}
+
+model TransferItem {
+  id          BigInt    @id @default(autoincrement())
+  transfer_id BigInt
+  barang_id   BigInt?
+  qty         Decimal   @default(0) @db.Decimal(15, 3)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime  @default(now()) @db.Timestamptz(6)
+  barang     Barang?  @relation(fields: [barang_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  transfer   Transfer @relation(fields: [transfer_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("transfer_items")
+}
+
+model Transfer {
+  id                                                 BigInt           @id @default(autoincrement())
+  warehouse_from_id                                  BigInt
+  warehouse_to_id                                    BigInt
+  tanggal                                            DateTime?        @db.Date
+  status                                             String           @default("pending") @db.VarChar(50)
+  created_by                                         BigInt?
+  created_at                                         DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at                                         DateTime         @default(now()) @db.Timestamptz(6)
+  items                                     TransferItem[]
+  creator                                              User?           @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouse_from Warehouse       @relation("transfers_warehouse_from_idTowarehouses", fields: [warehouse_from_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  warehouse_to   Warehouse       @relation("transfers_warehouse_to_idTowarehouses", fields: [warehouse_to_id], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  @@map("transfers")
+}
+
+model UserRole {
+  user_id BigInt
+  role_id BigInt
+  role   Role  @relation(fields: [role_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user   User  @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, role_id])
+  @@map("user_roles")
+}
+
+model User {
+  id                                    BigInt                     @id @default(autoincrement())
+  name                                  String                     @db.VarChar(255)
+  email                                 String                     @unique @db.VarChar(255)
+  password                              String                     @db.VarChar(255)
+  whatsapp_number                       String?                    @db.VarChar(20)
+  email_verified_at                     DateTime?                  @db.Timestamptz(6)
+  remember_token                        String?                    @db.VarChar(100)
+  created_at                            DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at                            DateTime                   @default(now()) @db.Timestamptz(6)
+  absen_tukangs                         AbsenTukang[]
+  absen_fotos_approved                  TukangAbsenFoto[]   @relation("absen_foto_approver")
+  absen_fotos_created                   TukangAbsenFoto[]   @relation("absen_foto_creator")
+  tukang_registry_ref                   TukangRegistry[]    @relation("tukang_registry_user")
+  adm_finance_periodes                  AdmFinancePeriode[]
+  adm_finance_projects                  AdmFinanceProject[]
+  administrasi_kantors                  AdministrasiKantor[]
+  bd_reports                            BdReport[]
+  bon_harians                           BonHarian[]
+  content_creator_reports               ContentCreatorReport[]
+  content_timelines                     ContentTimeline[]
+  desain_timeline_items                 DesainTimelineItem[]
+  desain_timelines                      DesainTimeline[]
+  interior_timeline_items               InteriorTimelineItem[]
+  interior_timelines                    InteriorTimeline[]
+  design_reports                        DesignReport[]
+  finance_reports                       FinanceReport[]
+  follow_up_clients                     FollowUpClient[]
+  gaji_tukangs                          GajiTukang[]
+  invoices_invoices_approved_byTousers  Invoice[]                 @relation("invoices_approved_byTousers")
+  invoices_invoices_created_byTousers   Invoice[]                 @relation("invoices_created_byTousers")
+  invoices_head_finance                 Invoice[]                 @relation("invoices_head_financeTousers")
+  invoices_admin_finance                Invoice[]                 @relation("invoices_admin_financeTousers")
+  kanban_cards                          KanbanCard[]
+  kanban_comments                       KanbanComment[]
+  laporan_harians                       LaporanHarian[]
+  leads_leads_survey_approved_byTousers Lead[]                    @relation("leads_survey_approved_byTousers")
+  leads_leads_user_idTousers            Lead[]                    @relation("leads_user_idTousers")
+  leads_reports                         LeadsReport[]
+  meta_ads_campaigns                    MetaAdsCampaign[]
+  pic_project_reports                   PicProjectReport[]
+  project_documents                     ProjectDocument[]
+  project_links                         ProjectLink[]
+  sipil_usage_logs_created              SipilUsageLog[]             @relation("sipil_usage_log_creator")
+  projeks                               Projek[]
+  proyek_berjalan_tasks                 ProyekBerjalanTask[]
+  proyek_berjalans                      ProyekBerjalan[]
+  proyek_interior_tasks                 ProyekInteriorTask[]
+  proyek_interiors                      ProyekInterior[]
+  sales_kanban_cards                    SalesKanbanCard[]
+  sales_kanban_comments                 SalesKanbanComment[]
+  sales_reports                         SalesReport[]
+  sessions                              Session[]
+  stock_opname_projects                 StockOpnameProject[]
+  stock_opname_usage_items              StockOpnameUsageItem[]
+  surat_jalans                          SuratJalan[]
+  telemarketing_reports                 TelemarketingReport[]
+  termin_histories                      TerminHistory[]
+  transfers                             Transfer[]
+  roles                            UserRole[]
+  reimburses_as_karyawan           Reimburse[]              @relation("reimburse_karyawan")
+  reimburses_head_finance          Reimburse[]              @relation("reimburse_head_finance")
+  reimburses_admin_finance         Reimburse[]              @relation("reimburse_admin_finance")
+  reimburses_created               Reimburse[]              @relation("reimburse_creator")
+  whatsapp_reminder_logs                WhatsappReminderLog[]
+  admin_kanban_cards                    AdminKanbanCard[]
+  admin_kanban_comments                 AdminKanbanComment[]
+  telemarketing_kanban_cards            TelemarketingKanbanCard[]
+  telemarketing_kanban_comments         TelemarketingKanbanComment[]
+
+  @@index([email], map: "idx_users_email")
+  @@map("users")
+}
+
+model Warehouse {
+  id                                                BigInt            @id @default(autoincrement())
+  nama                                              String            @db.VarChar(255)
+  lokasi                                            String?
+  created_at                                        DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at                                        DateTime          @default(now()) @db.Timestamptz(6)
+  barang_termins                                    BarangTermin[]
+  stok                                   StokWarehouse[]
+  transfers_from Transfer[]       @relation("transfers_warehouse_from_idTowarehouses")
+  transfers_to   Transfer[]       @relation("transfers_warehouse_to_idTowarehouses")
+  @@map("warehouses")
+}
+
+model WhatsappChatMetric {
+  id                   BigInt             @id @default(autoincrement())
+  meta_ads_campaign_id BigInt
+  date                 DateTime           @db.Date
+  chats_received       Int                @default(0)
+  chats_responded      Int                @default(0)
+  response_rate        Decimal            @default(0) @db.Decimal(10, 4)
+  avg_response_time    Decimal            @default(0) @db.Decimal(10, 2)
+  total_conversions    Int                @default(0)
+  conversion_rate      Decimal            @default(0) @db.Decimal(10, 4)
+  created_at           DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime           @default(now()) @db.Timestamptz(6)
+  meta_ads_campaigns   MetaAdsCampaign @relation(fields: [meta_ads_campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([meta_ads_campaign_id, date])
+  @@index([meta_ads_campaign_id], map: "idx_whatsapp_chat_metrics_campaign")
+  @@map("whatsapp_chat_metrics")
+}
+
+model AdPlatformAccount {
+  id             BigInt    @id @default(autoincrement())
+  platform       String    @db.VarChar(50)
+  account_name   String    @db.VarChar(255)
+  app_id         String?   @db.VarChar(255)
+  app_secret     String?   @db.VarChar(500)
+  access_token   String?   @db.Text
+  pixel_id       String?   @db.VarChar(255)
+  ad_account_id  String?   @db.VarChar(255)
+  advertiser_id  String?   @db.VarChar(255)
+  is_active      Boolean   @default(true)
+  last_synced_at DateTime? @db.Timestamptz(6)
+  created_at     DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@map("ad_platform_accounts")
+}
+
+model AdMonthlyTarget {
+  id                 BigInt   @id @default(autoincrement())
+  platform           String   @db.VarChar(50)
+  bulan              Int
+  tahun              Int
+  target_spend       Decimal? @db.Decimal(15, 2)
+  target_impressions BigInt?
+  target_clicks      Int?
+  target_conversions Int?
+  target_ctr         Decimal? @db.Decimal(10, 4)
+  target_roas        Decimal? @db.Decimal(10, 4)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@unique([platform, bulan, tahun])
+  @@map("ad_monthly_targets")
+}
+
+model WhatsappReminderLog {
+  id              BigInt    @id @default(autoincrement())
+  remindable_type String    @db.VarChar(100)
+  remindable_id   BigInt
+  user_id         BigInt?
+  reminder_type   String?   @db.VarChar(100)
+  deadline_date   DateTime? @db.Date
+  message_sent    String?
+  status          String    @default("sent") @db.VarChar(50)
+  error_message   String?
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  users           User?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_wa_logs_created")
+  @@index([remindable_type, remindable_id], map: "idx_wa_logs_remindable")
+  @@index([user_id], map: "idx_wa_logs_user")
+  @@map("whatsapp_reminder_logs")
+}
+
+model WhatsappReminder {
+  id               BigInt    @id @default(autoincrement())
+  name             String    @db.VarChar(255)
+  source_type      String    @db.VarChar(100)
+  is_active        Boolean   @default(true)
+  deadline_filter  String    @default("upcoming") @db.VarChar(50)
+  deadline_days    Int       @default(3)
+  message_template String?
+  target_type      String    @default("task_owner") @db.VarChar(50)
+  target_role_ids  Json?
+  target_user_ids  Json?
+  filter_statuses  Json?
+  send_time        DateTime? @db.Time(6)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+  @@map("whatsapp_reminders")
+}
+
+// ─── Projek Administrasi – new tabs ──────────────────────────────────────────
+
+model ProjekCashflow {
+  id                     BigInt             @id @default(autoincrement())
+  adm_finance_project_id BigInt
+  adm_finance_termin_id  BigInt?
+  projek_pr_id           BigInt?
+  tanggal                DateTime           @db.Date
+  no_pr                  String?            @db.VarChar(100)
+  kode                   String?            @db.VarChar(50)
+  termin                 String?            @db.VarChar(50)
+  keterangan             String?
+  debit                  Decimal            @default(0) @db.Decimal(15, 2)
+  kredit                 Decimal            @default(0) @db.Decimal(15, 2)
+  nota_image             String?            @db.Text
+  created_at             DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime           @default(now()) @db.Timestamptz(6)
+  project                AdmFinanceProject  @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  termin_rel             AdmFinanceTermin?  @relation(fields: [adm_finance_termin_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  pr                     ProjekPR?          @relation(fields: [projek_pr_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  @@map("projek_cashflows")
+}
+
+model ProjekListMaterial {
+  id                     BigInt                   @id @default(autoincrement())
+  adm_finance_project_id BigInt
+  nama_toko              String                   @db.VarChar(255)
+  tanggal                DateTime?                @db.Date
+  total                  Decimal                  @default(0) @db.Decimal(15, 2)
+  created_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                 @default(now()) @db.Timestamptz(6)
+  project                AdmFinanceProject        @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  items                  ProjekListMaterialItem[]
+  @@map("projek_list_materials")
+}
+
+model ProjekListMaterialItem {
+  id               BigInt             @id @default(autoincrement())
+  list_material_id BigInt
+  nama_item        String             @db.VarChar(255)
+  qty              Decimal            @default(0) @db.Decimal(15, 3)
+  satuan           String?            @db.VarChar(50)
+  harga_satuan     Decimal            @default(0) @db.Decimal(15, 2)
+  jumlah           Decimal            @default(0) @db.Decimal(15, 2)
+  created_at       DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
+  list_material    ProjekListMaterial @relation(fields: [list_material_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("projek_list_material_items")
+}
+
+model ProjekPR {
+  id                     BigInt            @id @default(autoincrement())
+  adm_finance_project_id BigInt
+  nomor_pr               String?           @db.VarChar(100)
+  tanggal                DateTime          @db.Date
+  keperluan              String?
+  nama_toko              String?           @db.VarChar(255)
+  status                 String            @default("Pending") @db.VarChar(50)
+  catatan                String?
+  hf_signed_at           DateTime?         @db.Timestamptz(6)
+  hf_signed_by           BigInt?
+  hf_name                String?           @db.VarChar(255)
+  hf_signature           String?           @db.Text
+  created_at             DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime          @default(now()) @db.Timestamptz(6)
+  items                  ProjekPRItem[]
+  cashflow_items         ProjekCashflow[]
+  project                AdmFinanceProject @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("projek_prs")
+}
+
+model ProjekPRItem {
+  id              BigInt    @id @default(autoincrement())
+  projek_pr_id    BigInt
+  nama_item       String    @db.VarChar(255)
+  satuan          String?   @db.VarChar(50)
+  qty             Decimal   @default(0) @db.Decimal(15, 3)
+  harga_perkiraan Decimal   @default(0) @db.Decimal(15, 2)
+  is_from_rapp    Boolean   @default(false)
+  rapp_qty        Decimal?  @db.Decimal(15, 3)
+  rapp_harga      Decimal?  @db.Decimal(15, 2)
+  created_at      DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
+  pr              ProjekPR  @relation(fields: [projek_pr_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("projek_pr_items")
+}
+
+model ProjekDokumen {
+  id                     BigInt            @id @default(autoincrement())
+  adm_finance_project_id BigInt
+  kategori               String            @default("Nota") @db.VarChar(50)
+  nama_file              String?           @db.VarChar(255)
+  file_data              String            @db.Text
+  file_type              String?           @db.VarChar(50)
+  tanggal_upload         DateTime          @db.Date
+  created_at             DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime          @default(now()) @db.Timestamptz(6)
+  project                AdmFinanceProject @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("projek_dokumens")
+}
+
+// ─── Admin (Sales Admin) Kanban ──────────────────────────────────────────────
+
+model AdminKanbanColumn {
+  id         BigInt             @id @default(autoincrement())
+  title      String             @db.VarChar(255)
+  color      String?            @default("#e2e8f0") @db.VarChar(50)
+  urutan     Int                @default(0)
+  bulan      Int
+  tahun      Int
+  created_at DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at DateTime           @default(now()) @db.Timestamptz(6)
+  cards      AdminKanbanCard[]
+  @@map("admin_kanban_columns")
+}
+
+model AdminKanbanCard {
+  id               BigInt               @id @default(autoincrement())
+  column_id        BigInt
+  title            String               @db.VarChar(255)
+  description      String?
+  lead_id          BigInt?
+  assigned_user_id BigInt?
+  deadline         DateTime?            @db.Date
+  tanggal_survey   DateTime?            @db.Date
+  color            String?              @db.VarChar(50)
+  urutan           Int                  @default(0)
+  created_at       DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime             @default(now()) @db.Timestamptz(6)
+  column           AdminKanbanColumn    @relation(fields: [column_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lead             Lead?                @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  assigned_user    User?                @relation(fields: [assigned_user_id], references: [id], onUpdate: NoAction)
+  comments         AdminKanbanComment[]
+  labels           AdminKanbanLabel[]
+  @@index([column_id], map: "idx_admin_kanban_cards_column")
+  @@map("admin_kanban_cards")
+}
+
+model AdminKanbanComment {
+  id         BigInt          @id @default(autoincrement())
+  card_id    BigInt
+  user_id    BigInt?
+  comment    String
+  created_at DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at DateTime        @default(now()) @db.Timestamptz(6)
+  card       AdminKanbanCard @relation(fields: [card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       User?           @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("admin_kanban_comments")
+}
+
+model AdminKanbanLabel {
+  id      BigInt          @id @default(autoincrement())
+  card_id BigInt
+  name    String          @db.VarChar(100)
+  color   String?         @db.VarChar(50)
+  card    AdminKanbanCard @relation(fields: [card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("admin_kanban_labels")
+}
+
+// ─── Telemarketing Kanban ─────────────────────────────────────────────────────
+
+model TelemarketingKanbanColumn {
+  id         BigInt                    @id @default(autoincrement())
+  title      String                    @db.VarChar(255)
+  color      String?                   @default("#e2e8f0") @db.VarChar(50)
+  urutan     Int                       @default(0)
+  bulan      Int
+  tahun      Int
+  created_at DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at DateTime                  @default(now()) @db.Timestamptz(6)
+  cards      TelemarketingKanbanCard[]
+  @@map("telemarketing_kanban_columns")
+}
+
+model TelemarketingKanbanCard {
+  id               BigInt                       @id @default(autoincrement())
+  column_id        BigInt
+  title            String                       @db.VarChar(255)
+  description      String?
+  lead_id          BigInt?
+  assigned_user_id BigInt?
+  deadline         DateTime?                    @db.Date
+  tanggal_survey   DateTime?                    @db.Date
+  color            String?                      @db.VarChar(50)
+  urutan           Int                          @default(0)
+  created_at       DateTime                     @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                     @default(now()) @db.Timestamptz(6)
+  column           TelemarketingKanbanColumn    @relation(fields: [column_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  lead             Lead?                        @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  assigned_user    User?                        @relation(fields: [assigned_user_id], references: [id], onUpdate: NoAction)
+  comments         TelemarketingKanbanComment[]
+  labels           TelemarketingKanbanLabel[]
+  @@index([column_id], map: "idx_telemarketing_kanban_cards_column")
+  @@map("telemarketing_kanban_cards")
+}
+
+model TelemarketingKanbanComment {
+  id         BigInt                  @id @default(autoincrement())
+  card_id    BigInt
+  user_id    BigInt?
+  comment    String
+  created_at DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at DateTime                @default(now()) @db.Timestamptz(6)
+  card       TelemarketingKanbanCard @relation(fields: [card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       User?                   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  @@map("telemarketing_kanban_comments")
+}
+
+model TelemarketingKanbanLabel {
+  id      BigInt                  @id @default(autoincrement())
+  card_id BigInt
+  name    String                  @db.VarChar(100)
+  color   String?                 @db.VarChar(50)
+  card    TelemarketingKanbanCard @relation(fields: [card_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  @@map("telemarketing_kanban_labels")
+}
