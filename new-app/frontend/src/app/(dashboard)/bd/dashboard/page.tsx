@@ -221,8 +221,9 @@ export default function BdDashboardPage() {
       const campaigns = adsDash?.campaigns ?? [];
       let campaignSection = "";
       if (campaigns.length > 0 && campaignId === "all") {
-        const rows = campaigns.map((c, i) => `
-          <tr>
+        const rows = campaigns.map((c, i) => {
+          const leadsCount = allCampaigns.find((ac) => ac.id === c.id)?.leads_count ?? 0;
+          return `<tr>
             <td class="num">${i + 1}</td>
             <td><strong>${c.campaign_name ?? c.nama_campaign ?? "-"}</strong></td>
             <td class="center"><span style="font-size:10px;font-weight:600;padding:2px 6px;border-radius:10px;${c.platform === "TikTok" ? "background:#0f172a;color:#fff" : "background:#dbeafe;color:#1d4ed8"}">${c.platform ?? "Meta"}</span></td>
@@ -231,7 +232,9 @@ export default function BdDashboardPage() {
             <td class="num">${Number(c.avg_ctr ?? 0).toFixed(2)}%</td>
             <td class="num">${fmt(c.total_spend ?? 0)}</td>
             <td class="num">${c.total_conversions ?? 0}</td>
-          </tr>`).join("");
+            <td class="num" style="font-weight:600;color:#4f46e5">${leadsCount}</td>
+          </tr>`;
+        }).join("");
         campaignSection = `
           <div class="section">
             <div class="section-title">Performa Per Postingan Iklan</div>
@@ -239,7 +242,7 @@ export default function BdDashboardPage() {
               <thead><tr>
                 <th class="num">#</th><th>Nama Iklan</th><th class="center">Platform</th>
                 <th class="num">Impressions</th><th class="num">Klik</th><th class="num">CTR</th>
-                <th class="num">Spend</th><th class="num">Conversions</th>
+                <th class="num">Spend</th><th class="num">Conversions</th><th class="num">Leads</th>
               </tr></thead>
               <tbody>${rows}</tbody>
             </table>
@@ -491,26 +494,86 @@ export default function BdDashboardPage() {
                     <th className="pb-2 font-medium text-right">CTR</th>
                     <th className="pb-2 font-medium text-right">Spend</th>
                     <th className="pb-2 font-medium text-right">Conversions</th>
+                    <th className="pb-2 font-medium text-right">Leads</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {(adsDash?.campaigns ?? []).map((c) => (
-                    <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
-                      <td className="py-2.5 font-medium max-w-[200px] truncate">
-                        {c.campaign_name ?? c.nama_campaign ?? "-"}
-                      </td>
-                      <td className="py-2.5 text-center">
-                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${c.platform === "Meta" ? "bg-blue-100 text-blue-700" : "bg-slate-900 text-white"}`}>
-                          {c.platform ?? "Meta"}
-                        </span>
-                      </td>
-                      <td className="py-2.5 text-right tabular-nums">{(c.total_impressions ?? 0).toLocaleString("id-ID")}</td>
-                      <td className="py-2.5 text-right tabular-nums">{(c.total_clicks ?? 0).toLocaleString("id-ID")}</td>
-                      <td className="py-2.5 text-right tabular-nums">{Number(c.avg_ctr ?? 0).toFixed(2)}%</td>
-                      <td className="py-2.5 text-right tabular-nums">{formatRupiah(c.total_spend ?? 0)}</td>
-                      <td className="py-2.5 text-right tabular-nums">{c.total_conversions ?? 0}</td>
-                    </tr>
-                  ))}
+                  {(adsDash?.campaigns ?? []).map((c) => {
+                    const leadsCount = allCampaigns.find((ac) => ac.id === c.id)?.leads_count ?? 0;
+                    return (
+                      <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="py-2.5 font-medium max-w-[200px] truncate">
+                          {c.campaign_name ?? c.nama_campaign ?? "-"}
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${c.platform === "Meta" ? "bg-blue-100 text-blue-700" : "bg-slate-900 text-white"}`}>
+                            {c.platform ?? "Meta"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right tabular-nums">{(c.total_impressions ?? 0).toLocaleString("id-ID")}</td>
+                        <td className="py-2.5 text-right tabular-nums">{(c.total_clicks ?? 0).toLocaleString("id-ID")}</td>
+                        <td className="py-2.5 text-right tabular-nums">{Number(c.avg_ctr ?? 0).toFixed(2)}%</td>
+                        <td className="py-2.5 text-right tabular-nums">{formatRupiah(c.total_spend ?? 0)}</td>
+                        <td className="py-2.5 text-right tabular-nums">{c.total_conversions ?? 0}</td>
+                        <td className="py-2.5 text-right tabular-nums">
+                          {leadsCount > 0
+                            ? <span className="font-semibold text-indigo-600">{leadsCount}</span>
+                            : <span className="text-muted-foreground">0</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Leads per campaign (all campaigns with leads) ─────────────────────── */}
+      {allCampaigns.filter((c) => (c.leads_count ?? 0) > 0).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <Users className="h-4 w-4 text-indigo-600" />
+              Leads per Iklan
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-xs text-muted-foreground">
+                    <th className="pb-2 font-medium">Nama Iklan</th>
+                    <th className="pb-2 font-medium text-center">Platform</th>
+                    <th className="pb-2 font-medium text-center">Status</th>
+                    <th className="pb-2 font-medium text-right">Jumlah Leads</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {allCampaigns
+                    .filter((c) => (platform === "all" || c.platform === platform))
+                    .sort((a, b) => (b.leads_count ?? 0) - (a.leads_count ?? 0))
+                    .map((c) => (
+                      <tr key={c.id} className="border-b last:border-0 hover:bg-muted/30">
+                        <td className="py-2.5 font-medium">{c.campaign_name ?? c.nama_campaign ?? "-"}</td>
+                        <td className="py-2.5 text-center">
+                          <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${c.platform === "Meta" ? "bg-blue-100 text-blue-700" : "bg-slate-900 text-white"}`}>
+                            {c.platform ?? "Meta"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-center">
+                          <span className={`text-xs px-1.5 py-0.5 rounded-full font-medium ${c.status === "Aktif" ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
+                            {c.status ?? "—"}
+                          </span>
+                        </td>
+                        <td className="py-2.5 text-right">
+                          {(c.leads_count ?? 0) > 0
+                            ? <span className="font-bold text-indigo-600 text-base">{c.leads_count}</span>
+                            : <span className="text-muted-foreground">0</span>}
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>

@@ -57,12 +57,19 @@ function invoiceDictFrontend(inv: any) {
     lead: inv.lead ? { id: inv.lead.id, nama: inv.lead.nama, jenis: inv.lead.jenis, alamat: inv.lead.alamat, nomor_telepon: inv.lead.nomor_telepon } : null,
     klien: inv.lead?.nama || "",
     tanggal: inv.tanggal,
+    overdue_date: inv.overdue_date || null,
     total: parseFloat(String(inv.grand_total ?? 0)),
     ppn_percentage: parseFloat(String(inv.ppn_percentage ?? 0)),
     ppn_amount: parseFloat(String(inv.ppn_amount ?? 0)),
     subtotal: parseFloat(String(inv.subtotal ?? 0)),
     status: FE_STATUS_FROM_DB[inv.status || "draft"] || "Draft",
     catatan: inv.catatan || "",
+    bank_account: inv.bank_account ? {
+      id: inv.bank_account.id,
+      bank_name: inv.bank_account.bank_name,
+      account_number: inv.bank_account.account_number,
+      account_name: inv.bank_account.account_name,
+    } : null,
     head_finance: inv.head_finance ? { id: inv.head_finance.id, name: inv.head_finance.name } : null,
     head_finance_at: inv.head_finance_at,
     head_finance_signature: inv.head_finance_signature || null,
@@ -196,7 +203,7 @@ router.post("/invoice/:id/reject", requirePermission("finance", "edit"), async (
   return res.json({ message: "Invoice ditolak" });
 });
 
-router.delete("/invoice/:id", async (req: Request, res: Response) => {
+router.delete("/invoice/:id", requirePermission("finance", "delete"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
@@ -762,6 +769,38 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
   return res.json({ items: leads });
 });
 
+// ── Bank Accounts ─────────────────────────────────────────────────────────────
+
+router.get("/bank-accounts", requirePermission("finance", "view"), async (req: Request, res: Response) => {
+  const accounts = await prisma.bankAccount.findMany({ orderBy: { id: "asc" } });
+  return res.json(accounts);
+});
+
+router.post("/bank-accounts", requirePermission("finance", "view"), async (req: Request, res: Response) => {
+  const { bank_name, account_number, account_name } = req.body;
+  if (!bank_name || !account_number || !account_name) return res.status(400).json({ detail: "bank_name, account_number, account_name wajib diisi" });
+  const acc = await prisma.bankAccount.create({ data: { bank_name, account_number, account_name } });
+  return res.status(201).json(acc);
+});
+
+router.patch("/bank-accounts/:id", requirePermission("finance", "view"), async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const { bank_name, account_number, account_name, is_active } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (bank_name !== undefined) updates.bank_name = bank_name;
+  if (account_number !== undefined) updates.account_number = account_number;
+  if (account_name !== undefined) updates.account_name = account_name;
+  if (is_active !== undefined) updates.is_active = is_active;
+  const acc = await prisma.bankAccount.update({ where: { id }, data: updates });
+  return res.json(acc);
+});
+
+router.delete("/bank-accounts/:id", requirePermission("finance", "delete"), async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  await prisma.bankAccount.delete({ where: { id } });
+  return res.json({ message: "Akun bank dihapus" });
+});
+
 // ── /invoices – frontend-compatible alias ─────────────────────────────────────
 router.get("/invoices", requirePermission("finance", "view"), async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
@@ -776,14 +815,14 @@ router.get("/invoices", requirePermission("finance", "view"), async (req: Reques
     prisma.invoice.count({ where }),
     prisma.invoice.findMany({
       where, orderBy: { id: "desc" }, skip: (page - 1) * perPage, take: perPage,
-      include: { lead: true, items: true, head_finance: true, admin_finance: true },
+      include: { lead: true, items: true, head_finance: true, admin_finance: true, bank_account: true },
     }),
   ]);
   return res.json({ items: invs.map(invoiceDictFrontend), total, page, per_page: perPage });
 });
 
 router.post("/invoices", requirePermission("finance", "view"), async (req: Request, res: Response) => {
-  const { lead_id, nomor_invoice, tanggal, catatan, ppn_percentage, items = [] } = req.body;
+  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, items = [] } = req.body;
   const tgl = tanggal ? new Date(tanggal) : new Date();
   // Determine invoice number: manual input or auto-generate from lead jenis
   let invoiceNumber = nomor_invoice || "";
@@ -807,14 +846,16 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
     data: {
       invoice_number: invoiceNumber,
       lead_id: lead_id ? BigInt(lead_id) : null,
+      bank_account_id: bank_account_id ? BigInt(bank_account_id) : null,
       tanggal: tgl,
+      overdue_date: overdue_date ? new Date(overdue_date) : null,
       catatan: catatan || null,
       ppn_percentage: ppnPct, subtotal, ppn_amount: ppnAmt, grand_total: subtotal + ppnAmt,
       status: "draft",
       created_by: req.user!.id,
       items: { create: itemsData },
     },
-    include: { lead: true, items: true, head_finance: true, admin_finance: true },
+    include: { lead: true, items: true, head_finance: true, admin_finance: true, bank_account: true },
   });
   return res.status(201).json(invoiceDictFrontend(inv));
 });
@@ -1889,6 +1930,55 @@ router.delete("/adm-projek/:id/termins/:tid/cashflow/:cid", async (req: Request,
   const cid = BigInt(req.params.cid);
   await prisma.projekCashflow.delete({ where: { id: cid } });
   return res.json({ message: "Item cashflow dihapus" });
+});
+
+// ─── Gajian Cashflow ──────────────────────────────────────────────────────────
+
+// GET /finance/adm-projek/:id/gajian/available — Gajian signed by both HF+AF, not yet in cashflow
+router.get("/adm-projek/:id/gajian/available", async (req: Request, res: Response) => {
+  const pid = BigInt(req.params.id);
+  const gajians = await prisma.gajiTukang.findMany({
+    where: { adm_finance_project_id: pid, hf_signed_at: { not: null }, af_signed_at: { not: null } },
+    orderBy: { id: "desc" },
+  });
+  const pulledRecs = await prisma.projekCashflow.findMany({
+    where: { adm_finance_project_id: pid, gaji_tukang_id: { not: null } },
+    select: { gaji_tukang_id: true },
+  });
+  const pulledSet = new Set(pulledRecs.map(c => String(c.gaji_tukang_id)));
+  const available = gajians.filter(g => !pulledSet.has(String(g.id)));
+  return res.json(available.map(g => ({
+    id: g.id, bulan: g.bulan, tahun: g.tahun,
+    tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
+    total_gaji: Number(g.total_gaji),
+  })));
+});
+
+// POST /finance/adm-projek/:id/termins/:tid/cashflow/gajian — pull gajian to termin cashflow
+router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", async (req: Request, res: Response) => {
+  const pid = BigInt(req.params.id);
+  const tid = BigInt(req.params.tid);
+  const { gaji_tukang_id, tanggal } = req.body;
+  if (!gaji_tukang_id) return res.status(400).json({ detail: "gaji_tukang_id wajib diisi" });
+  const gajiId = BigInt(gaji_tukang_id);
+  const gaji = await prisma.gajiTukang.findUnique({ where: { id: gajiId } });
+  if (!gaji) return res.status(404).json({ detail: "Gajian tidak ditemukan" });
+  if (!gaji.hf_signed_at || !gaji.af_signed_at) return res.status(400).json({ detail: "Gajian belum ditandatangani kedua pihak" });
+  const existing = await prisma.projekCashflow.findFirst({ where: { adm_finance_project_id: pid, gaji_tukang_id: gajiId } });
+  if (existing) return res.status(400).json({ detail: "Gajian ini sudah ditarik ke cashflow" });
+  const label = (gaji.bulan && gaji.tahun) ? `Gaji Tukang ${gaji.bulan}/${gaji.tahun}` : "Gaji Tukang";
+  const item = await prisma.projekCashflow.create({
+    data: {
+      adm_finance_project_id: pid,
+      adm_finance_termin_id: tid,
+      gaji_tukang_id: gajiId,
+      tanggal: tanggal ? new Date(tanggal) : new Date(),
+      keterangan: label,
+      debit: Number(gaji.total_gaji),
+      kredit: 0,
+    },
+  });
+  return res.json({ message: "Gajian ditarik ke cashflow", data: { id: item.id, keterangan: item.keterangan, debit: Number(item.debit) } });
 });
 
 // ─── PR Sign + Available ──────────────────────────────────────────────────────

@@ -62,6 +62,10 @@ Thumbs.db
 coverage/
 .nyc_output/
 
+# ─── Reference docs (internal only) ─────────────────────────────────────────
+Refrence/
+RefrenceKontrak/
+
 # ─── Personal / scratch files ────────────────────────────────────────────────
 new-app/backend/src/index-Jerry.ts
 new-app/backend/prisma/check-perms.ts

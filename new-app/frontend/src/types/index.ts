@@ -152,6 +152,8 @@ export interface MetaAdsCampaign {
   total_impressions?: number | null;
   avg_ctr: number | null;
   total_conversions: number | null;
+  leads_count?: number;
+  is_hidden?: boolean;
   created_at: string;
   updated_at: string;
 }

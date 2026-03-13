@@ -207,6 +207,12 @@ const admApi = {
   // Kwitansi gajian
   getTukangKwitansi: (id: number) =>
     apiClient.get(`/finance/adm-projek/${id}/tukang/kwitansi`).then((r) => r.data),
+
+  // Gajian cashflow
+  getAvailableGajian: (id: number) =>
+    apiClient.get(`/finance/adm-projek/${id}/gajian/available`).then((r) => r.data),
+  pullGajianToCashflow: (id: number, tid: number, data: { gaji_tukang_id: number; tanggal: string }) =>
+    apiClient.post(`/finance/adm-projek/${id}/termins/${tid}/cashflow/gajian`, data).then((r) => r.data),
 };
 
 // ─── CashflowTab ──────────────────────────────────────────────────────────────
@@ -220,6 +226,9 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
   const [openAturDeposit, setOpenAturDeposit] = useState(false);
   const [openTambahDeposit, setOpenTambahDeposit] = useState(false);
   const [openPullPR, setOpenPullPR] = useState(false);
+  const [openPullGajian, setOpenPullGajian] = useState(false);
+  const [selectedGajianId, setSelectedGajianId] = useState<number | null>(null);
+  const [pullGajianTanggal, setPullGajianTanggal] = useState(today);
   const [terminForm, setTerminForm] = useState({ nama_termin: "", tanggal: today, deposit_awal: 0 });
   const [depositForm, setDepositForm] = useState({ deposit_awal: 0 });
   const [extraDepositForm, setExtraDepositForm] = useState({ jumlah: 0, catatan: "" });
@@ -250,6 +259,13 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
     queryKey: ["adm-pr-available", proyekId],
     queryFn: () => admApi.getAvailablePR(proyekId),
     enabled: openPullPR,
+    retry: false,
+  });
+
+  const { data: availableGajians } = useQuery({
+    queryKey: ["adm-gajian-available", proyekId],
+    queryFn: () => admApi.getAvailableGajian(proyekId),
+    enabled: openPullGajian,
     retry: false,
   });
 
@@ -313,6 +329,18 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
       setOpenPullPR(false);
       setSelectedPRId(null);
       setPullPRNotaImage(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
+
+  const pullGajianMut = useMutation({
+    mutationFn: (d: { gaji_tukang_id: number; tanggal: string }) =>
+      admApi.pullGajianToCashflow(proyekId, selectedTerminId!, d),
+    onSuccess: () => {
+      toast.success("Gajian ditarik ke cashflow");
+      qc.invalidateQueries({ queryKey: ["adm-termin-cf", proyekId, selectedTerminId] });
+      setOpenPullGajian(false);
+      setSelectedGajianId(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
@@ -514,6 +542,9 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
               <Button size="sm" variant="outline" onClick={() => setOpenPullPR(true)}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> Tarik PR
               </Button>
+              <Button variant="outline" size="sm" onClick={() => { setSelectedGajianId(null); setOpenPullGajian(true); }} disabled={!selectedTerminId}>
+                <Banknote className="h-4 w-4 mr-1" /> Pull Gajian
+              </Button>
               <Button size="sm" variant="outline" onClick={handleDownloadPDF}>
                 <FileDown className="h-3.5 w-3.5 mr-1" /> PDF Termin Ini
               </Button>
@@ -537,7 +568,13 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                   <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}</TableRow>
                 )) : cfItems.map((it: any) => (
                   <TableRow key={it.id}>
-                    <TableCell className="font-mono text-xs">{it.no_pr || "—"}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      {it.gaji_tukang_id ? (
+                        <Badge variant="secondary" className="text-xs gap-1 font-normal">
+                          <Banknote className="h-3 w-3" /> Gaji Tukang
+                        </Badge>
+                      ) : (it.no_pr || "—")}
+                    </TableCell>
                     <TableCell className="text-sm max-w-[200px] truncate">{it.keterangan || "—"}</TableCell>
                     <TableCell className="whitespace-nowrap text-sm">
                       {new Date(it.tanggal).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
@@ -683,6 +720,50 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
               <Button variant="outline" onClick={() => { setOpenPullPR(false); setSelectedPRId(null); setPullPRNotaImage(null); }}>Batal</Button>
               <Button disabled={!selectedPRId || pullPRMut.isPending} onClick={() => pullPRMut.mutate()}>
                 {pullPRMut.isPending ? "Menarik..." : "Tarik ke Cashflow"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog: Pull Gajian */}
+      <Dialog open={openPullGajian} onOpenChange={(v) => { if (!v) setOpenPullGajian(false); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Banknote className="h-4 w-4" /> Pull Gajian ke Cashflow
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Pilih Gajian</Label>
+              <select
+                className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                value={selectedGajianId ?? ""}
+                onChange={e => setSelectedGajianId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">— Pilih gajian —</option>
+                {(Array.isArray(availableGajians) ? availableGajians : []).map((g: any) => (
+                  <option key={g.id} value={g.id}>
+                    {g.bulan && g.tahun ? `Bulan ${g.bulan}/${g.tahun}` : `Gajian #${g.id}`} — Rp {Number(g.total_gaji).toLocaleString("id-ID")}
+                  </option>
+                ))}
+              </select>
+              {Array.isArray(availableGajians) && availableGajians.length === 0 && (
+                <p className="text-xs text-muted-foreground mt-1">Tidak ada gajian yang tersedia. Gajian harus sudah ditandatangani HF &amp; AF.</p>
+              )}
+            </div>
+            <div>
+              <Label>Tanggal</Label>
+              <Input type="date" value={pullGajianTanggal} onChange={e => setPullGajianTanggal(e.target.value)} />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setOpenPullGajian(false)}>Batal</Button>
+              <Button
+                disabled={!selectedGajianId || pullGajianMut.isPending}
+                onClick={() => selectedGajianId && pullGajianMut.mutate({ gaji_tukang_id: selectedGajianId, tanggal: pullGajianTanggal })}
+              >
+                {pullGajianMut.isPending ? "Memproses..." : "Pull ke Cashflow"}
               </Button>
             </div>
           </div>

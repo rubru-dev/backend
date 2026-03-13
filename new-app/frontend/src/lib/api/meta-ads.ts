@@ -69,6 +69,16 @@ export const metaAdsApi = {
     await apiClient.delete(`/bd/meta-ads/campaigns/${id}`);
   },
 
+  toggleHidden: async (id: number): Promise<{ id: number; is_hidden: boolean }> => {
+    const { data } = await apiClient.patch(`/bd/meta-ads/campaigns/${id}/toggle-hidden`, {});
+    return data;
+  },
+
+  listAll: async (): Promise<{ items: MetaAdsCampaign[]; total: number }> => {
+    const { data } = await apiClient.get<{ items: MetaAdsCampaign[]; total: number }>("/bd/meta-ads/campaigns", { params: { include_hidden: true } });
+    return data;
+  },
+
   syncFromMeta: async (id: number): Promise<{ synced: number }> => {
     const { data } = await apiClient.post<{ synced: number }>(`/bd/meta-ads/campaigns/${id}/sync`);
     return data;

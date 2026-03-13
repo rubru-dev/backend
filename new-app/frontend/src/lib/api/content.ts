@@ -163,6 +163,14 @@ export const sipilApi = {
     return apiClient.post(`/sipil/projeks/${projekId}/links`, data).then((r) => r.data);
   },
   deleteLink: (linkId: string) => apiClient.delete(`/sipil/links/${linkId}`).then((r) => r.data),
+  // Task Fotos
+  getTaskFotos: (taskId: string) => apiClient.get(`/sipil/tasks/${taskId}/fotos`).then((r) => r.data),
+  uploadTaskFotos: (taskId: string, files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append("fotos", f));
+    return apiClient.post(`/sipil/tasks/${taskId}/fotos`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
+  deleteTaskFoto: (fotoId: string) => apiClient.delete(`/sipil/tasks/fotos/${fotoId}`).then((r) => r.data),
 };
 
 export const interiorProjekApi = {
@@ -196,6 +204,14 @@ export const interiorProjekApi = {
   addVendorItem: (kategoriId: string, data: any) => apiClient.post(`/interior/projeks/rapp/vendor-kategori/${kategoriId}/items`, data).then((r) => r.data),
   updateVendorItem: (id: string, data: any) => apiClient.patch(`/interior/projeks/rapp/vendor-items/${id}`, data).then((r) => r.data),
   deleteVendorItem: (id: string) => apiClient.delete(`/interior/projeks/rapp/vendor-items/${id}`).then((r) => r.data),
+  // Task Fotos
+  getTaskFotos: (taskId: string) => apiClient.get(`/interior/projeks/tasks/${taskId}/fotos`).then((r) => r.data),
+  uploadTaskFotos: (taskId: string, files: File[]) => {
+    const form = new FormData();
+    files.forEach((f) => form.append("fotos", f));
+    return apiClient.post(`/interior/projeks/tasks/${taskId}/fotos`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
+  deleteTaskFoto: (fotoId: string) => apiClient.delete(`/interior/projeks/tasks/fotos/${fotoId}`).then((r) => r.data),
 };
 
 export const salesApi = {

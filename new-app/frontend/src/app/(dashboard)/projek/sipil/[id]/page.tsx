@@ -11,6 +11,7 @@ import { RappSipilView } from "@/components/rapp-sipil";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { sipilApi } from "@/lib/api/content";
+import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
-  Link2, ExternalLink, X, Upload, FileText, PackageSearch, Boxes,
+  Link2, ExternalLink, X, Upload, FileText, PackageSearch, Boxes, Camera, ImageIcon,
 } from "lucide-react";
 
 // ── Types ───────────────────────────────────────────────────────────────────────
@@ -82,10 +83,11 @@ const EMPTY_TERMIN = { nama: "", tanggal_mulai: "", tanggal_selesai: "" };
 const EMPTY_TASK = { nama_pekerjaan: "", tanggal_mulai: "", tanggal_selesai: "", status: "Belum Mulai", pic: "" };
 
 // ── Gantt Chart ─────────────────────────────────────────────────────────────────
-function GanttChart({ termins, filterTerminId, onEditTask }: {
+function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
   termins: Termin[];
   filterTerminId: string;
   onEditTask: (task: Task, termin: Termin) => void;
+  onFotoTask?: (task: Task, termin: Termin) => void;
 }) {
   const filtered = filterTerminId === "all" ? termins : termins.filter((t) => t.id === filterTerminId);
   const allTasks = filtered.flatMap((t) => t.tasks.map((tk) => ({ ...tk, _terminId: t.id, _terminNama: t.nama })));
@@ -195,9 +197,16 @@ function GanttChart({ termins, filterTerminId, onEditTask }: {
 
               return (
                 <div key={task.id} className="flex items-center py-1 border-b last:border-0 hover:bg-muted/20">
-                  <div className="w-64 flex-shrink-0 px-2 pl-5">
-                    <div className="text-sm truncate font-medium">{task.nama_pekerjaan ?? "—"}</div>
-                    {dateLabel && <div className="text-[10px] text-muted-foreground leading-tight">{dateLabel}</div>}
+                  <div className="w-64 flex-shrink-0 px-2 pl-5 flex items-center gap-1">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm truncate font-medium">{task.nama_pekerjaan ?? "—"}</div>
+                      {dateLabel && <div className="text-[10px] text-muted-foreground leading-tight">{dateLabel}</div>}
+                    </div>
+                    {onFotoTask && (
+                      <button className="text-blue-400 hover:text-blue-600 flex-shrink-0 p-0.5 rounded" title="Upload Foto" onClick={() => onFotoTask(task, termin)}>
+                        <Camera className="h-3.5 w-3.5" />
+                      </button>
+                    )}
                   </div>
                   <div className="flex-1 relative h-9">
                     {dayMarkers.map((d, i) => (
@@ -236,7 +245,7 @@ function GanttChart({ termins, filterTerminId, onEditTask }: {
               {s}
             </div>
           ))}
-          <span className="text-xs text-muted-foreground ml-auto italic">Klik bar untuk edit pekerjaan</span>
+          <span className="text-xs text-muted-foreground ml-auto italic">Klik bar untuk edit · <Camera className="h-3 w-3 inline text-blue-400" /> untuk foto</span>
         </div>
       </div>
     </div>
@@ -248,6 +257,14 @@ export default function ProyekSipilDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const qc = useQueryClient();
+  const { isSuperAdmin, hasPermission } = useAuthStore();
+  const sa = isSuperAdmin();
+  const canTabTermin     = sa || hasPermission("projek_sipil", "termin");
+  const canTabGantt      = sa || hasPermission("projek_sipil", "gantt");
+  const canTabDocs       = sa || hasPermission("projek_sipil", "docs");
+  const canTabRapp       = sa || hasPermission("projek_sipil", "rapp");
+  const canTabStockOpname= sa || hasPermission("projek_sipil", "stock_opname");
+  const defaultTab = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabDocs ? "docs" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : "termin";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
   const [ganttFilter, setGanttFilter] = useState("all");
@@ -266,6 +283,11 @@ export default function ProyekSipilDetailPage() {
   const [taskForm, setTaskForm] = useState(EMPTY_TASK);
   const [taskTermin, setTaskTermin] = useState<Termin | null>(null);
   const [confirmDeleteTask, setConfirmDeleteTask] = useState<string | null>(null);
+
+  // Foto dialog
+  const [fotoTask, setFotoTask] = useState<Task | null>(null);
+  const [fotoFiles, setFotoFiles] = useState<File[]>([]);
+  const fotoInputRef = useRef<HTMLInputElement>(null);
 
   const { data: detail, isLoading } = useQuery<ProjekDetail>({
     queryKey: ["sipil-detail", id],
@@ -314,6 +336,23 @@ export default function ProyekSipilDetailPage() {
   const deleteTask = useMutation({
     mutationFn: (tid: string) => sipilApi.deleteTask(tid),
     onSuccess: () => { toast.success("Pekerjaan dihapus"); qc.invalidateQueries({ queryKey: ["sipil-detail", id] }); qc.invalidateQueries({ queryKey: ["sipil-projeks"] }); setConfirmDeleteTask(null); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
+
+  // Foto
+  const { data: taskFotos = [], isLoading: loadingFotos } = useQuery<any[]>({
+    queryKey: ["sipil-task-fotos", fotoTask?.id],
+    queryFn: () => sipilApi.getTaskFotos(fotoTask!.id),
+    enabled: !!fotoTask,
+  });
+  const uploadFotoMut = useMutation({
+    mutationFn: ({ taskId, files }: { taskId: string; files: File[] }) => sipilApi.uploadTaskFotos(taskId, files),
+    onSuccess: () => { toast.success("Foto diupload"); qc.invalidateQueries({ queryKey: ["sipil-task-fotos", fotoTask?.id] }); setFotoFiles([]); if (fotoInputRef.current) fotoInputRef.current.value = ""; },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal upload"),
+  });
+  const deleteFotoMut = useMutation({
+    mutationFn: (fotoId: string) => sipilApi.deleteTaskFoto(fotoId),
+    onSuccess: () => { toast.success("Foto dihapus"); qc.invalidateQueries({ queryKey: ["sipil-task-fotos", fotoTask?.id] }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
 
@@ -408,11 +447,39 @@ export default function ProyekSipilDetailPage() {
 
   function toggleTermin(tid: string) { setExpandedTermins((prev) => ({ ...prev, [tid]: !(prev[tid] !== false) })); }
 
+  async function fetchImageBase64(url: string): Promise<string | null> {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch { return null; }
+  }
+
   async function handleDownloadPDF() {
     if (!detail) return;
     setDownloadingPdf(true);
     try {
       const logoUrl = await getLogoBase64();
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      // Fetch fotos for all tasks
+      const taskFotosMap: Record<string, string[]> = {};
+      await Promise.all(
+        detail.termins.flatMap((t) => t.tasks).map(async (task) => {
+          try {
+            const fotos = await sipilApi.getTaskFotos(task.id);
+            if (fotos.length > 0) {
+              const b64s = await Promise.all(fotos.map((f: any) => fetchImageBase64(`${apiBase}${f.file_path}`)));
+              taskFotosMap[task.id] = b64s.filter(Boolean) as string[];
+            }
+          } catch {}
+        })
+      );
       const pdfData = {
         type: "sipil" as const,
         judul: detail.nama_proyek ?? "Proyek Sipil",
@@ -429,7 +496,7 @@ export default function ProyekSipilDetailPage() {
           nama: t.nama ?? `Termin ${t.urutan}`,
           tanggal_mulai: t.tanggal_mulai ?? null,
           tanggal_selesai: t.tanggal_selesai ?? null,
-          tasks: (t.tasks ?? []).map((tk) => ({ nama_pekerjaan: tk.nama_pekerjaan ?? "—", tanggal_mulai: tk.tanggal_mulai ?? null, tanggal_selesai: tk.tanggal_selesai ?? null, pic: tk.pic?.nama ?? "—", status: tk.status ?? "Belum Mulai" })),
+          tasks: (t.tasks ?? []).map((tk) => ({ nama_pekerjaan: tk.nama_pekerjaan ?? "—", tanggal_mulai: tk.tanggal_mulai ?? null, tanggal_selesai: tk.tanggal_selesai ?? null, pic: tk.pic?.nama ?? "—", status: tk.status ?? "Belum Mulai", fotos: taskFotosMap[tk.id] || [] })),
         })),
         logoUrl,
       };
@@ -538,13 +605,13 @@ export default function ProyekSipilDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="termin">
+      <Tabs defaultValue={defaultTab}>
         <TabsList>
-          <TabsTrigger value="termin"><List className="h-3.5 w-3.5 mr-1.5" />Daftar Termin</TabsTrigger>
-          <TabsTrigger value="gantt"><BarChart2 className="h-3.5 w-3.5 mr-1.5" />Gantt Chart</TabsTrigger>
-          <TabsTrigger value="docs"><Link2 className="h-3.5 w-3.5 mr-1.5" />Docs/Link</TabsTrigger>
-          <TabsTrigger value="rapp"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />RAPP</TabsTrigger>
-          <TabsTrigger value="stock-opname"><PackageSearch className="h-3.5 w-3.5 mr-1.5" />Stock Opname</TabsTrigger>
+          {canTabTermin      && <TabsTrigger value="termin"><List className="h-3.5 w-3.5 mr-1.5" />Daftar Termin</TabsTrigger>}
+          {canTabGantt       && <TabsTrigger value="gantt"><BarChart2 className="h-3.5 w-3.5 mr-1.5" />Gantt Chart</TabsTrigger>}
+          {canTabDocs        && <TabsTrigger value="docs"><Link2 className="h-3.5 w-3.5 mr-1.5" />Docs/Link</TabsTrigger>}
+          {canTabRapp        && <TabsTrigger value="rapp"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />RAPP</TabsTrigger>}
+          {canTabStockOpname && <TabsTrigger value="stock-opname"><PackageSearch className="h-3.5 w-3.5 mr-1.5" />Stock Opname</TabsTrigger>}
         </TabsList>
 
         {/* Daftar Termin */}
@@ -615,6 +682,7 @@ export default function ProyekSipilDetailPage() {
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-1">
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title="Foto Pekerjaan" onClick={() => setFotoTask(task)}><Camera className="h-3 w-3" /></Button>
                                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditTask(task, termin)}><Pencil className="h-3 w-3" /></Button>
                                   <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setConfirmDeleteTask(task.id)}><Trash2 className="h-3 w-3" /></Button>
                                 </div>
@@ -665,7 +733,7 @@ export default function ProyekSipilDetailPage() {
             </div>
           )}
           <div className="border rounded-lg p-4">
-            <GanttChart termins={termins} filterTerminId={ganttFilter} onEditTask={(task, termin) => openEditTask(task, termin)} />
+            <GanttChart termins={termins} filterTerminId={ganttFilter} onEditTask={(task, termin) => openEditTask(task, termin)} onFotoTask={(task) => setFotoTask(task)} />
           </div>
         </TabsContent>
 
@@ -1021,6 +1089,79 @@ export default function ProyekSipilDetailPage() {
           <div className="flex justify-end gap-2 mt-2">
             <Button variant="outline" onClick={() => setConfirmDeleteTask(null)}>Batal</Button>
             <Button variant="destructive" disabled={deleteTask.isPending} onClick={() => confirmDeleteTask && deleteTask.mutate(confirmDeleteTask)}>Hapus</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Foto Task */}
+      <Dialog open={!!fotoTask} onOpenChange={(open) => { if (!open) { setFotoTask(null); setFotoFiles([]); } }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-blue-600" />
+              Foto Pekerjaan — {fotoTask?.nama_pekerjaan ?? ""}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 pt-1">
+            {/* Upload area */}
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1 block">Upload Foto (JPG/PNG, maks 10 foto, 20MB/file)</Label>
+              <div
+                className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
+                onClick={() => fotoInputRef.current?.click()}
+              >
+                <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">{fotoFiles.length > 0 ? `${fotoFiles.length} file dipilih` : "Klik untuk pilih foto"}</p>
+                <input ref={fotoInputRef} type="file" className="hidden" accept="image/*" multiple onChange={(e) => setFotoFiles(Array.from(e.target.files ?? []))} />
+              </div>
+              {fotoFiles.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {fotoFiles.map((f, i) => (
+                    <div key={i} className="relative group">
+                      <img src={URL.createObjectURL(f)} className="h-16 w-16 object-cover rounded border" alt={f.name} />
+                      <button className="absolute -top-1 -right-1 h-4 w-4 bg-red-500 rounded-full text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity" onClick={() => setFotoFiles((prev) => prev.filter((_, j) => j !== i))}><X className="h-2.5 w-2.5" /></button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {fotoFiles.length > 0 && (
+                <Button size="sm" className="mt-2" disabled={uploadFotoMut.isPending} onClick={() => fotoTask && uploadFotoMut.mutate({ taskId: fotoTask.id, files: fotoFiles })}>
+                  {uploadFotoMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengupload...</> : <><Upload className="h-3.5 w-3.5 mr-1.5" />Upload {fotoFiles.length} Foto</>}
+                </Button>
+              )}
+            </div>
+            {/* Existing fotos */}
+            <div>
+              <p className="text-xs font-medium text-muted-foreground mb-2">Foto Tersimpan ({taskFotos.length})</p>
+              {loadingFotos ? (
+                <div className="grid grid-cols-3 gap-2">{[1,2,3].map((i) => <div key={i} className="h-24 bg-muted rounded animate-pulse" />)}</div>
+              ) : taskFotos.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <ImageIcon className="mx-auto h-8 w-8 opacity-20 mb-2" />
+                  <p className="text-sm">Belum ada foto.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
+                  {taskFotos.map((foto: any) => {
+                    const fotoUrl = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${foto.file_path}`;
+                    return (
+                    <div key={foto.id} className="relative group rounded border overflow-hidden">
+                      <a href={fotoUrl} target="_blank" rel="noreferrer">
+                        <img src={fotoUrl} className="w-full h-24 object-cover" alt={foto.original_name ?? "foto"} />
+                      </a>
+                      <div className="absolute inset-x-0 bottom-0 bg-black/50 px-2 py-0.5 flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+                        <span className="text-white text-[10px] truncate">{foto.original_name ?? "foto"}</span>
+                        <button onClick={() => deleteFotoMut.mutate(foto.id)} className="text-red-300 hover:text-red-100 ml-1 flex-shrink-0"><Trash2 className="h-3 w-3" /></button>
+                      </div>
+                    </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end pt-1">
+              <Button variant="outline" onClick={() => { setFotoTask(null); setFotoFiles([]); }}>Tutup</Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -125,6 +125,7 @@ export interface PdfTask {
   tanggal_selesai: string | null;
   pic:    string;
   status: string;
+  fotos?: string[]; // base64 data URLs
 }
 
 export interface PdfTermin {
@@ -172,18 +173,28 @@ function TaskTable({ tasks }: { tasks: PdfTask[] }) {
       ) : (
         tasks.map((t, i) => {
           const sc = STATUS_COLOR[t.status] ?? STATUS_COLOR["Belum Mulai"];
+          const rowBg = i % 2 === 0 ? "white" : ORANGE_LIGHT;
           return (
-            <View key={i} style={i % 2 === 0 ? s.tableRow : s.tableRowAlt} wrap={false}>
-              <Text style={[s.cell, s.colNo]}>{i + 1}</Text>
-              <Text style={[s.cell, s.colNama]}>{t.nama_pekerjaan || "—"}</Text>
-              <Text style={[s.cell, s.colStart]}>{fmtDate(t.tanggal_mulai)}</Text>
-              <Text style={[s.cell, s.colEnd]}>{fmtDate(t.tanggal_selesai)}</Text>
-              <Text style={[s.cell, s.colPic]}>{t.pic || "—"}</Text>
-              <View style={s.colStatus}>
-                <View style={[s.statusBadge, { backgroundColor: sc.bg }]}>
-                  <Text style={[s.statusText, { color: sc.text }]}>{t.status}</Text>
+            <View key={i} wrap={false}>
+              <View style={i % 2 === 0 ? s.tableRow : s.tableRowAlt}>
+                <Text style={[s.cell, s.colNo]}>{i + 1}</Text>
+                <Text style={[s.cell, s.colNama]}>{t.nama_pekerjaan || "—"}</Text>
+                <Text style={[s.cell, s.colStart]}>{fmtDate(t.tanggal_mulai)}</Text>
+                <Text style={[s.cell, s.colEnd]}>{fmtDate(t.tanggal_selesai)}</Text>
+                <Text style={[s.cell, s.colPic]}>{t.pic || "—"}</Text>
+                <View style={s.colStatus}>
+                  <View style={[s.statusBadge, { backgroundColor: sc.bg }]}>
+                    <Text style={[s.statusText, { color: sc.text }]}>{t.status}</Text>
+                  </View>
                 </View>
               </View>
+              {t.fotos && t.fotos.length > 0 && (
+                <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 6, paddingTop: 3, paddingBottom: 5, borderBottomWidth: 1, borderBottomColor: "#e7e5e4", backgroundColor: rowBg }}>
+                  {t.fotos.map((foto, fi) => (
+                    <Image key={fi} style={{ width: 58, height: 58, margin: 2, borderRadius: 2 }} src={foto} />
+                  ))}
+                </View>
+              )}
             </View>
           );
         })

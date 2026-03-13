@@ -50,13 +50,13 @@ const styles = StyleSheet.create({
     borderRadius: 2, marginBottom: 4, alignSelf: "flex-start",
   },
   metaLabelText: { fontSize: 7, color: "white", fontWeight: "bold", letterSpacing: 0.5 },
-  metaValue: { fontSize: 11, fontWeight: "bold", color: DARK },
+  metaValue: { fontSize: 11, fontWeight: "bold", color: GRAY },
   metaSubValue: { fontSize: 8.5, color: GRAY, marginTop: 2 },
 
   // Table
   table: { marginTop: 4 },
   tableHead: {
-    flexDirection: "row", backgroundColor: ORANGE,
+    flexDirection: "row", backgroundColor: GRAY,
     paddingVertical: 7, paddingHorizontal: 8, borderRadius: 3,
   },
   tableHeadCell: { color: "white", fontSize: 8.5, fontWeight: "bold" },
@@ -88,9 +88,19 @@ const styles = StyleSheet.create({
   grandTotalLabel: { fontSize: 11, fontWeight: "bold", color: "white" },
   grandTotalValue: { fontSize: 11, fontWeight: "bold", color: "white" },
 
+  // Bank Account
+  bankBox: {
+    marginTop: 12, padding: 10, backgroundColor: ORANGE_LIGHT,
+    borderRadius: 4, borderWidth: 1, borderColor: ORANGE_MID,
+  },
+  bankTitle: { fontSize: 7.5, color: ORANGE, fontWeight: "bold", marginBottom: 6, letterSpacing: 0.5 },
+  bankRow: { flexDirection: "row", marginBottom: 3 },
+  bankLabel: { fontSize: 8, color: GRAY, width: 85 },
+  bankValue: { fontSize: 8, color: DARK, fontWeight: "bold" },
+
   // Catatan
   catatan: {
-    marginTop: 16, padding: 8, backgroundColor: ORANGE_LIGHT,
+    marginTop: 12, padding: 8, backgroundColor: ORANGE_LIGHT,
     borderLeftWidth: 3, borderLeftColor: ORANGE, borderRadius: 2,
   },
   catatanLabel: { fontSize: 7.5, color: ORANGE, fontWeight: "bold", marginBottom: 2 },
@@ -100,10 +110,11 @@ const styles = StyleSheet.create({
   signRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 36 },
   signBlock: { alignItems: "center", width: 180 },
   signTitleBox: {
-    backgroundColor: ORANGE, paddingHorizontal: 10, paddingVertical: 3,
+    paddingHorizontal: 10, paddingVertical: 3,
     borderRadius: 2, marginBottom: 8,
+    borderWidth: 1, borderColor: ORANGE_MID,
   },
-  signTitleText: { fontSize: 8, color: "white", fontWeight: "bold" },
+  signTitleText: { fontSize: 8, color: GRAY, fontWeight: "bold" },
   signImage: { width: 140, height: 60, objectFit: "contain", marginBottom: 6 },
   signImageEmpty: { width: 140, height: 60, borderBottomWidth: 1, borderBottomColor: "#d4d4d4", marginBottom: 6 },
   signName: { fontSize: 9, fontWeight: "bold", color: DARK },
@@ -141,6 +152,7 @@ export interface SignatureInfo {
 export interface InvoicePDFProps {
   nomor_invoice: string;
   tanggal: string | Date | null;
+  overdue_date?: string | Date | null;
   klien: string;
   alamat_klien?: string | null;
   telepon_klien?: string | null;
@@ -151,6 +163,7 @@ export interface InvoicePDFProps {
   ppn_amount: number;
   grand_total: number;
   catatan?: string;
+  bank_account?: { bank_name: string; account_number: string; account_name: string } | null;
   head_finance?: SignatureInfo | null;
   admin_finance?: SignatureInfo | null;
   logoUrl?: string;
@@ -158,8 +171,8 @@ export interface InvoicePDFProps {
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function InvoicePDF({
-  nomor_invoice, tanggal, klien, alamat_klien, telepon_klien, lead_jenis, items,
-  subtotal, ppn_percentage, ppn_amount, grand_total, catatan,
+  nomor_invoice, tanggal, overdue_date, klien, alamat_klien, telepon_klien, lead_jenis, items,
+  subtotal, ppn_percentage, ppn_amount, grand_total, catatan, bank_account,
   head_finance, admin_finance, logoUrl,
 }: InvoicePDFProps) {
   return (
@@ -197,6 +210,14 @@ export function InvoicePDF({
               <Text style={styles.metaLabelText}>TANGGAL INVOICE</Text>
             </View>
             <Text style={styles.metaValue}>{formatDate(tanggal)}</Text>
+            {overdue_date && (
+              <View style={{ alignItems: "flex-end", marginTop: 8 }}>
+                <View style={[styles.metaLabelBox, { alignSelf: "flex-end" }]}>
+                  <Text style={styles.metaLabelText}>JATUH TEMPO</Text>
+                </View>
+                <Text style={styles.metaValue}>{formatDate(overdue_date)}</Text>
+              </View>
+            )}
           </View>
         </View>
 
@@ -238,6 +259,25 @@ export function InvoicePDF({
             </View>
           </View>
         </View>
+
+        {/* ── Bank Account ── */}
+        {bank_account && (
+          <View style={styles.bankBox}>
+            <Text style={styles.bankTitle}>TRANSFER KE</Text>
+            <View style={styles.bankRow}>
+              <Text style={styles.bankLabel}>Bank</Text>
+              <Text style={styles.bankValue}>{bank_account.bank_name}</Text>
+            </View>
+            <View style={styles.bankRow}>
+              <Text style={styles.bankLabel}>No. Rekening</Text>
+              <Text style={styles.bankValue}>{bank_account.account_number}</Text>
+            </View>
+            <View style={styles.bankRow}>
+              <Text style={styles.bankLabel}>Atas Nama</Text>
+              <Text style={styles.bankValue}>{bank_account.account_name}</Text>
+            </View>
+          </View>
+        )}
 
         {/* ── Catatan ── */}
         {catatan ? (

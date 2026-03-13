@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Plus, Pencil, Trash2, KeyRound, CheckCircle2, XCircle, RefreshCw } from "lucide-react";
+import { Plus, Pencil, Trash2, KeyRound, CheckCircle2, XCircle, RefreshCw, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
-import { adsAccountApi, adsTargetApi, type AdAccountPayload } from "@/lib/api/meta-ads";
+import { adsAccountApi, adsTargetApi, metaAdsApi, type AdAccountPayload } from "@/lib/api/meta-ads";
 import { formatRupiah } from "@/lib/utils";
 import type { AdPlatformAccount, AdMonthlyTarget } from "@/types";
 
@@ -494,6 +494,84 @@ function TargetCard({
   );
 }
 
+// ── Kelola Campaign Tab ────────────────────────────────────────────────────────
+function KelolaCampaignTab() {
+  const qc = useQueryClient();
+  const [toggling, setToggling] = useState<number | null>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["/bd/meta-ads/campaigns/all"],
+    queryFn: () => metaAdsApi.listAll(),
+  });
+
+  const campaigns = data?.items ?? [];
+
+  async function handleToggle(id: number) {
+    setToggling(id);
+    try {
+      await metaAdsApi.toggleHidden(id);
+      qc.invalidateQueries({ queryKey: ["/bd/meta-ads/campaigns/all"] });
+      qc.invalidateQueries({ queryKey: ["/bd/meta-ads/campaigns"] });
+      qc.invalidateQueries({ queryKey: ["/bd/meta-ads/dashboard"] });
+      toast.success("Status kampanye diperbarui");
+    } catch {
+      toast.error("Gagal mengubah status kampanye");
+    } finally {
+      setToggling(null);
+    }
+  }
+
+  if (isLoading) return <div className="text-sm text-muted-foreground py-6 text-center">Memuat...</div>;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Kelola Visibilitas Kampanye</CardTitle>
+        <p className="text-xs text-muted-foreground">
+          Kampanye yang disembunyikan tidak akan tampil di Dashboard dan dropdown filter.
+        </p>
+      </CardHeader>
+      <CardContent className="p-0">
+        {campaigns.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-6 text-center">Belum ada kampanye.</p>
+        ) : (
+          <div className="divide-y">
+            {campaigns.map((c) => (
+              <div key={c.id} className={`flex items-center gap-3 px-4 py-3 ${c.is_hidden ? "bg-muted/40" : ""}`}>
+                <div className="flex-1 min-w-0">
+                  <div className={`text-sm font-medium truncate ${c.is_hidden ? "text-muted-foreground line-through" : ""}`}>
+                    {c.campaign_name ?? c.nama_campaign ?? `Campaign #${c.id}`}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.platform ?? "Meta"}</Badge>
+                    {c.is_hidden && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Tersembunyi</Badge>}
+                  </div>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  disabled={toggling === c.id}
+                  onClick={() => handleToggle(Number(c.id))}
+                  className={c.is_hidden ? "text-muted-foreground" : "text-orange-500 hover:text-orange-600"}
+                  title={c.is_hidden ? "Tampilkan di dashboard" : "Sembunyikan dari dashboard"}
+                >
+                  {toggling === c.id ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : c.is_hidden ? (
+                    <><EyeOff className="h-4 w-4 mr-1" /><span className="text-xs">Tersembunyi</span></>
+                  ) : (
+                    <><Eye className="h-4 w-4 mr-1" /><span className="text-xs">Tampil</span></>
+                  )}
+                </Button>
+              </div>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function MetaAdsPage() {
   return (
@@ -506,12 +584,16 @@ export default function MetaAdsPage() {
         <TabsList>
           <TabsTrigger value="setup">Setup Platform</TabsTrigger>
           <TabsTrigger value="targets">Target Bulanan</TabsTrigger>
+          <TabsTrigger value="campaigns">Kelola Kampanye</TabsTrigger>
         </TabsList>
         <TabsContent value="setup" className="mt-4">
           <SetupPlatformTab />
         </TabsContent>
         <TabsContent value="targets" className="mt-4">
           <TargetBulananTab />
+        </TabsContent>
+        <TabsContent value="campaigns" className="mt-4">
+          <KelolaCampaignTab />
         </TabsContent>
       </Tabs>
     </div>

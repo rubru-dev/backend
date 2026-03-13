@@ -36,7 +36,7 @@ router.get("/kanban", async (req: Request, res: Response) => {
       cards: {
         orderBy: { urutan: "asc" },
         include: {
-          lead: { select: { id: true, nama: true } },
+          lead: { select: { id: true, nama: true, created_at: true, tanggal_masuk: true } },
           assigned_user: { select: { id: true, name: true } },
           labels: true,
           comments: { include: { user: { select: { id: true, name: true } } } },
@@ -154,7 +154,7 @@ router.post("/kanban/columns/:id/cards", async (req: Request, res: Response) => 
       color: color ?? null,
     },
     include: {
-      lead: { select: { id: true, nama: true } },
+      lead: { select: { id: true, nama: true, tanggal_masuk: true } },
       assigned_user: { select: { id: true, name: true } },
       labels: true,
     },

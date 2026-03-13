@@ -159,7 +159,7 @@ export interface AdminKanbanCard {
   deadline?: string | null;
   tanggal_survey?: string | null;
   color?: string | null;
-  lead?: { id: number; nama: string } | null;
+  lead?: { id: number; nama: string; created_at?: string | null; tanggal_masuk?: string | null } | null;
 }
 
 export interface AdminKanbanColumn {
@@ -221,6 +221,9 @@ export const adminKanbanApi = {
   addComment: async (cardId: number, body: string): Promise<void> => {
     await apiClient.post(`/sales-admin/kanban/cards/${cardId}/comments`, { body });
   },
+  updateLead: async (leadId: number, payload: { tanggal_masuk?: string | null }): Promise<void> => {
+    await apiClient.patch(`/bd/sales-admin/leads/${leadId}`, payload);
+  },
 };
 
 // ── Telemarketing Kanban types & API ──────────────────────────────────────────
@@ -233,7 +236,7 @@ export interface TelemarketingKanbanCard {
   deadline?: string | null;
   tanggal_survey?: string | null;
   color?: string | null;
-  lead?: { id: number; nama: string } | null;
+  lead?: { id: number; nama: string; created_at?: string | null; tanggal_masuk?: string | null } | null;
 }
 
 export interface TelemarketingKanbanColumn {
@@ -285,5 +288,8 @@ export const telemarketingKanbanApi = {
   },
   addComment: async (cardId: number, body: string): Promise<void> => {
     await apiClient.post(`/telemarketing/kanban/cards/${cardId}/comments`, { body });
+  },
+  updateLead: async (leadId: number, payload: { tanggal_masuk?: string | null }): Promise<void> => {
+    await apiClient.patch(`/bd/telemarketing/leads/${leadId}`, payload);
   },
 };

@@ -9,7 +9,9 @@ const router = Router();
 
 function leadDict(l: {
   id: bigint; nama: string; nomor_telepon: string | null; alamat: string | null;
-  sumber_leads: string | null; keterangan: string | null; jenis: string | null;
+  sumber_leads: string | null; meta_ads_campaign_id?: bigint | null;
+  tanggal_masuk?: Date | null;
+  keterangan: string | null; jenis: string | null;
   week: number | null; status: string | null; tipe: string | null; bulan: number | null;
   tahun: number | null; rencana_survey: string | null; tanggal_survey: Date | null;
   jam_survey: string | null; pic_survey: string | null; modul: string | null;
@@ -20,7 +22,10 @@ function leadDict(l: {
 }) {
   return {
     id: l.id, nama: l.nama, nomor_telepon: l.nomor_telepon, alamat: l.alamat,
-    sumber_leads: l.sumber_leads, keterangan: l.keterangan, jenis: l.jenis,
+    sumber_leads: l.sumber_leads,
+    meta_ads_campaign_id: l.meta_ads_campaign_id ? String(l.meta_ads_campaign_id) : null,
+    tanggal_masuk: l.tanggal_masuk ?? null,
+    keterangan: l.keterangan, jenis: l.jenis,
     week: l.week, status: l.status, tipe: l.tipe, bulan: l.bulan, tahun: l.tahun,
     rencana_survey: l.rencana_survey, tanggal_survey: l.tanggal_survey,
     jam_survey: l.jam_survey, pic_survey: l.pic_survey, modul: l.modul,
@@ -71,6 +76,8 @@ router.post("/leads", async (req: Request, res: Response) => {
       nomor_telepon: b.nomor_telepon ?? null,
       alamat: b.alamat ?? null,
       sumber_leads: b.sumber_leads ?? null,
+      meta_ads_campaign_id: b.meta_ads_campaign_id ? BigInt(b.meta_ads_campaign_id) : null,
+      tanggal_masuk: b.tanggal_masuk ? new Date(b.tanggal_masuk) : null,
       keterangan: b.keterangan ?? null,
       jenis: b.jenis ?? null,
       week: b.week != null ? parseInt(b.week) : null,
@@ -115,6 +122,8 @@ router.patch("/leads/:id", async (req: Request, res: Response) => {
   if (b.nomor_telepon !== undefined) updates.nomor_telepon = b.nomor_telepon;
   if (b.alamat !== undefined) updates.alamat = b.alamat;
   if (b.sumber_leads !== undefined) updates.sumber_leads = b.sumber_leads;
+  if (b.meta_ads_campaign_id !== undefined) updates.meta_ads_campaign_id = b.meta_ads_campaign_id ? BigInt(b.meta_ads_campaign_id) : null;
+  if (b.tanggal_masuk !== undefined) updates.tanggal_masuk = b.tanggal_masuk ? new Date(b.tanggal_masuk) : null;
   if (b.keterangan !== undefined) updates.keterangan = b.keterangan;
   if (b.jenis !== undefined) updates.jenis = b.jenis;
   if (b.week !== undefined) updates.week = b.week != null ? parseInt(b.week) : null;
@@ -203,19 +212,49 @@ router.delete("/follow-up/:id", async (req: Request, res: Response) => {
 
 // ── META ADS ──────────────────────────────────────────────────────────────────
 
-router.get("/meta-ads/campaigns", async (_req: Request, res: Response) => {
+// GET /bd/meta-ads/campaigns-select — minimal list for lead form sumber dropdown
+router.get("/meta-ads/campaigns-select", async (_req: Request, res: Response) => {
   const camps = await prisma.metaAdsCampaign.findMany({
-    include: { content_metrics: true, chat_metrics: true },
+    where: { status: "aktif" },
+    select: { id: true, campaign_name: true, platform: true, _count: { select: { leads: true } } },
+    orderBy: { created_at: "desc" },
+  });
+  return res.json(camps.map((c) => ({
+    id: String(c.id),
+    campaign_name: c.campaign_name ?? "",
+    platform: c.platform,
+    leads_count: c._count.leads,
+  })));
+});
+
+router.get("/meta-ads/campaigns", async (req: Request, res: Response) => {
+  const includeHidden = req.query.include_hidden === "true";
+  const where = includeHidden ? {} : { is_hidden: false };
+  const camps = await prisma.metaAdsCampaign.findMany({
+    where,
+    include: { content_metrics: true, chat_metrics: true, _count: { select: { leads: true } } },
     orderBy: { id: "desc" },
   });
   const result = camps.map((c) => ({
     id: c.id, campaign_name: c.campaign_name, meta_campaign_id: c.meta_campaign_id,
-    status: c.status, platform: c.platform, created_at: c.created_at,
+    status: c.status, platform: c.platform, is_hidden: c.is_hidden, created_at: c.created_at,
     total_spend: c.content_metrics.reduce((s, m) => s + parseFloat(String(m.spend ?? 0)), 0),
     total_clicks: c.content_metrics.reduce((s, m) => s + (m.clicks ?? 0), 0),
     total_conversions: c.chat_metrics.reduce((s, m) => s + (m.total_conversions ?? 0), 0),
+    leads_count: c._count.leads,
   }));
   return res.json({ items: result, total: result.length });
+});
+
+router.patch("/meta-ads/campaigns/:id/toggle-hidden", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const camp = await prisma.metaAdsCampaign.findUnique({ where: { id } });
+  if (!camp) return res.status(404).json({ message: "Campaign tidak ditemukan" });
+  const updated = await prisma.metaAdsCampaign.update({
+    where: { id },
+    data: { is_hidden: !camp.is_hidden },
+  });
+  return res.json({ id: updated.id, is_hidden: updated.is_hidden });
 });
 
 router.post("/meta-ads/campaigns", async (req: Request, res: Response) => {
@@ -434,7 +473,7 @@ router.delete("/meta-ads/chat-metrics/:id", async (req: Request, res: Response) 
 router.get("/meta-ads/dashboard", async (req: Request, res: Response) => {
   const { platform, campaign_id, bulan, tahun, start_date, end_date } = req.query;
 
-  const campaignWhere: Record<string, unknown> = {};
+  const campaignWhere: Record<string, unknown> = { is_hidden: false };
   if (platform && platform !== "all") campaignWhere.platform = platform;
   if (campaign_id) campaignWhere.id = parseInt(campaign_id as string);
 
@@ -1024,9 +1063,29 @@ router.get("/:modul/leads/follow-up-report", async (req: Request, res: Response)
   const search = req.query.search as string | undefined;
   const status = req.query.status as string | undefined;
   const jenis = req.query.jenis as string | undefined;
+  const sumber = req.query.sumber as string | undefined;
+  const bulan = req.query.bulan as string | undefined;
+  const tahun = req.query.tahun as string | undefined;
+  const tanggal_mulai = req.query.tanggal_mulai as string | undefined;
+  const tanggal_selesai = req.query.tanggal_selesai as string | undefined;
   if (search) where.nama = { contains: search, mode: "insensitive" };
   if (status) where.status = status;
   if (jenis) where.jenis = jenis;
+  if (sumber) where.sumber_leads = sumber;
+  if (tanggal_mulai || tanggal_selesai) {
+    const dateFilter: Record<string, Date> = {};
+    if (tanggal_mulai) dateFilter.gte = new Date(tanggal_mulai);
+    if (tanggal_selesai) { const d = new Date(tanggal_selesai); d.setHours(23, 59, 59, 999); dateFilter.lte = d; }
+    where.created_at = dateFilter;
+  } else if (bulan || tahun) {
+    const y = tahun ? parseInt(tahun) : new Date().getFullYear();
+    if (bulan) {
+      const m = parseInt(bulan) - 1;
+      where.created_at = { gte: new Date(y, m, 1), lte: new Date(y, m + 1, 0, 23, 59, 59, 999) };
+    } else {
+      where.created_at = { gte: new Date(y, 0, 1), lte: new Date(y, 11, 31, 23, 59, 59, 999) };
+    }
+  }
 
   const leads = await prisma.lead.findMany({
     where,
@@ -1082,6 +1141,8 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
       nomor_telepon: b.nomor_telepon ?? null,
       alamat: b.alamat ?? null,
       sumber_leads: b.sumber_leads ?? null,
+      meta_ads_campaign_id: b.meta_ads_campaign_id ? BigInt(b.meta_ads_campaign_id) : null,
+      tanggal_masuk: b.tanggal_masuk ? new Date(b.tanggal_masuk) : null,
       keterangan: b.keterangan ?? null,
       jenis: b.jenis ?? null,
       week: b.week != null ? parseInt(b.week) : null,
@@ -1111,6 +1172,8 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   if (b.nomor_telepon !== undefined) updates.nomor_telepon = b.nomor_telepon;
   if (b.alamat !== undefined) updates.alamat = b.alamat;
   if (b.sumber_leads !== undefined) updates.sumber_leads = b.sumber_leads;
+  if (b.meta_ads_campaign_id !== undefined) updates.meta_ads_campaign_id = b.meta_ads_campaign_id ? BigInt(b.meta_ads_campaign_id) : null;
+  if (b.tanggal_masuk !== undefined) updates.tanggal_masuk = b.tanggal_masuk ? new Date(b.tanggal_masuk) : null;
   if (b.keterangan !== undefined) updates.keterangan = b.keterangan;
   if (b.jenis !== undefined) updates.jenis = b.jenis;
   if (b.week !== undefined) updates.week = b.week != null ? parseInt(b.week) : null;
@@ -1274,16 +1337,20 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
     return res.status(400).json({ detail: "Array leads wajib diisi" });
   const now = new Date();
   const created = await prisma.$transaction(
-    leads.map((l) => prisma.lead.create({
-      data: {
-        nama: l.nama, nomor_telepon: l.nomor_telepon || null,
-        alamat: l.alamat || null, sumber_leads: l.sumber_leads || null,
-        jenis: l.jenis || null, status: l.status || "Low",
-        keterangan: l.keterangan || null,
-        modul, user_id: req.user!.id,
-        bulan: now.getMonth() + 1, tahun: now.getFullYear(),
-      },
-    }))
+    leads.map((l) => {
+      const tanggalMasuk = l.tanggal_masuk ? new Date(l.tanggal_masuk) : now;
+      return prisma.lead.create({
+        data: {
+          nama: l.nama, nomor_telepon: l.nomor_telepon || null,
+          alamat: l.alamat || null, sumber_leads: l.sumber_leads || null,
+          jenis: l.jenis || null, status: l.status || "Low",
+          keterangan: l.keterangan || null,
+          tanggal_masuk: tanggalMasuk,
+          modul, user_id: req.user!.id,
+          bulan: tanggalMasuk.getMonth() + 1, tahun: tanggalMasuk.getFullYear(),
+        },
+      });
+    })
   );
   return res.json({ inserted: created.length });
 });

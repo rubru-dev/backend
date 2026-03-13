@@ -134,6 +134,16 @@ async function main() {
     { name: "admin.users",    module: "admin", label: "Sub-menu: Users" },
     { name: "admin.roles",    module: "admin", label: "Sub-menu: Roles & Permission" },
     { name: "admin.settings", module: "admin", label: "Sub-menu: Pengaturan" },
+    // Projek Sipil tab-level
+    { name: "projek_sipil.termin",      module: "projek_sipil", label: "Tab: Daftar Termin Sipil" },
+    { name: "projek_sipil.gantt",       module: "projek_sipil", label: "Tab: Gantt Chart Sipil" },
+    { name: "projek_sipil.docs",        module: "projek_sipil", label: "Tab: Docs/Link Sipil" },
+    { name: "projek_sipil.rapp",        module: "projek_sipil", label: "Tab: RAPP Sipil" },
+    { name: "projek_sipil.stock_opname",module: "projek_sipil", label: "Tab: Stock Opname Sipil" },
+    // Projek Interior tab-level
+    { name: "projek_interior.termin",   module: "projek_interior", label: "Tab: Daftar Termin Interior" },
+    { name: "projek_interior.gantt",    module: "projek_interior", label: "Tab: Gantt Chart Interior" },
+    { name: "projek_interior.rapp",     module: "projek_interior", label: "Tab: RAPP Interior" },
     // Tukang
     { name: "tukang.absen_submit", module: "tukang", label: "Submit Absen Tukang" },
     // Tutorial

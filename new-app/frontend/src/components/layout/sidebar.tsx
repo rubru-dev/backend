@@ -77,7 +77,7 @@ function SidebarGroup({
     <div className="mb-1">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-white/40 hover:text-white/60 transition-colors"
+        className="flex w-full items-center gap-2 px-3 py-2 text-xs font-semibold uppercase tracking-wider text-gray-400 hover:text-gray-200 transition-colors"
       >
         {/* Color dot */}
         <span
@@ -124,7 +124,7 @@ export function Sidebar({ className }: { className?: string }) {
   return (
     <aside
       className={cn(
-        "flex h-full w-[var(--sidebar-width)] flex-col bg-slate-900 text-white",
+        "flex h-full w-[var(--sidebar-width)] flex-col bg-[hsl(var(--sidebar-bg))] text-[hsl(var(--sidebar-fg))]",
         className
       )}
     >
@@ -132,8 +132,8 @@ export function Sidebar({ className }: { className?: string }) {
       <div className="flex h-16 items-center gap-3 border-b border-white/10 px-4 shrink-0">
         <Image src="/images/logo.png" alt="Report Rubru" width={36} height={36} className="h-9 w-9 object-contain rounded-md bg-white p-0.5" />
         <div>
-          <p className="text-sm font-bold leading-none">Report Rubru</p>
-          <p className="text-[10px] text-white/50 mt-0.5">PT. Rubah Rumah</p>
+          <p className="text-sm font-bold leading-none text-white">Report Rubru</p>
+          <p className="text-[10px] text-gray-400 mt-0.5">PT. Rubah Rumah</p>
         </div>
       </div>
 
@@ -162,9 +162,9 @@ export function Sidebar({ className }: { className?: string }) {
       {user && (
         <div className="border-t border-white/10 px-4 py-3 shrink-0">
           <p className="truncate text-sm font-medium text-white">{user.name}</p>
-          <p className="truncate text-xs text-white/50">{user.email}</p>
+          <p className="truncate text-xs text-gray-400">{user.email}</p>
           {user.roles[0] && (
-            <span className="mt-1 inline-block rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-white/70">
+            <span className="mt-1 inline-block rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-gray-300">
               {user.roles.map((r) => r.name).join(", ")}
             </span>
           )}

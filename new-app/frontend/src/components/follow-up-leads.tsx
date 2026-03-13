@@ -40,7 +40,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 const JENIS_OPTIONS = ["Sipil", "Interior", "Desain"];
 const STATUS_OPTIONS = ["Low", "Medium", "Hot", "Client", "Batal"];
-const SUMBER_OPTIONS = ["Instagram", "TikTok", "Facebook", "Referral", "Walk-in", "Lainnya"];
+const STATIC_SUMBER_OPTIONS = ["Instagram", "TikTok", "Facebook", "Referral", "Walk-in", "Lainnya"];
 
 const BULAN_OPTIONS = [
   { value: "1", label: "Januari" }, { value: "2", label: "Februari" },
@@ -58,6 +58,7 @@ const EMPTY = {
   nama: "", nomor_telepon: "", alamat: "", sumber_leads: "Instagram",
   jenis: "Interior", status: "Low", keterangan: "",
   rencana_survey: "Tidak", tanggal_survey: "", jam_survey: "", pic_survey: "",
+  tanggal_masuk: "", meta_ads_campaign_id: null as number | null,
 };
 
 export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
@@ -78,6 +79,18 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       apiClient.get(`/bd/${modul}/leads/follow-up-report`, { params }).then((r) => r.data),
   };
 
+  const { data: campaignsData } = useQuery({
+    queryKey: ["meta-ads-campaigns-select"],
+    queryFn: () => apiClient.get("/bd/meta-ads/campaigns-select").then((r) => r.data as { id: number; campaign_name: string; platform: string; leads_count: number }[]),
+    staleTime: 1000 * 60 * 5,
+  });
+  const campaignOptions = Array.isArray(campaignsData) ? campaignsData : [];
+  // Combined sumber options: campaigns first, then static fallbacks
+  const allSumberOptions: { value: string; label: string; campaignId: number | null }[] = [
+    ...campaignOptions.map((c) => ({ value: `campaign:${c.id}:${c.campaign_name}`, label: `📢 ${c.campaign_name} (${c.platform})`, campaignId: c.id })),
+    ...STATIC_SUMBER_OPTIONS.map((s) => ({ value: s, label: s, campaignId: null })),
+  ];
+
   const [open, setOpen] = useState(false);
   const [editItem, setEditItem] = useState<any>(null);
   const [form, setForm] = useState(EMPTY);
@@ -85,6 +98,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterJenis, setFilterJenis] = useState("all");
   const [filterSurvey, setFilterSurvey] = useState("all");
+  const [filterSumber, setFilterSumber] = useState("all");
   const [filterBulan, setFilterBulan] = useState("all");
   const [filterTahun, setFilterTahun] = useState("all");
   const [filterTanggalMulai, setFilterTanggalMulai] = useState("");
@@ -92,15 +106,26 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string }>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [page, setPage] = useState(1);
+
+  // Resolve sumber filter value to actual sumber_leads string or campaign id
+  const resolvedSumberFilter = filterSumber !== "all" && filterSumber.startsWith("campaign:")
+    ? filterSumber.split(":").slice(2).join(":") // campaign name (preserving colons in name)
+    : filterSumber !== "all" ? filterSumber : undefined;
+  const resolvedCampaignIdFilter = filterSumber !== "all" && filterSumber.startsWith("campaign:")
+    ? filterSumber.split(":")[1]
+    : undefined;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai],
+    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai],
     queryFn: () =>
       followUpApi.list({
         search: search || undefined,
         status: filterStatus !== "all" ? filterStatus : undefined,
         jenis: filterJenis !== "all" ? filterJenis : undefined,
         rencana_survey: filterSurvey !== "all" ? filterSurvey : undefined,
+        sumber: resolvedSumberFilter,
+        meta_ads_campaign_id: resolvedCampaignIdFilter,
         bulan: filterBulan !== "all" ? filterBulan : undefined,
         tahun: filterTahun !== "all" ? filterTahun : undefined,
         tanggal_mulai: filterTanggalMulai || undefined,
@@ -183,15 +208,31 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       const wb = XLSX.read(buffer);
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      const leads = rows.map((r) => ({
-        nama: String(r["Nama"] || r["nama"] || "").trim(),
-        nomor_telepon: String(r["Nomor Telepon"] || r["nomor_telepon"] || "").trim(),
-        alamat: String(r["Alamat"] || r["alamat"] || "").trim(),
-        sumber_leads: String(r["Sumber"] || r["sumber_leads"] || "Lainnya").trim(),
-        jenis: String(r["Jenis"] || r["jenis"] || "").trim(),
-        status: String(r["Status"] || r["status"] || "Low").trim(),
-        keterangan: String(r["Keterangan"] || r["keterangan"] || "").trim(),
-      })).filter((l) => l.nama.length > 0);
+      const leads = rows.map((r) => {
+        const rawTgl = String(r["Tanggal Masuk"] || r["tanggal_masuk"] || "").trim();
+        // Handle Excel numeric date serial (e.g. 45678)
+        let tanggal_masuk: string | null = null;
+        if (rawTgl) {
+          const num = Number(rawTgl);
+          if (!isNaN(num) && num > 10000) {
+            // Excel serial: days since 1900-01-01 (with leap-year bug offset)
+            const d = new Date(Math.round((num - 25569) * 86400 * 1000));
+            tanggal_masuk = d.toISOString().split("T")[0];
+          } else if (rawTgl.length > 0) {
+            tanggal_masuk = rawTgl;
+          }
+        }
+        return {
+          nama: String(r["Nama"] || r["nama"] || "").trim(),
+          nomor_telepon: String(r["Nomor Telepon"] || r["nomor_telepon"] || "").trim(),
+          alamat: String(r["Alamat"] || r["alamat"] || "").trim(),
+          sumber_leads: String(r["Sumber"] || r["sumber_leads"] || "Lainnya").trim(),
+          jenis: String(r["Jenis"] || r["jenis"] || "").trim(),
+          status: String(r["Status"] || r["status"] || "Low").trim(),
+          keterangan: String(r["Keterangan"] || r["keterangan"] || "").trim(),
+          tanggal_masuk,
+        };
+      }).filter((l) => l.nama.length > 0);
       if (leads.length === 0) { toast.error("Tidak ada data valid ditemukan di file Excel"); return; }
       bulkImportMut.mutate(leads);
     } catch {
@@ -204,18 +245,41 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   function openCreate() { setEditItem(null); setForm(EMPTY); setOpen(true); }
   function openEdit(item: any) {
     setEditItem(item);
+    // Check if sumber_leads matches a campaign name — if so, reconstruct the campaign value
+    const matchedCampaign = campaignOptions.find((c) => c.campaign_name === item.sumber_leads);
+    const sumberValue = matchedCampaign
+      ? `campaign:${matchedCampaign.id}:${matchedCampaign.campaign_name}`
+      : item.sumber_leads ?? "Instagram";
     setForm({
       nama: item.nama, nomor_telepon: item.nomor_telepon ?? "", alamat: item.alamat ?? "",
-      sumber_leads: item.sumber_leads ?? "Instagram", jenis: item.jenis ?? "Interior",
+      sumber_leads: sumberValue, jenis: item.jenis ?? "Interior",
       status: item.status ?? "Low", keterangan: item.keterangan ?? "",
       rencana_survey: item.rencana_survey ?? "Tidak",
       tanggal_survey: item.tanggal_survey ?? "", jam_survey: item.jam_survey ?? "", pic_survey: item.pic_survey ?? "",
+      tanggal_masuk: item.tanggal_masuk ? item.tanggal_masuk.split("T")[0] : "",
+      meta_ads_campaign_id: item.meta_ads_campaign_id ?? null,
     });
     setOpen(true);
   }
 
   function handleSubmit() {
-    const payload = { ...form, tanggal_survey: form.tanggal_survey || null, jam_survey: form.jam_survey || null, pic_survey: form.pic_survey || null };
+    // Resolve campaign selection back to sumber_leads string + meta_ads_campaign_id
+    let sumber_leads = form.sumber_leads;
+    let meta_ads_campaign_id: number | null = form.meta_ads_campaign_id;
+    if (form.sumber_leads.startsWith("campaign:")) {
+      const parts = form.sumber_leads.split(":");
+      meta_ads_campaign_id = parseInt(parts[1]);
+      sumber_leads = parts.slice(2).join(":");
+    }
+    const payload = {
+      ...form,
+      sumber_leads,
+      meta_ads_campaign_id,
+      tanggal_survey: form.tanggal_survey || null,
+      jam_survey: form.jam_survey || null,
+      pic_survey: form.pic_survey || null,
+      tanggal_masuk: form.tanggal_masuk || null,
+    };
     if (editItem) updateMut.mutate({ id: editItem.id, data: payload });
     else createMut.mutate(payload);
   }
@@ -309,6 +373,12 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
         search: search || undefined,
         status: filterStatus !== "all" ? filterStatus : undefined,
         jenis: filterJenis !== "all" ? filterJenis : undefined,
+        sumber: resolvedSumberFilter,
+        meta_ads_campaign_id: resolvedCampaignIdFilter,
+        bulan: filterBulan !== "all" ? filterBulan : undefined,
+        tahun: filterTahun !== "all" ? filterTahun : undefined,
+        tanggal_mulai: filterTanggalMulai || undefined,
+        tanggal_selesai: filterTanggalSelesai || undefined,
       });
     } catch {
       toast.error("Gagal memuat data laporan");
@@ -318,6 +388,14 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
     const filterParts: string[] = [];
     if (filterStatus !== "all") filterParts.push(`Status: ${filterStatus}`);
     if (filterJenis !== "all") filterParts.push(`Jenis: ${filterJenis}`);
+    if (filterSumber !== "all") {
+      const sumberLabel = allSumberOptions.find((o) => o.value === filterSumber)?.label ?? filterSumber;
+      filterParts.push(`Sumber: ${sumberLabel}`);
+    }
+    if (filterBulan !== "all") filterParts.push(`Bulan: ${BULAN_OPTIONS.find((b) => b.value === filterBulan)?.label ?? filterBulan}`);
+    if (filterTahun !== "all") filterParts.push(`Tahun: ${filterTahun}`);
+    if (filterTanggalMulai) filterParts.push(`Dari: ${filterTanggalMulai}`);
+    if (filterTanggalSelesai) filterParts.push(`Sampai: ${filterTanggalSelesai}`);
     if (search) filterParts.push(`Pencarian: "${search}"`);
     const filterLabel = filterParts.length > 0 ? filterParts.join(" | ") : "Semua Data";
 
@@ -412,14 +490,19 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
   const pending = createMut.isPending || updateMut.isPending;
 
+  const PAGE_SIZE = 15;
+  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
+  const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+
   const hasActiveFilters =
-    filterStatus !== "all" || filterJenis !== "all" || filterSurvey !== "all" ||
+    filterStatus !== "all" || filterJenis !== "all" || filterSurvey !== "all" || filterSumber !== "all" ||
     filterBulan !== "all" || filterTahun !== "all" || !!filterTanggalMulai || !!filterTanggalSelesai;
 
   function resetFilters() {
-    setFilterStatus("all"); setFilterJenis("all"); setFilterSurvey("all");
+    setFilterStatus("all"); setFilterJenis("all"); setFilterSurvey("all"); setFilterSumber("all");
     setFilterBulan("all"); setFilterTahun("all");
     setFilterTanggalMulai(""); setFilterTanggalSelesai("");
+    setPage(1);
   }
 
   function handlePrint() {
@@ -455,7 +538,8 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
         <td><strong>${item.nama.replace(/</g, "&lt;")}</strong></td>
         <td>${item.nomor_telepon || "—"}</td>
         <td>${item.jenis}</td>
-        <td>${item.sumber_leads}</td>
+        <td>${item.sumber_leads || "—"}</td>
+        <td>${item.tanggal_masuk ? new Date(item.tanggal_masuk).toLocaleDateString("id-ID") : item.created_at ? new Date(item.created_at).toLocaleDateString("id-ID") : "—"}</td>
         <td><span class="${badgeClass[item.status] ?? "badge-low"}">${item.status}</span></td>
         <td>${
           item.rencana_survey === "Ya"
@@ -524,11 +608,12 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       <th style="width:100px">Telepon</th>
       <th style="width:70px">Jenis</th>
       <th style="width:80px">Sumber</th>
+      <th style="width:80px">Tgl Masuk</th>
       <th style="width:62px">Status</th>
       <th style="width:80px">Survey</th>
       <th>Keterangan</th>
     </tr></thead>
-    <tbody>${rows || '<tr><td colspan="8" style="text-align:center;color:#94a3b8;padding:24px">Tidak ada data leads</td></tr>'}</tbody>
+    <tbody>${rows || '<tr><td colspan="9" style="text-align:center;color:#94a3b8;padding:24px">Tidak ada data leads</td></tr>'}</tbody>
   </table>
   <div class="footer">
     <span>PT. Rubah Rumah Inovasi Pemuda — Follow Up Leads ${modulLabel}</span>
@@ -551,6 +636,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       "Nomor Telepon":   item.nomor_telepon ?? "",
       "Alamat":          item.alamat ?? "",
       "Sumber Leads":    item.sumber_leads ?? "",
+      "Tanggal Masuk":   item.tanggal_masuk ? new Date(item.tanggal_masuk).toLocaleDateString("id-ID") : item.created_at ? new Date(item.created_at).toLocaleDateString("id-ID") : "",
       "Jenis":           item.jenis ?? "",
       "Status":          item.status ?? "",
       "Rencana Survey":  item.rencana_survey ?? "",
@@ -558,8 +644,6 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       "Jam Survey":      item.jam_survey ?? "",
       "PIC Survey":      item.pic_survey ?? "",
       "Keterangan":      item.keterangan ?? "",
-      "Bulan":           item.bulan ?? "",
-      "Tahun":           item.tahun ?? "",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     const wb = XLSX.utils.book_new();
@@ -575,6 +659,12 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
         search: search || undefined,
         status: filterStatus !== "all" ? filterStatus : undefined,
         jenis: filterJenis !== "all" ? filterJenis : undefined,
+        sumber: resolvedSumberFilter,
+        meta_ads_campaign_id: resolvedCampaignIdFilter,
+        bulan: filterBulan !== "all" ? filterBulan : undefined,
+        tahun: filterTahun !== "all" ? filterTahun : undefined,
+        tanggal_mulai: filterTanggalMulai || undefined,
+        tanggal_selesai: filterTanggalSelesai || undefined,
       });
     } catch {
       toast.error("Gagal memuat data laporan");
@@ -588,6 +678,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       "Nomor Telepon":  lead.nomor_telepon ?? "",
       "Alamat":         lead.alamat ?? "",
       "Sumber Leads":   lead.sumber_leads ?? "",
+      "Tanggal Masuk":  lead.tanggal_masuk ? new Date(lead.tanggal_masuk).toLocaleDateString("id-ID") : lead.created_at ? new Date(lead.created_at).toLocaleDateString("id-ID") : "",
       "Jenis":          lead.jenis ?? "",
       "Status":         lead.status ?? "",
       "Rencana Survey": lead.rencana_survey ?? "",
@@ -685,7 +776,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
         <div className="flex gap-3 flex-wrap">
           <div className="relative flex-1 min-w-[200px]">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input className="pl-9" placeholder="Cari nama / telepon..." value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Input className="pl-9" placeholder="Cari nama / telepon..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           </div>
           <Select value={filterStatus} onValueChange={setFilterStatus}>
             <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
@@ -707,6 +798,26 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
               <SelectItem value="all">Semua</SelectItem>
               <SelectItem value="Ya">Survey: Ya</SelectItem>
               <SelectItem value="Tidak">Survey: Tidak</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={filterSumber} onValueChange={setFilterSumber}>
+            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Sumber" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Sumber</SelectItem>
+              {campaignOptions.length > 0 && (
+                <SelectItem value="__sep_campaign__" disabled className="text-xs text-muted-foreground font-semibold">── Iklan ──</SelectItem>
+              )}
+              {campaignOptions.map((c) => (
+                <SelectItem key={c.id} value={`campaign:${c.id}:${c.campaign_name}`}>
+                  📢 {c.campaign_name}
+                </SelectItem>
+              ))}
+              {campaignOptions.length > 0 && (
+                <SelectItem value="__sep_static__" disabled className="text-xs text-muted-foreground font-semibold">── Lainnya ──</SelectItem>
+              )}
+              {STATIC_SUMBER_OPTIONS.map((s) => (
+                <SelectItem key={s} value={s}>{s}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
@@ -767,7 +878,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
                       {Array.from({ length: 7 }).map((__, j) => <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>)}
                     </TableRow>
                   ))
-                : items.map((item: any) => {
+                : pagedItems.map((item: any) => {
                     const isExpanded = expandedId === item.id;
                     const fuCount: number = item.follow_up_count ?? 0;
                     const lastFu: any = item.last_follow_up;
@@ -921,6 +1032,30 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
               )}
             </TableBody>
           </Table>
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
+              <span>{((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, items.length)} dari {items.length} leads</span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page === 1} onClick={() => setPage(1)}>«</Button>
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>‹</Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter((p) => p === 1 || p === totalPages || Math.abs(p - page) <= 1)
+                  .reduce<(number | "...")[]>((acc, p, idx, arr) => {
+                    if (idx > 0 && (p as number) - (arr[idx - 1] as number) > 1) acc.push("...");
+                    acc.push(p);
+                    return acc;
+                  }, [])
+                  .map((p, i) =>
+                    p === "..." ? <span key={`e${i}`} className="px-1">…</span> : (
+                      <Button key={p} variant={page === p ? "default" : "outline"} size="sm" className="h-7 w-7 p-0" onClick={() => setPage(p as number)}>{p}</Button>
+                    )
+                  )}
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page === totalPages} onClick={() => setPage((p) => p + 1)}>›</Button>
+                <Button variant="outline" size="sm" className="h-7 px-2" disabled={page === totalPages} onClick={() => setPage(totalPages)}>»</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -933,7 +1068,10 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
               <div><Label>Nama *</Label><Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></div>
               <div><Label>No. Telepon</Label><Input value={form.nomor_telepon} onChange={(e) => setForm({ ...form, nomor_telepon: e.target.value })} /></div>
             </div>
-            <div><Label>Alamat</Label><Input value={form.alamat} onChange={(e) => setForm({ ...form, alamat: e.target.value })} /></div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Alamat</Label><Input value={form.alamat} onChange={(e) => setForm({ ...form, alamat: e.target.value })} /></div>
+              <div><Label>Tanggal Masuk</Label><Input type="date" value={form.tanggal_masuk} onChange={(e) => setForm({ ...form, tanggal_masuk: e.target.value })} /></div>
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Jenis</Label>
@@ -953,7 +1091,20 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
                 <Label>Sumber</Label>
                 <Select value={form.sumber_leads} onValueChange={(v) => setForm({ ...form, sumber_leads: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{SUMBER_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  <SelectContent>
+                    {campaignOptions.length > 0 && (
+                      <SelectItem value="__sep_c__" disabled className="text-xs text-muted-foreground font-semibold">── Iklan ──</SelectItem>
+                    )}
+                    {campaignOptions.map((c) => (
+                      <SelectItem key={c.id} value={`campaign:${c.id}:${c.campaign_name}`}>
+                        📢 {c.campaign_name} ({c.platform})
+                      </SelectItem>
+                    ))}
+                    {campaignOptions.length > 0 && (
+                      <SelectItem value="__sep_s__" disabled className="text-xs text-muted-foreground font-semibold">── Lainnya ──</SelectItem>
+                    )}
+                    {STATIC_SUMBER_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
                 </Select>
               </div>
             </div>

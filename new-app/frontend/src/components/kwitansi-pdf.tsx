@@ -37,13 +37,13 @@ const styles = StyleSheet.create({
 
   // Body card
   card: {
-    backgroundColor: ORANGE_LIGHT, borderRadius: 6,
+    backgroundColor: "#f1f5f9", borderRadius: 6,
     padding: 20, marginTop: 4,
-    borderLeftWidth: 4, borderLeftColor: ORANGE,
+    borderLeftWidth: 4, borderLeftColor: GRAY,
   },
   cardRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 10 },
   cardField: { flex: 1 },
-  fieldLabel: { fontSize: 7.5, color: ORANGE, fontWeight: "bold", marginBottom: 2 },
+  fieldLabel: { fontSize: 7.5, color: GRAY, fontWeight: "bold", marginBottom: 2 },
   fieldValue: { fontSize: 11, fontWeight: "bold", color: DARK },
   fieldSub: { fontSize: 8.5, color: GRAY, marginTop: 1 },
 
@@ -70,7 +70,7 @@ const styles = StyleSheet.create({
   // Items table
   table: { marginTop: 4, marginBottom: 4 },
   tableHead: {
-    flexDirection: "row", backgroundColor: ORANGE,
+    flexDirection: "row", backgroundColor: GRAY,
     paddingVertical: 5, paddingHorizontal: 8, borderRadius: 3,
   },
   tableHeadCell: { color: "white", fontSize: 8, fontWeight: "bold" },
@@ -101,6 +101,20 @@ const styles = StyleSheet.create({
   },
   noteText: { fontSize: 8, color: GRAY, textAlign: "center" },
 
+  // Signatures
+  signRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 28 },
+  signBlock: { alignItems: "center", width: 160 },
+  signTitleBox: {
+    paddingHorizontal: 10, paddingVertical: 3,
+    borderRadius: 2, marginBottom: 8,
+    borderWidth: 1, borderColor: ORANGE_MID,
+  },
+  signTitleText: { fontSize: 8, color: GRAY, fontWeight: "bold" },
+  signImage: { width: 120, height: 55, objectFit: "contain", marginBottom: 4 },
+  signImageEmpty: { width: 120, height: 55, borderBottomWidth: 1, borderBottomColor: "#d4d4d4", marginBottom: 4 },
+  signName: { fontSize: 8.5, fontWeight: "bold", color: DARK },
+  signDate: { fontSize: 7.5, color: GRAY, marginTop: 2 },
+
   // Footer
   footer: {
     position: "absolute", bottom: 24, left: 48, right: 48,
@@ -126,6 +140,12 @@ export interface KwitansiItem {
   harga_satuan: number;
 }
 
+export interface KwitansiSignatureInfo {
+  name: string;
+  at: string | Date | null;
+  signature: string | null;
+}
+
 export interface KwitansiPDFProps {
   nomor_kwitansi: string;
   nomor_invoice: string;
@@ -140,13 +160,16 @@ export interface KwitansiPDFProps {
   catatan?: string;
   logoUrl?: string;
   items?: KwitansiItem[];
-  buktiBayar?: string | null;  // base64 image for payment proof attachment
+  buktiBayar?: string | null;
+  head_finance?: KwitansiSignatureInfo | null;
+  admin_finance?: KwitansiSignatureInfo | null;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function KwitansiPDF({
   nomor_kwitansi, nomor_invoice, tanggal_lunas, klien, alamat_klien, telepon_klien, lead_jenis,
   jumlah, metode_bayar, detail_bayar, catatan, logoUrl, items, buktiBayar,
+  head_finance, admin_finance,
 }: KwitansiPDFProps) {
   const metodeLabel = detail_bayar ? `${metode_bayar} — ${detail_bayar}` : metode_bayar;
 
@@ -248,6 +271,26 @@ export function KwitansiPDF({
             Dokumen ini merupakan bukti pembayaran yang sah dari {COMPANY.name}.{"\n"}
             Harap simpan kwitansi ini sebagai bukti transaksi Anda.
           </Text>
+        </View>
+
+        {/* ── Signatures ── */}
+        <View style={styles.signRow}>
+          <View style={styles.signBlock}>
+            <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Head Finance</Text></View>
+            {head_finance?.signature
+              ? <Image style={styles.signImage} src={head_finance.signature} />
+              : <View style={styles.signImageEmpty} />}
+            <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
+            {head_finance?.at && <Text style={styles.signDate}>{formatDate(head_finance.at)}</Text>}
+          </View>
+          <View style={styles.signBlock}>
+            <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Admin Finance</Text></View>
+            {admin_finance?.signature
+              ? <Image style={styles.signImage} src={admin_finance.signature} />
+              : <View style={styles.signImageEmpty} />}
+            <Text style={styles.signName}>{admin_finance?.name || "___________________"}</Text>
+            {admin_finance?.at && <Text style={styles.signDate}>{formatDate(admin_finance.at)}</Text>}
+          </View>
         </View>
 
         {/* ── Footer ── */}

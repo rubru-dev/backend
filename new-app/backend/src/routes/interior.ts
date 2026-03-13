@@ -771,4 +771,44 @@ router.delete("/projeks/rapp/vendor-items/:id", async (req: Request, res: Respon
   return res.json({ message: "OK" });
 });
 
+// ── Task Foto Endpoints ────────────────────────────────────────────────────────
+
+// GET /interior/projeks/tasks/:id/fotos
+router.get("/projeks/tasks/:id/fotos", async (req: Request, res: Response) => {
+  const taskId = BigInt(req.params.id);
+  const fotos = await prisma.proyekInteriorTaskFoto.findMany({
+    where: { task_id: taskId },
+    orderBy: { created_at: "asc" },
+  });
+  return res.json(fotos.map((f) => ({ ...f, id: String(f.id), task_id: String(f.task_id) })));
+});
+
+// POST /interior/projeks/tasks/:id/fotos
+router.post("/projeks/tasks/:id/fotos", upload.array("fotos", 10), async (req: Request, res: Response) => {
+  const taskId = BigInt(req.params.id);
+  const task = await prisma.proyekInteriorTask.findUnique({ where: { id: taskId } });
+  if (!task) return res.status(404).json({ detail: "Task tidak ditemukan" });
+  const files = req.files as Express.Multer.File[];
+  if (!files || files.length === 0) return res.status(400).json({ detail: "Tidak ada file yang diupload" });
+  const created = await prisma.$transaction(
+    files.map((f) =>
+      prisma.proyekInteriorTaskFoto.create({
+        data: { task_id: taskId, file_path: `/storage/interior/${f.filename}`, original_name: f.originalname },
+      })
+    )
+  );
+  return res.status(201).json(created.map((f) => ({ ...f, id: String(f.id), task_id: String(f.task_id) })));
+});
+
+// DELETE /interior/projeks/tasks/fotos/:fotoId
+router.delete("/projeks/tasks/fotos/:fotoId", async (req: Request, res: Response) => {
+  const fotoId = BigInt(req.params.fotoId);
+  const foto = await prisma.proyekInteriorTaskFoto.findUnique({ where: { id: fotoId } });
+  if (!foto) return res.status(404).json({ detail: "Foto tidak ditemukan" });
+  const filePath = path.resolve(config.storagePath, foto.file_path.replace(/^\/storage\//, ""));
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  await prisma.proyekInteriorTaskFoto.delete({ where: { id: fotoId } });
+  return res.json({ message: "Foto dihapus" });
+});
+
 export default router;

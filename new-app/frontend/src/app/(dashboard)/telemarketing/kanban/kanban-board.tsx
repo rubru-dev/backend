@@ -67,7 +67,7 @@ function CardDetailModal({
   card: TelemarketingKanbanCard;
   open: boolean;
   onClose: () => void;
-  onSave: (id: number, data: Partial<TelemarketingKanbanCard & { tanggal_survey?: string | null }>) => Promise<void>;
+  onSave: (id: number, data: Partial<TelemarketingKanbanCard & { tanggal_survey?: string | null }>, leadTanggalMasuk?: string | null) => Promise<void>;
   onDelete: (id: number) => void;
   isClosingSurvey: boolean;
 }) {
@@ -76,6 +76,10 @@ function CardDetailModal({
   const [deadline, setDeadline] = useState(card.deadline ? card.deadline.slice(0, 10) : "");
   const [tanggalSurvey, setTanggalSurvey] = useState(
     card.tanggal_survey ? card.tanggal_survey.slice(0, 10) : ""
+  );
+  const effectiveTanggalMasuk = card.lead?.tanggal_masuk ?? card.lead?.created_at ?? null;
+  const [tanggalMasuk, setTanggalMasuk] = useState(
+    effectiveTanggalMasuk ? effectiveTanggalMasuk.slice(0, 10) : ""
   );
   const [saving, setSaving] = useState(false);
 
@@ -87,7 +91,7 @@ function CardDetailModal({
         description: description || null,
         deadline: deadline || null,
         ...(isClosingSurvey ? { tanggal_survey: tanggalSurvey || null } : {}),
-      });
+      }, card.lead ? (tanggalMasuk || null) : undefined);
       toast.success("Card diperbarui");
       onClose();
     } catch {
@@ -105,8 +109,17 @@ function CardDetailModal({
         </DialogHeader>
         <div className="space-y-4">
           {card.lead && (
-            <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md">
-              Lead: <span className="font-medium text-foreground">{card.lead.nama}</span>
+            <div className="text-sm text-muted-foreground bg-muted px-3 py-2 rounded-md space-y-1">
+              <div>Lead: <span className="font-medium text-foreground">{card.lead.nama}</span></div>
+              <div className="space-y-1">
+                <Label className="text-xs text-blue-600">Tanggal Masuk</Label>
+                <Input
+                  type="date"
+                  value={tanggalMasuk}
+                  onChange={(e) => setTanggalMasuk(e.target.value)}
+                  className="h-7 text-xs border-blue-200 focus:border-blue-400"
+                />
+              </div>
             </div>
           )}
           <div className="space-y-1">
@@ -203,6 +216,11 @@ function KanbanCardComp({
               <p className="text-sm font-medium line-clamp-2">{card.title}</p>
               {card.lead && (
                 <p className="text-xs text-muted-foreground mt-0.5 truncate">{card.lead.nama}</p>
+              )}
+              {(card.lead?.tanggal_masuk || card.lead?.created_at) && (
+                <p className="text-[10px] text-blue-500 mt-0.5">
+                  Masuk: {format(new Date((card.lead.tanggal_masuk || card.lead.created_at)!), "d MMM yyyy", { locale: id })}
+                </p>
               )}
               {card.description && (
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{card.description}</p>
@@ -332,58 +350,64 @@ function KanbanColumnComp({
         </div>
       )}
 
-      <Droppable droppableId={String(column.id)}>
-        {(provided, snapshot) => (
-          <div
-            ref={provided.innerRef}
-            {...provided.droppableProps}
-            className={`min-h-[120px] p-2 space-y-2 rounded-b-lg border border-t-0 transition-colors ${
-              snapshot.isDraggingOver ? "bg-primary/5 border-primary/30" : "bg-slate-50"
-            }`}
-          >
-            {column.cards.map((card, index) => (
-              <KanbanCardComp key={card.id} card={card} index={index} onEdit={onCardEdit} />
-            ))}
-            {provided.placeholder}
+      <div className="rounded-b-lg border border-t-0 bg-slate-50">
+        <Droppable droppableId={String(column.id)}>
+          {(provided, snapshot) => (
+            <div
+              ref={provided.innerRef}
+              {...provided.droppableProps}
+              className={`min-h-[80px] p-2 space-y-2 transition-colors ${
+                snapshot.isDraggingOver ? "bg-primary/5" : ""
+              }`}
+            >
+              {column.cards.map((card, index) => (
+                <KanbanCardComp key={card.id} card={card} index={index} onEdit={onCardEdit} />
+              ))}
+              {provided.placeholder}
+            </div>
+          )}
+        </Droppable>
 
-            {addingCard ? (
-              <div className="space-y-2 bg-white p-2 rounded border">
-                <Input
-                  placeholder="Judul card..."
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  autoFocus
-                  className="text-sm h-8"
-                  onKeyDown={(e) => { if (e.key === "Enter") handleAddCard(); if (e.key === "Escape") setAddingCard(false); }}
-                />
-                <Select value={selectedLead || "__none__"} onValueChange={(v) => setSelectedLead(v === "__none__" ? "" : v)}>
-                  <SelectTrigger className="h-8 text-sm">
-                    <SelectValue placeholder="Pilih lead (opsional)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">Tanpa lead</SelectItem>
-                    {leads.map((l) => (
-                      <SelectItem key={l.id} value={String(l.id)}>{l.nama}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <div className="flex gap-1">
-                  <Button size="sm" className="h-7 text-xs" onClick={handleAddCard}>Tambah</Button>
-                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAddingCard(false)}>Batal</Button>
-                </div>
+        {/* Add Card - outside Droppable to prevent dnd event interference */}
+        <div className="p-2 pt-0">
+          {addingCard ? (
+            <div className="space-y-2 bg-white p-2 rounded border">
+              <Input
+                placeholder="Judul card..."
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                autoFocus
+                className="text-sm h-8"
+                onKeyDown={(e) => { if (e.key === "Enter") handleAddCard(); if (e.key === "Escape") setAddingCard(false); }}
+              />
+              <Select value={selectedLead || "__none__"} onValueChange={(v) => setSelectedLead(v === "__none__" ? "" : v)}>
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Pilih lead (opsional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Tanpa lead</SelectItem>
+                  {leads.map((l) => (
+                    <SelectItem key={l.id} value={String(l.id)}>{l.nama}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className="flex gap-1">
+                <Button size="sm" className="h-7 text-xs" onClick={handleAddCard}>Tambah</Button>
+                <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setAddingCard(false)}>Batal</Button>
               </div>
-            ) : (
-              <button
-                onClick={() => setAddingCard(true)}
-                className="w-full text-left text-sm text-muted-foreground px-2 py-1 rounded hover:bg-muted/50 flex items-center gap-1"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                Tambah card
-              </button>
-            )}
-          </div>
-        )}
-      </Droppable>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setAddingCard(true)}
+              className="w-full text-left text-sm text-muted-foreground px-2 py-1 rounded hover:bg-muted/50 flex items-center gap-1"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Tambah card
+            </button>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -462,10 +486,16 @@ export function TelemarketingKanbanBoard() {
     }
   }, [loadBoard]);
 
-  const handleCardSave = useCallback(async (id: number, data: Partial<TelemarketingKanbanCard & { tanggal_survey?: string | null }>) => {
+  const handleCardSave = useCallback(async (id: number, data: Partial<TelemarketingKanbanCard & { tanggal_survey?: string | null }>, leadTanggalMasuk?: string | null) => {
     await telemarketingKanbanApi.updateCard(id, data as Parameters<typeof telemarketingKanbanApi.updateCard>[1]);
+    if (leadTanggalMasuk !== undefined) {
+      const card = columns.flatMap((c) => c.cards).find((c) => c.id === id);
+      if (card?.lead?.id) {
+        await telemarketingKanbanApi.updateLead(card.lead.id, { tanggal_masuk: leadTanggalMasuk });
+      }
+    }
     await loadBoard();
-  }, [loadBoard]);
+  }, [loadBoard, columns]);
 
   const handleCardDelete = useCallback(async (id: number) => {
     try {
