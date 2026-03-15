@@ -16,7 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Plus, Calculator, ChevronLeft, Trash2, Truck, UserCheck, Banknote, Receipt,
+  Plus, Calculator, ChevronLeft, ChevronRight, Trash2, Truck, UserCheck, Banknote, Receipt,
   TrendingUp, Package, ClipboardList, Upload, Eye, Pencil, CheckCircle, XCircle,
   ArrowRight, FileDown, PenLine, Wallet, ShieldCheck, Camera,
 } from "lucide-react";
@@ -1113,12 +1113,16 @@ const PR_STATUS_COLOR: Record<string, string> = {
   Ditolak: "destructive",
 };
 
+const PR_ITEMS_PER_PAGE = 5;
+
 function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjalanId?: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [viewPR, setViewPR] = useState<any | null>(null);
   const [editPRId, setEditPRId] = useState<number | null>(null);
   const [prSigDialog, setPrSigDialog] = useState<{ open: boolean; prId: number | null }>({ open: false, prId: null });
+  const [prPage, setPrPage] = useState(0);
+  const [editPrPage, setEditPrPage] = useState(0);
   type PRItem = { mode: "manual" | "rapp"; nama_item: string; satuan: string; qty: number; harga_perkiraan: number; rapp_qty?: number; rapp_harga?: number };
   const emptyItem = (): PRItem => ({ mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0 });
   const emptyForm = { tanggal: today, nama_toko: "", items: [emptyItem()] };
@@ -1196,6 +1200,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       })),
     });
     setEditPRId(pr.id);
+    setEditPrPage(0);
   }
 
   function submitEditPR() {
@@ -1256,11 +1261,16 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
 const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
 
   function addItemRow() {
-    setForm({ ...form, items: [...form.items, emptyItem()] });
+    const next = [...form.items, emptyItem()];
+    setForm({ ...form, items: next });
+    setPrPage(Math.floor((next.length - 1) / PR_ITEMS_PER_PAGE));
   }
 
   function removeItemRow(idx: number) {
-    setForm({ ...form, items: form.items.filter((_, i) => i !== idx) });
+    const next = form.items.filter((_, i) => i !== idx);
+    setForm({ ...form, items: next });
+    const maxPage = Math.max(0, Math.ceil(next.length / PR_ITEMS_PER_PAGE) - 1);
+    if (prPage > maxPage) setPrPage(maxPage);
   }
 
   function updateItemRow(idx: number, field: string, val: any) {
@@ -1355,7 +1365,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
       </Table>
 
       {/* Create PR Dialog */}
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) setForm(emptyForm); }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setForm(emptyForm); setPrPage(0); } }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Buat Purchase Request</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -1372,118 +1382,146 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
             </div>
 
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Daftar Item</Label>
-                <Button type="button" variant="outline" size="sm" onClick={addItemRow}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Baris
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {form.items.map((it, idx) => {
-                  const exceedsQty = it.rapp_qty != null && it.qty > it.rapp_qty;
-                  const exceedsHarga = it.rapp_harga != null && it.harga_perkiraan > it.rapp_harga;
-                  return (
-                    <div key={idx} className={`border rounded-md p-3 space-y-2 ${itemNeedsHF(it) ? "border-amber-200 bg-amber-50/30" : ""}`}>
-                      {/* Mode toggle */}
+              {(() => {
+                const prTotalPages = Math.max(1, Math.ceil(form.items.length / PR_ITEMS_PER_PAGE));
+                const prStartIdx = prPage * PR_ITEMS_PER_PAGE;
+                const prPageItems = form.items.slice(prStartIdx, prStartIdx + PR_ITEMS_PER_PAGE);
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Sumber:</span>
-                        <div className="flex rounded-md border overflow-hidden text-xs">
-                          <button
-                            type="button"
-                            className={`px-3 py-1 transition-colors ${it.mode === "manual" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
-                            onClick={() => setItemMode(idx, "manual")}
-                          >Ketik Manual</button>
-                          {proyekBerjalanId && (
-                            <button
-                              type="button"
-                              className={`px-3 py-1 border-l transition-colors ${it.mode === "rapp" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
-                              onClick={() => setItemMode(idx, "rapp")}
-                            ><ClipboardList className="h-3 w-3 inline mr-1" />Dari RAPP</button>
-                          )}
-                        </div>
-                        {itemNeedsHF(it) && <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px]">Perlu TTD HF</Badge>}
-                        {form.items.length > 1 && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive ml-auto" onClick={() => removeItemRow(idx)}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                        <Label>Daftar Item</Label>
+                        {prTotalPages > 1 && (
+                          <span className="text-xs text-muted-foreground">({form.items.length} item)</span>
                         )}
                       </div>
-
-                      {/* RAPP picker */}
-                      {it.mode === "rapp" && (
-                        <div>
-                          <Label className="text-xs">Pilih Item dari RAPP</Label>
-                          <Select
-                            value={it.nama_item || ""}
-                            onValueChange={(v) => {
-                              const found = (rappItems as any[]).find((r) => r.nama_item === v);
-                              if (found) pickRappItem(idx, found);
-                            }}
-                          >
-                            <SelectTrigger className="h-8 text-sm">
-                              <SelectValue placeholder="— Pilih item RAPP —" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(rappItems as any[]).length === 0
-                                ? <SelectItem value="__none__" disabled>Belum ada item RAPP</SelectItem>
-                                : (rappItems as any[]).map((r: any, ri: number) => (
-                                    <SelectItem key={ri} value={r.nama_item}>
-                                      {r.nama_item} — {r.satuan} | Qty: {r.qty} | {formatRp(r.harga)}
-                                    </SelectItem>
-                                  ))
-                              }
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-
-                      {/* Item fields */}
-                      <div className="grid grid-cols-4 gap-2">
-                        <div className="col-span-2">
-                          <Label className="text-xs">Nama Item</Label>
-                          <Input className="h-8 text-sm" placeholder="Nama item" value={it.nama_item}
-                            readOnly={it.mode === "rapp"}
-                            onChange={(e) => updateItemRow(idx, "nama_item", e.target.value)} />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Satuan</Label>
-                          <Input className="h-8 text-sm" placeholder="pcs" value={it.satuan}
-                            readOnly={it.mode === "rapp"}
-                            onChange={(e) => updateItemRow(idx, "satuan", e.target.value)} />
-                        </div>
-                        <div />
-                        <div>
-                          <Label className="text-xs">
-                            Qty {it.rapp_qty != null && <span className="text-muted-foreground">(RAPP: {it.rapp_qty})</span>}
-                          </Label>
-                          <Input className={`h-8 text-sm ${exceedsQty ? "border-amber-400 bg-amber-50" : ""}`}
-                            type="number" min={0} value={it.qty}
-                            onChange={(e) => updateItemRow(idx, "qty", Number(e.target.value))} />
-                          {exceedsQty && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
-                        </div>
-                        <div className="col-span-2">
-                          <Label className="text-xs">
-                            Harga Perkiraan {it.rapp_harga != null && <span className="text-muted-foreground">(RAPP: {formatRp(it.rapp_harga)})</span>}
-                          </Label>
-                          <Input className={`h-8 text-sm ${exceedsHarga ? "border-amber-400 bg-amber-50" : ""}`}
-                            type="number" min={0} value={it.harga_perkiraan}
-                            onChange={(e) => updateItemRow(idx, "harga_perkiraan", Number(e.target.value))} />
-                          {exceedsHarga && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
-                        </div>
-                        <div>
-                          <Label className="text-xs">Subtotal</Label>
-                          <div className="h-8 flex items-center text-sm font-medium text-muted-foreground">
-                            {formatRp(it.qty * it.harga_perkiraan)}
+                      <div className="flex items-center gap-2">
+                        {prTotalPages > 1 && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={prPage === 0} onClick={() => setPrPage(prPage - 1)}>
+                              <ChevronLeft className="h-3.5 w-3.5" />
+                            </Button>
+                            <span>Hal {prPage + 1}/{prTotalPages}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={prPage >= prTotalPages - 1} onClick={() => setPrPage(prPage + 1)}>
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                        </div>
+                        )}
+                        <Button type="button" variant="outline" size="sm" onClick={addItemRow}>
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Baris
+                        </Button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-              <div className="text-right text-sm font-semibold mt-2 text-muted-foreground">
-                Total Estimasi: <span className="text-foreground">{formatRp(form.items.reduce((s, it) => s + it.qty * it.harga_perkiraan, 0))}</span>
-              </div>
+                    <div className="space-y-2">
+                      {prPageItems.map((it, pageLocalIdx) => {
+                        const idx = prStartIdx + pageLocalIdx;
+                        const exceedsQty = it.rapp_qty != null && it.qty > it.rapp_qty;
+                        const exceedsHarga = it.rapp_harga != null && it.harga_perkiraan > it.rapp_harga;
+                        return (
+                          <div key={idx} className={`border rounded-md p-3 space-y-2 ${itemNeedsHF(it) ? "border-amber-200 bg-amber-50/30" : ""}`}>
+                            {/* Mode toggle */}
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">Sumber:</span>
+                              <div className="flex rounded-md border overflow-hidden text-xs">
+                                <button
+                                  type="button"
+                                  className={`px-3 py-1 transition-colors ${it.mode === "manual" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                                  onClick={() => setItemMode(idx, "manual")}
+                                >Ketik Manual</button>
+                                {proyekBerjalanId && (
+                                  <button
+                                    type="button"
+                                    className={`px-3 py-1 border-l transition-colors ${it.mode === "rapp" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                                    onClick={() => setItemMode(idx, "rapp")}
+                                  ><ClipboardList className="h-3 w-3 inline mr-1" />Dari RAPP</button>
+                                )}
+                              </div>
+                              {itemNeedsHF(it) && <Badge variant="outline" className="text-amber-600 border-amber-300 text-[10px]">Perlu TTD HF</Badge>}
+                              {form.items.length > 1 && (
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive ml-auto" onClick={() => removeItemRow(idx)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+
+                            {/* RAPP picker */}
+                            {it.mode === "rapp" && (
+                              <div>
+                                <Label className="text-xs">Pilih Item dari RAPP</Label>
+                                <Select
+                                  value={it.nama_item || ""}
+                                  onValueChange={(v) => {
+                                    const found = (rappItems as any[]).find((r) => r.nama_item === v);
+                                    if (found) pickRappItem(idx, found);
+                                  }}
+                                >
+                                  <SelectTrigger className="h-8 text-sm">
+                                    <SelectValue placeholder="— Pilih item RAPP —" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {(rappItems as any[]).length === 0
+                                      ? <SelectItem value="__none__" disabled>Belum ada item RAPP</SelectItem>
+                                      : (rappItems as any[]).map((r: any, ri: number) => (
+                                          <SelectItem key={ri} value={r.nama_item}>
+                                            {r.nama_item} — {r.satuan} | Qty: {r.qty} | {formatRp(r.harga)}
+                                          </SelectItem>
+                                        ))
+                                    }
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+
+                            {/* Item fields */}
+                            <div className="grid grid-cols-4 gap-2">
+                              <div className="col-span-2">
+                                <Label className="text-xs">Nama Item</Label>
+                                <Input className="h-8 text-sm" placeholder="Nama item" value={it.nama_item}
+                                  readOnly={it.mode === "rapp"}
+                                  onChange={(e) => updateItemRow(idx, "nama_item", e.target.value)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Satuan</Label>
+                                <Input className="h-8 text-sm" placeholder="pcs" value={it.satuan}
+                                  readOnly={it.mode === "rapp"}
+                                  onChange={(e) => updateItemRow(idx, "satuan", e.target.value)} />
+                              </div>
+                              <div />
+                              <div>
+                                <Label className="text-xs">
+                                  Qty {it.rapp_qty != null && <span className="text-muted-foreground">(RAPP: {it.rapp_qty})</span>}
+                                </Label>
+                                <Input className={`h-8 text-sm ${exceedsQty ? "border-amber-400 bg-amber-50" : ""}`}
+                                  type="number" min={0} value={it.qty}
+                                  onChange={(e) => updateItemRow(idx, "qty", Number(e.target.value))} />
+                                {exceedsQty && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
+                              </div>
+                              <div className="col-span-2">
+                                <Label className="text-xs">
+                                  Harga Perkiraan {it.rapp_harga != null && <span className="text-muted-foreground">(RAPP: {formatRp(it.rapp_harga)})</span>}
+                                </Label>
+                                <Input className={`h-8 text-sm ${exceedsHarga ? "border-amber-400 bg-amber-50" : ""}`}
+                                  type="number" min={0} value={it.harga_perkiraan}
+                                  onChange={(e) => updateItemRow(idx, "harga_perkiraan", Number(e.target.value))} />
+                                {exceedsHarga && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
+                              </div>
+                              <div>
+                                <Label className="text-xs">Subtotal</Label>
+                                <div className="h-8 flex items-center text-sm font-medium text-muted-foreground">
+                                  {formatRp(it.qty * it.harga_perkiraan)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="text-right text-sm font-semibold mt-2 text-muted-foreground">
+                      Total Estimasi: <span className="text-foreground">{formatRp(form.items.reduce((s, it) => s + it.qty * it.harga_perkiraan, 0))}</span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
 
             <div className="flex justify-end gap-2">
@@ -1575,7 +1613,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
       </Dialog>
 
       {/* Edit PR Dialog */}
-      <Dialog open={!!editPRId} onOpenChange={(v) => !v && setEditPRId(null)}>
+      <Dialog open={!!editPRId} onOpenChange={(v) => { if (!v) { setEditPRId(null); setEditPrPage(0); } }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Purchase Request</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -1590,101 +1628,140 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                 <Input placeholder="Toko Bangunan ABC..." value={editForm.nama_toko} onChange={(e) => setEditForm({ ...editForm, nama_toko: e.target.value })} /></div>
             </div>
             <div>
-              <div className="flex items-center justify-between mb-2">
-                <Label>Daftar Item</Label>
-                <Button type="button" variant="outline" size="sm" onClick={() => setEditForm({ ...editForm, items: [...editForm.items, emptyItem()] })}>
-                  <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Baris
-                </Button>
-              </div>
-              <div className="space-y-2">
-                {editForm.items.map((it, idx) => {
-                  const exceedsQty = it.rapp_qty != null && it.qty > it.rapp_qty;
-                  const exceedsHarga = it.rapp_harga != null && it.harga_perkiraan > it.rapp_harga;
-                  const updateEdit = (field: string, val: any) =>
-                    setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { ...x, [field]: val } : x) });
-                  return (
-                    <div key={idx} className={`border rounded-md p-3 space-y-2 ${it.mode === "rapp" || exceedsQty || exceedsHarga ? "border-amber-200 bg-amber-50/30" : ""}`}>
+              {(() => {
+                const editTotalPages = Math.max(1, Math.ceil(editForm.items.length / PR_ITEMS_PER_PAGE));
+                const editStartIdx = editPrPage * PR_ITEMS_PER_PAGE;
+                const editPageItems = editForm.items.slice(editStartIdx, editStartIdx + PR_ITEMS_PER_PAGE);
+                function addEditRow() {
+                  const next = [...editForm.items, emptyItem()];
+                  setEditForm({ ...editForm, items: next });
+                  setEditPrPage(Math.floor((next.length - 1) / PR_ITEMS_PER_PAGE));
+                }
+                function removeEditRow(idx: number) {
+                  const next = editForm.items.filter((_, i) => i !== idx);
+                  setEditForm({ ...editForm, items: next });
+                  const maxPage = Math.max(0, Math.ceil(next.length / PR_ITEMS_PER_PAGE) - 1);
+                  if (editPrPage > maxPage) setEditPrPage(maxPage);
+                }
+                return (
+                  <>
+                    <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground">Sumber:</span>
-                        <div className="flex rounded-md border overflow-hidden text-xs">
-                          <button type="button"
-                            className={`px-3 py-1 transition-colors ${it.mode === "manual" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
-                            onClick={() => setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0 } : x) })}>
-                            Ketik Manual
-                          </button>
-                          {proyekBerjalanId && (
-                            <button type="button"
-                              className={`px-3 py-1 border-l transition-colors ${it.mode === "rapp" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
-                              onClick={() => setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { ...x, mode: "rapp", nama_item: "", satuan: "" } : x) })}>
-                              <ClipboardList className="h-3 w-3 inline mr-1" />Dari RAPP
-                            </button>
-                          )}
-                        </div>
-                        {editForm.items.length > 1 && (
-                          <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive ml-auto"
-                            onClick={() => setEditForm({ ...editForm, items: editForm.items.filter((_, i) => i !== idx) })}>
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
+                        <Label>Daftar Item</Label>
+                        {editTotalPages > 1 && (
+                          <span className="text-xs text-muted-foreground">({editForm.items.length} item)</span>
                         )}
                       </div>
-                      {it.mode === "rapp" && (
-                        <div>
-                          <Label className="text-xs">Pilih Item dari RAPP</Label>
-                          <Select value={it.nama_item || ""} onValueChange={(v) => {
-                            const found = (rappItems as any[]).find((r) => r.nama_item === v);
-                            if (found) setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx
-                              ? { mode: "rapp" as const, nama_item: found.nama_item, satuan: found.satuan || "", qty: found.qty || 1, harga_perkiraan: found.harga || 0, rapp_qty: found.qty, rapp_harga: found.harga }
-                              : x) });
-                          }}>
-                            <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— Pilih item RAPP —" /></SelectTrigger>
-                            <SelectContent>
-                              {(rappItems as any[]).length === 0
-                                ? <SelectItem value="__none__" disabled>Belum ada item RAPP</SelectItem>
-                                : (rappItems as any[]).map((r: any, ri: number) => (
-                                    <SelectItem key={ri} value={r.nama_item}>{r.nama_item} — {r.satuan} | Qty: {r.qty} | {formatRp(r.harga)}</SelectItem>
-                                  ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      )}
-                      <div className="grid grid-cols-4 gap-2">
-                        <div className="col-span-2">
-                          <Label className="text-xs">Nama Item</Label>
-                          <Input className="h-8 text-sm" placeholder="Nama item" value={it.nama_item}
-                            readOnly={it.mode === "rapp"} onChange={(e) => updateEdit("nama_item", e.target.value)} />
-                        </div>
-                        <div>
-                          <Label className="text-xs">Satuan</Label>
-                          <Input className="h-8 text-sm" placeholder="pcs" value={it.satuan}
-                            readOnly={it.mode === "rapp"} onChange={(e) => updateEdit("satuan", e.target.value)} />
-                        </div>
-                        <div />
-                        <div>
-                          <Label className="text-xs">Qty {it.rapp_qty != null && <span className="text-muted-foreground">(RAPP: {it.rapp_qty})</span>}</Label>
-                          <Input className={`h-8 text-sm ${exceedsQty ? "border-amber-400 bg-amber-50" : ""}`}
-                            type="number" min={0} value={it.qty} onChange={(e) => updateEdit("qty", Number(e.target.value))} />
-                          {exceedsQty && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
-                        </div>
-                        <div className="col-span-2">
-                          <Label className="text-xs">Harga Perkiraan {it.rapp_harga != null && <span className="text-muted-foreground">(RAPP: {formatRp(it.rapp_harga)})</span>}</Label>
-                          <Input className={`h-8 text-sm ${exceedsHarga ? "border-amber-400 bg-amber-50" : ""}`}
-                            type="number" min={0} value={it.harga_perkiraan} onChange={(e) => updateEdit("harga_perkiraan", Number(e.target.value))} />
-                          {exceedsHarga && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
-                        </div>
-                        <div>
-                          <Label className="text-xs">Subtotal</Label>
-                          <div className="h-8 flex items-center text-sm font-medium text-muted-foreground">
-                            {formatRp(it.qty * it.harga_perkiraan)}
+                      <div className="flex items-center gap-2">
+                        {editTotalPages > 1 && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={editPrPage === 0} onClick={() => setEditPrPage(editPrPage - 1)}>
+                              <ChevronLeft className="h-3.5 w-3.5" />
+                            </Button>
+                            <span>Hal {editPrPage + 1}/{editTotalPages}</span>
+                            <Button variant="ghost" size="icon" className="h-6 w-6" disabled={editPrPage >= editTotalPages - 1} onClick={() => setEditPrPage(editPrPage + 1)}>
+                              <ChevronRight className="h-3.5 w-3.5" />
+                            </Button>
                           </div>
-                        </div>
+                        )}
+                        <Button type="button" variant="outline" size="sm" onClick={addEditRow}>
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Baris
+                        </Button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
-              <div className="text-right text-sm font-semibold mt-2 text-muted-foreground">
-                Total Estimasi: <span className="text-foreground">{formatRp(editForm.items.reduce((s, it) => s + it.qty * it.harga_perkiraan, 0))}</span>
-              </div>
+                    <div className="space-y-2">
+                      {editPageItems.map((it, pageLocalIdx) => {
+                        const idx = editStartIdx + pageLocalIdx;
+                        const exceedsQty = it.rapp_qty != null && it.qty > it.rapp_qty;
+                        const exceedsHarga = it.rapp_harga != null && it.harga_perkiraan > it.rapp_harga;
+                        const updateEdit = (field: string, val: any) =>
+                          setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { ...x, [field]: val } : x) });
+                        return (
+                          <div key={idx} className={`border rounded-md p-3 space-y-2 ${it.mode === "rapp" || exceedsQty || exceedsHarga ? "border-amber-200 bg-amber-50/30" : ""}`}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-muted-foreground">Sumber:</span>
+                              <div className="flex rounded-md border overflow-hidden text-xs">
+                                <button type="button"
+                                  className={`px-3 py-1 transition-colors ${it.mode === "manual" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                                  onClick={() => setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0 } : x) })}>
+                                  Ketik Manual
+                                </button>
+                                {proyekBerjalanId && (
+                                  <button type="button"
+                                    className={`px-3 py-1 border-l transition-colors ${it.mode === "rapp" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+                                    onClick={() => setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { ...x, mode: "rapp", nama_item: "", satuan: "" } : x) })}>
+                                    <ClipboardList className="h-3 w-3 inline mr-1" />Dari RAPP
+                                  </button>
+                                )}
+                              </div>
+                              {editForm.items.length > 1 && (
+                                <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive ml-auto"
+                                  onClick={() => removeEditRow(idx)}>
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                            {it.mode === "rapp" && (
+                              <div>
+                                <Label className="text-xs">Pilih Item dari RAPP</Label>
+                                <Select value={it.nama_item || ""} onValueChange={(v) => {
+                                  const found = (rappItems as any[]).find((r) => r.nama_item === v);
+                                  if (found) setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx
+                                    ? { mode: "rapp" as const, nama_item: found.nama_item, satuan: found.satuan || "", qty: found.qty || 1, harga_perkiraan: found.harga || 0, rapp_qty: found.qty, rapp_harga: found.harga }
+                                    : x) });
+                                }}>
+                                  <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— Pilih item RAPP —" /></SelectTrigger>
+                                  <SelectContent>
+                                    {(rappItems as any[]).length === 0
+                                      ? <SelectItem value="__none__" disabled>Belum ada item RAPP</SelectItem>
+                                      : (rappItems as any[]).map((r: any, ri: number) => (
+                                          <SelectItem key={ri} value={r.nama_item}>{r.nama_item} — {r.satuan} | Qty: {r.qty} | {formatRp(r.harga)}</SelectItem>
+                                        ))}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            )}
+                            <div className="grid grid-cols-4 gap-2">
+                              <div className="col-span-2">
+                                <Label className="text-xs">Nama Item</Label>
+                                <Input className="h-8 text-sm" placeholder="Nama item" value={it.nama_item}
+                                  readOnly={it.mode === "rapp"} onChange={(e) => updateEdit("nama_item", e.target.value)} />
+                              </div>
+                              <div>
+                                <Label className="text-xs">Satuan</Label>
+                                <Input className="h-8 text-sm" placeholder="pcs" value={it.satuan}
+                                  readOnly={it.mode === "rapp"} onChange={(e) => updateEdit("satuan", e.target.value)} />
+                              </div>
+                              <div />
+                              <div>
+                                <Label className="text-xs">Qty {it.rapp_qty != null && <span className="text-muted-foreground">(RAPP: {it.rapp_qty})</span>}</Label>
+                                <Input className={`h-8 text-sm ${exceedsQty ? "border-amber-400 bg-amber-50" : ""}`}
+                                  type="number" min={0} value={it.qty} onChange={(e) => updateEdit("qty", Number(e.target.value))} />
+                                {exceedsQty && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
+                              </div>
+                              <div className="col-span-2">
+                                <Label className="text-xs">Harga Perkiraan {it.rapp_harga != null && <span className="text-muted-foreground">(RAPP: {formatRp(it.rapp_harga)})</span>}</Label>
+                                <Input className={`h-8 text-sm ${exceedsHarga ? "border-amber-400 bg-amber-50" : ""}`}
+                                  type="number" min={0} value={it.harga_perkiraan} onChange={(e) => updateEdit("harga_perkiraan", Number(e.target.value))} />
+                                {exceedsHarga && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
+                              </div>
+                              <div>
+                                <Label className="text-xs">Subtotal</Label>
+                                <div className="h-8 flex items-center text-sm font-medium text-muted-foreground">
+                                  {formatRp(it.qty * it.harga_perkiraan)}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="text-right text-sm font-semibold mt-2 text-muted-foreground">
+                      Total Estimasi: <span className="text-foreground">{formatRp(editForm.items.reduce((s, it) => s + it.qty * it.harga_perkiraan, 0))}</span>
+                    </div>
+                  </>
+                );
+              })()}
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditPRId(null)}>Batal</Button>

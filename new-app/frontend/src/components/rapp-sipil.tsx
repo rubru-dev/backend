@@ -13,7 +13,9 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Save, X, FileDown, Upload, Loader2, Info } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronDown, ChevronRight, Save, X, FileDown, Upload, Loader2, Info, ChevronLeft } from "lucide-react";
+
+const RAPP_ITEMS_PER_PAGE = 10;
 
 // ── Types ──────────────────────────────────────────────────────────────────────
 type MaterialItem = {
@@ -296,17 +298,32 @@ function AddItemDialog({
 }) {
   const [rows, setRows] = useState<FormRow[]>([emptyRow()]);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(0);
 
   React.useEffect(() => {
-    if (open) setRows([emptyRow()]);
+    if (open) { setRows([emptyRow()]); setPage(0); }
   }, [open]);
 
   function updateRow(idx: number, field: keyof FormRow, value: string) {
     setRows((prev) => prev.map((r, i) => i === idx ? { ...r, [field]: value } : r));
   }
 
-  function addRow() { setRows((prev) => [...prev, emptyRow()]); }
-  function removeRow(idx: number) { setRows((prev) => prev.filter((_, i) => i !== idx)); }
+  function addRow() {
+    const next = [...rows, emptyRow()];
+    setRows(next);
+    const newPage = Math.floor((next.length - 1) / RAPP_ITEMS_PER_PAGE);
+    setPage(newPage);
+  }
+  function removeRow(idx: number) {
+    const next = rows.filter((_, i) => i !== idx);
+    setRows(next);
+    const maxPage = Math.max(0, Math.ceil(next.length / RAPP_ITEMS_PER_PAGE) - 1);
+    if (page > maxPage) setPage(maxPage);
+  }
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / RAPP_ITEMS_PER_PAGE));
+  const startIdx = page * RAPP_ITEMS_PER_PAGE;
+  const pageRows = rows.slice(startIdx, startIdx + RAPP_ITEMS_PER_PAGE);
 
   async function handleAdd() {
     const validRows = rows.filter((r) => r.nama.trim());
@@ -354,7 +371,8 @@ function AddItemDialog({
                 </tr>
               </thead>
               <tbody>
-                {rows.map((row, idx) => {
+                {pageRows.map((row, pageLocalIdx) => {
+                  const idx = startIdx + pageLocalIdx;
                   const vol = parseFloat(row.vol) || 0;
                   const harga = parseFloat(row.harga_satuan) || 0;
                   const autoJumlah = vol * harga;
@@ -366,7 +384,7 @@ function AddItemDialog({
                           value={row.nama}
                           onChange={(e) => updateRow(idx, "nama", e.target.value)}
                           placeholder={isSipil ? "e.g. Buang Puing" : "e.g. Besi 10 Polos"}
-                          autoFocus={idx === 0}
+                          autoFocus={pageLocalIdx === 0 && page === 0}
                         />
                       </td>
                       <td className="py-1 pr-2">
@@ -407,9 +425,22 @@ function AddItemDialog({
               </tbody>
             </table>
           </div>
-          <Button variant="outline" size="sm" onClick={addRow} className="gap-1">
-            <Plus className="h-3.5 w-3.5" /> Tambah Baris
-          </Button>
+          <div className="flex items-center justify-between">
+            <Button variant="outline" size="sm" onClick={addRow} className="gap-1">
+              <Plus className="h-3.5 w-3.5" /> Tambah Baris
+            </Button>
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Button variant="ghost" size="icon" className="h-6 w-6" disabled={page === 0} onClick={() => setPage(page - 1)}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <span>Hal {page + 1} / {totalPages} <span className="text-muted-foreground/60">({rows.length} item)</span></span>
+                <Button variant="ghost" size="icon" className="h-6 w-6" disabled={page >= totalPages - 1} onClick={() => setPage(page + 1)}>
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            )}
+          </div>
           <div className="flex justify-end gap-2 pt-1">
             <Button variant="outline" onClick={onClose}>Batal</Button>
             <Button onClick={handleAdd} disabled={validCount === 0 || saving}>

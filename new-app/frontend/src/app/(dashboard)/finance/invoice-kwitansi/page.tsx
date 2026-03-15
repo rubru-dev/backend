@@ -635,7 +635,7 @@ export default function InvoiceKwitansiPage() {
                                     <Download className="h-3 w-3 mr-1" /> PDF Invoice
                                   </Button>
                                 )}
-                                {inv.status !== "Lunas" && canDelete && (
+                                {canDelete && (inv.status !== "Lunas" || isSuperAdmin()) && (
                                   <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
                                     onClick={() => setConfirmDeleteId(inv.id)}>
                                     <Trash2 className="h-3 w-3 mr-1" /> Hapus

@@ -886,7 +886,8 @@ router.delete("/invoices/:id", requirePermission("finance", "delete"), async (re
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
-  if (inv.status === "Lunas") {
+  const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
+  if (inv.status === "Lunas" && !isSuperAdmin) {
     return res.status(400).json({ detail: "Invoice yang sudah Lunas tidak bisa dihapus" });
   }
   // Cascade: hapus kwitansi + items terlebih dahulu

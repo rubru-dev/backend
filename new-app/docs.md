@@ -1,7 +1,7 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-03-08
+> Last updated: 2026-03-15
 
 ---
 
@@ -59,20 +59,32 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | DELETE | `/leads/:id` | Hapus lead |
 | GET | `/:modul/leads` | List leads by modul |
 | GET | `/:modul/leads/:id` | Single lead detail by modul |
+| PATCH | `/:modul/leads/:id/survey` | Update tanggal survey |
+| POST | `/:modul/leads/bulk` | Bulk operations |
 | POST | `/leads/:id/approve-survey` | Approve survey |
 | POST | `/leads/:id/reject-survey` | Reject survey |
 | GET | `/meta-ads` | List Meta Ads campaigns |
 | POST | `/meta-ads` | Create campaign |
 | GET/PATCH/DELETE | `/meta-ads/:id` | Detail / update / hapus |
+| POST | `/meta-ads/campaigns/:id/sync` | Sync campaign data |
 | GET/POST | `/meta-ads/:id/content-metrics` | Ad content metrics |
 | GET/POST | `/meta-ads/:id/chat-metrics` | WhatsApp chat metrics |
+| GET | `/ads/accounts` | List ad accounts |
+| POST | `/ads/accounts` | Create ad account |
+| PATCH/DELETE | `/ads/accounts/:id` | Update / hapus |
+| GET/POST | `/ads/targets` | List / create targets |
+| DELETE | `/ads/targets/:id` | Hapus target |
 | GET | `/dashboard` | BD dashboard summary |
+| GET | `/meta-ads/dashboard` | Meta Ads dashboard |
+| GET | `/survey-pic-users` | Dropdown PIC users |
 | GET | `/kanban/columns` | Kanban columns |
 | GET | `/kanban/cards` | Kanban cards |
 | POST | `/kanban/columns` | Create column |
 | POST | `/kanban/cards` | Create card |
 | PATCH/DELETE | `/kanban/cards/:id` | Update / hapus card |
 | GET | `/kanban/metrics` | Kanban metrics |
+| GET/POST | `/kanban/labels` | List / create labels |
+| GET | `/:modul/leads/follow-up-report` | Follow-up report |
 
 ### 2.4 Content Creator — `/api/v1/content-creator`
 | Method | Path | Keterangan |
@@ -80,16 +92,24 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | GET | `/timeline` | List (filter: bulan/tahun/status) |
 | GET | `/calendar` | Calendar by tanggal_publish |
 | GET | `/upload-calendar` | Calendar by tanggal_upload |
+| GET | `/upload-pending` | List pending uploads |
 | POST | `/timeline` | Create |
 | PATCH | `/timeline/:id` | Update |
+| PATCH | `/timeline/:id/image` | Upload/update image |
 | DELETE | `/timeline/:id` | Hapus |
 | POST | `/timeline/:id/approve` | Approve (permission: content.approve) |
 | POST | `/timeline/:id/reject` | Reject |
+| POST | `/timeline/:id/revisi` | Request revisi |
+| POST | `/timeline/:id/resubmit` | Resubmit setelah revisi |
+| POST | `/timeline/:id/sign-hd` | TTD HD |
 | GET/POST | `/social-media/accounts` | List / create akun |
 | PATCH | `/social-media/accounts/:id` | Update |
 | GET/POST | `/social-media/metrics/:id` | Metrics per akun |
 | GET/POST | `/social-media/post-metrics` | Per-post metrics |
+| PATCH | `/social-media/post-metrics/:id` | Update metrics |
+| DELETE | `/social-media/post-metrics/:id` | Hapus metrics |
 | GET/POST | `/social-media/targets` | Monthly targets |
+| GET | `/social-media/targets/comparison` | Comparison view |
 | GET | `/dashboard` | Content dashboard |
 
 ### 2.5 Desain — `/api/v1/desain`
@@ -97,6 +117,7 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 |--------|------|------------|
 | GET/POST | `/timelines` | List / create timeline |
 | GET/PATCH/DELETE | `/timelines/:id` | Detail / update / hapus |
+| GET | `/timeline/:id/gantt` | Gantt view |
 | POST | `/timelines/:id/items` | Add item |
 | PATCH | `/timelines/:tid/items/:id` | Update item |
 | DELETE | `/timelines/:tid/items/:id` | Hapus item |
@@ -109,7 +130,9 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 |--------|------|------------|
 | GET/POST | `/timelines` | List / create |
 | GET/PATCH/DELETE | `/timelines/:id` | Detail / update / hapus |
+| GET | `/timeline/:id/gantt` | Gantt view |
 | POST/PATCH/DELETE | `/timelines/:id/items` | CRUD items |
+| POST | `/timeline/items/:id/upload` | Upload file pada item |
 
 ### 2.7 Sales — `/api/v1/sales`
 | Method | Path | Keterangan |
@@ -153,7 +176,7 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | **Stock Opname** | | |
 | GET | `/projeks/:id/stock-opname/rapp` | Semua RAPP items lintas termin (referensi) |
 | GET | `/projeks/:id/stock-opname/logs` | Riwayat penggunaan harian |
-| POST | `/projeks/:id/stock-opname/logs` | Catat penggunaan (item_ref_type, item_ref_id, item_nama, item_satuan, qty_pakai, tanggal, catatan) |
+| POST | `/projeks/:id/stock-opname/logs` | Catat penggunaan |
 | DELETE | `/stock-opname/logs/:id` | Hapus log |
 | **Docs/Link** | | |
 | GET | `/projeks/:id/links` | List dokumen/link proyek |
@@ -190,7 +213,16 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | POST | `/projeks/termins/:id/tasks` | Add task |
 | PATCH/DELETE | `/projeks/tasks/:id` | Update / hapus |
 | GET | `/termins/:id/rapp` | RAPP data |
-| _(RAPP routes sama pola dengan sipil)_ | | |
+| POST | `/termins/:id/rapp/material-kategori` | Add kategori material |
+| PATCH/DELETE | `/rapp/material-kategori/:id` | Update / hapus |
+| POST | `/rapp/material-kategori/:id/items` | Add item material |
+| PATCH/DELETE | `/rapp/material-items/:id` | Update / hapus |
+| POST | `/termins/:id/rapp/sipil-items` | Add sipil item |
+| PATCH/DELETE | `/rapp/sipil-items/:id` | Update / hapus |
+| POST | `/termins/:id/rapp/vendor-kategori` | Add vendor kategori |
+| PATCH/DELETE | `/rapp/vendor-kategori/:id` | Update / hapus |
+| POST | `/rapp/vendor-kategori/:id/items` | Add vendor item |
+| PATCH/DELETE | `/rapp/vendor-items/:id` | Update / hapus |
 
 ### 2.11 Finance — `/api/v1/finance`
 
@@ -199,7 +231,9 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 |--------|------|------------|
 | GET | `/invoices` | List |
 | POST | `/invoices` | Create (dari lead_id) |
-| PATCH/DELETE | `/invoices/:id` | Update / hapus (draft only) |
+| PATCH | `/invoices/:id` | Update |
+| DELETE | `/invoices/:id` | Hapus — **Super Admin bisa hapus status Lunas+kwitansi; role lain hanya non-Lunas** |
+| DELETE | `/invoices/:invId/items/:itemId` | Hapus item invoice |
 | POST | `/invoices/:id/sign-head` | TTD Head Finance |
 | POST | `/invoices/:id/sign-admin` | TTD Admin Finance |
 | POST | `/invoices/:id/mark-paid` | Tandai Lunas → auto-create Kwitansi |
@@ -207,32 +241,126 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | GET | `/leads-dropdown` | Leads untuk dropdown |
 
 **Workflow:** `draft → (sign-head + sign-admin) → Terbit → (mark-paid) → Lunas`
+**Delete rules:** Non-Lunas: semua role dengan `finance.delete`. Lunas: **hanya Super Admin** (cascade hapus kwitansi + items).
 
-#### Administrasi Projek (`/adm-projek` alias `/adm-finance`)
+#### Bank Accounts (`/bank-accounts`)
 | Method | Path | Keterangan |
 |--------|------|------------|
-| GET/POST | `/adm-projek` | List / create |
+| GET | `/bank-accounts` | List akun bank |
+| POST | `/bank-accounts` | Create |
+| PATCH | `/bank-accounts/:id` | Update |
+| DELETE | `/bank-accounts/:id` | Hapus |
+
+#### Administrasi Projek (`/adm-projek`)
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET/POST | `/adm-projek` | List / create (alias: `/adm-finance`) |
 | GET/PATCH/DELETE | `/adm-projek/:id` | Detail / update / hapus |
-| GET/POST | `/adm-projek/:pid/termins` | List / add termin |
-| GET/PATCH/DELETE | `/adm-finance/termins/:id` | Detail / update / hapus |
+
+#### Termin per Proyek (`/adm-projek/:id/termins`)
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET | `/adm-projek/:id/termins` | List termins + deposit summary |
+| POST | `/adm-projek/:id/termins` | Create termin |
+| PATCH | `/adm-projek/:id/termins/:tid` | Update termin |
+| DELETE | `/adm-projek/:id/termins/:tid` | Hapus termin |
+| POST | `/adm-projek/:id/termins/:tid/sign-deposit` | HF sign deposit awal |
+| POST | `/adm-projek/:id/termins/:tid/extra-deposit` | Add extra deposit |
+| POST | `/adm-projek/:id/termins/:tid/extra-deposit/:did/sign` | HF sign extra deposit |
+| DELETE | `/adm-projek/:id/termins/:tid/extra-deposit/:did` | Hapus extra deposit |
+| GET | `/adm-projek/:id/termins/:tid/pdf-data` | PDF export termin |
+
+#### Periodes (legacy — nested in adm-finance)
+| Method | Path | Keterangan |
+|--------|------|------------|
 | GET/POST | `/adm-finance/termins/:tid/periodes` | List / add periode |
 | GET/PATCH/DELETE | `/adm-finance/periodes/:id` | Detail / update / hapus |
 | POST | `/adm-finance/periodes/:id/approve` | Approve |
 | POST/DELETE | `/adm-finance/periodes/:id/items` | Add item |
 
-#### Tukang (baru) — per proyek
+#### Purchase Request — PR (`/adm-projek/:id/pr`)
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET | `/adm-projek/:id/pr` | List PRs |
+| POST | `/adm-projek/:id/pr` | Create PR dengan items |
+| PUT | `/adm-projek/:id/pr/:pid` | Edit PR (diblokir jika sudah HF signed) |
+| PATCH | `/adm-projek/:id/pr/:pid/status` | Update status PR |
+| DELETE | `/adm-projek/:id/pr/:pid` | Hapus PR |
+| GET | `/adm-projek/:id/pr/available` | List PR Disetujui+HF signed (untuk cashflow) |
+| POST | `/adm-projek/:id/pr/:pid/sign` | HF sign PR (`hf_signed_at`) |
+| GET | `/adm-projek/:id/pr/:pid/pdf-data` | PDF export data |
+| GET | `/adm-projek/:id/rapp-items` | RAPP items untuk picker di PR |
+
+**PR Status:** `Pending → Disetujui / Ditolak`
+**Nomor PR:** auto-generate `PR-001`, `PR-002`, dst.
+**Items:** setiap item ada `is_from_rapp`, `rapp_qty`, `rapp_harga` — jika melebihi RAPP perlu TTD HF.
+**UI Pagination:** max 5 item per halaman di form create/edit PR.
+
+#### Cashflow per Termin (`/adm-projek/:id/termins/:tid/cashflow`)
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET | `/adm-projek/:id/cashflow` | List cashflow proyek (legacy) |
+| POST | `/adm-projek/:id/cashflow` | Create cashflow (legacy) |
+| DELETE | `/adm-projek/:id/cashflow/:cid` | Hapus cashflow (legacy) |
+| GET | `/adm-projek/:id/termins/:tid/cashflow` | Cashflow per termin |
+| POST | `/adm-projek/:id/termins/:tid/cashflow` | Tambah item cashflow |
+| DELETE | `/adm-projek/:id/termins/:tid/cashflow/:cid` | Hapus item cashflow |
+| POST | `/adm-projek/:id/termins/:tid/cashflow/gajian` | Buat gajian cashflow |
+| GET | `/adm-projek/:id/cashflow-overview/pdf-data` | PDF overview cashflow |
+
+#### List Material / Toko (`/adm-projek/:id/list-material`)
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET | `/adm-projek/:id/list-material` | List |
+| POST | `/adm-projek/:id/list-material` | Create |
+| PUT | `/adm-projek/:id/list-material/:mid` | Update |
+| DELETE | `/adm-projek/:id/list-material/:mid` | Hapus |
+| POST | `/adm-projek/:id/list-material/:mid/items` | Add item ke list |
+| PUT | `/adm-projek/:id/list-material/:mid/items/:iid` | Update item |
+| DELETE | `/adm-projek/:id/list-material/:mid/items/:iid` | Hapus item |
+| GET | `/adm-projek/:id/list-material/pdf-data` | PDF export |
+
+#### Surat Jalan (`/adm-projek/:id/surat-jalan`)
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET | `/adm-projek/:id/surat-jalan` | List per proyek |
+| POST | `/adm-projek/:id/surat-jalan` | Create |
+| GET | `/adm-projek/:id/surat-jalan/:sid` | Detail |
+| DELETE | `/adm-projek/:id/surat-jalan/:sid` | Hapus |
+| POST | `/adm-projek/:id/surat-jalan/:sid/sign-af` | Admin Finance sign |
+| GET | `/adm-projek/:id/surat-jalan/:sid/pdf-data` | PDF data |
+
+#### Dokumen Proyek (`/adm-projek/:id/dokumen`)
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET | `/adm-projek/:id/dokumen` | List dokumen (Nota/Bukti dll) |
+| GET | `/adm-projek/:id/dokumen/:did` | Detail |
+| POST | `/adm-projek/:id/dokumen` | Upload dokumen (base64, kategori, nama_file, file_type) |
+| DELETE | `/adm-projek/:id/dokumen/:did` | Hapus |
+
+#### Gajian Available
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET | `/adm-projek/:id/gajian/available` | List termins tersedia untuk gajian |
+
+#### Tukang (per proyek)
 | Method | Path | Keterangan |
 |--------|------|------------|
 | GET/POST | `/adm-projek/:id/tukang/registry` | List / add tukang registry |
 | PATCH/DELETE | `/adm-projek/:id/tukang/registry/:tid` | Update / hapus |
+| GET | `/adm-projek/:id/tukang/available-users` | Dropdown users untuk registry |
 | GET/POST | `/adm-projek/:id/tukang/absen-foto` | List / submit foto absen |
 | POST | `/adm-projek/:id/tukang/absen-foto/:aid/approve` | Approve absen |
 | POST | `/adm-projek/:id/tukang/absen-foto/:aid/reject` | Reject absen |
-| **POST** | `/adm-projek/:id/tukang/absen-checklist` | **Delegasi absen oleh admin** (tanpa foto, status langsung Disetujui). Body: `{ tukang_id, tanggal }` |
+| POST | `/adm-projek/:id/tukang/absen-checklist` | Delegasi absen oleh admin (tanpa foto, langsung Disetujui). Body: `{ tukang_id, tanggal }` |
 | GET | `/adm-projek/:id/tukang/kasbon` | List kasbon |
 | POST | `/adm-projek/:id/tukang/:tid/kasbon` | Tambah kasbon |
+| PATCH | `/adm-projek/:id/tukang/kasbon/:cid` | Update kasbon |
+| DELETE | `/adm-projek/:id/tukang/kasbon/:cid` | Hapus kasbon |
 | GET/POST | `/adm-projek/:id/tukang/gajian` | List / create gajian |
 | DELETE | `/adm-projek/:id/tukang/gajian/:gid` | Hapus gajian |
+| POST | `/adm-projek/:id/tukang/gajian/:gid/sign-af` | Admin Finance sign gajian |
+| POST | `/adm-projek/:id/tukang/gajian/:gid/sign-hf` | Head Finance sign gajian |
 | GET | `/adm-projek/:id/tukang/kwitansi` | List kwitansi gaji |
 | GET | `/tukang-absen/projects` | Proyek untuk halaman absen tukang |
 | GET | `/tukang-absen/:pid/my-tukang` | Data tukang yang terhubung ke user login |
@@ -242,19 +370,11 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 #### Reimburse
 | Method | Path | Keterangan |
 |--------|------|------------|
-| GET | `/reimburse` | List |
 | GET/POST | `/reimburse` | List / create |
 | GET/PATCH/DELETE | `/reimburse/:id` | Detail / update / hapus |
 | POST | `/reimburse/:id/sign-head` | TTD Head |
 | POST | `/reimburse/:id/sign-admin` | TTD Admin |
 | POST | `/reimburse/:id/tolak` | Tolak |
-
-#### Misc
-| Method | Path | Keterangan |
-|--------|------|------------|
-| GET | `/adm-projek` | Alias → `/adm-finance` |
-| GET | `/leads-dropdown` | Leads untuk dropdown |
-| GET | `/adm-projek` | Alias list proyek administrasi |
 
 ### 2.12 PIC Project — `/api/v1/pic-project`
 | Method | Path | Keterangan |
@@ -269,9 +389,11 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | GET | `/` | List (filter: modul, tanggal_mulai, tanggal_selesai, user_id) |
 | POST | `/` | Create (modul, tanggal_mulai, tanggal_selesai, kegiatan, kendala, user_id) |
 | DELETE | `/:id` | Hapus |
-| GET | `/:id/docs` | List docs/link per laporan (`linkable_type: "laporan_harian"`) |
+| GET | `/:id/docs` | List docs/link per laporan |
 | POST | `/:id/docs` | Add doc (JSON url atau multipart file, dir: `laporan-docs/`) |
 | DELETE | `/docs/:docId` | Hapus doc (+ hapus file jika upload) |
+
+**modul values:** `bd`, `content`, `sales_admin`, `telemarketing`, `desain`, `sales`, `finance`, `pic`
 
 ### 2.14 Sales Admin Kanban — `/api/v1/sales-admin`
 Permanent columns: W1, W2, W3, W4, Closing Survey, Move To Telemarketing.
@@ -367,7 +489,7 @@ Permanent columns: From Sales Admin, W1, W2, W3, W4, Closing Survey, Move To Col
 | `RappVendorItem` | `rapp_vendor_items` | id, kategori_id, nama, vol, sat, harga_satuan, jumlah, urutan |
 | **`SipilUsageLog`** | `sipil_usage_logs` | id, proyek_id, item_ref_type(material/sipil/vendor), item_ref_id, item_nama, item_satuan, qty_pakai, tanggal, catatan, created_by |
 
-> `SipilUsageLog` adalah pencatatan penggunaan harian. RAPP tidak berkurang — hanya referensi.
+> `SipilUsageLog`: RAPP vol tidak berkurang — log hanya akumulasi. Total dipakai dihitung di frontend.
 
 ### Proyek Interior
 | Model | Table | Key Fields |
@@ -389,12 +511,7 @@ Permanent columns: From Sales Admin, W1, W2, W3, W4, Closing Survey, Move To Col
 |-------|-------|-----------|
 | `ProjectLink` | `project_links` | id(BigInt), linkable_type(String), linkable_id(BigInt), title, url, catatan, created_by |
 
-**linkable_type values:**
-- `"sipil_projek"` — Projek Sipil (`sipil.ts`)
-- `"desain_timeline"` — Desain Timeline (`desain.ts`)
-- `"laporan_harian"` — Laporan Harian (`laporanHarian.ts`)
-
-Upload file disimpan di subdirektori per modul: `sipil-docs/`, `laporan-docs/`, dll.
+**linkable_type values:** `"sipil_projek"`, `"desain_timeline"`, `"laporan_harian"`
 
 ### Warehouse & Barang
 | Model | Table | Key Fields |
@@ -411,20 +528,27 @@ Upload file disimpan di subdirektori per modul: `sipil-docs/`, `laporan-docs/`, 
 | `Invoice` | `invoices` | id, lead_id, invoice_number, tanggal, status(draft/Terbit/Lunas/Rejected), head_finance_*, admin_finance_* |
 | `InvoiceItem` | `invoice_items` | id, invoice_id, description, quantity, unit_price, subtotal |
 | `Kwitansi` | `kwitansis` | id, invoice_id(unique), nomor_kwitansi, tanggal, jumlah_diterima, penerima, metode_bayar, detail_bayar |
+| `BankAccount` | `bank_accounts` | id, bank_name, account_number, account_name, is_active |
 | `Reimburse` | `reimburses` | id, tanggal, user_id, kategori, keterangan, total, status, head_finance_*, admin_finance_* |
 | `ReimburseItem` | `reimburse_items` | id, reimburse_id, deskripsi, jumlah |
 | `AdmFinanceProject` | `adm_finance_projects` | id, lead_id, nama_proyek, klien, jenis, lokasi, tanggal_mulai, tanggal_selesai, status |
 | `AdmFinanceTermin` | `adm_finance_termins` | id, project_id, nama_termin, tanggal, budget, deposit_awal, hf_signed_at, status |
+| `AdmFinanceDeposit` | `adm_finance_deposits` | id, termin_id, jumlah, catatan, hf_signed_at, hf_signed_by, hf_name, hf_signature |
 | `AdmFinancePeriode` | `adm_finance_periodes` | id, termin_id, nama_periode, tanggal_mulai, tanggal_selesai, budget, is_approved |
 | `AdmFinanceItem` | `adm_finance_items` | id, periode_id, description, qty, unit_price, total, status |
+| `AdmFinanceCashflow` | `adm_finance_cashflows` | id, termin_id, description, debit, kredit |
+| `ProjekPR` | `projek_prs` | id, adm_finance_project_id, nomor_pr, tanggal, nama_toko, catatan, status, hf_signed_at, hf_signed_by, hf_name, hf_signature |
+| `ProjekPRItem` | `projek_pr_items` | id, projek_pr_id, nama_item, satuan, qty, harga_perkiraan, is_from_rapp, rapp_qty, rapp_harga |
+| `ProjekDokumen` | `projek_dokumens` | id, adm_finance_project_id, kategori, nama_file, file_type, file_data(blob), tanggal_upload |
 | `AdministrasiKantor` | `administrasi_kantors` | id, lead_id, tanggal, keterangan, created_by |
-| `SuratJalan` | `surat_jalans` | id, adm_finance_project_id, nomor_surat, tanggal, penerima |
+| `SuratJalan` | `surat_jalans` | id, adm_finance_project_id, no_dokumen, tanggal, penerima, no_telp, keterangan, af_signed_at, af_name, af_signature |
+| `SuratJalanItem` | `surat_jalan_items` | id, surat_jalan_id, nama_barang, description, qty, satuan |
 
 ### Tukang System
 | Model | Table | Key Fields |
 |-------|-------|-----------|
 | `TukangRegistry` | `tukang_registries` | id, adm_finance_project_id, nama, jabatan, upah_harian, user_id(linked User), is_active |
-| `TukangAbsenFoto` | `tukang_absen_fotos` | id, tukang_id, tanggal, **foto String? (nullable — null jika delegasi admin)**, foto_timestamp, status(Pending/Disetujui/Ditolak), approved_by, catatan, created_by |
+| `TukangAbsenFoto` | `tukang_absen_fotos` | id, tukang_id, tanggal, foto String?(nullable — null jika delegasi admin), foto_timestamp, status(Pending/Disetujui/Ditolak), approved_by, catatan, created_by |
 | `TukangCashbound` | `tukang_cashbounds` | id, tukang_id, jumlah, catatan, tanggal, sudah_dipotong |
 | `GajiTukang` | `gaji_tukangs` | id, adm_finance_project_id, bulan, tahun, tanggal_mulai, tanggal_selesai, total_gaji |
 | `GajiTukangItem` | `gaji_tukang_items` | id, gaji_tukang_id, tukang_id, hari_kerja, daily_rate, kasbon_dipotong, subtotal |
@@ -454,6 +578,7 @@ Upload file disimpan di subdirektori per modul: `sipil-docs/`, `laporan-docs/`, 
 - Super Admin bypass semua permission check
 - `requireRole("Super Admin")` — role-based
 - `requirePermission("finance", "edit")` — permission-based
+- Cek Super Admin di route handler: `req.user!.roles.some((r: any) => r.role.name === "Super Admin")`
 
 ### Modules & Permissions
 | Module | Actions |
@@ -471,6 +596,7 @@ Upload file disimpan di subdirektori per modul: `sipil-docs/`, `laporan-docs/`, 
 | pic | view, create, edit, delete |
 | admin | view, create, edit, delete |
 | tukang | absen_submit |
+| tutorial | view, tutorial_aplikasi, api_eksternal, deployment |
 
 ### Frontend Permission Helpers
 - `authStore.hasPermission(module, action)`
@@ -489,9 +615,10 @@ app/
   (dashboard)/
     dashboard/
     profile/
+    profile/password/          — Ganti password
     bd/
       dashboard/
-      kanban/             — PDF export (logo, alamat, notelfon di header)
+      kanban/                  — PDF export (logo, alamat, notelfon di header)
       meta-ads/[id]/
     content/
       dashboard-sosmed/
@@ -499,10 +626,14 @@ app/
       timelines/
       laporan-harian/
     sales-admin/
-      kanban/             — PDF export (logo, alamat, notelfon)
+      kanban/                  — PDF export
+      follow-up/
+      kalender-survey/
       laporan-harian/
     telemarketing/
-      kanban/             — PDF export (logo, alamat, notelfon)
+      kanban/                  — PDF export
+      follow-up/
+      kalender-survey/
       laporan-harian/
     desain/
       laporan-harian/
@@ -511,20 +642,25 @@ app/
       kanban/
       laporan-harian/
     projek/
-      sipil/              — List proyek
-      sipil/[id]/         — Detail: tabs Daftar Termin | Gantt | Docs/Link | RAPP | Stock Opname
-      desain/             — DesainTimeline dengan view List/Gantt/Docs
+      sipil/                   — List proyek
+      sipil/[id]/              — Detail: tabs Daftar Termin | Gantt | Docs/Link | RAPP | Stock Opname
+      desain/                  — DesainTimeline dengan view List/Gantt/Docs
       interior/
+      interior/[id]/
     finance/
-      invoice-kwitansi/
-      administrasi-projek/ — Tabs: Termin | Periodes | Tukang (5 inner tabs)
+      invoice-kwitansi/        — Invoice + Kwitansi + Bank Accounts tab
+      administrasi-projek/     — Tabs: Termin | PR | List Material | Surat Jalan | Dokumen | Cashflow | Tukang (5 inner tabs)
       administrasi-kantor/
       laporan-harian/
     pic/laporan-harian/
-    absen/                — Halaman tukang self-submit foto absen
+    absen/                     — Halaman tukang self-submit foto absen harian
+    tutorial/
+      tutorial-aplikasi/       — Tutorial penggunaan aplikasi
+      api-eksternal/           — Dokumentasi API eksternal
+      deployment/              — Panduan deployment
     admin/
       users/
-      roles/
+      roles/                   — CRUD roles + permission matrix
       settings/
 ```
 
@@ -532,29 +668,36 @@ app/
 1. **Daftar Termin** — CRUD termin + task
 2. **Gantt Chart** — visualisasi timeline
 3. **Docs/Link** — upload file PDF/image atau URL link (simpan ke `sipil-docs/`)
-4. **RAPP** — anggaran material/sipil/vendor per termin (edit, PDF download)
+4. **RAPP** — anggaran material/sipil/vendor per termin (edit inline, PDF/Excel download). **UI Pagination: max 10 item per halaman** di AddItemDialog
 5. **Stock Opname** — penggunaan harian item RAPP:
    - Sub-tab **Item RAPP**: tabel referensi vol RAPP + total dipakai + tombol Catat per item
    - Sub-tab **Riwayat Penggunaan**: tabel semua log harian
    - **Download PDF**: laporan lengkap (header logo+alamat+notelfon, tabel RAPP, tabel log)
 
+### Tab Menu Administrasi Projek
+1. **Termin** — CRUD termin, deposit awal + extra deposit (TTD HF), PDF termin
+2. **PR (Purchase Request)** — Buat PR dengan items (manual/dari RAPP), approve/tolak, TTD HF, PDF. **UI Pagination: max 5 item per halaman** di form create/edit
+3. **List Material** — Daftar material/toko dengan items
+4. **Surat Jalan** — Surat jalan dengan items, TTD Admin Finance, PDF
+5. **Dokumen** — Upload nota/bukti (base64), preview
+6. **Cashflow** — Cashflow per termin, overview PDF
+7. **Tukang** (5 inner tabs):
+   - Registry tukang (CRUD + link User account)
+   - Absen Foto (approve/reject + Checklist Hadir = delegasi tanpa foto)
+   - Kasbon
+   - Gajian (TTD AF + HF)
+   - Kwitansi Gaji
+
 ### Tab Menu Laporan Harian (shared `laporan-harian.tsx`)
-Dipakai oleh 7 modul (bd, content, sales_admin, telemarketing, desain, sales, finance, pic).
+Dipakai oleh 8 modul: bd, content, sales_admin, telemarketing, desain, sales, finance, pic.
 - Tab **Detail**: form tambah, list laporan
 - Tab **Docs/Link** per laporan: URL link atau upload file (`laporan-docs/`)
-
-### Administrasi Projek — Tab Tukang (5 inner tabs)
-1. Registry tukang (CRUD + link ke User account)
-2. Absen Foto (approve/reject + **Checklist Hadir** = delegasi tanpa foto)
-3. Kasbon
-4. Gajian
-5. Kwitansi Gaji
 
 ### Key Frontend API Files
 | File | Keterangan |
 |------|------------|
 | `src/lib/api/content.ts` | `sipilApi`, `interiorProjekApi`, `desainApi` dengan semua RAPP + stock opname + docs/link methods |
-| `src/lib/api/finance.ts` | Finance API: invoice, admFinance, tukang, reimburse |
+| `src/lib/api/finance.ts` | Finance API: invoice, admFinance, tukang, reimburse, PR, surat jalan, cashflow |
 | `src/lib/api/auth.ts` | Auth calls |
 | `src/lib/api/admin.ts` | Admin calls |
 
@@ -563,12 +706,16 @@ Dipakai oleh 7 modul (bd, content, sales_admin, telemarketing, desain, sales, fi
 |------|------------|
 | `src/components/projek-pdf.tsx` | PDF proyek sipil/desain/interior (orange theme, logo) |
 | `src/components/rapp-pdf.tsx` | PDF RAPP |
-| `src/components/sipil-stock-opname-pdf.tsx` | **PDF Stock Opname** (header logo+alamat+notelfon, ringkasan item, riwayat log) |
+| `src/components/rapp-sipil.tsx` | RAPP Sipil view+edit component — AddItemDialog pagination max 10/page |
+| `src/components/sipil-stock-opname-pdf.tsx` | PDF Stock Opname (header logo+alamat+notelfon) |
 | `src/components/invoice-pdf.tsx` | Invoice PDF |
 | `src/components/kwitansi-pdf.tsx` | Kwitansi PDF |
 | `src/components/reimburse-pdf.tsx` | Reimburse PDF |
-| `src/components/laporan-harian.tsx` | Shared laporan harian component (7 modul, tabs Detail+Docs) |
-| `src/components/rapp-sipil.tsx` | RAPP Sipil view+edit component |
+| `src/components/pr-pdf.tsx` | PR (Purchase Request) PDF |
+| `src/components/surat-jalan-pdf.tsx` | Surat Jalan PDF |
+| `src/components/cashflow-termin-pdf.tsx` | Cashflow per termin PDF |
+| `src/components/cashflow-overview-pdf.tsx` | Cashflow overview PDF |
+| `src/components/laporan-harian.tsx` | Shared laporan harian component (8 modul, tabs Detail+Docs) |
 | `src/components/layout/sidebar.tsx` | Sidebar dengan permission filtering |
 | `src/components/layout/sidebar-nav.ts` | NavGroups: permission + roles |
 | `src/store/authStore.ts` | Zustand store: user, tokens, permission helpers |
@@ -596,6 +743,12 @@ Konstanta `COMPANY` ada di masing-masing PDF file. Update di sana jika info peru
 - Serialize ke JSON: `parseFloat(String(value))`
 - Create: gunakan `0` bukan `null` (Decimal tidak accept null)
 
+### Super Admin Check (Backend)
+```ts
+const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
+```
+Digunakan untuk override restriction tertentu (contoh: hapus Invoice Lunas).
+
 ### TukangAbsenFoto
 - `foto` field adalah `String?` (nullable) — null jika absen didelegasi oleh admin via checklist
 - Delegasi: `POST /adm-projek/:id/tukang/absen-checklist` → creates record `{ foto: null, status: "Disetujui" }`
@@ -618,12 +771,22 @@ Konstanta `COMPANY` ada di masing-masing PDF file. Update di sana jika info peru
 | Lunas | Lunas |
 | Batal | Rejected |
 
+### Invoice Delete Rules
+- Status non-Lunas: semua role dengan `finance.delete` bisa hapus
+- Status **Lunas**: **hanya Super Admin** yang bisa hapus (cascade hapus kwitansi + invoice items)
+- Frontend: tombol Hapus muncul jika `canDelete && (status !== "Lunas" || isSuperAdmin())`
+
 ### Invoice Number Format
 - Sipil: `RR-SP-DD/MM/YYYY`, Desain: `RR-DS-...`, Interior: `RR-INT-...`
 - Kwitansi: `KWT-YYYYMM-{4digit}`
+- PR: `PR-001`, `PR-002`, dst. (auto-increment per proyek)
 
-### Laporan Harian Modules
-`bd`, `content`, `sales_admin`, `telemarketing`, `desain`, `sales`, `finance`, `pic`
+### UI Pagination (Frontend Only)
+- **RAPP AddItemDialog**: max 10 item per halaman, auto-pindah ke halaman baru saat Tambah Baris
+- **PR Create/Edit form**: max 5 item per halaman, auto-pindah ke halaman terakhir saat Tambah Baris
+
+### KategoriBarang & Warehouse
+- Tidak ada `@unique` pada `nama` — gunakan `create`, bukan `upsert`
 
 ---
 
@@ -656,5 +819,6 @@ Setiap kali ada perubahan fitur:
 - **Model baru/berubah** → update section 3
 - **Page/tab baru** → update section 6
 - **Permission baru** → update section 5
+- **Behavior/aturan bisnis** → update section 7
 
 Format: singkat, tabel-based, no fluff.
