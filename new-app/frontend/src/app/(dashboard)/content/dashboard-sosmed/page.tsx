@@ -45,6 +45,11 @@ import {
   ChevronUp,
   ChevronDown,
   Target,
+  Repeat2,
+  MousePointerClick,
+  UserCheck,
+  UserPlus,
+  X,
 } from "lucide-react";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -89,11 +94,13 @@ interface PostMetric {
   judul_konten: string | null;
   link_konten: string | null;
   tanggal: string | null;
+  media_type: string | null;
   views: number;
   likes: number;
   comments: number;
   shares: number;
   saves: number;
+  reposts: number;
   reach: number;
   watch_time_minutes: number | null;
   engagement_rate: number | null;
@@ -107,10 +114,16 @@ interface Summary {
     comments: number;
     shares: number;
     saves: number;
+    reposts: number;
     reach: number;
     watch_time_minutes: number;
     count: number;
     engagement_rate: number;
+    ig_profile_visits?: number;
+    ig_website_clicks?: number;
+    ig_followers_count?: number;
+    ig_follower_reach?: number;
+    ig_non_follower_reach?: number;
   };
   time_series: Array<{
     date: string;
@@ -570,6 +583,7 @@ export default function DashboardSosmedPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [tablePage, setTablePage] = useState(1);
   const [pdfLoading, setPdfLoading] = useState(false);
+  const [selectedPost, setSelectedPost] = useState<PostMetric | null>(null);
 
   // Derived date range
   const dateRange = useMemo(() => {
@@ -997,9 +1011,33 @@ export default function DashboardSosmedPage() {
             <>
               <MetricCard label="Total Saves" value={totals?.saves ?? 0} icon={Bookmark} color="text-purple-600" />
               <MetricCard label="Total Reach" value={totals?.reach ?? 0} icon={Users} color="text-teal-600" />
+              <MetricCard label="Total Repost" value={totals?.reposts ?? 0} icon={Repeat2} color="text-orange-600" />
+              <MetricCard label="Profile Visits" value={totals?.ig_profile_visits ?? 0} icon={UserCheck} color="text-sky-600" />
+              <MetricCard label="Link Klik (Bio)" value={totals?.ig_website_clicks ?? 0} icon={MousePointerClick} color="text-lime-600" />
+              <MetricCard label="Total Followers" value={totals?.ig_followers_count ?? 0} icon={UserPlus} color="text-indigo-500" />
+              {(totals?.ig_follower_reach ?? 0) + (totals?.ig_non_follower_reach ?? 0) > 0 && (
+                <>
+                  <MetricCard
+                    label="Reach Followers"
+                    value={`${totals?.ig_follower_reach ?? 0} (${
+                      ((totals!.ig_follower_reach! / (totals!.ig_follower_reach! + totals!.ig_non_follower_reach!)) * 100).toFixed(1)
+                    }%)`}
+                    icon={Users}
+                    color="text-emerald-600"
+                  />
+                  <MetricCard
+                    label="Reach Non-Followers"
+                    value={`${totals?.ig_non_follower_reach ?? 0} (${
+                      ((totals!.ig_non_follower_reach! / (totals!.ig_follower_reach! + totals!.ig_non_follower_reach!)) * 100).toFixed(1)
+                    }%)`}
+                    icon={Users}
+                    color="text-amber-600"
+                  />
+                </>
+              )}
             </>
           )}
-          {(platform === "all" || platform === "YOUTUBE") && (
+          {(platform === "all" || platform === "INSTAGRAM" || platform === "YOUTUBE") && (
             <MetricCard
               label="Watch Time (mnt)"
               value={totals?.watch_time_minutes ? Math.round(totals.watch_time_minutes).toLocaleString() : 0}
@@ -1114,10 +1152,13 @@ export default function DashboardSosmedPage() {
         </CardContent>
       </Card>
 
-      {/* ── Data Table ── */}
+      {/* ── Data Table Per Post ── */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Detail Data</CardTitle>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <CardTitle className="text-base">Metrik Per Postingan</CardTitle>
+            <p className="text-xs text-muted-foreground">Filter tanggal & platform dari filter bar atas · Cari konten dengan kolom pencarian</p>
+          </div>
         </CardHeader>
         <CardContent className="p-0">
           {metricsLoading ? (
@@ -1132,11 +1173,15 @@ export default function DashboardSosmedPage() {
                     {[
                       { key: "tanggal", label: "Tanggal" },
                       { key: "platform", label: "Platform" },
+                      { key: "media_type", label: "Tipe" },
                       { key: "judul_konten", label: "Konten" },
                       { key: "views", label: "Views" },
+                      { key: "reach", label: "Reach" },
                       { key: "likes", label: "Likes" },
                       { key: "comments", label: "Komentar" },
                       { key: "shares", label: "Shares" },
+                      { key: "saves", label: "Saves" },
+                      { key: "watch_time_minutes", label: "Watch Time" },
                       { key: "engagement_rate", label: "Eng.Rate" },
                     ].map(({ key, label }) => (
                       <TableHead
@@ -1151,25 +1196,46 @@ export default function DashboardSosmedPage() {
                 </TableHeader>
                 <TableBody>
                   {sortedMetrics.map((m) => (
-                    <TableRow key={m.id}>
+                    <TableRow key={m.id} className="cursor-pointer hover:bg-muted/50" onClick={() => setSelectedPost(m)}>
                       <TableCell className="text-sm whitespace-nowrap">{m.tanggal}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-xs">
                           {PLATFORM_LABELS[m.platform ?? ""] ?? m.platform}
                         </Badge>
                       </TableCell>
-                      <TableCell className="max-w-[200px]">
+                      <TableCell>
+                        {m.media_type && (
+                          <Badge
+                            variant="outline"
+                            className={`text-xs ${
+                              m.media_type === "VIDEO" || m.media_type === "REEL"
+                                ? "bg-purple-50 text-purple-700 border-purple-200"
+                                : m.media_type === "CAROUSEL_ALBUM"
+                                ? "bg-blue-50 text-blue-700 border-blue-200"
+                                : "bg-gray-50 text-gray-600"
+                            }`}
+                          >
+                            {m.media_type === "CAROUSEL_ALBUM" ? "Carousel" : m.media_type === "VIDEO" ? "Reel/Video" : m.media_type}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[180px]">
                         <div className="truncate text-sm">{m.judul_konten ?? "—"}</div>
                         {m.link_konten && (
                           <a href={m.link_konten} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1">
-                            <ExternalLink className="h-3 w-3" />Link
+                            <ExternalLink className="h-3 w-3" />Buka
                           </a>
                         )}
                       </TableCell>
-                      <TableCell className="text-right text-sm">{m.views.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-sm">{m.likes.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-sm">{m.comments.toLocaleString()}</TableCell>
-                      <TableCell className="text-right text-sm">{m.shares.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">{m.views.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">{m.reach.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">{m.likes.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">{m.comments.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">{m.shares.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">{m.saves.toLocaleString()}</TableCell>
+                      <TableCell className="text-right text-sm font-mono">
+                        {m.watch_time_minutes != null ? `${m.watch_time_minutes.toFixed(1)} mnt` : "—"}
+                      </TableCell>
                       <TableCell className="text-right text-sm">
                         {m.engagement_rate != null ? `${m.engagement_rate.toFixed(2)}%` : "—"}
                       </TableCell>
@@ -1194,6 +1260,71 @@ export default function DashboardSosmedPage() {
         </CardContent>
       </Card>
 
+      {/* ── Per-Post Detail Modal ── */}
+      {selectedPost && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40"
+          onClick={() => setSelectedPost(null)}
+        >
+          <div
+            className="bg-background rounded-t-2xl sm:rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <Badge variant="outline" className="text-xs">
+                    {PLATFORM_LABELS[selectedPost.platform ?? ""] ?? selectedPost.platform}
+                  </Badge>
+                  {selectedPost.media_type && (
+                    <Badge variant="outline" className={`text-xs ${
+                      selectedPost.media_type === "VIDEO" || selectedPost.media_type === "REEL"
+                        ? "bg-purple-50 text-purple-700 border-purple-200"
+                        : selectedPost.media_type === "CAROUSEL_ALBUM"
+                        ? "bg-blue-50 text-blue-700 border-blue-200"
+                        : "bg-gray-50 text-gray-600"
+                    }`}>
+                      {selectedPost.media_type === "CAROUSEL_ALBUM" ? "Carousel" : selectedPost.media_type === "VIDEO" ? "Reel/Video" : selectedPost.media_type}
+                    </Badge>
+                  )}
+                  <span className="text-xs text-muted-foreground">{selectedPost.tanggal}</span>
+                </div>
+                <p className="text-sm font-medium leading-snug line-clamp-3">{selectedPost.judul_konten ?? "—"}</p>
+                {selectedPost.link_konten && (
+                  <a href={selectedPost.link_konten} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline flex items-center gap-1 mt-1">
+                    <ExternalLink className="h-3 w-3" />Buka di {PLATFORM_LABELS[selectedPost.platform ?? ""] ?? "platform"}
+                  </a>
+                )}
+              </div>
+              <button onClick={() => setSelectedPost(null)} className="shrink-0 text-muted-foreground hover:text-foreground">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+              {[
+                { label: "Views", value: selectedPost.views, icon: Eye, color: "text-indigo-600" },
+                { label: "Reach", value: selectedPost.reach, icon: Users, color: "text-teal-600" },
+                { label: "Likes", value: selectedPost.likes, icon: Heart, color: "text-pink-600" },
+                { label: "Komentar", value: selectedPost.comments, icon: MessageCircle, color: "text-yellow-600" },
+                { label: "Shares", value: selectedPost.shares, icon: Share2, color: "text-green-600" },
+                { label: "Saves", value: selectedPost.saves, icon: Bookmark, color: "text-purple-600" },
+                { label: "Reposts", value: selectedPost.reposts, icon: Repeat2, color: "text-orange-600" },
+                ...(selectedPost.watch_time_minutes != null ? [{ label: "Watch Time", value: `${selectedPost.watch_time_minutes.toFixed(1)} mnt`, icon: Clock, color: "text-red-600" }] : []),
+                ...(selectedPost.engagement_rate != null ? [{ label: "Eng. Rate", value: `${selectedPost.engagement_rate.toFixed(2)}%`, icon: TrendingUp, color: "text-blue-600" }] : []),
+              ].map(({ label, value, icon: Icon, color }) => (
+                <div key={label} className="border rounded-lg p-3">
+                  <div className={`flex items-center gap-1.5 mb-1 ${color}`}>
+                    <Icon className="h-3.5 w-3.5" />
+                    <span className="text-xs text-muted-foreground">{label}</span>
+                  </div>
+                  <p className="text-lg font-bold font-mono">{typeof value === "number" ? value.toLocaleString("id-ID") : value}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

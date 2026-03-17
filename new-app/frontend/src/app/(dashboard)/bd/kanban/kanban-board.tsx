@@ -548,7 +548,7 @@ export function KanbanBoard({ initialColumns, isLoading = false, onRefresh }: Ka
       const res = await bdKanbanApi.createCard({ title, column_id: columnId });
       const newCard: KanbanCard = {
         id: res.id, column_id: columnId, title,
-        description: null, deadline: null, color: null,
+        description: null, assigned_user_id: null, deadline: null, color: null,
         urutan: 0, comments_count: 0, labels: [],
       };
       setColumns((prev) =>

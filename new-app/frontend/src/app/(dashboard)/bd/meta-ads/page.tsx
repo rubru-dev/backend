@@ -148,6 +148,7 @@ function SetupPlatformTab() {
   const [editAccount, setEditAccount] = useState<AdPlatformAccount | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [syncingId, setSyncingId] = useState<number | null>(null);
+  const [refreshingId, setRefreshingId] = useState<number | null>(null);
   const [syncBulan, setSyncBulan] = useState(now.getMonth() + 1);
   const [syncTahun, setSyncTahun] = useState(now.getFullYear());
 
@@ -180,6 +181,20 @@ function SetupPlatformTab() {
       toast.success("Akun dihapus");
       qc.invalidateQueries({ queryKey: ["/bd/ads/accounts"] });
     } catch { toast.error("Gagal menghapus"); }
+  }
+
+  async function handleRefreshToken(id: number) {
+    setRefreshingId(id);
+    try {
+      const result = await adsAccountApi.refreshToken(id);
+      toast.success(result.message);
+      qc.invalidateQueries({ queryKey: ["/bd/ads/accounts"] });
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ?? "Gagal refresh token";
+      toast.error(msg);
+    } finally {
+      setRefreshingId(null);
+    }
   }
 
   async function handleSync(id: number) {
@@ -287,14 +302,27 @@ function SetupPlatformTab() {
                       ? `Terakhir sync: ${new Date(acc.last_synced_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}`
                       : "Belum pernah sync"}
                   </span>
-                  <Button
-                    size="sm" variant="outline" className="h-7 text-xs gap-1"
-                    disabled={syncingId === acc.id}
-                    onClick={() => handleSync(acc.id)}
-                  >
-                    <RefreshCw className={`h-3 w-3 ${syncingId === acc.id ? "animate-spin" : ""}`} />
-                    {syncingId === acc.id ? "Syncing..." : `Sync ${MONTHS[syncBulan - 1]}`}
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    {acc.platform === "Meta" && (
+                      <Button
+                        size="sm" variant="outline" className="h-7 text-xs gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                        disabled={refreshingId === acc.id}
+                        onClick={() => handleRefreshToken(acc.id)}
+                        title="Perpanjang masa berlaku access token (~60 hari)"
+                      >
+                        <RefreshCw className={`h-3 w-3 ${refreshingId === acc.id ? "animate-spin" : ""}`} />
+                        {refreshingId === acc.id ? "Refreshing..." : "Refresh Token"}
+                      </Button>
+                    )}
+                    <Button
+                      size="sm" variant="outline" className="h-7 text-xs gap-1"
+                      disabled={syncingId === acc.id}
+                      onClick={() => handleSync(acc.id)}
+                    >
+                      <RefreshCw className={`h-3 w-3 ${syncingId === acc.id ? "animate-spin" : ""}`} />
+                      {syncingId === acc.id ? "Syncing..." : `Sync ${MONTHS[syncBulan - 1]}`}
+                    </Button>
+                  </div>
                 </div>
               </CardContent>
             </Card>

@@ -158,6 +158,18 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
+  // ── Client Portal ────────────────────────────────────────────────────────────
+  // Group: client.view | Items: client.manage
+  {
+    title: "Client Portal",
+    color: "#0d9488",
+    permission: "client.view",
+    roles: [],
+    items: [
+      { label: "Akun & Data Klien", href: "/client", icon: "Users", permission: "client.manage" },
+    ],
+  },
+
   // ── Admin (Super Admin only) ──────────────────────────────────────────────────
   // Group: admin.view | Items: admin.users, admin.roles, admin.settings
   {

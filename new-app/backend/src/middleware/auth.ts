@@ -11,11 +11,19 @@ export interface AuthUser {
   roles: Array<{ role: { id: bigint; name: string } }>;
 }
 
+export interface ClientPortalAuth {
+  accountId: bigint;
+  leadId: bigint;
+  projectId: bigint;
+  username: string;
+}
+
 declare global {
   namespace Express {
     interface Request {
       user?: AuthUser;
       userPermissions?: Set<string>;
+      clientPortal?: ClientPortalAuth;
     }
   }
 }
@@ -56,6 +64,45 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       req.userPermissions = new Set();
     }
 
+    next();
+  } catch {
+    res.status(401).json({ detail: "Invalid token" });
+  }
+};
+
+export const authenticateClientPortal = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    res.status(401).json({ detail: "Not authenticated" });
+    return;
+  }
+  const token = authHeader.slice(7);
+  try {
+    const payload = decodeToken(token);
+    if (payload.type !== "client_portal_access") {
+      res.status(401).json({ detail: "Invalid token type" });
+      return;
+    }
+    const accountId = BigInt(payload.sub as string);
+    const account = await prisma.clientPortalAccount.findUnique({
+      where: { id: accountId },
+      include: { lead: { include: { client_portal_project: { select: { id: true } } } } },
+    });
+    if (!account || !account.is_active) {
+      res.status(401).json({ detail: "Akun tidak ditemukan atau tidak aktif" });
+      return;
+    }
+    const project = account.lead?.client_portal_project;
+    if (!project) {
+      res.status(401).json({ detail: "Proyek klien tidak ditemukan" });
+      return;
+    }
+    req.clientPortal = {
+      accountId: account.id,
+      leadId: account.lead_id,
+      projectId: project.id,
+      username: account.username,
+    };
     next();
   } catch {
     res.status(401).json({ detail: "Invalid token" });

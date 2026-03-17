@@ -147,6 +147,11 @@ export const salesKanbanApi = {
     const { data } = await apiClient.get<{ id: number; nama: string }[]>("/sales/kanban/leads");
     return data;
   },
+
+  // Reorder columns
+  reorderColumns: async (column_ids: number[]): Promise<void> => {
+    await apiClient.post("/sales/kanban/columns/reorder", { column_ids });
+  },
 };
 
 // ── Admin Kanban (Sales Admin) types & API ─────────────────────────────────────

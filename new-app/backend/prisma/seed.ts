@@ -146,6 +146,9 @@ async function main() {
     { name: "projek_interior.rapp",     module: "projek_interior", label: "Tab: RAPP Interior" },
     // Tukang
     { name: "tukang.absen_submit", module: "tukang", label: "Submit Absen Tukang" },
+    // Client Portal Management
+    { name: "client.view",   module: "client", label: "Lihat Client Portal" },
+    { name: "client.manage", module: "client", label: "Kelola Data Client Portal" },
     // Tutorial
     { name: "tutorial.view",              module: "tutorial", label: "Lihat Tutorial" },
     { name: "tutorial.tutorial_aplikasi", module: "tutorial", label: "Sub-menu: Tutorial Aplikasi" },
@@ -878,17 +881,22 @@ async function main() {
   // ── Done ──────────────────────────────────────────────────────────────────────
   // ── Fontee Reminder Rules ─────────────────────────────────────────────────────
   const DEFAULT_REMINDER_RULES = [
-    { feature: "task_deadline", label: "Deadline Task Pekerjaan", days_before: 3 },
-    { feature: "invoice_sign_head", label: "TTD Head Finance Invoice", days_before: 1 },
-    { feature: "invoice_sign_admin", label: "TTD Admin Finance Invoice", days_before: 1 },
-    { feature: "pr_sign_head", label: "TTD Head Finance PR", days_before: 1 },
-    { feature: "termin_deadline", label: "Deadline Termin Proyek", days_before: 7 },
-    { feature: "approval_needed", label: "Approval / Persetujuan Tertunda", days_before: 1 },
+    { feature: "task_deadline",           label: "Deadline Task Pekerjaan",        days_before: 3, send_time: "08:00" },
+    { feature: "invoice_sign_head",       label: "TTD Head Finance Invoice",       days_before: 1, send_time: "08:00" },
+    { feature: "invoice_sign_admin",      label: "TTD Admin Finance Invoice",      days_before: 1, send_time: "08:00" },
+    { feature: "pr_sign_head",            label: "TTD Head Finance PR",            days_before: 1, send_time: "08:00" },
+    { feature: "termin_deadline",         label: "Deadline Termin Proyek",         days_before: 7, send_time: "08:00" },
+    { feature: "approval_needed",         label: "Approval / Persetujuan Tertunda",days_before: 1, send_time: "08:00" },
+    { feature: "item_pekerjaan_sipil",    label: "Item Pekerjaan Proyek Sipil",    days_before: 2, send_time: "08:00" },
+    { feature: "item_pekerjaan_desain",   label: "Item Pekerjaan Proyek Desain",   days_before: 2, send_time: "08:00" },
+    { feature: "item_pekerjaan_interior", label: "Item Pekerjaan Proyek Interior", days_before: 2, send_time: "08:00" },
   ];
   for (const rule of DEFAULT_REMINDER_RULES) {
     const existing = await prisma.fonteeReminderRule.findFirst({ where: { feature: rule.feature } });
     if (!existing) {
-      await prisma.fonteeReminderRule.create({ data: { ...rule, is_active: true, role_ids: [] } });
+      await (prisma.fonteeReminderRule as any).create({ data: { ...rule, is_active: true, role_ids: [] } });
+    } else if (!(existing as any).send_time) {
+      await (prisma.fonteeReminderRule as any).update({ where: { id: existing.id }, data: { send_time: "08:00" } });
     }
   }
   console.log("✅  Fontee reminder rules seeded");

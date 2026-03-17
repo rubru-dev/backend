@@ -221,10 +221,26 @@ router.post("/kanban/cards/:id/move", async (req: Request, res: Response) => {
     },
   });
 
-  // If moved to "Move To Telemarketing", copy to Telemarketing Kanban
+  // If moved to "Move To Telemarketing", copy to Telemarketing Kanban with full lead data
   if (targetCol.title === "Move To Telemarketing") {
     const tBulan = bulan ?? new Date().getMonth() + 1;
     const tTahun = tahun ?? new Date().getFullYear();
+
+    // Fetch full lead data (phone, address)
+    let leadInfo: { nomor_telepon?: string | null; alamat?: string | null } = {};
+    if (source.lead_id) {
+      const lead = await prisma.lead.findUnique({
+        where: { id: source.lead_id },
+        select: { nomor_telepon: true, alamat: true },
+      });
+      if (lead) leadInfo = lead;
+    }
+
+    // Build enriched description
+    const extraLines: string[] = [];
+    if (leadInfo.nomor_telepon) extraLines.push(`No. HP: ${leadInfo.nomor_telepon}`);
+    if (leadInfo.alamat) extraLines.push(`Alamat: ${leadInfo.alamat}`);
+    const enrichedDesc = [source.description, ...extraLines].filter(Boolean).join("\n");
 
     let fromAdminCol = await prisma.telemarketingKanbanColumn.findFirst({
       where: { title: "From Sales Admin", bulan: tBulan, tahun: tTahun },
@@ -245,7 +261,7 @@ router.post("/kanban/cards/:id/move", async (req: Request, res: Response) => {
       data: {
         column_id: fromAdminCol.id,
         title: source.title,
-        description: source.description,
+        description: enrichedDesc || null,
         lead_id: source.lead_id,
         assigned_user_id: source.assigned_user_id,
         deadline: source.deadline,

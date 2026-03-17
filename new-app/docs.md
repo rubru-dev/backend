@@ -1,7 +1,41 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-03-15
+> Last updated: 2026-03-17 (Kanban column DnD, Leads Projection, Move-to-TM full data, Dashboard notifications, Reminder time)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-03-17)
+
+### Kanban Sales — Column Drag-and-Drop
+- Kolom di Kanban Sales sekarang bisa digeser (drag-and-drop horizontal).
+- Drag handle: ikon GripVertical di setiap header kolom.
+- Backend: `POST /api/v1/sales/kanban/columns/reorder` — body `{ column_ids: number[] }` (urutan baru).
+- Frontend: `salesKanbanApi.reorderColumns(ids)` di `lib/api/kanban.ts`.
+- PDF tetap include semua kolom (termasuk user-added columns) dari `colStats`.
+
+### Leads — Field Projection (W1-W4)
+- Model `Lead` ditambah field `projection String? @db.VarChar(10)`.
+- Form Follow-Up Leads (telemarketing/sales-admin) menampilkan dropdown Projection: W1, W2, W3, W4.
+- Saat lead dibuat dengan projection diisi, otomatis membuat card di kolom Kanban yang sesuai (W1/W2/W3/W4) untuk bulan/tahun saat ini.
+- Backend: handler `POST /:modul/leads` di `bd.ts` — auto-create AdminKanbanCard atau TelemarketingKanbanCard.
+
+### Sales Admin Kanban — Move To Telemarketing (data lengkap)
+- Saat card dipindah ke kolom "Move To Telemarketing", backend sekarang fetch lead's `nomor_telepon` + `alamat`.
+- Card yang dibuat di TM Kanban "From Sales Admin" sudah include No. HP dan Alamat di field description.
+- File: `salesAdminKanban.ts` → handler `POST /kanban/cards/:id/move`.
+
+### Dashboard — Panel Kirim & Riwayat Pesan WhatsApp
+- Dashboard menampilkan 2 panel baru: "Kirim Pesan WhatsApp" dan "Riwayat Notifikasi".
+- Kirim pesan langsung via Fonnte API; disimpan ke tabel `notification_logs`.
+- Backend: `POST /api/v1/notifications/send`, `GET /api/v1/notifications/history`.
+- Model baru: `NotificationLog` — id, sender_user_id, sender_name, target_number, message, status, created_at.
+
+### Reminder Rules — Custom Waktu (jam:menit) + Item Pekerjaan
+- `FonteeReminderRule` ditambah field `send_time String @default("08:00")` — waktu pengiriman (HH:MM).
+- UI Reminder Rules di `/admin/settings` tab "Reminder Rules" menampilkan input jam kirim di samping "hari sebelum".
+- Backend: `PUT /admin/settings/reminder-rules/:id` sekarang terima `send_time`.
+- Reminder baru ditambahkan ke seeder: `item_pekerjaan_sipil`, `item_pekerjaan_desain`, `item_pekerjaan_interior`.
 
 ---
 
@@ -10,7 +44,8 @@
 | Layer | Tech | Path |
 |-------|------|------|
 | Backend | Node.js + Express + TypeScript + Prisma + PostgreSQL | `new-app/backend/` |
-| Frontend | Next.js 14 (App Router) + TypeScript + Tailwind + shadcn/ui | `new-app/frontend/` |
+| Frontend (internal) | Next.js 14 (App Router) + TypeScript + Tailwind + shadcn/ui | `new-app/frontend/` |
+| Frontend (client portal) | Next.js 16 (App Router) + Tailwind v4 + Turbopack | `rubahrumah/` |
 | DB ORM | Prisma (schema di `backend/prisma/schema.prisma`) | |
 | State | Zustand (`authStore.ts`) | |
 | HTTP Client | Axios via `lib/api/client.ts` | |
@@ -102,14 +137,17 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | POST | `/timeline/:id/revisi` | Request revisi |
 | POST | `/timeline/:id/resubmit` | Resubmit setelah revisi |
 | POST | `/timeline/:id/sign-hd` | TTD HD |
-| GET/POST | `/social-media/accounts` | List / create akun |
-| PATCH | `/social-media/accounts/:id` | Update |
-| GET/POST | `/social-media/metrics/:id` | Metrics per akun |
-| GET/POST | `/social-media/post-metrics` | Per-post metrics |
-| PATCH | `/social-media/post-metrics/:id` | Update metrics |
-| DELETE | `/social-media/post-metrics/:id` | Hapus metrics |
-| GET/POST | `/social-media/targets` | Monthly targets |
-| GET | `/social-media/targets/comparison` | Comparison view |
+| GET/POST | `/social-accounts` | List / create akun sosial media |
+| PATCH | `/social-accounts/:id` | Update akun |
+| DELETE | `/social-accounts/:id` | Hapus akun |
+| POST | `/social-accounts/:id/sync` | Sync metrics dari API platform (IG/TikTok/YT) |
+| GET | `/social-post-metrics` | List per-post metrics (filter: platform, date, judul) |
+| GET | `/social-post-metrics/summary` | Totals + time_series + by_platform (termasuk ig_profile_visits, ig_website_clicks) |
+| POST | `/social-post-metrics` | Create manual post metric |
+| PATCH | `/social-post-metrics/:id` | Update metrics |
+| DELETE | `/social-post-metrics/:id` | Hapus metrics |
+| GET/POST | `/social-targets` | Monthly targets per platform |
+| GET | `/social-targets/comparison` | Target vs aktual bulanan |
 | GET | `/dashboard` | Content dashboard |
 
 ### 2.5 Desain — `/api/v1/desain`
@@ -423,6 +461,48 @@ Permanent columns: From Sales Admin, W1, W2, W3, W4, Closing Survey, Move To Col
 | PATCH | `/kanban/cards/:id/survey` | Set tanggal_survey |
 | GET/POST | `/kanban/cards/:id/comments` | Comments |
 
+### 2.16 Client Management (Internal) — `/api/v1/client`
+Digunakan oleh staff internal untuk mengelola data portal klien.
+| Method | Path | Keterangan |
+|--------|------|------------|
+| GET | `/leads-dropdown` | Leads status="Client" yang belum punya portal project |
+| GET | `/projects` | List semua client portal projects |
+| POST | `/projects` | Buat project + akun klien sekaligus (body: lead_id, nama_proyek, username, password, ...) |
+| GET | `/projects/:id` | Detail project + info akun |
+| PATCH | `/projects/:id` | Update info project |
+| PATCH | `/projects/:id/account` | Update akun (password, is_active) |
+| GET/POST | `/projects/:id/payments` | List / tambah termin pembayaran |
+| PATCH/DELETE | `/projects/:id/payments/:pid` | Update / hapus termin |
+| GET/POST | `/projects/:id/galeri` | List / upload foto (multipart, field: `foto`) |
+| DELETE | `/projects/:id/galeri/:gid` | Hapus foto |
+| GET/POST | `/projects/:id/dokumen` | List / upload dokumen (multipart, field: `file`) |
+| DELETE | `/projects/:id/dokumen/:did` | Hapus dokumen |
+| GET/POST | `/projects/:id/aktivitas` | List / tambah riwayat pekerjaan |
+| PATCH/DELETE | `/projects/:id/aktivitas/:aid` | Update / hapus |
+| GET/POST | `/projects/:id/gantt` | List / tambah item Gantt chart |
+| PATCH/DELETE | `/projects/:id/gantt/:gid` | Update / hapus |
+| GET/POST | `/projects/:id/kontak` | List / tambah kontak bantuan |
+| PATCH/DELETE | `/projects/:id/kontak/:kid` | Update / hapus |
+| GET | `/projects/:id/kehadiran` | Kehadiran tukang (dari AbsenTukang via adm_finance_project_id) |
+
+### 2.17 Client Portal (Rubahrumah Frontend) — `/api/v1/client-portal`
+Digunakan oleh aplikasi `rubahrumah/` (portal klien). Login menghasilkan token bertipe `client_portal_access`.
+| Method | Path | Auth | Keterangan |
+|--------|------|------|------------|
+| POST | `/login` | Publik | Login klien (username+password) → returns `access_token` |
+| GET | `/me` | Token | Dashboard: info proyek + summary count |
+| GET | `/payments` | Token | Daftar termin pembayaran |
+| GET | `/galeri` | Token | Foto proyek (query: `search`) |
+| GET | `/dokumen` | Token | Dokumen proyek (query: `search`, `kategori`) |
+| GET | `/aktivitas` | Token | Riwayat pekerjaan (query: `search`, `status`, `tanggal_mulai`, `tanggal_selesai`) |
+| GET | `/kehadiran` | Token | Kehadiran tukang (query: `tanggal_mulai`, `tanggal_selesai`) |
+| GET | `/gantt` | Token | Item Gantt chart progress |
+| GET | `/kontak` | Token | Kontak bantuan (PIC/Sales/Admin) |
+
+**Client Portal Auth:** Token JWT terpisah, payload: `{ sub: accountId, type: "client_portal_access" }`.
+**File storage:** Galeri → `storage/client-portal/galeri/`, Dokumen → `storage/client-portal/dokumen/`.
+**Static access:** `GET /storage/client-portal/galeri/{filename}`, `GET /storage/client-portal/dokumen/{filename}`.
+
 ---
 
 ## 3. Database Schema (Prisma Models)
@@ -465,8 +545,9 @@ Permanent columns: From Sales Admin, W1, W2, W3, W4, Closing Survey, Move To Col
 | `AdContentMetric` | `ad_content_metrics` | id, meta_ads_campaign_id, date, impressions, reach, clicks, ctr, spend, conversions — unique(campaign_id+date) |
 | `WhatsappChatMetric` | `whatsapp_chat_metrics` | id, meta_ads_campaign_id, date, chats_received, chats_responded, response_rate, conversion_rate |
 | `ContentTimeline` | `content_timelines` | id, user_id, judul, platform, tanggal_publish, tanggal_upload, status, bulan, tahun, hd_bd_signature |
-| `SocialMediaAccount` | `social_media_accounts` | id, platform, account_name, username |
-| `SocialMediaMetric` | `social_media_metrics` | id, social_media_account_id, date — unique(account_id+date) |
+| `SocialMediaAccount` | `social_media_accounts` | id, platform, account_name, username, instagram_user_id, instagram_access_token, ig_profile_visits, ig_website_clicks, last_synced_at |
+| `SocialMediaPostMetric` | `social_media_post_metrics` | id, account_id, post_id_platform, platform, judul_konten, tanggal, media_type, views, likes, comments, shares, saves, reposts, reach, watch_time_minutes, engagement_rate |
+| `SocialMediaTarget` | `social_media_targets` | id, platform, bulan, tahun, target_views, target_likes, target_comments, target_shares, target_saves, target_reach, target_engagement_rate |
 
 ### Desain & Interior Timelines
 | Model | Table | Key Fields |
@@ -561,6 +642,20 @@ Permanent columns: From Sales Admin, W1, W2, W3, W4, Closing Survey, Move To Col
 | `LaporanHarian` | `laporan_harians` | id, user_id, modul, kegiatan, kendala, tanggal_mulai, tanggal_selesai |
 | `BdReport`, `ContentCreatorReport`, dll | `*_reports` | user_id, bulan, tahun, data(Json) |
 
+### Client Portal
+| Model | Table | Key Fields |
+|-------|-------|-----------|
+| `ClientPortalAccount` | `client_portal_accounts` | id, lead_id(unique), username(unique), password, is_active, last_login_at |
+| `ClientPortalProject` | `client_portal_projects` | id, lead_id(unique), adm_finance_project_id(unique?), nama_proyek, klien, alamat, tanggal_mulai, tanggal_selesai, status_proyek, progress_persen, catatan, created_by |
+| `ClientPortalPayment` | `client_portal_payments` | id, project_id, termin_ke, nama_termin, tagihan, retensi, status(Belum Dibayar/Sudah Dibayar), jatuh_tempo, tanggal_bayar |
+| `ClientPortalGaleri` | `client_portal_galeris` | id, project_id, judul, deskripsi, file_path, file_data(Text), tanggal_foto, created_by |
+| `ClientPortalDokumen` | `client_portal_dokumens` | id, project_id, nama_file, deskripsi, kategori, file_path, file_data(Text), file_type, tanggal_upload |
+| `ClientPortalAktivitas` | `client_portal_aktivitas` | id, project_id, tanggal, judul, deskripsi, status(Dalam Proses/Selesai/Tertunda) |
+| `ClientPortalGanttItem` | `client_portal_gantt_items` | id, project_id, nama_pekerjaan, tanggal_mulai, tanggal_selesai, status, urutan |
+| `ClientPortalKontak` | `client_portal_kontaks` | id, project_id, role, nama, telepon, whatsapp, email, urutan |
+
+> **Kehadiran tukang** di portal klien → reuse data `AbsenTukang` via `adm_finance_project_id` dari `ClientPortalProject`.
+
 ---
 
 ## 4. Authentication & JWT
@@ -597,6 +692,7 @@ Permanent columns: From Sales Admin, W1, W2, W3, W4, Closing Survey, Move To Col
 | admin | view, create, edit, delete |
 | tukang | absen_submit |
 | tutorial | view, tutorial_aplikasi, api_eksternal, deployment |
+| client | view, manage |
 
 ### Frontend Permission Helpers
 - `authStore.hasPermission(module, action)`
@@ -658,11 +754,23 @@ app/
       tutorial-aplikasi/       — Tutorial penggunaan aplikasi
       api-eksternal/           — Dokumentasi API eksternal
       deployment/              — Panduan deployment
+    client/                    — List client portal projects (stats: total/berjalan/selesai + tabel)
+    client/[id]/               — Detail: 8 tabs (Info | Pembayaran | Galeri | Dokumen | Aktivitas | Gantt | Kontak | Kehadiran)
     admin/
       users/
       roles/                   — CRUD roles + permission matrix
       settings/
 ```
+
+### Tab Menu Client Portal `[id]`
+1. **Info** — Edit info proyek (nama, alamat, status, progress, tanggal) + reset password akun + toggle aktif/nonaktif, tampilkan URL portal
+2. **Pembayaran** — CRUD termin pembayaran (tagihan, retensi, jatuh tempo, status Belum/Sudah Dibayar). Summary: total tagihan, terbayar, sisa
+3. **Galeri** — Upload foto (multipart, field: `foto`), grid dengan overlay delete
+4. **Dokumen** — Upload file dengan kategori (Kontrak/RAB/Desain/Laporan/Lainnya), preview+download
+5. **Aktivitas** — CRUD riwayat pekerjaan dengan status (Selesai/Dalam Proses/Tertunda)
+6. **Gantt** — CRUD item Gantt chart dengan tanggal + status + urutan
+7. **Kontak** — CRUD kontak bantuan (role, nama, telepon, whatsapp, email) dalam card grid
+8. **Kehadiran** — Read-only, data AbsenTukang via `adm_finance_project_id`, filterable by date range
 
 ### Tab Menu Projek Sipil `[id]`
 1. **Daftar Termin** — CRUD termin + task
@@ -698,6 +806,7 @@ Dipakai oleh 8 modul: bd, content, sales_admin, telemarketing, desain, sales, fi
 |------|------------|
 | `src/lib/api/content.ts` | `sipilApi`, `interiorProjekApi`, `desainApi` dengan semua RAPP + stock opname + docs/link methods |
 | `src/lib/api/finance.ts` | Finance API: invoice, admFinance, tukang, reimburse, PR, surat jalan, cashflow |
+| `src/lib/api/clientManage.ts` | `clientApi`: semua client portal management (projects, payments, galeri, dokumen, aktivitas, gantt, kontak, kehadiran) |
 | `src/lib/api/auth.ts` | Auth calls |
 | `src/lib/api/admin.ts` | Admin calls |
 
@@ -800,15 +909,51 @@ Digunakan untuk override restriction tertentu (contoh: hapus Invoice Lunas).
 
 ## 9. Config & Environment
 
+**Backend (`new-app/backend/.env`):**
 ```
 DATABASE_URL=postgresql://...
 JWT_SECRET=...
 PORT=8000
-CORS_ORIGINS=http://localhost:3000
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001
 STORAGE_PATH=./storage
 ```
 
+**Frontend internal (`new-app/frontend/.env.local`):**
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
+**Client Portal (`rubahrumah/.env.local`):**
+```
+NEXT_PUBLIC_API_URL=http://localhost:8000
+```
+
 Static files: `GET /storage/{path}` → serve dari `config.storagePath`
+
+### Port Mapping
+| App | Port | URL |
+|-----|------|-----|
+| Backend (Express) | 8000 | http://localhost:8000 |
+| Frontend internal (new-app) | 3000 | http://localhost:3000 |
+| Client Portal (rubahrumah) | 3001 | http://localhost:3001 |
+
+### Run Commands
+```bash
+# Backend
+cd new-app/backend && npm run dev
+
+# Frontend internal
+cd new-app/frontend && npm run dev
+
+# Client Portal
+cd rubahrumah && npm run dev -- -p 3001
+```
+
+### Catatan Rubahrumah (Client Portal App)
+- Next.js 16 + Tailwind v4 + Turbopack
+- `postcss.config.mjs` harus pass `base: __dirname` ke `@tailwindcss/postcss` (workaround: `.git` ada di parent folder sehingga `process.cwd()` resolve ke parent)
+- Auth token disimpan di `localStorage` sebagai `cp_token` + `cp_username`
+- `lib/apiClient.ts` — semua API calls ke `/api/v1/client-portal`, auto-redirect ke `/login` jika 401/403
 
 ---
 

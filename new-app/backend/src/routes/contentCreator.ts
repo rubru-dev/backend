@@ -1,7 +1,7 @@
 import express, { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
-import { syncInstagram, syncTikTok, syncYouTube } from "../lib/socialSync";
+import { syncInstagram, syncTikTok, syncYouTube, syncInstagramAccountLevel } from "../lib/socialSync";
 import { getPagination, paginateResponse } from "../middleware/pagination";
 
 const router = Router();
@@ -386,65 +386,75 @@ router.post("/social-accounts/:id/sync", async (req: Request, res: Response) => 
       return res.status(400).json({ detail: "Kredensial tidak lengkap untuk platform ini" });
     }
   } catch (err: any) {
-    return res.status(502).json({ detail: `Error dari API platform: ${err.message ?? String(err)}` });
+    const axiosDetail = err?.response?.data ? JSON.stringify(err.response.data) : "";
+    console.error("[sync error]", err.message, axiosDetail);
+    return res.status(502).json({ detail: `Error dari API platform: ${err.message ?? String(err)}`, meta_error: err?.response?.data });
   }
 
   // Upsert per post_id_platform to avoid duplicates
   let synced = 0;
-  for (const post of rawPosts) {
-    // Check if post already exists
-    const existing = await prisma.socialMediaPostMetric.findFirst({
-      where: { account_id: id, post_id_platform: post.post_id_platform },
-    });
-    if (existing) {
-      // Update existing
-      await prisma.socialMediaPostMetric.update({
-        where: { id: existing.id },
-        data: {
-          judul_konten: post.judul_konten,
-          link_konten: post.link_konten,
-          tanggal: new Date(post.tanggal),
-          views: post.views,
-          likes: post.likes,
-          comments: post.comments,
-          shares: post.shares,
-          saves: post.saves,
-          reach: post.reach,
-          watch_time_minutes: post.watch_time_minutes ?? undefined,
-          engagement_rate: post.engagement_rate ?? undefined,
-          data_source: "api",
-        },
+  try {
+    for (const post of rawPosts) {
+      const postData: any = {
+        judul_konten: post.judul_konten,
+        link_konten: post.link_konten,
+        tanggal: new Date(post.tanggal),
+        views: post.views,
+        likes: post.likes,
+        comments: post.comments,
+        shares: post.shares,
+        saves: post.saves,
+        reach: post.reach,
+        data_source: "api",
+      };
+      if (post.media_type !== undefined) postData.media_type = post.media_type;
+      if (post.reposts !== undefined) postData.reposts = post.reposts;
+      if (post.watch_time_minutes !== undefined && post.watch_time_minutes !== null) postData.watch_time_minutes = post.watch_time_minutes;
+      if (post.engagement_rate !== undefined && post.engagement_rate !== null) postData.engagement_rate = post.engagement_rate;
+
+      const existing = await prisma.socialMediaPostMetric.findFirst({
+        where: { account_id: id, post_id_platform: post.post_id_platform },
       });
-    } else {
-      await prisma.socialMediaPostMetric.create({
-        data: {
-          account_id: id,
-          post_id_platform: post.post_id_platform,
-          judul_konten: post.judul_konten,
-          link_konten: post.link_konten,
-          tanggal: new Date(post.tanggal),
-          views: post.views,
-          likes: post.likes,
-          comments: post.comments,
-          shares: post.shares,
-          saves: post.saves,
-          reach: post.reach,
-          watch_time_minutes: post.watch_time_minutes ?? undefined,
-          engagement_rate: post.engagement_rate ?? undefined,
-          data_source: "api",
-        },
-      });
-      synced++;
+      if (existing) {
+        await prisma.socialMediaPostMetric.update({ where: { id: existing.id }, data: postData });
+      } else {
+        await prisma.socialMediaPostMetric.create({
+          data: { account_id: id, post_id_platform: post.post_id_platform, ...postData },
+        });
+        synced++;
+      }
     }
+  } catch (err: any) {
+    console.error("[sync upsert error]", err?.message ?? err);
+    return res.status(500).json({ detail: `Error saat menyimpan data post: ${err?.message ?? String(err)}` });
   }
 
-  // Update last_synced_at
-  await prisma.socialMediaAccount.update({
-    where: { id },
-    data: { last_synced_at: new Date() },
-  });
+  // Fetch account-level metrics for Instagram
+  let accountLevelData: Record<string, unknown> = {};
+  if (acc.platform === "INSTAGRAM" && acc.instagram_user_id && acc.instagram_access_token) {
+    try {
+      const acct = await syncInstagramAccountLevel(acc.instagram_user_id, acc.instagram_access_token);
+      accountLevelData = {
+        ig_profile_visits: acct.profile_visits,
+        ig_website_clicks: acct.website_clicks,
+        ig_followers_count: acct.followers_count,
+        ig_follower_reach: acct.follower_reach,
+        ig_non_follower_reach: acct.non_follower_reach,
+      };
+    } catch { /* skip */ }
+  }
 
-  return res.json({ synced, total: rawPosts.length });
+  // Update last_synced_at + account-level metrics
+  try {
+    await prisma.socialMediaAccount.update({
+      where: { id },
+      data: { last_synced_at: new Date(), ...accountLevelData },
+    });
+  } catch (err: any) {
+    console.error("[sync account update error]", err?.message ?? err);
+  }
+
+  return res.json({ synced, total: rawPosts.length, ...accountLevelData });
 });
 
 // ── Social Media Post Metrics ──────────────────────────────────────────────
@@ -459,11 +469,13 @@ function serializePostMetric(m: any) {
     link_konten: m.link_konten,
     post_id_platform: m.post_id_platform,
     tanggal: m.tanggal ? m.tanggal.toISOString().split("T")[0] : null,
+    media_type: (m as any).media_type ?? null,
     views: Number(m.views),
     likes: m.likes,
     comments: m.comments,
     shares: m.shares,
     saves: m.saves,
+    reposts: (m as any).reposts ?? 0,
     reach: Number(m.reach),
     watch_time_minutes: m.watch_time_minutes ? parseFloat(String(m.watch_time_minutes)) : null,
     engagement_rate: m.engagement_rate ? parseFloat(String(m.engagement_rate)) : null,
@@ -529,11 +541,12 @@ router.get("/social-post-metrics/summary", async (req: Request, res: Response) =
       comments: acc.comments + m.comments,
       shares: acc.shares + m.shares,
       saves: acc.saves + m.saves,
+      reposts: acc.reposts + (m.reposts ?? 0),
       reach: acc.reach + Number(m.reach),
       watch_time_minutes: acc.watch_time_minutes + (m.watch_time_minutes ? parseFloat(String(m.watch_time_minutes)) : 0),
       count: acc.count + 1,
     }),
-    { views: 0, likes: 0, comments: 0, shares: 0, saves: 0, reach: 0, watch_time_minutes: 0, count: 0 },
+    { views: 0, likes: 0, comments: 0, shares: 0, saves: 0, reposts: 0, reach: 0, watch_time_minutes: 0, count: 0 },
   );
 
   const avgEngagement =
@@ -567,8 +580,27 @@ router.get("/social-post-metrics/summary", async (req: Request, res: Response) =
     byPlatform[plt].count++;
   }
 
+  // Account-level metrics (profile_visits, website_clicks) from SocialMediaAccount
+  const accountsInFilter = await prisma.socialMediaAccount.findMany({
+    where: account_id ? { id: BigInt(account_id as string) } : platform ? { platform: platform as string } : {},
+    select: {
+      ig_profile_visits: true, ig_website_clicks: true,
+      ig_followers_count: true, ig_follower_reach: true, ig_non_follower_reach: true,
+    },
+  });
+  const ig_profile_visits = accountsInFilter.reduce((s, a) => s + (a.ig_profile_visits ?? 0), 0);
+  const ig_website_clicks = accountsInFilter.reduce((s, a) => s + (a.ig_website_clicks ?? 0), 0);
+  const ig_followers_count = accountsInFilter.reduce((s, a) => s + ((a as any).ig_followers_count ?? 0), 0);
+  const ig_follower_reach = accountsInFilter.reduce((s, a) => s + ((a as any).ig_follower_reach ?? 0), 0);
+  const ig_non_follower_reach = accountsInFilter.reduce((s, a) => s + ((a as any).ig_non_follower_reach ?? 0), 0);
+
   return res.json({
-    totals: { ...totals, engagement_rate: parseFloat(avgEngagement.toFixed(4)) },
+    totals: {
+      ...totals,
+      engagement_rate: parseFloat(avgEngagement.toFixed(4)),
+      ig_profile_visits, ig_website_clicks,
+      ig_followers_count, ig_follower_reach, ig_non_follower_reach,
+    },
     time_series: timeSeries,
     by_platform: Object.entries(byPlatform).map(([platform, vals]) => ({ platform, ...vals })),
     posts_count: metrics.length,

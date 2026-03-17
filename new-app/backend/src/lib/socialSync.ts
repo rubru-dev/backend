@@ -11,59 +11,71 @@ export interface RawPostMetric {
   judul_konten: string | null;
   link_konten: string | null;
   tanggal: string; // YYYY-MM-DD
+  media_type: string | null;
   views: number;
   likes: number;
   comments: number;
   shares: number;
   saves: number;
+  reposts: number;
   reach: number;
   watch_time_minutes: number | null;
   engagement_rate: number | null;
 }
 
-// ── Instagram Graph API v18.0 ──────────────────────────────────────────────
+export interface InstagramAccountMetrics {
+  profile_visits: number;
+  website_clicks: number;
+  followers_count: number;
+  follower_reach: number;
+  non_follower_reach: number;
+}
+
+// ── Instagram Graph API v22.0 ──────────────────────────────────────────────
 /**
  * Fetch recent media and per-post insights for an Instagram Business account.
+ * Uses v22.0 API — `impressions` is deprecated, replaced by `reach` + `views`.
  * Requires: instagram_user_id + long-lived access_token with permissions:
- *   instagram_basic, instagram_manage_insights, pages_read_engagement
+ *   instagram_basic, instagram_manage_insights
  */
 export async function syncInstagram(
   instagram_user_id: string,
   access_token: string,
 ): Promise<RawPostMetric[]> {
-  const BASE = "https://graph.facebook.com/v18.0";
+  const BASE = "https://graph.facebook.com/v22.0";
 
-  // 1. Fetch recent media (max 20 posts)
+  // 1. Fetch up to 50 recent media posts
   const mediaRes = await axios.get(`${BASE}/${instagram_user_id}/media`, {
     params: {
       fields: "id,caption,timestamp,like_count,comments_count,permalink,media_type",
-      limit: 20,
+      limit: 50,
       access_token,
     },
   });
 
   const mediaList: any[] = mediaRes.data?.data ?? [];
-  const results: RawPostMetric[] = [];
 
-  for (const media of mediaList) {
-    // 2. Fetch insights per post
-    let impressions = 0, reach = 0, saved = 0, video_views = 0, shares = 0;
+  // Fetch insights for all posts in parallel (batches of 10) to avoid timeout
+  async function fetchInsights(media: any): Promise<RawPostMetric> {
+    let reach = 0, saved = 0, shares = 0, views = 0, watchTimeMs = 0;
     try {
-      const insightMetrics =
-        media.media_type === "VIDEO"
-          ? "impressions,reach,saved,shares,video_views"
-          : "impressions,reach,saved,shares";
+      const isVideo = media.media_type === "VIDEO" || media.media_type === "REEL";
+      const insightMetrics = isVideo
+        ? "reach,saved,shares,views,ig_reels_video_view_total_time"
+        : "reach,saved,shares,views";
 
       const insightRes = await axios.get(`${BASE}/${media.id}/insights`, {
         params: { metric: insightMetrics, access_token },
+        timeout: 8000,
       });
       const insightData: any[] = insightRes.data?.data ?? [];
       for (const metric of insightData) {
-        if (metric.name === "impressions") impressions = metric.values?.[0]?.value ?? 0;
-        if (metric.name === "reach") reach = metric.values?.[0]?.value ?? 0;
-        if (metric.name === "saved") saved = metric.values?.[0]?.value ?? 0;
-        if (metric.name === "shares") shares = metric.values?.[0]?.value ?? 0;
-        if (metric.name === "video_views") video_views = metric.values?.[0]?.value ?? 0;
+        const val = metric.values?.[0]?.value ?? metric.value ?? 0;
+        if (metric.name === "reach") reach = val;
+        if (metric.name === "saved") saved = val;
+        if (metric.name === "shares") shares = val;
+        if (metric.name === "views") views = val;
+        if (metric.name === "ig_reels_video_view_total_time") watchTimeMs = val;
       }
     } catch {
       // Some posts may not support insights — skip gracefully
@@ -73,24 +85,98 @@ export async function syncInstagram(
     const comments = media.comments_count ?? 0;
     const totalInteractions = likes + comments + shares + saved;
     const engRate = reach > 0 ? parseFloat(((totalInteractions / reach) * 100).toFixed(4)) : null;
+    const watchTimeMinutes = watchTimeMs > 0 ? parseFloat((watchTimeMs / 60000).toFixed(2)) : null;
 
-    results.push({
+    return {
       post_id_platform: media.id,
       judul_konten: media.caption ? String(media.caption).slice(0, 255) : null,
       link_konten: media.permalink ?? null,
       tanggal: String(media.timestamp).split("T")[0],
-      views: video_views || impressions,
+      media_type: media.media_type ?? null,
+      views,
       likes,
       comments,
       shares,
       saves: saved,
+      reposts: 0,
       reach,
-      watch_time_minutes: null,
+      watch_time_minutes: watchTimeMinutes,
       engagement_rate: engRate,
-    });
+    };
+  }
+
+  // Process in parallel batches of 10
+  const results: RawPostMetric[] = [];
+  const BATCH = 10;
+  for (let i = 0; i < mediaList.length; i += BATCH) {
+    const batch = mediaList.slice(i, i + BATCH);
+    const batchResults = await Promise.all(batch.map(fetchInsights));
+    results.push(...batchResults);
   }
 
   return results;
+}
+
+/**
+ * Fetch account-level Instagram insights (last 30 days).
+ * Returns profile_visits and website_clicks totals.
+ */
+export async function syncInstagramAccountLevel(
+  instagram_user_id: string,
+  access_token: string,
+): Promise<InstagramAccountMetrics> {
+  const BASE = "https://graph.facebook.com/v22.0";
+  const until = Math.floor(Date.now() / 1000);
+  const since = until - 30 * 24 * 60 * 60;
+
+  let profile_visits = 0, website_clicks = 0, followers_count = 0;
+  let follower_reach = 0, non_follower_reach = 0;
+
+  // Fetch followers_count from account info
+  try {
+    const infoRes = await axios.get(`${BASE}/${instagram_user_id}`, {
+      params: { fields: "followers_count", access_token },
+    });
+    followers_count = infoRes.data?.followers_count ?? 0;
+  } catch { /* skip */ }
+
+  try {
+    const pvRes = await axios.get(`${BASE}/${instagram_user_id}/insights`, {
+      params: { metric: "profile_views", period: "day", metric_type: "total_value", since, until, access_token },
+    });
+    profile_visits = pvRes.data?.data?.[0]?.total_value?.value ?? 0;
+  } catch { /* skip */ }
+
+  try {
+    const wcRes = await axios.get(`${BASE}/${instagram_user_id}/insights`, {
+      params: { metric: "website_clicks", period: "day", metric_type: "total_value", since, until, access_token },
+    });
+    website_clicks = wcRes.data?.data?.[0]?.total_value?.value ?? 0;
+  } catch { /* skip */ }
+
+  // Fetch reach breakdown by follower type (follower vs non-follower)
+  try {
+    const reachRes = await axios.get(`${BASE}/${instagram_user_id}/insights`, {
+      params: {
+        metric: "reach",
+        period: "day",
+        metric_type: "total_value",
+        breakdown: "follow_type",
+        since,
+        until,
+        access_token,
+      },
+    });
+    const breakdowns: any[] =
+      reachRes.data?.data?.[0]?.total_value?.breakdowns?.[0]?.results ?? [];
+    for (const b of breakdowns) {
+      const type = (b.dimension_values?.[0] ?? "").toUpperCase();
+      if (type === "FOLLOWER") follower_reach = b.value ?? 0;
+      else if (type === "NON_FOLLOWER") non_follower_reach = b.value ?? 0;
+    }
+  } catch { /* skip */ }
+
+  return { profile_visits, website_clicks, followers_count, follower_reach, non_follower_reach };
 }
 
 // ── TikTok Business API ────────────────────────────────────────────────────
@@ -159,11 +245,13 @@ export async function syncTikTok(
       judul_konten: m.ad_name ? String(m.ad_name).slice(0, 255) : null,
       link_konten: null,
       tanggal: fmt(new Date()),
+      media_type: null,
       views: parseInt(m.video_play_actions ?? "0") || 0,
       likes,
       comments,
       shares,
       saves: 0,
+      reposts: 0,
       reach: impressions,
       watch_time_minutes: null,
       engagement_rate: engRate,
@@ -240,11 +328,13 @@ export async function syncYouTube(
       tanggal: snippet.publishedAt
         ? String(snippet.publishedAt).split("T")[0]
         : new Date().toISOString().split("T")[0],
+      media_type: "VIDEO",
       views,
       likes,
       comments,
       shares: 0, // YouTube API doesn't expose shares
       saves: 0,
+      reposts: 0,
       reach: 0, // YouTube API doesn't expose reach for non-channel-owners
       watch_time_minutes: parseFloat(durationMinutes.toFixed(2)),
       engagement_rate: engRate,

@@ -131,11 +131,43 @@ export const metaAdsApi = {
     total_spend: number;
     total_clicks: number;
     total_impressions: number;
+    total_reach: number;
+    total_result: number;
     total_conversions: number;
     avg_ctr: number;
-    campaigns: MetaAdsCampaign[];
+    cpm: number;
+    cpc: number;
+    cpl: number;
+    cpl_meta: number;
+    total_leads_db: number;
+    hot_leads: number;
+    low_leads: number;
+    medium_leads: number;
+    survey_count: number;
+    paid_conversions: number;
+    campaigns: (MetaAdsCampaign & { total_reach?: number; total_result?: number; cpm?: number; cpc?: number })[];
   }> => {
     const { data } = await apiClient.get("/bd/meta-ads/dashboard", { params });
+    return data;
+  },
+
+  // Campaign detail with stats
+  getCampaignDetail: async (id: number, params?: { start_date?: string; end_date?: string }): Promise<{
+    id: number; campaign_name: string; meta_campaign_id: string; platform: string; status: string;
+    total_spend: number; total_impressions: number; total_reach: number; total_clicks: number;
+    total_result: number; cpm: number; cpc: number; cpl: number; avg_ctr: number;
+    total_leads: number; hot_leads: number; survey_count: number; paid_conversions: number;
+    content_metrics: Array<{
+      id: number; date: string; impressions: number; reach: number; clicks: number;
+      spend: number; ctr: number; frequency: number; cost_per_result: number;
+      conversions: number; cpm: number; cpc: number;
+    }>;
+    chat_metrics: Array<{
+      id: number; date: string; chats_received: number; chats_responded: number;
+      response_rate: number; total_conversions: number; conversion_rate: number;
+    }>;
+  }> => {
+    const { data } = await apiClient.get(`/bd/meta-ads/campaigns/${id}`, { params });
     return data;
   },
 };
@@ -172,6 +204,10 @@ export const adsAccountApi = {
     if (bulan) params.bulan = bulan;
     if (tahun) params.tahun = tahun;
     const { data } = await apiClient.post<{ synced: number; message: string }>(`/bd/ads/accounts/${id}/sync`, {}, { params });
+    return data;
+  },
+  refreshToken: async (id: number): Promise<{ message: string; expires_in_days: number | null }> => {
+    const { data } = await apiClient.post(`/bd/ads/accounts/${id}/refresh-token`, {});
     return data;
   },
 };

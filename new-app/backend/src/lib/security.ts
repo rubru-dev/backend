@@ -27,3 +27,10 @@ export function createRefreshToken(userId: number): string {
 export function decodeToken(token: string): jwt.JwtPayload {
   return jwt.verify(token, config.secretKey) as jwt.JwtPayload;
 }
+
+export function createClientPortalToken(accountId: number): string {
+  const expireSeconds = config.accessTokenExpireMinutes * 60;
+  return jwt.sign({ sub: String(accountId), type: "client_portal_access" }, config.secretKey, {
+    expiresIn: expireSeconds,
+  });
+}

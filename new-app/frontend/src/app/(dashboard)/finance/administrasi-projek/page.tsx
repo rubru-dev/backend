@@ -1590,7 +1590,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                           {exceedsHarga && <div className="text-[10px] text-amber-500">RAPP: {formatRp(it.rapp_harga)}</div>}
                         </TableCell>
                         <TableCell className="text-right font-semibold">{formatRp(Number(it.qty) * Number(it.harga_perkiraan))}</TableCell>
-                        <TableCell>{(it.is_from_rapp || exceedsQty || exceedsHarga) && <ShieldCheck className="h-3.5 w-3.5 text-amber-500" title="Perlu TTD HF" />}</TableCell>
+                        <TableCell>{(it.is_from_rapp || exceedsQty || exceedsHarga) && <ShieldCheck className="h-3.5 w-3.5 text-amber-500" aria-label="Perlu TTD HF" />}</TableCell>
                       </TableRow>
                     );
                   })}

@@ -66,8 +66,10 @@ export const adminApi = {
     apiClient.post("/admin/fontee/send-test", data).then((r) => r.data),
   getReminderRules: () =>
     apiClient.get<{ rules: ReminderRule[]; roles: { id: number; name: string }[] }>("/admin/settings/reminder-rules").then((r) => r.data),
-  updateReminderRule: (id: number, data: { days_before?: number; is_active?: boolean; role_ids?: number[] }) =>
+  updateReminderRule: (id: number, data: { days_before?: number; send_time?: string; is_active?: boolean; role_ids?: number[] }) =>
     apiClient.put(`/admin/settings/reminder-rules/${id}`, data).then((r) => r.data),
+  testReminderRule: (id: number) =>
+    apiClient.post(`/admin/settings/reminder-rules/${id}/test`).then((r) => r.data),
 };
 
 export interface ReminderRule {
@@ -75,6 +77,7 @@ export interface ReminderRule {
   feature: string;
   label: string;
   days_before: number;
+  send_time: string;
   is_active: boolean;
   role_ids: number[];
 }

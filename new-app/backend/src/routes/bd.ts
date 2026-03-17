@@ -276,26 +276,212 @@ router.post("/meta-ads/campaigns", async (req: Request, res: Response) => {
   return res.status(201).json({ id: camp.id, message: "Campaign dibuat" });
 });
 
+type MetaCostPerResult = string | Array<{ indicator: string; values: Array<{ value: string; attribution_windows: string[] }> }>;
+
+type MetaInsightRow = {
+  campaign_id: string; date_start?: string;
+  spend: string; impressions: string; reach: string;
+  inline_link_clicks: string;
+  inline_link_click_ctr: string;
+  cpc: string;
+  frequency: string;
+  cost_per_result: MetaCostPerResult;
+  actions?: Array<{ action_type: string; value: string }>;
+};
+
+// Meta returns cost_per_result as array of objects (not simple string)
+function parseCPR(cpr: MetaCostPerResult): number {
+  if (Array.isArray(cpr)) return parseFloat(cpr[0]?.values?.[0]?.value ?? "0") || 0;
+  return parseFloat((cpr as string) ?? "0") || 0;
+}
+
+// inline_link_clicks = "Klik Tautan" as shown in Meta Ads Manager (excludes likes/shares/profile clicks)
+const META_FIELDS = "campaign_id,spend,impressions,reach,inline_link_clicks,inline_link_click_ctr,frequency,cost_per_result,cpc,actions";
+
+// Fetch aggregate (no time_increment) — accurate reach/result totals per campaign
+async function fetchMetaAggregate(
+  token: string, adAccountId: string, since: string, until: string, filterCampaignId?: string,
+): Promise<MetaInsightRow[]> {
+  const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const url = new URL(`https://graph.facebook.com/v19.0/${act}/insights`);
+  url.searchParams.set("fields", META_FIELDS);
+  url.searchParams.set("level", "campaign");
+  url.searchParams.set("time_range", JSON.stringify({ since, until }));
+  url.searchParams.set("limit", "500");
+  url.searchParams.set("access_token", token);
+  if (filterCampaignId) url.searchParams.set("filtering", JSON.stringify([{ field: "campaign.id", operator: "IN", value: [filterCampaignId] }]));
+  const resp = await fetch(url.toString());
+  const json = await resp.json() as { data?: MetaInsightRow[]; error?: { message: string } };
+  if (json.error) throw new Error(`Meta API: ${json.error.message}`);
+  return json.data ?? [];
+}
+
+// Fetch daily (time_increment=1) — for chart breakdown
+async function fetchMetaInsights(
+  token: string, adAccountId: string, since: string, until: string, filterCampaignId?: string,
+): Promise<MetaInsightRow[]> {
+  const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const url = new URL(`https://graph.facebook.com/v19.0/${act}/insights`);
+  url.searchParams.set("fields", META_FIELDS);
+  url.searchParams.set("level", "campaign");
+  url.searchParams.set("time_increment", "1");
+  url.searchParams.set("time_range", JSON.stringify({ since, until }));
+  url.searchParams.set("limit", "500");
+  url.searchParams.set("access_token", token);
+  if (filterCampaignId) url.searchParams.set("filtering", JSON.stringify([{ field: "campaign.id", operator: "IN", value: [filterCampaignId] }]));
+  const resp = await fetch(url.toString());
+  const json = await resp.json() as { data?: MetaInsightRow[]; error?: { message: string } };
+  if (json.error) throw new Error(`Meta API: ${json.error.message}`);
+  return json.data ?? [];
+}
+
+// Result = WhatsApp conversation started (primary objective for messaging campaigns)
+const WHATSAPP_ACTIONS = [
+  "onsite_conversion.messaging_conversation_started_7d",
+  "messaging_conversation_started_7d",
+  "onsite_conversion.messaging_first_reply",
+];
+
+function calcResult(spend: number, costPerResult: number): number {
+  return spend > 0 && costPerResult > 0 ? Math.round(spend / costPerResult) : 0;
+}
+
+function countWhatsappResult(actions?: Array<{ action_type: string; value: string }>): number {
+  if (!actions) return 0;
+  // Pick only the FIRST matching action type (they are the same metric with different names — summing = double-count)
+  for (const type of WHATSAPP_ACTIONS) {
+    const found = actions.find((a) => a.action_type === type);
+    if (found) return parseInt(found.value ?? "0");
+  }
+  return 0;
+}
+
+function getResult(actions: Array<{ action_type: string; value: string }> | undefined, spend: number, costPerResult: number): number {
+  // Prefer WhatsApp action count (explicit), fallback to spend/cpr formula
+  const wa = countWhatsappResult(actions);
+  if (wa > 0) return wa;
+  return calcResult(spend, costPerResult);
+}
+
 router.get("/meta-ads/campaigns/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const camp = await prisma.metaAdsCampaign.findUnique({
-    where: { id },
-    include: { content_metrics: true, chat_metrics: true },
-  });
+  const { start_date, end_date } = req.query;
+
+  const camp = await prisma.metaAdsCampaign.findUnique({ where: { id } });
   if (!camp) return res.status(404).json({ detail: "Campaign tidak ditemukan" });
+
+  // DB-linked counts from Lead table
+  const [totalLeads, hotLeads, surveyCount, paidConversions] = await Promise.all([
+    prisma.lead.count({ where: { meta_ads_campaign_id: id } }),
+    prisma.lead.count({ where: { meta_ads_campaign_id: id, status: "Hot" } }),
+    prisma.lead.count({ where: { meta_ads_campaign_id: id, tanggal_survey: { not: null } } }),
+    prisma.lead.count({ where: { meta_ads_campaign_id: id, invoices: { some: { status: "Lunas" } } } }),
+  ]);
+
+  // Try real-time Meta API
+  const metaAccount = await prisma.adPlatformAccount.findFirst({ where: { platform: "Meta", is_active: true } });
+  if (metaAccount?.access_token && metaAccount?.ad_account_id && camp.meta_campaign_id) {
+    const now = new Date();
+    const since = start_date as string || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    const until = end_date as string || now.toISOString().slice(0, 10);
+    try {
+      // Aggregate call → accurate reach (deduplicated) & result (from cost_per_result)
+      const [aggRows, dailyRows] = await Promise.all([
+        fetchMetaAggregate(metaAccount.access_token, metaAccount.ad_account_id, since, until, camp.meta_campaign_id),
+        fetchMetaInsights(metaAccount.access_token, metaAccount.ad_account_id, since, until, camp.meta_campaign_id),
+      ]);
+
+      // Summary from aggregate (accurate totals)
+      const agg = aggRows[0] ?? {} as MetaInsightRow;
+      const totalSpend = parseFloat(agg.spend ?? "0");
+      const totalImpressions = parseInt(agg.impressions ?? "0");
+      const totalReach = parseInt(agg.reach ?? "0");   // deduplicated unique reach
+      const totalClicks = parseInt(agg.inline_link_clicks ?? "0");
+      const costPerResult = parseCPR(agg.cost_per_result);
+      const totalResult = getResult(agg.actions, totalSpend, costPerResult); // WA clicks first, fallback cpr
+      const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
+      const cpc = parseFloat(agg.cpc ?? "0") || (totalClicks > 0 ? totalSpend / totalClicks : 0);
+      const avgCtr = parseFloat(agg.inline_link_click_ctr ?? "0");
+      const cpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
+
+      // Daily rows for chart
+      const content_metrics = dailyRows.map((r) => {
+        const spend = parseFloat(r.spend ?? "0");
+        const impressions = parseInt(r.impressions ?? "0");
+        const reach = parseInt(r.reach ?? "0");
+        const clicks = parseInt(r.inline_link_clicks ?? "0");
+        const cpr = parseCPR(r.cost_per_result);
+        return {
+          date: r.date_start, spend, impressions, reach, clicks,
+          ctr: parseFloat(r.inline_link_click_ctr ?? "0"),
+          frequency: parseFloat(r.frequency ?? "0"),
+          cost_per_result: cpr,
+          conversions: getResult(r.actions, spend, cpr),
+          cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+          cpc: parseFloat(r.cpc ?? "0") || (clicks > 0 ? spend / clicks : 0),
+        };
+      });
+
+      const dateWhere: Record<string, unknown> = {};
+      if (start_date && end_date) dateWhere.date = { gte: new Date(start_date as string), lte: new Date(end_date as string) };
+      const chatMetrics = await (prisma as any).whatsappChatMetric.findMany({ where: { meta_ads_campaign_id: id, ...dateWhere } });
+      return res.json({
+        id: camp.id, campaign_name: camp.campaign_name, meta_campaign_id: camp.meta_campaign_id,
+        platform: camp.platform, status: camp.status, created_at: camp.created_at,
+        total_spend: totalSpend, total_impressions: totalImpressions, total_reach: totalReach,
+        total_clicks: totalClicks, total_result: totalResult,
+        cpm, cpc, cpl, avg_ctr: avgCtr,
+        total_leads: totalLeads, hot_leads: hotLeads, survey_count: surveyCount, paid_conversions: paidConversions,
+        content_metrics, data_source: "realtime",
+        chat_metrics: chatMetrics.map((m: any) => ({
+          id: m.id, date: m.date, chats_received: m.chats_received, chats_responded: m.chats_responded,
+          response_rate: parseFloat(String(m.response_rate ?? 0)),
+          total_conversions: m.total_conversions, conversion_rate: parseFloat(String(m.conversion_rate ?? 0)),
+        })),
+      });
+    } catch (err: any) {
+      // Fall through to DB fallback
+    }
+  }
+
+  // Fallback: read from local DB
+  const dateWhere: Record<string, unknown> = {};
+  if (start_date && end_date) dateWhere.date = { gte: new Date(start_date as string), lte: new Date(end_date as string) };
+  const campWithMetrics = await prisma.metaAdsCampaign.findUnique({
+    where: { id },
+    include: { content_metrics: { where: dateWhere, orderBy: { date: "asc" } }, chat_metrics: { where: dateWhere } },
+  });
+  const cm = campWithMetrics!.content_metrics;
+  const totalSpend = cm.reduce((s, m) => s + parseFloat(String(m.spend ?? 0)), 0);
+  const totalImpressions = cm.reduce((s, m) => s + Number(m.impressions ?? 0), 0);
+  const totalReach = cm.reduce((s, m) => s + Number(m.reach ?? 0), 0);
+  const totalClicks = cm.reduce((s, m) => s + (m.clicks ?? 0), 0);
+  const totalResult = cm.reduce((s, m) => s + (m.conversions ?? 0), 0);
+  const cpl = totalLeads > 0 ? totalSpend / totalLeads : 0;
   return res.json({
     id: camp.id, campaign_name: camp.campaign_name, meta_campaign_id: camp.meta_campaign_id,
     platform: camp.platform, status: camp.status, created_at: camp.created_at,
-    content_metrics: camp.content_metrics.map((m) => ({
-      id: m.id, date: m.date, impressions: m.impressions, reach: m.reach,
-      clicks: m.clicks, spend: parseFloat(String(m.spend ?? 0)), ctr: parseFloat(String(m.ctr ?? 0)),
-      cost_per_result: parseFloat(String(m.cost_per_result ?? 0)), conversions: m.conversions,
+    total_spend: totalSpend, total_impressions: totalImpressions, total_reach: totalReach,
+    total_clicks: totalClicks, total_result: totalResult,
+    cpm: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0,
+    cpc: totalClicks > 0 ? totalSpend / totalClicks : 0, cpl,
+    avg_ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+    total_leads: totalLeads, hot_leads: hotLeads, survey_count: surveyCount, paid_conversions: paidConversions,
+    content_metrics: cm.map((m) => ({
+      id: m.id, date: m.date,
+      impressions: Number(m.impressions ?? 0), reach: Number(m.reach ?? 0),
+      clicks: m.clicks ?? 0, spend: parseFloat(String(m.spend ?? 0)),
+      ctr: parseFloat(String(m.ctr ?? 0)), frequency: parseFloat(String(m.frequency ?? 0)),
+      cost_per_result: parseFloat(String(m.cost_per_result ?? 0)), conversions: m.conversions ?? 0,
+      cpm: Number(m.impressions ?? 0) > 0 ? (parseFloat(String(m.spend ?? 0)) / Number(m.impressions ?? 0)) * 1000 : 0,
+      cpc: (m.clicks ?? 0) > 0 ? parseFloat(String(m.spend ?? 0)) / (m.clicks ?? 1) : 0,
     })),
-    chat_metrics: camp.chat_metrics.map((m) => ({
+    chat_metrics: campWithMetrics!.chat_metrics.map((m) => ({
       id: m.id, date: m.date, chats_received: m.chats_received, chats_responded: m.chats_responded,
       response_rate: parseFloat(String(m.response_rate ?? 0)),
       total_conversions: m.total_conversions, conversion_rate: parseFloat(String(m.conversion_rate ?? 0)),
     })),
+    data_source: "local",
   });
 });
 
@@ -473,58 +659,140 @@ router.delete("/meta-ads/chat-metrics/:id", async (req: Request, res: Response) 
 router.get("/meta-ads/dashboard", async (req: Request, res: Response) => {
   const { platform, campaign_id, bulan, tahun, start_date, end_date } = req.query;
 
-  const campaignWhere: Record<string, unknown> = { is_hidden: false };
-  if (platform && platform !== "all") campaignWhere.platform = platform;
-  if (campaign_id) campaignWhere.id = parseInt(campaign_id as string);
-
-  const metricDateWhere: Record<string, unknown> = {};
+  // Determine date range
+  const now = new Date();
+  let since: string;
+  let until: string;
   if (start_date && end_date) {
-    metricDateWhere.date = { gte: new Date(start_date as string), lte: new Date(end_date as string) };
+    since = start_date as string;
+    until = end_date as string;
   } else if (bulan && tahun) {
     const m = parseInt(bulan as string);
     const y = parseInt(tahun as string);
-    metricDateWhere.date = { gte: new Date(y, m - 1, 1), lte: new Date(y, m, 0) };
+    since = `${y}-${String(m).padStart(2, "0")}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    until = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  } else {
+    since = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    until = now.toISOString().slice(0, 10);
   }
+
+  const campaignWhere: Record<string, unknown> = { is_hidden: false };
+  if (platform && platform !== "all") campaignWhere.platform = platform;
+  if (campaign_id) campaignWhere.id = BigInt(campaign_id as string);
 
   const camps = await prisma.metaAdsCampaign.findMany({
     where: campaignWhere,
-    include: {
-      content_metrics: { where: metricDateWhere },
-      chat_metrics: { where: metricDateWhere },
-    },
+    include: { _count: { select: { leads: true } } },
   });
+  const campaignIds = camps.map((c) => c.id);
 
-  const campaigns = camps.map((c) => {
+  const [totalLeadsDb, hotLeadsDb, surveyCountDb, paidConversionsDb, lowLeadsDb, mediumLeadsDb] = await Promise.all([
+    prisma.lead.count({ where: { meta_ads_campaign_id: { in: campaignIds } } }),
+    prisma.lead.count({ where: { meta_ads_campaign_id: { in: campaignIds }, status: "Hot" } }),
+    prisma.lead.count({ where: { meta_ads_campaign_id: { in: campaignIds }, tanggal_survey: { not: null } } }),
+    prisma.lead.count({ where: { meta_ads_campaign_id: { in: campaignIds }, invoices: { some: { status: "Lunas" } } } }),
+    prisma.lead.count({ where: { meta_ads_campaign_id: { in: campaignIds }, status: "Low" } }),
+    prisma.lead.count({ where: { meta_ads_campaign_id: { in: campaignIds }, status: "Medium" } }),
+  ]);
+
+  // Try real-time Meta API
+  const metaAccount = await prisma.adPlatformAccount.findFirst({ where: { platform: "Meta", is_active: true } });
+  if (metaAccount?.access_token && metaAccount?.ad_account_id) {
+    try {
+      // Use aggregate (no time_increment) → accurate deduplicated reach & result per campaign
+      const filterCampId = campaign_id
+        ? camps.find((c) => c.id === BigInt(campaign_id as string))?.meta_campaign_id ?? undefined
+        : undefined;
+
+      const aggRows = await fetchMetaAggregate(metaAccount.access_token, metaAccount.ad_account_id, since, until, filterCampId ?? undefined);
+
+      // Key aggregate rows by campaign_id (each row = one campaign aggregate)
+      const apiAgg: Record<string, MetaInsightRow> = {};
+      for (const row of aggRows) apiAgg[row.campaign_id] = row;
+
+      const campaigns = camps.map((c) => {
+        const row = c.meta_campaign_id ? apiAgg[c.meta_campaign_id] : undefined;
+        const spend = parseFloat(row?.spend ?? "0");
+        const impressions = parseInt(row?.impressions ?? "0");
+        const reach = parseInt(row?.reach ?? "0");        // accurate unique reach
+        const clicks = parseInt(row?.inline_link_clicks ?? "0");
+        const cpr = parseCPR(row?.cost_per_result);
+        const result = getResult(row?.actions, spend, cpr); // WA clicks first, fallback cpr
+        return {
+          id: Number(c.id), campaign_name: c.campaign_name, platform: c.platform, status: c.status,
+          start_date: c.start_date, end_date: c.end_date, leads_count: c._count.leads,
+          total_spend: spend, total_clicks: clicks, total_impressions: impressions,
+          total_reach: reach, total_result: result,
+          avg_ctr: parseFloat(row?.inline_link_click_ctr ?? "0"),
+          cpm: impressions > 0 ? (spend / impressions) * 1000 : 0,
+          cpc: parseFloat(row?.cpc ?? "0") || (clicks > 0 ? spend / clicks : 0),
+        };
+      });
+
+      const totalImpressions = campaigns.reduce((s, c) => s + c.total_impressions, 0);
+      const totalClicks = campaigns.reduce((s, c) => s + c.total_clicks, 0);
+      const totalSpend = campaigns.reduce((s, c) => s + c.total_spend, 0);
+      const totalReach = campaigns.reduce((s, c) => s + c.total_reach, 0);
+      const totalResult = campaigns.reduce((s, c) => s + c.total_result, 0);
+      const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
+      const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+      // CPL dari data campaign Meta (cost_per_result per campaign) → total_spend / total_result
+      const cpl_meta = totalResult > 0 ? totalSpend / totalResult : 0;
+
+      return res.json({
+        total_spend: totalSpend, total_clicks: totalClicks, total_impressions: totalImpressions,
+        total_reach: totalReach, total_result: totalResult, total_conversions: totalResult,
+        avg_ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+        cpm, cpc, cpl: cpl_meta, cpl_meta,
+        total_leads_db: totalLeadsDb, hot_leads: hotLeadsDb,
+        survey_count: surveyCountDb, paid_conversions: paidConversionsDb,
+        low_leads: lowLeadsDb, medium_leads: mediumLeadsDb,
+        campaigns, data_source: "realtime",
+      });
+    } catch (err: any) {
+      // Fall through to DB fallback
+    }
+  }
+
+  // Fallback: read from local DB
+  const metricDateWhere: Record<string, unknown> = {};
+  metricDateWhere.date = { gte: new Date(since), lte: new Date(until) };
+  const campsWithMetrics = await prisma.metaAdsCampaign.findMany({
+    where: campaignWhere,
+    include: { content_metrics: { where: metricDateWhere }, chat_metrics: { where: metricDateWhere }, _count: { select: { leads: true } } },
+  });
+  const campaigns = campsWithMetrics.map((c) => {
     const totalSpend = c.content_metrics.reduce((s, m) => s + parseFloat(String(m.spend ?? 0)), 0);
     const totalClicks = c.content_metrics.reduce((s, m) => s + (m.clicks ?? 0), 0);
     const totalImpressions = c.content_metrics.reduce((s, m) => s + Number(m.impressions ?? 0), 0);
-    const totalConversions = c.chat_metrics.reduce((s, m) => s + (m.total_conversions ?? 0), 0);
-    const avgCtr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+    const totalReach = c.content_metrics.reduce((s, m) => s + Number(m.reach ?? 0), 0);
+    const totalResult = c.content_metrics.reduce((s, m) => s + (m.conversions ?? 0), 0);
     return {
-      id: Number(c.id),
-      campaign_name: c.campaign_name,
-      platform: c.platform,
-      status: c.status,
-      start_date: c.start_date,
-      end_date: c.end_date,
-      total_spend: totalSpend,
-      total_clicks: totalClicks,
-      total_impressions: totalImpressions,
-      total_conversions: totalConversions,
-      avg_ctr: avgCtr,
+      id: Number(c.id), campaign_name: c.campaign_name, platform: c.platform,
+      status: c.status, start_date: c.start_date, end_date: c.end_date, leads_count: c._count.leads,
+      total_spend: totalSpend, total_clicks: totalClicks, total_impressions: totalImpressions,
+      total_reach: totalReach, total_result: totalResult,
+      avg_ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
+      cpm: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0,
+      cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
     };
   });
-
   const totalImpressions = campaigns.reduce((s, c) => s + c.total_impressions, 0);
   const totalClicks = campaigns.reduce((s, c) => s + c.total_clicks, 0);
-
+  const totalSpend = campaigns.reduce((s, c) => s + c.total_spend, 0);
   return res.json({
-    total_spend: campaigns.reduce((s, c) => s + c.total_spend, 0),
-    total_clicks: totalClicks,
-    total_impressions: totalImpressions,
-    total_conversions: campaigns.reduce((s, c) => s + c.total_conversions, 0),
+    total_spend: totalSpend, total_clicks: totalClicks, total_impressions: totalImpressions,
+    total_reach: campaigns.reduce((s, c) => s + c.total_reach, 0),
+    total_result: campaigns.reduce((s, c) => s + c.total_result, 0), total_conversions: 0,
     avg_ctr: totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0,
-    campaigns,
+    cpm: totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0,
+    cpc: totalClicks > 0 ? totalSpend / totalClicks : 0,
+    cpl: 0, cpl_meta: 0,
+    total_leads_db: totalLeadsDb, hot_leads: hotLeadsDb,
+    survey_count: surveyCountDb, paid_conversions: paidConversionsDb,
+    low_leads: lowLeadsDb, medium_leads: mediumLeadsDb,
+    campaigns, data_source: "local",
   });
 });
 
@@ -588,6 +856,75 @@ router.delete("/ads/accounts/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.adPlatformAccount.delete({ where: { id } });
   return res.json({ message: "Akun dihapus" });
+});
+
+// ── DEBUG META RAW RESPONSE ───────────────────────────────────────────────────
+router.get("/ads/accounts/debug-meta", async (req: Request, res: Response) => {
+  const account = await prisma.adPlatformAccount.findFirst({ where: { platform: "Meta", is_active: true } });
+  if (!account?.access_token || !account?.ad_account_id) return res.json({ error: "Akun tidak ada" });
+  const since = (req.query.since as string) || `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, "0")}-01`;
+  const until = (req.query.until as string) || new Date().toISOString().slice(0, 10);
+  const act = account.ad_account_id.startsWith("act_") ? account.ad_account_id : `act_${account.ad_account_id}`;
+  const url = new URL(`https://graph.facebook.com/v19.0/${act}/insights`);
+  url.searchParams.set("fields", META_FIELDS);
+  url.searchParams.set("level", "campaign");
+  url.searchParams.set("time_range", JSON.stringify({ since, until }));
+  url.searchParams.set("limit", "10");
+  url.searchParams.set("access_token", account.access_token);
+  const resp = await fetch(url.toString());
+  const data = await resp.json();
+  return res.json({ since, until, raw: data });
+});
+
+// ── TEST META CONNECTION ───────────────────────────────────────────────────────
+router.get("/ads/accounts/test-meta", async (_req: Request, res: Response) => {
+  const account = await prisma.adPlatformAccount.findFirst({ where: { platform: "Meta", is_active: true } });
+  if (!account) return res.json({ ok: false, error: "Tidak ada akun Meta aktif di database" });
+  if (!account.access_token) return res.json({ ok: false, error: "Access token kosong" });
+  if (!account.ad_account_id) return res.json({ ok: false, error: "Ad Account ID kosong" });
+
+  const act = account.ad_account_id.startsWith("act_") ? account.ad_account_id : `act_${account.ad_account_id}`;
+  const url = new URL(`https://graph.facebook.com/v19.0/${act}`);
+  url.searchParams.set("fields", "id,name,currency,account_status");
+  url.searchParams.set("access_token", account.access_token);
+
+  const resp = await fetch(url.toString());
+  const data = await resp.json() as { id?: string; name?: string; currency?: string; account_status?: number; error?: { message: string; code: number } };
+  if (data.error) return res.json({ ok: false, error: data.error.message, code: data.error.code });
+  return res.json({ ok: true, account_id: data.id, account_name: data.name, currency: data.currency, token_preview: account.access_token.slice(0, 20) + "..." });
+});
+
+// ── REFRESH META TOKEN ────────────────────────────────────────────────────────
+// POST /ads/accounts/:id/refresh-token
+// Exchanges current short-lived token for a new long-lived token (~60 days)
+// Requires app_id + app_secret + access_token stored on the account
+router.post("/ads/accounts/:id/refresh-token", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const account = await prisma.adPlatformAccount.findUnique({ where: { id } });
+  if (!account) return res.status(404).json({ detail: "Akun tidak ditemukan" });
+  if (account.platform !== "Meta") return res.status(400).json({ detail: "Refresh token hanya untuk platform Meta" });
+  if (!account.app_id || !account.app_secret || !account.access_token) {
+    return res.status(400).json({ detail: "app_id, app_secret, dan access_token harus diisi terlebih dahulu" });
+  }
+
+  const url = new URL("https://graph.facebook.com/oauth/access_token");
+  url.searchParams.set("grant_type", "fb_exchange_token");
+  url.searchParams.set("client_id", account.app_id);
+  url.searchParams.set("client_secret", account.app_secret);
+  url.searchParams.set("fb_exchange_token", account.access_token);
+
+  const resp = await fetch(url.toString());
+  const data = await resp.json() as { access_token?: string; token_type?: string; expires_in?: number; error?: { message: string } };
+  if (data.error) return res.status(400).json({ detail: `Meta API: ${data.error.message}` });
+  if (!data.access_token) return res.status(400).json({ detail: "Tidak mendapat token baru dari Meta" });
+
+  await prisma.adPlatformAccount.update({ where: { id }, data: { access_token: data.access_token } });
+
+  const expiresInDays = data.expires_in ? Math.floor(data.expires_in / 86400) : null;
+  return res.json({
+    message: `Token berhasil diperbarui${expiresInDays ? `, berlaku ${expiresInDays} hari` : ""}`,
+    expires_in_days: expiresInDays,
+  });
 });
 
 // ── SYNC ACCOUNT ──────────────────────────────────────────────────────────────
@@ -663,16 +1000,20 @@ router.post("/ads/accounts/:id/sync", async (req: Request, res: Response) => {
       if (!dbId) continue;
       const date = new Date(row.date_start);
       const conversions = (row.actions ?? [])
-        .filter((a) => ["offsite_conversion.fb_pixel_purchase", "purchase", "complete_registration", "lead"].includes(a.action_type))
+        .filter((a) => [
+          "offsite_conversion.fb_pixel_purchase", "purchase", "complete_registration", "lead",
+          "onsite_conversion.messaging_conversation_started_7d",
+          "messaging_conversation_started_7d", "onsite_conversion.lead_grouped",
+        ].includes(a.action_type))
         .reduce((s, a) => s + parseInt(a.value ?? "0"), 0);
       const data = {
         spend: parseFloat(row.spend ?? "0"),
         impressions: BigInt(row.impressions ?? "0"),
         reach: BigInt(row.reach ?? "0"),
-        clicks: parseInt(row.clicks ?? "0"),
-        ctr: parseFloat(row.ctr ?? "0"),
+        clicks: parseInt(row.inline_link_clicks ?? "0"),
+        ctr: parseFloat(row.inline_link_click_ctr ?? "0"),
         frequency: parseFloat(row.frequency ?? "0"),
-        cost_per_result: parseFloat(row.cost_per_result ?? "0"),
+        cost_per_result: parseCPR(row?.cost_per_result),
         conversions,
         data_source: "api",
       };
@@ -680,7 +1021,7 @@ router.post("/ads/accounts/:id/sync", async (req: Request, res: Response) => {
       if (existing) {
         await prisma.adContentMetric.update({ where: { id: existing.id }, data });
       } else {
-        await prisma.adContentMetric.create({ data: { meta_ads_campaign_id: dbId, date, ...data } });
+        await prisma.adContentMetric.create({ data: { meta_ads_campaigns: { connect: { id: dbId } }, date, ...data } });
       }
       synced++;
     }
@@ -754,7 +1095,7 @@ router.post("/ads/accounts/:id/sync", async (req: Request, res: Response) => {
       if (existing) {
         await prisma.adContentMetric.update({ where: { id: existing.id }, data });
       } else {
-        await prisma.adContentMetric.create({ data: { meta_ads_campaign_id: dbId, date, ...data } });
+        await prisma.adContentMetric.create({ data: { meta_ads_campaigns: { connect: { id: dbId } }, date, ...data } });
       }
       synced++;
     }
@@ -1155,8 +1496,32 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
       pic_survey: b.pic_survey ?? null,
       survey_approval_status: b.survey_approval_status ?? null,
       jam_survey: b.jam_survey ?? null,
+      projection: b.projection ?? null,
     },
   });
+
+  // Auto-add ke Kanban jika projection diisi
+  if (b.projection && (modul === "sales-admin" || modul === "telemarketing")) {
+    const now = new Date();
+    const bln = b.bulan != null ? parseInt(b.bulan) : now.getMonth() + 1;
+    const thn = b.tahun != null ? parseInt(b.tahun) : now.getFullYear();
+    if (modul === "sales-admin") {
+      let col = await prisma.adminKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
+      if (col) {
+        await prisma.adminKanbanCard.create({
+          data: { column_id: col.id, title: lead.nama, lead_id: lead.id, urutan: 0 },
+        });
+      }
+    } else {
+      let col = await prisma.telemarketingKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
+      if (col) {
+        await prisma.telemarketingKanbanCard.create({
+          data: { column_id: col.id, title: lead.nama, lead_id: lead.id, urutan: 0 },
+        });
+      }
+    }
+  }
+
   return res.status(201).json({ id: lead.id, nama: lead.nama, message: "Lead berhasil dibuat" });
 });
 
@@ -1186,6 +1551,7 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   if (b.pic_survey !== undefined) updates.pic_survey = b.pic_survey;
   if (b.survey_approval_status !== undefined) updates.survey_approval_status = b.survey_approval_status;
   if (b.jam_survey !== undefined) updates.jam_survey = b.jam_survey;
+  if (b.projection !== undefined) updates.projection = b.projection;
   await prisma.lead.update({ where: { id }, data: updates });
   return res.json({ message: "Lead berhasil diupdate" });
 });

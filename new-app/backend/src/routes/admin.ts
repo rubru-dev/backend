@@ -258,19 +258,19 @@ router.post("/fontee/send-test", requireRole("Super Admin"), async (req: Request
     return res.status(400).json({ detail: "Fontee belum dikonfigurasi. Isi API key, base URL, dan sender number terlebih dahulu." });
   }
   try {
-    const url = `${cfg.base_url.replace(/\/$/, "")}/send-message`;
-    const response = await fetch(url, {
+    // Fonnte API format: POST to base_url, Authorization: token (no Bearer), body: { target, message }
+    const response = await fetch(cfg.base_url, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": `Bearer ${cfg.api_key}` },
-      body: JSON.stringify({ sender: cfg.sender_number, to: target_number, message }),
+      headers: { "Content-Type": "application/json", "Authorization": cfg.api_key },
+      body: JSON.stringify({ target: target_number, message, countryCode: "62" }),
     });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
-      return res.status(502).json({ detail: "Fontee API error", fontee_response: data });
+      return res.status(502).json({ detail: "Fonnte API error", fonnte_response: data });
     }
-    return res.json({ message: "Pesan terkirim", fontee_response: data });
+    return res.json({ message: "Pesan terkirim", fonnte_response: data });
   } catch (err: any) {
-    return res.status(502).json({ detail: "Gagal menghubungi Fontee API: " + (err?.message ?? "Unknown error") });
+    return res.status(502).json({ detail: "Gagal menghubungi Fonnte API: " + (err?.message ?? "Unknown error") });
   }
 });
 
@@ -284,6 +284,7 @@ router.get("/settings/reminder-rules", requireRole("Super Admin"), async (_req: 
       feature: r.feature,
       label: r.label,
       days_before: r.days_before,
+      send_time: (r as any).send_time ?? "08:00",
       is_active: r.is_active,
       role_ids: r.role_ids,
     })),
@@ -294,24 +295,81 @@ router.get("/settings/reminder-rules", requireRole("Super Admin"), async (_req: 
 // PUT /settings/reminder-rules/:id
 router.put("/settings/reminder-rules/:id", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const { days_before, is_active, role_ids } = req.body;
+  const { days_before, is_active, role_ids, send_time } = req.body;
   const rule = await prisma.fonteeReminderRule.findUnique({ where: { id } });
   if (!rule) return res.status(404).json({ detail: "Rule tidak ditemukan" });
   const updated = await prisma.fonteeReminderRule.update({
     where: { id },
     data: {
       days_before: days_before !== undefined ? Number(days_before) : undefined,
+      send_time: send_time !== undefined ? String(send_time) : undefined,
       is_active: is_active !== undefined ? Boolean(is_active) : undefined,
       role_ids: Array.isArray(role_ids) ? role_ids.map(BigInt) : undefined,
-    },
+    } as any,
   });
   return res.json({
     id: updated.id,
     feature: updated.feature,
     label: updated.label,
     days_before: updated.days_before,
+    send_time: (updated as any).send_time ?? "08:00",
     is_active: updated.is_active,
     role_ids: updated.role_ids,
+  });
+});
+
+// POST /settings/reminder-rules/:id/test — kirim test WA ke semua user dengan role yang dipilih rule
+router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const rule = await prisma.fonteeReminderRule.findUnique({ where: { id } });
+  if (!rule) return res.status(404).json({ detail: "Rule tidak ditemukan" });
+
+  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
+  const cfg = (setting?.value as Record<string, string> | null) ?? {};
+  if (!cfg.api_key || !cfg.base_url) {
+    return res.status(400).json({ detail: "Fontee belum dikonfigurasi" });
+  }
+
+  // Find users with matching roles
+  const roleIds = (rule.role_ids as bigint[]) ?? [];
+  if (roleIds.length === 0) return res.status(400).json({ detail: "Rule ini belum memiliki role tujuan" });
+
+  const usersWithRole = await prisma.user.findMany({
+    where: {
+      roles: { some: { role_id: { in: roleIds } } },
+      whatsapp_number: { not: null },
+    },
+    select: { id: true, name: true, whatsapp_number: true },
+  });
+
+  if (usersWithRole.length === 0) {
+    return res.status(400).json({ detail: "Tidak ada user dengan role tersebut yang memiliki nomor WhatsApp" });
+  }
+
+  const message = `*[TEST] Reminder: ${rule.label}*\nIni adalah test pengiriman reminder otomatis dari sistem RubahRumah.`;
+  let sent = 0;
+  const errors: string[] = [];
+
+  for (const u of usersWithRole) {
+    try {
+      const response = await fetch(cfg.base_url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": cfg.api_key },
+        body: JSON.stringify({ target: u.whatsapp_number, message, countryCode: "62" }),
+      });
+      if (response.ok) sent++;
+      else errors.push(`${u.name}: API error`);
+    } catch (err: any) {
+      errors.push(`${u.name}: ${err?.message ?? "error"}`);
+    }
+  }
+
+  return res.json({
+    sent,
+    total_targets: usersWithRole.length,
+    targets: usersWithRole.map((u) => ({ name: u.name, wa: u.whatsapp_number })),
+    errors: errors.length > 0 ? errors : undefined,
+    message: `Test terkirim ke ${sent} dari ${usersWithRole.length} user`,
   });
 });
 

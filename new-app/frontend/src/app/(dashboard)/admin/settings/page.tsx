@@ -13,7 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
-import { Settings, MessageCircle, Bell, Send, Eye, EyeOff, Loader2, Check } from "lucide-react";
+import { Settings, MessageCircle, Bell, Send, Eye, EyeOff, Loader2, Check, FlaskConical } from "lucide-react";
 
 export default function SettingsPage() {
   const { user, isSuperAdmin } = useAuthStore();
@@ -74,6 +74,12 @@ export default function SettingsPage() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
 
+  const testRuleMut = useMutation({
+    mutationFn: (id: number) => adminApi.testReminderRule(id),
+    onSuccess: (data: any) => toast.success(data?.message ?? "Test terkirim"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal kirim test"),
+  });
+
   function handleChangePw() {
     if (pwForm.new_password !== pwForm.confirm) { toast.error("Konfirmasi password tidak cocok"); return; }
     changePwMut.mutate({ old_password: pwForm.old_password, new_password: pwForm.new_password });
@@ -89,7 +95,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="akun">
         <TabsList>
           <TabsTrigger value="akun"><Settings className="h-3.5 w-3.5 mr-1.5" />Akun</TabsTrigger>
-          {superAdmin && <TabsTrigger value="fontee"><MessageCircle className="h-3.5 w-3.5 mr-1.5" />Fontee WhatsApp</TabsTrigger>}
+          {superAdmin && <TabsTrigger value="fontee"><MessageCircle className="h-3.5 w-3.5 mr-1.5" />Fonnte WhatsApp</TabsTrigger>}
           {superAdmin && <TabsTrigger value="reminder"><Bell className="h-3.5 w-3.5 mr-1.5" />Reminder Rules</TabsTrigger>}
         </TabsList>
 
@@ -129,8 +135,8 @@ export default function SettingsPage() {
         <TabsContent value="fontee" className="mt-4 space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-green-600" />Konfigurasi Fontee API</CardTitle>
-              <CardDescription>Isi kredensial Fontee WhatsApp Business API. Konfigurasi ini digunakan untuk pengiriman reminder otomatis.</CardDescription>
+              <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-green-600" />Konfigurasi Fonnte API</CardTitle>
+              <CardDescription>Isi kredensial Fonnte WhatsApp API. Konfigurasi ini digunakan untuk pengiriman reminder otomatis.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               {fonteeLoading ? (
@@ -140,20 +146,21 @@ export default function SettingsPage() {
                   <div>
                     <Label>Base URL</Label>
                     <Input
-                      placeholder="https://api.fontee.io/v1"
+                      placeholder="https://api.fonnte.com/send"
                       value={fonteeForm.base_url}
                       onChange={(e) => { setFonteeForm({ ...fonteeForm, base_url: e.target.value }); setFonteeSynced(false); }}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">URL dasar Fontee API (tanpa trailing slash)</p>
+                    <p className="text-xs text-muted-foreground mt-1">Endpoint Fonnte API — isi: https://api.fonnte.com/send</p>
                   </div>
                   <div>
-                    <Label>API Key</Label>
+                    <Label>Token Fonnte</Label>
                     <Input
                       type="password"
-                      placeholder="Masukkan API key Fontee"
+                      placeholder="Masukkan token dari dashboard Fonnte"
                       value={fonteeForm.api_key}
                       onChange={(e) => { setFonteeForm({ ...fonteeForm, api_key: e.target.value }); setFonteeSynced(false); }}
                     />
+                    <p className="text-xs text-muted-foreground mt-1">Token dari app.fonnte.com → perangkat → token</p>
                   </div>
                   <div>
                     <Label>Sender Number</Label>
@@ -162,7 +169,7 @@ export default function SettingsPage() {
                       value={fonteeForm.sender_number}
                       onChange={(e) => { setFonteeForm({ ...fonteeForm, sender_number: e.target.value }); setFonteeSynced(false); }}
                     />
-                    <p className="text-xs text-muted-foreground mt-1">Nomor WhatsApp pengirim (format internasional tanpa +)</p>
+                    <p className="text-xs text-muted-foreground mt-1">Nomor WhatsApp yang terhubung ke Fonnte (format internasional tanpa +)</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <Button onClick={() => saveFonteeMut.mutate(fonteeForm)} disabled={saveFonteeMut.isPending}>
@@ -222,26 +229,54 @@ export default function SettingsPage() {
                           <p className="font-medium text-sm">{rule.label}</p>
                           <p className="text-xs text-muted-foreground font-mono">{rule.feature}</p>
                         </div>
-                        <Switch
-                          checked={rule.is_active}
-                          onCheckedChange={(v) => updateRuleMut.mutate({ id: rule.id, data: { is_active: v } })}
-                        />
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 text-xs"
+                            disabled={testRuleMut.isPending}
+                            onClick={() => testRuleMut.mutate(rule.id)}
+                          >
+                            {testRuleMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FlaskConical className="h-3 w-3 mr-1" />}
+                            Test Kirim
+                          </Button>
+                          <Switch
+                            checked={rule.is_active}
+                            onCheckedChange={(v) => updateRuleMut.mutate({ id: rule.id, data: { is_active: v } })}
+                          />
+                        </div>
                       </div>
-                      <div className="flex items-center gap-3">
-                        <Label className="text-xs whitespace-nowrap">Hari sebelum deadline:</Label>
-                        <Input
-                          type="number"
-                          min={0}
-                          max={30}
-                          className="h-7 w-20 text-sm"
-                          defaultValue={rule.days_before}
-                          onBlur={(e) => {
-                            const val = parseInt(e.target.value);
-                            if (!isNaN(val) && val !== rule.days_before) {
-                              updateRuleMut.mutate({ id: rule.id, data: { days_before: val } });
-                            }
-                          }}
-                        />
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs whitespace-nowrap">Hari sebelum:</Label>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={30}
+                            className="h-7 w-20 text-sm"
+                            defaultValue={rule.days_before}
+                            onBlur={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (!isNaN(val) && val !== rule.days_before) {
+                                updateRuleMut.mutate({ id: rule.id, data: { days_before: val } });
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Label className="text-xs whitespace-nowrap">Jam kirim:</Label>
+                          <Input
+                            type="time"
+                            className="h-7 w-28 text-sm"
+                            defaultValue={rule.send_time ?? "08:00"}
+                            onBlur={(e) => {
+                              const val = e.target.value;
+                              if (val && val !== rule.send_time) {
+                                updateRuleMut.mutate({ id: rule.id, data: { send_time: val } });
+                              }
+                            }}
+                          />
+                        </div>
                       </div>
                       <div>
                         <Label className="text-xs">Role yang direminder:</Label>

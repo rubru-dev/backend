@@ -302,7 +302,7 @@ function KanbanCardItem({
 
 // ── Column ────────────────────────────────────────────────────────────────────
 function KanbanColumnComp({
-  column, leads, onAddCard, onDeleteCard, onUpdateCard, onColorChangeCard, onUpdateColumn, onDeleteColumn, isPermanent = false,
+  column, leads, onAddCard, onDeleteCard, onUpdateCard, onColorChangeCard, onUpdateColumn, onDeleteColumn, isPermanent = false, dragHandleProps,
 }: {
   column: KanbanColumn;
   leads: { id: number; nama: string }[];
@@ -313,6 +313,7 @@ function KanbanColumnComp({
   onUpdateColumn: (id: number, data: { title?: string; color?: string }) => Promise<void>;
   onDeleteColumn: (id: number) => void;
   isPermanent?: boolean;
+  dragHandleProps?: React.HTMLAttributes<HTMLDivElement> | null;
 }) {
   const [addingCard, setAddingCard] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState("");
@@ -359,6 +360,11 @@ function KanbanColumnComp({
     >
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-3 border-b border-black/10">
+        {dragHandleProps && (
+          <div {...dragHandleProps} className="mr-1 cursor-grab opacity-30 hover:opacity-60 shrink-0">
+            <GripVertical className="h-4 w-4" />
+          </div>
+        )}
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {editingTitle ? (
             <div className="flex items-center gap-1 flex-1">
@@ -595,8 +601,25 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
 
   const onDragEnd = useCallback(async (result: DropResult) => {
     isDraggingRef.current = false;
-    const { source, destination, draggableId } = result;
+    const { source, destination, draggableId, type } = result;
     if (!destination) return;
+
+    // ── Column reorder ───────────────────────────────────────────────────────
+    if (type === "COLUMN") {
+      if (source.index === destination.index) return;
+      const reordered = [...columns];
+      const [moved] = reordered.splice(source.index, 1);
+      reordered.splice(destination.index, 0, moved);
+      setColumns(reordered);
+      try {
+        await salesKanbanApi.reorderColumns(reordered.map((c) => Number(c.id)));
+      } catch {
+        toast.error("Gagal menyimpan urutan kolom");
+        onRefresh();
+      }
+      return;
+    }
+
     // Same column → no copy (ignore reordering within same column)
     if (source.droppableId === destination.droppableId) return;
 
@@ -690,7 +713,7 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
       const newCard: KanbanCard = {
         id: res.id, column_id: columnId, title: leadNama,
         lead: { id: leadId, nama: leadNama },
-        description: null, deadline: null, color: null,
+        description: null, assigned_user_id: null, deadline: null, color: null,
         projeksi_sales: null, urutan: 0, comments_count: 0, labels: [],
         created_at: new Date().toISOString(),
       };
@@ -799,23 +822,39 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
       {/* ── Board ───────────────────────────────────────────────────────────── */}
       <DualScrollContainer className="flex-1">
         <DragDropContext onDragStart={onDragStart} onDragEnd={onDragEnd}>
-          <div className="kanban-board flex gap-4 pb-4" style={{ minWidth: "max-content" }}>
-            {displayColumns.map((column) => (
-              <KanbanColumnComp
-                key={column.id}
-                column={column}
-                leads={leads}
-                onAddCard={handleAddCard}
-                onDeleteCard={handleDeleteCard}
-                onUpdateCard={handleUpdateCard}
-                onColorChangeCard={handleColorChange}
-                onUpdateColumn={handleUpdateColumn}
-                onDeleteColumn={handleDeleteColumn}
-                isPermanent={PERMANENT_COLUMNS.includes(column.title)}
-              />
-            ))}
-            <AddColumnButton onAdd={handleAddColumn} />
-          </div>
+          <Droppable droppableId="board" direction="horizontal" type="COLUMN">
+            {(boardProvided) => (
+              <div
+                ref={boardProvided.innerRef}
+                {...boardProvided.droppableProps}
+                className="kanban-board flex gap-4 pb-4"
+                style={{ minWidth: "max-content" }}
+              >
+                {displayColumns.map((column, idx) => (
+                  <Draggable key={String(column.id)} draggableId={`col-${column.id}`} index={idx}>
+                    {(colProvided) => (
+                      <div ref={colProvided.innerRef} {...colProvided.draggableProps}>
+                        <KanbanColumnComp
+                          column={column}
+                          leads={leads}
+                          onAddCard={handleAddCard}
+                          onDeleteCard={handleDeleteCard}
+                          onUpdateCard={handleUpdateCard}
+                          onColorChangeCard={handleColorChange}
+                          onUpdateColumn={handleUpdateColumn}
+                          onDeleteColumn={handleDeleteColumn}
+                          isPermanent={PERMANENT_COLUMNS.includes(column.title)}
+                          dragHandleProps={colProvided.dragHandleProps}
+                        />
+                      </div>
+                    )}
+                  </Draggable>
+                ))}
+                {boardProvided.placeholder}
+                <AddColumnButton onAdd={handleAddColumn} />
+              </div>
+            )}
+          </Droppable>
         </DragDropContext>
       </DualScrollContainer>
     </>

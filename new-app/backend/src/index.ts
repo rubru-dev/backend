@@ -20,6 +20,9 @@ import picProjectRouter from "./routes/picProject";
 import laporanHarianRouter from "./routes/laporanHarian";
 import salesAdminKanbanRouter from "./routes/salesAdminKanban";
 import telemarketingKanbanRouter from "./routes/telemarketingKanban";
+import clientRouter from "./routes/client";
+import clientPortalRouter from "./routes/clientPortal";
+import notificationsRouter from "./routes/notifications";
 
 // BigInt serialization fix
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -91,6 +94,9 @@ app.use("/api/v1/pic-project", authenticate, picProjectRouter);
 app.use("/api/v1/laporan-harian", authenticate, laporanHarianRouter);
 app.use("/api/v1/sales-admin", authenticate, salesAdminKanbanRouter);
 app.use("/api/v1/telemarketing", authenticate, telemarketingKanbanRouter);
+app.use("/api/v1/client", authenticate, clientRouter);
+app.use("/api/v1/client-portal", clientPortalRouter);
+app.use("/api/v1/notifications", authenticate, notificationsRouter); // auth dihandle per-route (login public, sisanya via authenticateClientPortal)
 
 // Global error handler
 app.use(

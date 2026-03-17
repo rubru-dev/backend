@@ -54,11 +54,14 @@ const BULAN_OPTIONS = [
 const _cy = new Date().getFullYear();
 const TAHUN_OPTIONS = Array.from({ length: 5 }, (_, i) => String(_cy - i));
 
+const PROJECTION_OPTIONS = ["", "W1", "W2", "W3", "W4"];
+
 const EMPTY = {
   nama: "", nomor_telepon: "", alamat: "", sumber_leads: "Instagram",
   jenis: "Interior", status: "Low", keterangan: "",
   rencana_survey: "Tidak", tanggal_survey: "", jam_survey: "", pic_survey: "",
   tanggal_masuk: "", meta_ads_campaign_id: null as number | null,
+  projection: "",
 };
 
 export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
@@ -180,7 +183,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
     queryKey: ["follow-up-history", modul, expandedId],
     queryFn: () =>
       expandedId
-        ? apiClient.get(`/bd/${modul}/leads/${detailId}/follow-up`).then((r) => r.data as FollowUpHistoryItem[])
+        ? apiClient.get(`/bd/${modul}/leads/${expandedId}/follow-up`).then((r) => r.data as FollowUpHistoryItem[])
         : Promise.resolve([]),
     enabled: !!expandedId,
   });
@@ -258,6 +261,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       tanggal_survey: item.tanggal_survey ?? "", jam_survey: item.jam_survey ?? "", pic_survey: item.pic_survey ?? "",
       tanggal_masuk: item.tanggal_masuk ? item.tanggal_masuk.split("T")[0] : "",
       meta_ads_campaign_id: item.meta_ads_campaign_id ?? null,
+      projection: item.projection ?? "",
     });
     setOpen(true);
   }
@@ -279,6 +283,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       jam_survey: form.jam_survey || null,
       pic_survey: form.pic_survey || null,
       tanggal_masuk: form.tanggal_masuk || null,
+      projection: form.projection || null,
     };
     if (editItem) updateMut.mutate({ id: editItem.id, data: payload });
     else createMut.mutate(payload);
@@ -1108,12 +1113,27 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
                 </Select>
               </div>
             </div>
-            <div>
-              <Label>Rencana Survey?</Label>
-              <Select value={form.rencana_survey} onValueChange={(v) => setForm({ ...form, rencana_survey: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent><SelectItem value="Ya">Ya</SelectItem><SelectItem value="Tidak">Tidak</SelectItem></SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Projection (Kanban)</Label>
+                <Select value={form.projection || "__none__"} onValueChange={(v) => setForm({ ...form, projection: v === "__none__" ? "" : v })}>
+                  <SelectTrigger><SelectValue placeholder="— Tidak diatur —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">— Tidak diatur —</SelectItem>
+                    {["W1", "W2", "W3", "W4"].map((p) => (
+                      <SelectItem key={p} value={p}>{p}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground mt-0.5">Otomatis masuk ke kolom Kanban</p>
+              </div>
+              <div>
+                <Label>Rencana Survey?</Label>
+                <Select value={form.rencana_survey} onValueChange={(v) => setForm({ ...form, rencana_survey: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="Ya">Ya</SelectItem><SelectItem value="Tidak">Tidak</SelectItem></SelectContent>
+                </Select>
+              </div>
             </div>
             {form.rencana_survey === "Ya" && (
               <div className="grid grid-cols-2 gap-3">

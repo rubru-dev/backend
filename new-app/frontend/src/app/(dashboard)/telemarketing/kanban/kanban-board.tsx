@@ -10,6 +10,7 @@ import {
 import {
   Plus, Trash2, Clock, Pencil, Check, X,
   GripVertical, Palette, CalendarCheck, Snowflake, Download,
+  ChevronLeft, ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -37,6 +38,7 @@ import {
 const PERMANENT_COLUMNS = [
   "From Sales Admin", "W1", "W2", "W3", "W4", "Closing Survey", "Move To Cold Database",
 ];
+const PAGE_SIZE = 10;
 
 const MONTHS = [
   "Januari","Februari","Maret","April","Mei","Juni",
@@ -277,6 +279,12 @@ function KanbanColumnComp({
   const [editingTitle, setEditingTitle] = useState(false);
   const [colTitle, setColTitle] = useState(column.title);
   const [showColorPicker, setShowColorPicker] = useState(false);
+  const [page, setPage] = useState(0);
+
+  const totalPages = Math.max(1, Math.ceil(column.cards.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages - 1);
+  const visibleCards = column.cards.slice(safePage * PAGE_SIZE, (safePage + 1) * PAGE_SIZE);
+  const hasPagination = column.cards.length > PAGE_SIZE;
 
   const isFromSalesAdmin = column.title === "From Sales Admin";
   const isClosingSurvey = column.title === "Closing Survey";
@@ -360,13 +368,37 @@ function KanbanColumnComp({
                 snapshot.isDraggingOver ? "bg-primary/5" : ""
               }`}
             >
-              {column.cards.map((card, index) => (
+              {visibleCards.map((card, index) => (
                 <KanbanCardComp key={card.id} card={card} index={index} onEdit={onCardEdit} />
               ))}
               {provided.placeholder}
             </div>
           )}
         </Droppable>
+
+        {/* Pagination */}
+        {hasPagination && (
+          <div className="flex items-center justify-between px-2 py-1 border-t bg-white/60">
+            <button
+              onClick={() => setPage((p) => Math.max(0, p - 1))}
+              disabled={safePage === 0}
+              className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
+            >
+              <ChevronLeft className="h-3.5 w-3.5" />
+            </button>
+            <span className="text-[11px] text-muted-foreground">
+              {safePage + 1} / {totalPages}
+              <span className="text-muted-foreground/60 ml-1">({column.cards.length} card)</span>
+            </span>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages - 1, p + 1))}
+              disabled={safePage >= totalPages - 1}
+              className="p-0.5 rounded hover:bg-muted disabled:opacity-30"
+            >
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
 
         {/* Add Card - outside Droppable to prevent dnd event interference */}
         <div className="p-2 pt-0">

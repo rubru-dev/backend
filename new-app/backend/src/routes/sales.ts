@@ -196,6 +196,18 @@ router.delete("/kanban/columns/:id", async (req: Request, res: Response) => {
   return res.json({ message: "Kolom dihapus" });
 });
 
+// POST /kanban/columns/reorder — update urutan semua kolom sekaligus
+router.post("/kanban/columns/reorder", async (req: Request, res: Response) => {
+  const { column_ids } = req.body as { column_ids: number[] };
+  if (!Array.isArray(column_ids)) return res.status(400).json({ detail: "column_ids harus array" });
+  await Promise.all(
+    column_ids.map((id, idx) =>
+      prisma.salesKanbanColumn.update({ where: { id: BigInt(id) }, data: { urutan: idx } })
+    )
+  );
+  return res.json({ message: "Urutan kolom diperbarui" });
+});
+
 // POST /kanban/carryover — carry permanent column cards from prev month into the requested month
 router.post("/kanban/carryover", async (req: Request, res: Response) => {
   const { month, year } = req.body as { month: number; year: number };
