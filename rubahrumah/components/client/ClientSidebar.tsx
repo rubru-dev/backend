@@ -1,7 +1,8 @@
 "use client";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import Logo from "@/components/ui/Logo";
+import Image from "next/image";
+import { usePathname, useRouter } from "next/navigation";
+import { clearAuth } from "@/lib/apiClient";
 
 const mainMenu = [
   {
@@ -62,7 +63,7 @@ const mainMenu = [
   },
   {
     href: "/monitoring",
-    label: "Monitoring Live",
+    label: "Pantau Online",
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <rect x="2" y="4" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5"/>
@@ -77,22 +78,22 @@ const mainMenu = [
 
 const otherMenu = [
   {
+    href: "/tiket",
+    label: "Tiket",
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+        <path d="M3 6a2 2 0 012-2h10a2 2 0 012 2v2a2 2 0 000 4v2a2 2 0 01-2 2H5a2 2 0 01-2-2v-2a2 2 0 000-4V6z" stroke="currentColor" strokeWidth="1.5"/>
+        <path d="M8 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+      </svg>
+    ),
+  },
+  {
     href: "/kontak",
     label: "Kontak Bantuan",
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <path d="M4 4.5C4 3.7 4.7 3 5.5 3h9C15.3 3 16 3.7 16 4.5v11l-3-2H5.5C4.7 13.5 4 12.8 4 12V4.5z" stroke="currentColor" strokeWidth="1.5"/>
         <path d="M7 7.5h6M7 10h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-      </svg>
-    ),
-  },
-  {
-    href: "/login",
-    label: "Keluar Akun",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <path d="M13 10H5m8 0l-3-3m3 3l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-        <path d="M10 4H15a1 1 0 011 1v10a1 1 0 01-1 1H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
       </svg>
     ),
   },
@@ -105,7 +106,13 @@ interface Props {
 
 export default function ClientSidebar({ isOpen, onClose }: Props) {
   const pathname = usePathname();
+  const router = useRouter();
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + "/");
+
+  function handleLogout() {
+    clearAuth();
+    router.push("/login");
+  }
 
   return (
     <aside
@@ -115,7 +122,14 @@ export default function ClientSidebar({ isOpen, onClose }: Props) {
     >
       {/* Logo row */}
       <div className="h-16 flex items-center justify-between px-5 border-b border-slate-100 shrink-0">
-        <Logo size="md" />
+        <Image
+          src="/images/logo.png"
+          alt="RubahRumah"
+          width={120}
+          height={36}
+          className="object-contain h-9 w-auto"
+          priority
+        />
         {/* Close button — mobile only */}
         <button
           onClick={onClose}
@@ -155,7 +169,7 @@ export default function ClientSidebar({ isOpen, onClose }: Props) {
           Lainnya
         </p>
         {otherMenu.map((item) => {
-          const active = isActive(item.href) && item.href !== "/login";
+          const active = isActive(item.href);
           return (
             <Link
               key={item.href}
@@ -172,6 +186,19 @@ export default function ClientSidebar({ isOpen, onClose }: Props) {
             </Link>
           );
         })}
+
+        <button
+          onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+        >
+          <span className="text-slate-400">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <path d="M13 10H5m8 0l-3-3m3 3l-3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <path d="M10 4H15a1 1 0 011 1v10a1 1 0 01-1 1H10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </span>
+          Keluar Akun
+        </button>
       </nav>
     </aside>
   );

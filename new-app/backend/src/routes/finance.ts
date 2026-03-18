@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
+import { sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
 
 const router = Router();
 
@@ -764,7 +765,6 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
     where: search ? { nama: { contains: search, mode: "insensitive" } } : {},
     select: { id: true, nama: true, jenis: true, nomor_telepon: true, alamat: true },
     orderBy: { nama: "asc" },
-    take: 100,
   });
   return res.json({ items: leads });
 });
@@ -857,6 +857,10 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
     },
     include: { lead: true, items: true, head_finance: true, admin_finance: true, bank_account: true },
   });
+  const clientName = (inv as any).lead?.nama ?? "—";
+  const totalAmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(inv.grand_total));
+  const invoiceMsg = `🧾 *Invoice Baru Dibuat*\n\nInvoice untuk klien: *${clientName}*\nNomor: ${inv.invoice_number}\nTotal: ${totalAmt}\n\nSilakan review dan tanda tangani.\n\n🔗 ${FRONTEND_URL}/finance/invoices`;
+  sendFonntToRoles(["Admin Finance", "Head Finance"], invoiceMsg).catch(() => {});
   return res.status(201).json(invoiceDictFrontend(inv));
 });
 
@@ -1125,6 +1129,10 @@ router.post("/reimburse", async (req: Request, res: Response) => {
     },
     include: REIMBURSE_INCLUDE,
   });
+  const submitterName = req.user!.name;
+  const reimburseAmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(total);
+  const reimburseMsg = `💸 *Pengajuan Reimburse Baru*\n\nDiajukan oleh: *${submitterName}*\nKategori: ${kategori || "—"}\nTotal: ${reimburseAmt}\n\nSilakan review dan setujui.\n\n🔗 ${FRONTEND_URL}/finance/reimburse`;
+  sendFonntToRoles(["Admin Finance"], reimburseMsg).catch(() => {});
   return res.status(201).json(reimburseDict(reimburse));
 });
 
@@ -1542,6 +1550,8 @@ router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
     },
     include: { items: true },
   });
+  const prMsg = `📋 *Purchase Request Baru*\n\nNomor PR: *${nomor_pr}*\nToko: ${nama_toko || "—"}\n\nSilakan review dan tanda tangani.\n\n🔗 ${FRONTEND_URL}/finance/adm-projek`;
+  sendFonntToRoles(["Head Finance", "Admin Finance"], prMsg).catch(() => {});
   return res.json({ message: "PR dibuat", data: pr });
 });
 
@@ -2591,7 +2601,10 @@ router.post("/tukang-absen/:project_id/submit", async (req: Request, res: Respon
   const userId = req.user!.id;
   const { foto, tanggal } = req.body;
   if (!foto) return res.status(400).json({ detail: "Foto wajib diisi" });
-  const tukang = await prisma.tukangRegistry.findFirst({ where: { adm_finance_project_id: pid, user_id: userId } });
+  const tukang = await prisma.tukangRegistry.findFirst({
+    where: { adm_finance_project_id: pid, user_id: userId },
+    include: { adm_finance_project: { select: { nama_project: true } } } as any,
+  });
   if (!tukang) return res.status(403).json({ detail: "Anda tidak terdaftar sebagai tukang di proyek ini" });
   const absenDate = tanggal ? new Date(tanggal) : new Date();
   const p = await prisma.tukangAbsenFoto.create({
@@ -2604,6 +2617,11 @@ router.post("/tukang-absen/:project_id/submit", async (req: Request, res: Respon
       created_by: userId,
     },
   });
+  const tukangName = tukang.nama;
+  const projectName = (tukang as any).adm_finance_project?.nama_project ?? "—";
+  const absenDateStr = absenDate.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+  const absenMsg = `📸 *Absen Tukang Baru*\n\nTukang: *${tukangName}*\nProyek: ${projectName}\nTanggal: ${absenDateStr}\n\nSilakan review dan setujui foto absen.\n\n🔗 ${FRONTEND_URL}/finance/adm-projek`;
+  sendFonntToRoles(["Admin Finance"], absenMsg).catch(() => {});
   return res.status(201).json({ id: p.id });
 });
 

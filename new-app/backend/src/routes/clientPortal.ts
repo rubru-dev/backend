@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 
 import { verifyPassword, createClientPortalToken } from "../lib/security";
 import { authenticateClientPortal } from "../middleware/auth";
+import { sendFonnte } from "../lib/fontee";
 
 const router = Router();
 
@@ -313,6 +314,24 @@ router.get("/monitoring", async (req: Request, res: Response) => {
 });
 
 // ── GET /kontak ───────────────────────────────────────────────────────────────
+// POST /tiket — klien kirim pesan/tiket ke PIC via Fontee
+router.post("/tiket", async (req: Request, res: Response) => {
+  const projectId = req.clientPortal!.projectId;
+  const { whatsapp_target, nama_pic, pesan } = req.body;
+  if (!whatsapp_target || !pesan) {
+    return res.status(400).json({ detail: "whatsapp_target dan pesan wajib diisi" });
+  }
+  const project = await prisma.clientPortalProject.findUnique({
+    where: { id: projectId },
+    select: { nama_proyek: true, klien: true },
+  });
+  const clientName = project?.klien ?? project?.nama_proyek ?? "Klien";
+  const projectName = project?.nama_proyek ?? "—";
+  const msg = `🎫 *Tiket dari Klien*\n\nKlien: *${clientName}*\nProyek: ${projectName}\nKepada: ${nama_pic || "PIC"}\n\n${pesan}`;
+  await sendFonnte(whatsapp_target, msg);
+  return res.json({ message: "Pesan berhasil dikirim" });
+});
+
 router.get("/kontak", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const items = await prisma.clientPortalKontak.findMany({

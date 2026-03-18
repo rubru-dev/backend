@@ -90,4 +90,7 @@ export const portalApi = {
   kontak: () => apiFetch("/kontak"),
 
   monitoring: () => apiFetch("/monitoring"),
+
+  tiket: (data: { whatsapp_target: string; nama_pic: string; pesan: string }) =>
+    apiFetch("/tiket", { method: "POST", body: JSON.stringify(data) }),
 };

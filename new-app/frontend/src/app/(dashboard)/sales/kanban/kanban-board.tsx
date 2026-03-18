@@ -34,7 +34,7 @@ import { salesKanbanApi } from "@/lib/api/kanban";
 import type { KanbanColumn, KanbanCard } from "@/types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const PERMANENT_COLUMNS = ["Follow Up Admin", "Follow Up Telemarketing", "Closing", "Lost"];
+const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing", "Lost"];
 
 const MONTHS = [
   "Januari","Februari","Maret","April","Mei","Juni",

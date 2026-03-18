@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
+import { sendFonnte, FRONTEND_URL } from "../lib/fontee";
 
 const router = Router();
 
@@ -212,10 +213,10 @@ router.delete("/follow-up/:id", async (req: Request, res: Response) => {
 
 // ── META ADS ──────────────────────────────────────────────────────────────────
 
-// GET /bd/meta-ads/campaigns-select — minimal list for lead form sumber dropdown
+// GET /bd/meta-ads/campaigns-select — minimal list for lead form sumber dropdown (only visible campaigns)
 router.get("/meta-ads/campaigns-select", async (_req: Request, res: Response) => {
   const camps = await prisma.metaAdsCampaign.findMany({
-    where: { status: "aktif" },
+    where: { is_hidden: false },
     select: { id: true, campaign_name: true, platform: true, _count: { select: { leads: true } } },
     orderBy: { created_at: "desc" },
   });
@@ -297,6 +298,23 @@ function parseCPR(cpr: MetaCostPerResult): number {
 
 // inline_link_clicks = "Klik Tautan" as shown in Meta Ads Manager (excludes likes/shares/profile clicks)
 const META_FIELDS = "campaign_id,spend,impressions,reach,inline_link_clicks,inline_link_click_ctr,frequency,cost_per_result,cpc,actions";
+const META_ACCOUNT_FIELDS = "spend,impressions,reach,inline_link_clicks,inline_link_click_ctr,cpc,cost_per_result,actions";
+
+// Fetch account-level aggregated totals from Meta (no level grouping)
+async function fetchMetaAccountTotals(
+  token: string, adAccountId: string, since: string, until: string,
+): Promise<MetaInsightRow | null> {
+  const act = adAccountId.startsWith("act_") ? adAccountId : `act_${adAccountId}`;
+  const url = new URL(`https://graph.facebook.com/v19.0/${act}/insights`);
+  url.searchParams.set("fields", META_ACCOUNT_FIELDS);
+  url.searchParams.set("level", "account");
+  url.searchParams.set("time_range", JSON.stringify({ since, until }));
+  url.searchParams.set("access_token", token);
+  const resp = await fetch(url.toString());
+  const json = await resp.json() as { data?: MetaInsightRow[]; error?: { message: string } };
+  if (json.error) throw new Error(`Meta API: ${json.error.message}`);
+  return json.data?.[0] ?? null;
+}
 
 // Fetch aggregate (no time_increment) — accurate reach/result totals per campaign
 async function fetchMetaAggregate(
@@ -705,7 +723,11 @@ router.get("/meta-ads/dashboard", async (req: Request, res: Response) => {
         ? camps.find((c) => c.id === BigInt(campaign_id as string))?.meta_campaign_id ?? undefined
         : undefined;
 
-      const aggRows = await fetchMetaAggregate(metaAccount.access_token, metaAccount.ad_account_id, since, until, filterCampId ?? undefined);
+      const [aggRows, accountTotals] = await Promise.all([
+        fetchMetaAggregate(metaAccount.access_token, metaAccount.ad_account_id, since, until, filterCampId ?? undefined),
+        // Only fetch account-level totals when not filtering by specific campaign
+        !filterCampId ? fetchMetaAccountTotals(metaAccount.access_token, metaAccount.ad_account_id, since, until) : Promise.resolve(null),
+      ]);
 
       // Key aggregate rows by campaign_id (each row = one campaign aggregate)
       const apiAgg: Record<string, MetaInsightRow> = {};
@@ -730,13 +752,25 @@ router.get("/meta-ads/dashboard", async (req: Request, res: Response) => {
         };
       });
 
-      const totalImpressions = campaigns.reduce((s, c) => s + c.total_impressions, 0);
-      const totalClicks = campaigns.reduce((s, c) => s + c.total_clicks, 0);
-      const totalSpend = campaigns.reduce((s, c) => s + c.total_spend, 0);
-      const totalReach = campaigns.reduce((s, c) => s + c.total_reach, 0);
+      // Use account-level totals from Meta API directly for accuracy (Total Klik & CPC)
+      const totalClicks = accountTotals
+        ? parseInt(accountTotals.inline_link_clicks ?? "0")
+        : campaigns.reduce((s, c) => s + c.total_clicks, 0);
+      const totalSpend = accountTotals
+        ? parseFloat(accountTotals.spend ?? "0")
+        : campaigns.reduce((s, c) => s + c.total_spend, 0);
+      const totalImpressions = accountTotals
+        ? parseInt(accountTotals.impressions ?? "0")
+        : campaigns.reduce((s, c) => s + c.total_impressions, 0);
+      const totalReach = accountTotals
+        ? parseInt(accountTotals.reach ?? "0")
+        : campaigns.reduce((s, c) => s + c.total_reach, 0);
       const totalResult = campaigns.reduce((s, c) => s + c.total_result, 0);
       const cpm = totalImpressions > 0 ? (totalSpend / totalImpressions) * 1000 : 0;
-      const cpc = totalClicks > 0 ? totalSpend / totalClicks : 0;
+      // Use Meta's own CPC field directly
+      const cpc = accountTotals
+        ? (parseFloat(accountTotals.cpc ?? "0") || (totalClicks > 0 ? totalSpend / totalClicks : 0))
+        : (totalClicks > 0 ? totalSpend / totalClicks : 0);
       // CPL dari data campaign Meta (cost_per_result per campaign) → total_spend / total_result
       const cpl_meta = totalResult > 0 ? totalSpend / totalResult : 0;
 
@@ -1552,7 +1586,42 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   if (b.survey_approval_status !== undefined) updates.survey_approval_status = b.survey_approval_status;
   if (b.jam_survey !== undefined) updates.jam_survey = b.jam_survey;
   if (b.projection !== undefined) updates.projection = b.projection;
-  await prisma.lead.update({ where: { id }, data: updates });
+  const updatedLead = await prisma.lead.update({ where: { id }, data: updates, select: { id: true, nama: true, bulan: true, tahun: true, tanggal_survey: true } });
+
+  // Auto-add ke Kanban jika projection diisi/berubah
+  if (b.projection && (modul === "sales-admin" || modul === "telemarketing")) {
+    const now = new Date();
+    const bln = updatedLead.bulan != null ? updatedLead.bulan : now.getMonth() + 1;
+    const thn = updatedLead.tahun != null ? updatedLead.tahun : now.getFullYear();
+    if (modul === "sales-admin") {
+      const col = await prisma.adminKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
+      if (col) {
+        const exists = await prisma.adminKanbanCard.findFirst({ where: { column_id: col.id, lead_id: updatedLead.id } });
+        if (!exists) {
+          await prisma.adminKanbanCard.create({ data: { column_id: col.id, title: updatedLead.nama, lead_id: updatedLead.id, urutan: 0 } });
+        }
+      }
+    } else {
+      const col = await prisma.telemarketingKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
+      if (col) {
+        const exists = await prisma.telemarketingKanbanCard.findFirst({ where: { column_id: col.id, lead_id: updatedLead.id } });
+        if (!exists) {
+          await prisma.telemarketingKanbanCard.create({ data: { column_id: col.id, title: updatedLead.nama, lead_id: updatedLead.id, urutan: 0 } });
+        }
+      }
+    }
+  }
+
+  // Notify PIC via WhatsApp if survey and pic_survey both set in this update
+  if (b.pic_survey && b.tanggal_survey) {
+    const picUser = await prisma.user.findFirst({ where: { name: b.pic_survey }, select: { whatsapp_number: true } });
+    if (picUser?.whatsapp_number) {
+      const calendarPath = modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
+      const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${updatedLead.nama}\n*Tanggal:* ${b.tanggal_survey}\n*Jam:* ${b.jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
+      sendFonnte(picUser.whatsapp_number, msg).catch(() => {});
+    }
+  }
+
   return res.json({ message: "Lead berhasil diupdate" });
 });
 
@@ -1682,6 +1751,18 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
   if (jam_survey !== undefined) updates.jam_survey = jam_survey;
   if (pic_survey !== undefined) updates.pic_survey = pic_survey;
   await prisma.lead.update({ where: { id }, data: updates });
+
+  // Notify PIC via WhatsApp when survey is assigned
+  if (pic_survey && tanggal_survey) {
+    const picUser = await prisma.user.findFirst({ where: { name: pic_survey }, select: { whatsapp_number: true } });
+    if (picUser?.whatsapp_number) {
+      const modul = req.params.modul;
+      const calendarPath = modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
+      const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${lead.nama}\n*Tanggal:* ${tanggal_survey}\n*Jam:* ${jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
+      sendFonnte(picUser.whatsapp_number, msg).catch(() => {});
+    }
+  }
+
   return res.json({ message: "Jadwal survey diupdate" });
 });
 

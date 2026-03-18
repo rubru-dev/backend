@@ -1,18 +1,6 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
-import axios from "axios";
-
-async function sendFonnte(target: string, message: string) {
-  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
-  const cfg = (setting?.value as Record<string, string> | null) ?? {};
-  if (!cfg.api_key || !cfg.base_url) return;
-  try {
-    await axios.post(cfg.base_url, { target, message, countryCode: "62" }, {
-      headers: { "Authorization": cfg.api_key, "Content-Type": "application/json" },
-      timeout: 8000,
-    });
-  } catch { /* fire-and-forget, don't block notification */ }
-}
+import { sendFonnte, FRONTEND_URL } from "../lib/fontee";
 
 const router = Router();
 
@@ -70,7 +58,7 @@ router.post("/send", async (req: Request, res: Response) => {
   });
 
   // Also send via Fonnte WA to recipients who have a whatsapp_number
-  const waMessage = `*Pesan dari ${senderName}:*\n${message}`;
+  const waMessage = `*Pesan dari ${senderName}:*\n${message}\n\n🔗 Buka Dashboard: ${FRONTEND_URL}/dashboard`;
   let waSent = 0;
   for (const r of recipients) {
     if (r.whatsapp_number) {

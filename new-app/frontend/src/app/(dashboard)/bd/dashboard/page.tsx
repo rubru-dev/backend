@@ -49,6 +49,20 @@ const CHART_METRICS = [
   { value: "cpc", label: "CPC", color: "#f97316" },
 ];
 
+const LEADS_METRICS = [
+  { value: "total_leads", label: "Total Leads", color: "#6366f1" },
+  { value: "hot_leads", label: "Hot Leads", color: "#ef4444" },
+  { value: "medium_leads", label: "Medium Leads", color: "#f59e0b" },
+  { value: "low_leads", label: "Low Leads", color: "#94a3b8" },
+  { value: "survey_count", label: "Survey Terjadwal", color: "#3b82f6" },
+  { value: "paid_conversions", label: "Paid Conversions", color: "#10b981" },
+];
+
+const ALL_COMPARE_METRICS = [
+  ...CHART_METRICS,
+  ...LEADS_METRICS,
+];
+
 function StatCard({
   label, value, numericValue, icon: Icon, color, sub, target, targetLabel,
 }: {
@@ -99,6 +113,8 @@ export default function BdDashboardPage() {
   const [pdfLoading, setPdfLoading] = useState(false);
   const [metricA, setMetricA] = useState("spend");
   const [metricB, setMetricB] = useState("clicks");
+  const [compareX, setCompareX] = useState("spend");
+  const [compareY, setCompareY] = useState("total_leads");
 
   const years = [now.getFullYear(), now.getFullYear() - 1];
 
@@ -182,6 +198,34 @@ export default function BdDashboardPage() {
 
   const metricADef = CHART_METRICS.find((m) => m.value === metricA)!;
   const metricBDef = CHART_METRICS.find((m) => m.value === metricB)!;
+
+  const compareXDef = ALL_COMPARE_METRICS.find((m) => m.value === compareX)!;
+  const compareYDef = ALL_COMPARE_METRICS.find((m) => m.value === compareY)!;
+
+  // Iklan vs Leads comparison — per campaign data point
+  const compareChartData = useMemo(() => {
+    const leadsSnapshot = {
+      total_leads: adsDash?.total_leads_db ?? 0,
+      hot_leads: adsDash?.hot_leads ?? 0,
+      medium_leads: adsDash?.medium_leads ?? 0,
+      low_leads: adsDash?.low_leads ?? 0,
+      survey_count: adsDash?.survey_count ?? 0,
+      paid_conversions: adsDash?.paid_conversions ?? 0,
+    };
+    return (adsDash?.campaigns ?? []).map((c) => ({
+      name: (c.campaign_name ?? "").slice(0, 20),
+      spend: c.total_spend,
+      impressions: c.total_impressions,
+      reach: (c as any).total_reach ?? 0,
+      clicks: c.total_clicks,
+      ctr: Number(((c as any).avg_ctr ?? 0).toFixed(2)),
+      conversions: (c as any).total_result ?? 0,
+      cpm: (c as any).cpm ?? 0,
+      cpc: (c as any).cpc ?? 0,
+      // leads metrics use aggregate values (not per campaign in DB)
+      ...leadsSnapshot,
+    }));
+  }, [adsDash]);
 
   const selectedCampaign = allCampaigns.find((c) => String(c.id) === campaignId);
   const platformLabel = PLATFORMS.find((p) => p.value === platform)?.label ?? "Iklan";
@@ -408,17 +452,17 @@ h1{font-size:16px;margin-bottom:4px;}
           <CardHeader>
             <CardTitle className="text-base flex items-center justify-between flex-wrap gap-3">
               <span className="flex items-center gap-2">
-                <BarChart2 className="h-4 w-4" /> Perbandingan Metrik
+                <BarChart2 className="h-4 w-4" /> Perbandingan Metrik Iklan
               </span>
-              <div className="flex items-center gap-2">
-                <Label className="text-xs whitespace-nowrap">Metrik A:</Label>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Label className="text-xs whitespace-nowrap">Sumbu Kiri (Y):</Label>
                 <Select value={metricA} onValueChange={setMetricA}>
                   <SelectTrigger className="h-7 w-40 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     {CHART_METRICS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
                   </SelectContent>
                 </Select>
-                <Label className="text-xs whitespace-nowrap">Metrik B:</Label>
+                <Label className="text-xs whitespace-nowrap">Sumbu Kanan (Y2):</Label>
                 <Select value={metricB} onValueChange={setMetricB}>
                   <SelectTrigger className="h-7 w-40 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -427,20 +471,73 @@ h1{font-size:16px;margin-bottom:4px;}
                 </Select>
               </div>
             </CardTitle>
+            <p className="text-xs text-muted-foreground">Sumbu X: Waktu/Postingan · Garis Penuh = {metricADef.label} · Garis Putus = {metricBDef.label}</p>
           </CardHeader>
           <CardContent>
             <ResponsiveContainer width="100%" height={280}>
               <LineChart data={chartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 10 }} label={{ value: metricADef.label, angle: -90, position: "insideLeft", style: { fontSize: 9 } }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} label={{ value: metricBDef.label, angle: 90, position: "insideRight", style: { fontSize: 9 } }} />
                 <Tooltip />
                 <Legend />
                 <Line yAxisId="left" type="monotone" dataKey={metricA} name={metricADef.label}
                   stroke={metricADef.color} dot={false} strokeWidth={2} />
                 <Line yAxisId="right" type="monotone" dataKey={metricB} name={metricBDef.label}
                   stroke={metricBDef.color} dot={false} strokeWidth={2} strokeDasharray="5 5" />
+              </LineChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ── Metriks Iklan vs Metriks Leads Comparison Chart ──────────────────── */}
+      {compareChartData.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between flex-wrap gap-3">
+              <span className="flex items-center gap-2">
+                <BarChart2 className="h-4 w-4" /> Perbandingan Metriks Iklan vs Metriks Leads
+              </span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Label className="text-xs whitespace-nowrap">Sumbu Kiri (Y):</Label>
+                <Select value={compareX} onValueChange={setCompareX}>
+                  <SelectTrigger className="h-7 w-44 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__group_ads" disabled className="text-xs text-muted-foreground font-semibold">— Metriks Iklan —</SelectItem>
+                    {CHART_METRICS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    <SelectItem value="__group_leads" disabled className="text-xs text-muted-foreground font-semibold">— Metriks Leads —</SelectItem>
+                    {LEADS_METRICS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Label className="text-xs whitespace-nowrap">Sumbu Kanan (Y2):</Label>
+                <Select value={compareY} onValueChange={setCompareY}>
+                  <SelectTrigger className="h-7 w-44 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__group_ads" disabled className="text-xs text-muted-foreground font-semibold">— Metriks Iklan —</SelectItem>
+                    {CHART_METRICS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    <SelectItem value="__group_leads" disabled className="text-xs text-muted-foreground font-semibold">— Metriks Leads —</SelectItem>
+                    {LEADS_METRICS.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </CardTitle>
+            <p className="text-xs text-muted-foreground">Sumbu X: Per Postingan Iklan · Garis Penuh = {compareXDef?.label} · Garis Putus = {compareYDef?.label}</p>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={280}>
+              <LineChart data={compareChartData}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                <XAxis dataKey="name" tick={{ fontSize: 10 }} />
+                <YAxis yAxisId="left" tick={{ fontSize: 10 }} label={{ value: compareXDef?.label, angle: -90, position: "insideLeft", style: { fontSize: 9 } }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} label={{ value: compareYDef?.label, angle: 90, position: "insideRight", style: { fontSize: 9 } }} />
+                <Tooltip />
+                <Legend />
+                <Line yAxisId="left" type="monotone" dataKey={compareX} name={compareXDef?.label}
+                  stroke={compareXDef?.color} dot={false} strokeWidth={2} />
+                <Line yAxisId="right" type="monotone" dataKey={compareY} name={compareYDef?.label}
+                  stroke={compareYDef?.color} dot={false} strokeWidth={2} strokeDasharray="5 5" />
               </LineChart>
             </ResponsiveContainer>
           </CardContent>

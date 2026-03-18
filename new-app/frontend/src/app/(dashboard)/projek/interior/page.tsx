@@ -40,6 +40,7 @@ export default function ProyekInteriorListPage() {
   const [editProjek, setEditProjek] = useState<Projek | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [leadSearch, setLeadSearch] = useState("");
 
   const { data: projeks = [], isLoading } = useQuery<Projek[]>({
     queryKey: ["interior-projeks"],
@@ -216,7 +217,7 @@ export default function ProyekInteriorListPage() {
       </Table>
 
       {/* Create/Edit Dialog */}
-      <Dialog open={dialog} onOpenChange={(v) => { setDialog(v); if (!v) { setEditProjek(null); setForm(EMPTY_FORM); } }}>
+      <Dialog open={dialog} onOpenChange={(v) => { setDialog(v); if (!v) { setEditProjek(null); setForm(EMPTY_FORM); setLeadSearch(""); } }}>
         <DialogContent className="max-w-lg">
           <DialogHeader><DialogTitle>{editProjek ? "Edit Proyek Interior" : "Tambah Proyek Interior"}</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-1">
@@ -229,8 +230,11 @@ export default function ProyekInteriorListPage() {
               <Select value={form.lead_id || "__none__"} onValueChange={(v) => setForm({ ...form, lead_id: v === "__none__" ? "" : v })}>
                 <SelectTrigger><SelectValue placeholder="Pilih klien (opsional)" /></SelectTrigger>
                 <SelectContent>
+                  <div className="p-2">
+                    <Input placeholder="Cari nama klien..." value={leadSearch} onChange={(e) => setLeadSearch(e.target.value)} className="h-8 text-sm" />
+                  </div>
                   <SelectItem value="__none__">— Tanpa klien —</SelectItem>
-                  {(leads as any[]).map((l: any) => <SelectItem key={l.id} value={String(l.id)}>{l.nama}</SelectItem>)}
+                  {(leads as any[]).filter((l: any) => !leadSearch || l.nama?.toLowerCase().includes(leadSearch.toLowerCase())).map((l: any) => <SelectItem key={l.id} value={String(l.id)}>{l.nama}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

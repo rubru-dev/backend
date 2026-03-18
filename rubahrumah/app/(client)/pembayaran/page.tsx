@@ -78,15 +78,6 @@ export default function PembayaranPage() {
 
       <h2 className="text-base font-semibold text-slate-700 mb-3">Daftar Pembayaran</h2>
 
-      {/* Info banner */}
-      <div className="flex items-start gap-2 bg-blue-50 border border-blue-100 text-blue-600 text-sm px-4 py-3 rounded-xl mb-5">
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0 mt-0.5">
-          <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5"/>
-          <path d="M8 6v4M8 5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        </svg>
-        <span>Retensi akan dibayarkan saat proyek selesai sebagai jaminan hasil kerja.</span>
-      </div>
-
       {payments.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center text-slate-400">
           Belum ada data pembayaran

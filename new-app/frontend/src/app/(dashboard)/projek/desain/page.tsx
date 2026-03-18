@@ -403,6 +403,7 @@ export default function ProyekDesainPage() {
   const [editTl, setEditTl] = useState<DesainTimeline | null>(null);
   const [tlForm, setTlForm] = useState(EMPTY_TIMELINE);
   const [confirmDeleteTl, setConfirmDeleteTl] = useState<string | null>(null);
+  const [leadSearch, setLeadSearch] = useState("");
 
   const [itemDialog, setItemDialog] = useState(false);
   const [editItem, setEditItem] = useState<DesainItem | null>(null);
@@ -1206,8 +1207,11 @@ export default function ProyekDesainPage() {
                   <SelectValue placeholder="Pilih klien (opsional)" />
                 </SelectTrigger>
                 <SelectContent>
+                  <div className="p-2">
+                    <Input placeholder="Cari nama klien..." value={leadSearch} onChange={(e) => setLeadSearch(e.target.value)} className="h-8 text-sm" />
+                  </div>
                   <SelectItem value="__none__">— Tanpa klien —</SelectItem>
-                  {(leads as any[]).map((l: any) => (
+                  {(leads as any[]).filter((l: any) => !leadSearch || l.nama?.toLowerCase().includes(leadSearch.toLowerCase())).map((l: any) => (
                     <SelectItem key={l.id} value={String(l.id)}>
                       {l.nama}
                     </SelectItem>

@@ -132,11 +132,13 @@ async function getSalesBoard() {
   });
 }
 
-const PERMANENT_COLUMNS = ["Follow Up Admin", "Follow Up Telemarketing", "Closing", "Lost"];
+const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing", "Lost"];
 
 const PERMANENT_COLUMN_COLORS: Record<string, string> = {
-  "Follow Up Admin": "#dbeafe",
-  "Follow Up Telemarketing": "#dcfce7",
+  "W1": "#dbeafe",
+  "W2": "#dcfce7",
+  "W3": "#fef9c3",
+  "W4": "#ffedd5",
   "Closing": "#d1fae5",
   "Lost": "#fee2e2",
 };

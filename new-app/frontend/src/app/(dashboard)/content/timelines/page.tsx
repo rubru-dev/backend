@@ -325,13 +325,13 @@ function KalenderTimeline({
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {onDelete && item[statusKey] === "pending" && (
+                    {onDelete && (item[statusKey] === "pending" || isSuperAdmin) && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => onDelete(item.id)}>
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
                     )}
                     {/* Set/Change upload date — for upload calendar */}
-                    {onSetUploadDate && item.upload_status !== null && item.upload_status !== "approved" && (
+                    {onSetUploadDate && item.upload_status !== null && (item.upload_status !== "approved" || isSuperAdmin) && (
                       <Button
                         size="sm"
                         variant="outline"
@@ -738,6 +738,7 @@ export default function ContentTimelinePage() {
             isSuperAdmin={isSuperAdmin}
             onApprove={(id) => approveMut.mutate({ id, stage: "produksi" })}
             onRevisi={(item) => { setRevisiTarget({ item, stage: "produksi" }); setRevisiCatatan(""); }}
+            onDelete={isSuperAdmin ? (id) => setDeleteId(id) : undefined}
             onUploadImage={(item) => { setImageTarget(item); setImagePreview(null); }}
             onResubmit={(id) => resubmitMut.mutate(id)}
             approving={approveMut.isPending}
@@ -768,15 +769,13 @@ export default function ContentTimelinePage() {
                           {item.user && <span className="text-xs text-muted-foreground">oleh {item.user.name}</span>}
                         </div>
                       </div>
-                      {!isSuperAdmin && (
-                        <Button
-                          size="sm"
-                          className="gap-1.5 bg-orange-500 hover:bg-orange-600 text-white shrink-0"
-                          onClick={() => openSetUploadDate(item)}
-                        >
-                          <Upload className="h-3.5 w-3.5" /> Atur Tanggal Upload
-                        </Button>
-                      )}
+                      <Button
+                        size="sm"
+                        className="gap-1.5 bg-orange-500 hover:bg-orange-600 text-white shrink-0"
+                        onClick={() => openSetUploadDate(item)}
+                      >
+                        <Upload className="h-3.5 w-3.5" /> Atur Tanggal Upload
+                      </Button>
                     </div>
                   ))}
                 </div>
@@ -797,7 +796,8 @@ export default function ContentTimelinePage() {
             isSuperAdmin={isSuperAdmin}
             onApprove={(id) => approveMut.mutate({ id, stage: "upload" })}
             onRevisi={(item) => { setRevisiTarget({ item, stage: "upload" }); setRevisiCatatan(""); }}
-            onSetUploadDate={!isSuperAdmin ? openSetUploadDate : undefined}
+            onDelete={(id) => setDeleteId(id)}
+            onSetUploadDate={openSetUploadDate}
             onSignHdBd={(item) => setSigTarget(item)}
             onUploadImage={(item) => { setImageTarget(item); setImagePreview(null); }}
             onResubmit={(id) => resubmitMut.mutate(id)}
