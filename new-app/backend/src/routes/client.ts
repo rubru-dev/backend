@@ -68,6 +68,10 @@ const aktivitasUpload = multer({
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toNum(v: unknown) { return parseFloat(String(v ?? 0)); }
 
+function isSuperAdmin(req: Request) {
+  return req.user?.roles?.some((r: any) => r.role.name === "Super Admin") ?? false;
+}
+
 async function _recalcProgress(projectId: bigint) {
   const [total, selesai] = await Promise.all([
     prisma.clientPortalAktivitas.count({ where: { project_id: projectId } }),
@@ -260,6 +264,36 @@ router.patch("/projects/:id/account", async (req: Request, res: Response) => {
   return res.json({ message: "Akun berhasil diupdate" });
 });
 
+// ── DELETE /projects/:id (Super Admin only) ───────────────────────────────────
+router.delete("/projects/:id", async (req: Request, res: Response) => {
+  if (!isSuperAdmin(req)) {
+    res.status(403).json({ detail: "Hanya Super Admin yang dapat menghapus data klien" });
+    return;
+  }
+  const id = BigInt(req.params.id);
+  const project = await prisma.clientPortalProject.findUnique({
+    where: { id },
+    include: { lead: { select: { id: true } } },
+  });
+  if (!project) { res.status(404).json({ detail: "Project tidak ditemukan" }); return; }
+
+  // Hapus file-file galeri & dokumen fisik
+  const [galeris, dokumens, aktivitas] = await Promise.all([
+    prisma.clientPortalGaleri.findMany({ where: { project_id: id } }),
+    prisma.clientPortalDokumen.findMany({ where: { project_id: id } }),
+    prisma.clientPortalAktivitas.findMany({ where: { project_id: id } }),
+  ]);
+  for (const g of galeris) { if (g.file_path && fs.existsSync(g.file_path)) fs.unlinkSync(g.file_path); }
+  for (const d of dokumens) { if (d.file_path && fs.existsSync(d.file_path)) fs.unlinkSync(d.file_path); }
+  for (const a of aktivitas) { if ((a as any).foto_progress && fs.existsSync((a as any).foto_progress)) fs.unlinkSync((a as any).foto_progress); }
+
+  // Hapus akun portal (berdasarkan lead_id)
+  await prisma.clientPortalAccount.deleteMany({ where: { lead_id: project.lead_id } });
+  // Hapus project (cascade deletes terkait)
+  await prisma.clientPortalProject.delete({ where: { id } });
+  return res.json({ message: "Data klien berhasil dihapus" });
+});
+
 // ── PAYMENTS ──────────────────────────────────────────────────────────────────
 
 router.get("/projects/:id/payments", async (req: Request, res: Response) => {
@@ -338,11 +372,11 @@ router.post("/projects/:id/galeri", galeriUpload.array("foto", 20), async (req: 
   const files = req.files as Express.Multer.File[] | undefined;
   if (!files || files.length === 0) { res.status(400).json({ detail: "File foto wajib diupload" }); return; }
 
-  const created = await Promise.all(files.map((file, idx) =>
+  const created = await Promise.all(files.map((file) =>
     prisma.clientPortalGaleri.create({
       data: {
         project_id: projectId,
-        judul: files.length === 1 ? (judul ?? null) : `${judul ?? "Foto"} (${idx + 1})`,
+        judul: judul ?? null,
         deskripsi: deskripsi ?? null,
         file_path: file.path,
         tanggal_foto: tanggal_foto ? new Date(tanggal_foto) : new Date(),
@@ -372,13 +406,14 @@ router.get("/projects/:id/dokumen", async (req: Request, res: Response) => {
   });
   return res.json(items.map((d) => ({
     ...d,
+    folder_name: d.folder_name ?? null,
     file_url: d.file_path ? `/storage/client-portal/dokumen/${path.basename(d.file_path)}` : null,
   })));
 });
 
 router.post("/projects/:id/dokumen", dokumenUpload.array("file", 20), async (req: Request, res: Response) => {
   const projectId = BigInt(req.params.id);
-  const { nama_file, deskripsi, kategori, tanggal_upload } = req.body;
+  const { nama_file, deskripsi, kategori, folder_name, tanggal_upload } = req.body;
   const files = req.files as Express.Multer.File[] | undefined;
   if (!files || files.length === 0) { res.status(400).json({ detail: "File wajib diupload" }); return; }
 
@@ -387,6 +422,7 @@ router.post("/projects/:id/dokumen", dokumenUpload.array("file", 20), async (req
       data: {
         project_id: projectId,
         nama_file: files.length === 1 ? (nama_file ?? file.originalname) : file.originalname,
+        folder_name: folder_name ?? null,
         deskripsi: deskripsi ?? null,
         kategori: kategori ?? "Umum",
         file_path: file.path,

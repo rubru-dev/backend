@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -308,6 +309,8 @@ export default function RolesPage() {
   const [deleteRole, setDeleteRole] = useState<Role | null>(null);
   const [deleteLoading, setDeleteLoading] = useState(false);
 
+  const [pendingRoleSwitch, setPendingRoleSwitch] = useState<number | null>(null);
+
   const loadRolePermissions = useCallback(async (id: number) => {
     setLoadingPerms(true);
     setIsDirty(false);
@@ -441,7 +444,7 @@ export default function RolesPage() {
                       selectedRoleId === r.id && "bg-orange-50 border-l-[3px] border-l-orange-500"
                     )}
                     onClick={() => {
-                      if (isDirty && !confirm("Ada perubahan yang belum disimpan. Lanjutkan?")) return;
+                      if (isDirty) { setPendingRoleSwitch(r.id); return; }
                       setSelectedRoleId(r.id);
                     }}
                   >
@@ -616,6 +619,16 @@ export default function RolesPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* ── Unsaved Changes Confirm ── */}
+      <ConfirmDialog
+        open={pendingRoleSwitch !== null}
+        onClose={() => setPendingRoleSwitch(null)}
+        onConfirm={() => { setSelectedRoleId(pendingRoleSwitch!); setPendingRoleSwitch(null); setIsDirty(false); }}
+        title="Perubahan Belum Disimpan"
+        description="Ada perubahan permission yang belum disimpan. Jika melanjutkan, perubahan akan hilang."
+        confirmLabel="Lanjutkan"
+      />
 
       {/* ── Delete Confirm ── */}
       <AlertDialog open={!!deleteRole} onOpenChange={(o) => !o && setDeleteRole(null)}>

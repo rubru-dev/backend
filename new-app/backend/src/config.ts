@@ -19,5 +19,6 @@ export const config = {
   metaAdsApiVersion: process.env.META_ADS_API_VERSION ?? "v21.0",
   appUrl: process.env.APP_URL ?? "http://localhost:8000",
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
+  clientUrl: process.env.CLIENT_URL ?? "http://localhost:3001",
   port: parseInt(process.env.PORT ?? "8000"),
 };

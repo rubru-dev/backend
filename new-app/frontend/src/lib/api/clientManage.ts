@@ -6,6 +6,7 @@ export const clientApi = {
   getProject: (id: number) => apiClient.get(`/client/projects/${id}`).then((r) => r.data),
   createProject: (data: any) => apiClient.post("/client/projects", data).then((r) => r.data),
   updateProject: (id: number, data: any) => apiClient.patch(`/client/projects/${id}`, data).then((r) => r.data),
+  deleteProject: (id: number) => apiClient.delete(`/client/projects/${id}`).then((r) => r.data),
   updateAccount: (id: number, data: any) => apiClient.patch(`/client/projects/${id}/account`, data).then((r) => r.data),
   leadsDropdown: () => apiClient.get("/client/leads-dropdown").then((r) => r.data),
   admProjectsDropdown: () => apiClient.get("/client/adm-projects-dropdown").then((r) => r.data),

@@ -182,6 +182,7 @@ router.get("/dokumen", async (req: Request, res: Response) => {
   return res.json(items.map((d) => ({
     id: d.id,
     nama_file: d.nama_file,
+    folder_name: (d as any).folder_name ?? null,
     deskripsi: d.deskripsi,
     kategori: d.kategori,
     file_type: d.file_type,

@@ -2206,6 +2206,7 @@ model ClientPortalDokumen {
   id             BigInt              @id @default(autoincrement())
   project_id     BigInt
   nama_file      String              @db.VarChar(255)
+  folder_name    String?             @db.VarChar(255)
   deskripsi      String?
   kategori       String              @default("Umum") @db.VarChar(50)
   file_path      String?             @db.VarChar(500)

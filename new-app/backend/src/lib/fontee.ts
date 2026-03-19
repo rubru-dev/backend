@@ -40,3 +40,4 @@ export async function sendFonnteToUserIds(userIds: bigint[], message: string) {
 }
 
 export const FRONTEND_URL = config.frontendUrl;
+export const CLIENT_URL = config.clientUrl;

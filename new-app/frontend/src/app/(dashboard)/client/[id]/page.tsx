@@ -16,9 +16,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAuthStore } from "@/store/authStore";
 import {
   ArrowLeft, Plus, Trash2, Pencil, Save, X, Upload, Image as ImageIcon,
   FileText, Calendar, Phone, User, TrendingUp, Users, Eye, Video, Receipt,
+  Folder, FolderOpen, ChevronLeft,
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
@@ -222,6 +225,7 @@ function TabPembayaran({ pid }: { pid: number }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ termin_ke: "", nama_termin: "", tagihan: "", retensi: "", status: "Belum Dibayar", jatuh_tempo: "", tanggal_bayar: "", catatan: "" });
+  const [confirmDel, setConfirmDel] = useState<any>(null);
 
   const { data: items = [], isLoading } = useQuery({ queryKey: ["client-payments", pid], queryFn: () => clientApi.listPayments(pid) });
   const { data: invoices = [], isLoading: loadingInv } = useQuery({ queryKey: ["client-invoices", pid], queryFn: () => clientApi.listInvoices(pid) });
@@ -235,9 +239,9 @@ function TabPembayaran({ pid }: { pid: number }) {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menyimpan"),
   });
 
-  const { mutate: del } = useMutation({
+  const { mutate: del, isPending: deleting } = useMutation({
     mutationFn: (id: number) => clientApi.deletePayment(pid, id),
-    onSuccess: () => { toast.success("Termin dihapus"); qc.invalidateQueries({ queryKey: ["client-payments", pid] }); },
+    onSuccess: () => { toast.success("Termin dihapus"); qc.invalidateQueries({ queryKey: ["client-payments", pid] }); setConfirmDel(null); },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menghapus"),
   });
 
@@ -326,7 +330,7 @@ function TabPembayaran({ pid }: { pid: number }) {
                       <TableCell>
                         <div className="flex gap-1">
                           <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(item)}><Pencil className="w-3 h-3" /></Button>
-                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => { if (confirm("Hapus termin ini?")) del(item.id); }}><Trash2 className="w-3 h-3" /></Button>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => setConfirmDel(item)}><Trash2 className="w-3 h-3" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -367,12 +371,21 @@ function TabPembayaran({ pid }: { pid: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => del(confirmDel?.id)}
+        title="Hapus Termin"
+        description={`Hapus termin "${confirmDel?.nama_termin}"? Tindakan ini tidak dapat dibatalkan.`}
+        loading={deleting}
+      />
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: GALERI (multiple upload)
+// TAB: GALERI — folder view
 // ─────────────────────────────────────────────────────────────────────────────
 function TabGaleri({ pid }: { pid: number }) {
   const qc = useQueryClient();
@@ -380,6 +393,10 @@ function TabGaleri({ pid }: { pid: number }) {
   const [judul, setJudul] = useState("");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [previews, setPreviews] = useState<string[]>([]);
+  const [openFolder, setOpenFolder] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<any>(null);
+  const [confirmDel, setConfirmDel] = useState<any>(null);
+  const [confirmDelFolder, setConfirmDelFolder] = useState<string | null>(null);
 
   const { data: items = [], isLoading } = useQuery({ queryKey: ["client-galeri", pid], queryFn: () => clientApi.listGaleri(pid) });
 
@@ -394,10 +411,24 @@ function TabGaleri({ pid }: { pid: number }) {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal upload"),
   });
 
-  const { mutate: del } = useMutation({
+  const { mutate: del, isPending: deleting } = useMutation({
     mutationFn: (id: number) => clientApi.deleteGaleri(pid, id),
-    onSuccess: () => { toast.success("Foto dihapus"); qc.invalidateQueries({ queryKey: ["client-galeri", pid] }); },
+    onSuccess: () => { toast.success("Foto dihapus"); qc.invalidateQueries({ queryKey: ["client-galeri", pid] }); setConfirmDel(null); },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menghapus"),
+  });
+
+  const { mutate: delFolder, isPending: deletingFolder } = useMutation({
+    mutationFn: async (folderName: string) => {
+      const folderItems = (items as any[]).filter((g) => (g.judul ?? "Tanpa Judul") === folderName);
+      await Promise.all(folderItems.map((g: any) => clientApi.deleteGaleri(pid, g.id)));
+    },
+    onSuccess: () => {
+      toast.success("Folder dihapus");
+      qc.invalidateQueries({ queryKey: ["client-galeri", pid] });
+      setConfirmDelFolder(null);
+      if (openFolder === confirmDelFolder) setOpenFolder(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menghapus folder"),
   });
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -408,22 +439,36 @@ function TabGaleri({ pid }: { pid: number }) {
   function handleUpload() {
     const files = Array.from(fileRef.current?.files ?? []);
     if (files.length === 0) { toast.error("Pilih file terlebih dahulu"); return; }
+    if (!judul.trim()) { toast.error("Judul folder wajib diisi"); return; }
     const fd = new FormData();
     files.forEach((f) => fd.append("foto", f));
-    if (judul) fd.append("judul", judul);
+    fd.append("judul", judul.trim());
     fd.append("tanggal_foto", tanggal);
     upload(fd);
   }
 
+  // Group by judul
+  const folders: Record<string, any[]> = {};
+  for (const item of (items as any[])) {
+    const key = item.judul ?? "Tanpa Judul";
+    if (!folders[key]) folders[key] = [];
+    folders[key].push(item);
+  }
+  const folderNames = Object.keys(folders);
+
+  // If inside a folder
+  const folderItems = openFolder ? (folders[openFolder] ?? []) : [];
+
   return (
     <div className="space-y-5">
+      {/* Upload Form */}
       <Card>
         <CardContent className="pt-4">
-          <h3 className="font-medium text-gray-700 mb-3">Upload Foto (bisa pilih banyak)</h3>
+          <h3 className="font-medium text-gray-700 mb-3">Upload Foto ke Folder Baru</h3>
           <div className="grid grid-cols-3 gap-3 items-end">
             <div>
-              <Label>Judul (opsional)</Label>
-              <Input value={judul} onChange={(e) => setJudul(e.target.value)} placeholder="Progres minggu ini..." />
+              <Label>Judul Folder *</Label>
+              <Input value={judul} onChange={(e) => setJudul(e.target.value)} placeholder="Minggu 1 — Pondasi..." />
             </div>
             <div>
               <Label>Tanggal Foto</Label>
@@ -448,41 +493,134 @@ function TabGaleri({ pid }: { pid: number }) {
       </Card>
 
       {isLoading ? <Skeleton className="h-40" /> : (
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {items.length === 0
-            ? <p className="col-span-4 text-center text-gray-400 py-8">Belum ada foto</p>
-            : items.map((item: any) => (
-              <div key={item.id} className="group relative rounded-xl overflow-hidden border bg-gray-50 aspect-video">
-                {item.file_url
-                  ? <img src={fileUrl(item.file_url) ?? ""} alt={item.judul ?? ""} className="w-full h-full object-cover" />
-                  : <div className="flex items-center justify-center h-full"><ImageIcon className="w-8 h-8 text-gray-300" /></div>
-                }
-                <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
-                  <Button size="icon" variant="destructive" className="h-7 w-7 self-end" onClick={() => { if (confirm("Hapus foto ini?")) del(item.id); }}>
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                  <div>
-                    {item.judul && <p className="text-white text-xs font-medium truncate">{item.judul}</p>}
-                    <p className="text-white/70 text-xs">{fmtDate(item.tanggal_foto)}</p>
-                  </div>
-                </div>
+        <>
+          {/* Inside folder view */}
+          {openFolder ? (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Button variant="ghost" size="sm" onClick={() => setOpenFolder(null)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" />Kembali
+                </Button>
+                <FolderOpen className="w-4 h-4 text-orange-500" />
+                <span className="font-semibold text-gray-800">{openFolder}</span>
+                <span className="text-xs text-gray-400">({folderItems.length} foto)</span>
+                <Button
+                  size="sm" variant="ghost" className="ml-auto text-red-500"
+                  onClick={() => setConfirmDelFolder(openFolder)}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />Hapus Folder
+                </Button>
               </div>
-            ))}
-        </div>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {folderItems.map((item: any) => (
+                  <div key={item.id} className="group relative rounded-xl overflow-hidden border bg-gray-50 aspect-video cursor-pointer" onClick={() => setLightbox(item)}>
+                    {item.file_url
+                      ? <img src={fileUrl(item.file_url) ?? ""} alt={item.judul ?? ""} className="w-full h-full object-cover" />
+                      : <div className="flex items-center justify-center h-full"><ImageIcon className="w-8 h-8 text-gray-300" /></div>
+                    }
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-between p-2">
+                      <Button size="icon" variant="destructive" className="h-7 w-7 self-end" onClick={(e) => { e.stopPropagation(); setConfirmDel(item); }}>
+                        <Trash2 className="w-3 h-3" />
+                      </Button>
+                      <p className="text-white/70 text-xs">{fmtDate(item.tanggal_foto)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            /* Folder grid */
+            folderNames.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">Belum ada foto. Upload foto ke folder baru di atas.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {folderNames.map((name) => {
+                  const folderPhotos = folders[name];
+                  const cover = folderPhotos.find((g) => g.file_url);
+                  return (
+                    <div
+                      key={name}
+                      className="group relative rounded-xl overflow-hidden border bg-gray-50 cursor-pointer hover:shadow-md transition"
+                      onClick={() => setOpenFolder(name)}
+                    >
+                      {/* Cover image */}
+                      <div className="aspect-video bg-gray-100 relative overflow-hidden">
+                        {cover
+                          ? <img src={fileUrl(cover.file_url) ?? ""} alt={name} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition" />
+                          : <div className="flex items-center justify-center h-full"><ImageIcon className="w-10 h-10 text-gray-300" /></div>
+                        }
+                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition" />
+                        <div className="absolute top-2 right-2">
+                          <span className="bg-black/50 text-white text-xs px-2 py-0.5 rounded-full">{folderPhotos.length} foto</span>
+                        </div>
+                      </div>
+                      <div className="p-3 flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <Folder className="w-4 h-4 text-orange-500 shrink-0" />
+                          <span className="text-sm font-medium text-gray-700 truncate">{name}</span>
+                        </div>
+                        <Button
+                          size="icon" variant="ghost" className="h-6 w-6 text-red-400 shrink-0 opacity-0 group-hover:opacity-100 transition"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelFolder(name); }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+        </>
       )}
+
+      {/* Lightbox */}
+      <Dialog open={!!lightbox} onOpenChange={(v) => { if (!v) setLightbox(null); }}>
+        <DialogContent className="max-w-3xl p-2 bg-black/90">
+          {lightbox?.file_url && (
+            <img src={fileUrl(lightbox.file_url) ?? ""} alt={lightbox.judul ?? ""} className="w-full h-auto max-h-[80vh] object-contain rounded-lg" />
+          )}
+          <p className="text-white/70 text-xs text-center mt-1">{fmtDate(lightbox?.tanggal_foto)}</p>
+        </DialogContent>
+      </Dialog>
+
+      {/* Confirm hapus foto */}
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => del(confirmDel?.id)}
+        title="Hapus Foto"
+        description="Hapus foto ini? Tindakan ini tidak dapat dibatalkan."
+        loading={deleting}
+      />
+
+      {/* Confirm hapus folder */}
+      <ConfirmDialog
+        open={!!confirmDelFolder}
+        onClose={() => setConfirmDelFolder(null)}
+        onConfirm={() => delFolder(confirmDelFolder!)}
+        title="Hapus Folder"
+        description={`Hapus folder "${confirmDelFolder}" beserta semua foto di dalamnya? Tindakan ini tidak dapat dibatalkan.`}
+        loading={deletingFolder}
+      />
     </div>
   );
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: DOKUMEN (multiple upload)
+// TAB: DOKUMEN — folder view
 // ─────────────────────────────────────────────────────────────────────────────
 function TabDokumen({ pid }: { pid: number }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const [folderName, setFolderName] = useState("");
   const [kategori, setKategori] = useState("Umum");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
+  const [openFolder, setOpenFolder] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<any>(null);
+  const [confirmDelFolder, setConfirmDelFolder] = useState<string | null>(null);
 
   const { data: items = [], isLoading } = useQuery({ queryKey: ["client-dokumen", pid], queryFn: () => clientApi.listDokumen(pid) });
 
@@ -497,10 +635,24 @@ function TabDokumen({ pid }: { pid: number }) {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal upload"),
   });
 
-  const { mutate: del } = useMutation({
+  const { mutate: del, isPending: deleting } = useMutation({
     mutationFn: (id: number) => clientApi.deleteDokumen(pid, id),
-    onSuccess: () => { toast.success("Dokumen dihapus"); qc.invalidateQueries({ queryKey: ["client-dokumen", pid] }); },
+    onSuccess: () => { toast.success("Dokumen dihapus"); qc.invalidateQueries({ queryKey: ["client-dokumen", pid] }); setConfirmDel(null); },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menghapus"),
+  });
+
+  const { mutate: delFolder, isPending: deletingFolder } = useMutation({
+    mutationFn: async (fName: string) => {
+      const folderItems = (items as any[]).filter((d) => (d.folder_name ?? "Tanpa Folder") === fName);
+      await Promise.all(folderItems.map((d: any) => clientApi.deleteDokumen(pid, d.id)));
+    },
+    onSuccess: () => {
+      toast.success("Folder dihapus");
+      qc.invalidateQueries({ queryKey: ["client-dokumen", pid] });
+      setConfirmDelFolder(null);
+      if (openFolder === confirmDelFolder) setOpenFolder(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menghapus folder"),
   });
 
   function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
@@ -510,8 +662,10 @@ function TabDokumen({ pid }: { pid: number }) {
   function handleUpload() {
     const files = Array.from(fileRef.current?.files ?? []);
     if (files.length === 0) { toast.error("Pilih file terlebih dahulu"); return; }
+    if (!folderName.trim()) { toast.error("Judul folder wajib diisi"); return; }
     const fd = new FormData();
     files.forEach((f) => fd.append("file", f));
+    fd.append("folder_name", folderName.trim());
     fd.append("kategori", kategori);
     fd.append("tanggal_upload", tanggal);
     upload(fd);
@@ -519,12 +673,27 @@ function TabDokumen({ pid }: { pid: number }) {
 
   const KATEGORI = ["Umum", "Kontrak", "RAB", "Gambar Kerja", "Izin", "Lainnya"];
 
+  // Group by folder_name
+  const folders: Record<string, any[]> = {};
+  for (const item of (items as any[])) {
+    const key = item.folder_name ?? "Tanpa Folder";
+    if (!folders[key]) folders[key] = [];
+    folders[key].push(item);
+  }
+  const folderNames = Object.keys(folders);
+  const folderItems = openFolder ? (folders[openFolder] ?? []) : [];
+
   return (
     <div className="space-y-5">
+      {/* Upload Form */}
       <Card>
         <CardContent className="pt-4">
-          <h3 className="font-medium text-gray-700 mb-3">Upload Dokumen (bisa pilih banyak)</h3>
+          <h3 className="font-medium text-gray-700 mb-3">Upload Dokumen ke Folder Baru</h3>
           <div className="grid grid-cols-4 gap-3 items-end">
+            <div>
+              <Label>Judul Folder *</Label>
+              <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="Dokumen Kontrak..." />
+            </div>
             <div><Label>Kategori</Label>
               <Select value={kategori} onValueChange={setKategori}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -532,7 +701,7 @@ function TabDokumen({ pid }: { pid: number }) {
               </Select>
             </div>
             <div><Label>Tanggal Upload</Label><Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} /></div>
-            <div className="col-span-2 flex gap-2 items-end">
+            <div className="flex gap-2 items-end">
               <Button variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Pilih File</Button>
               <Button disabled={isPending} onClick={handleUpload}>{isPending ? "..." : "Upload"}</Button>
             </div>
@@ -546,35 +715,110 @@ function TabDokumen({ pid }: { pid: number }) {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader><TableRow>
-              <TableHead>Nama File</TableHead>
-              <TableHead>Kategori</TableHead>
-              <TableHead>Tgl Upload</TableHead>
-              <TableHead className="w-24"></TableHead>
-            </TableRow></TableHeader>
-            <TableBody>
-              {isLoading ? <TableRow><TableCell colSpan={4}><Skeleton className="h-20" /></TableCell></TableRow>
-                : items.length === 0 ? <TableRow><TableCell colSpan={4} className="text-center text-gray-400 py-8">Belum ada dokumen</TableCell></TableRow>
-                : items.map((item: any) => (
-                  <TableRow key={item.id}>
-                    <TableCell className="flex items-center gap-2"><FileText className="w-4 h-4 text-gray-400" />{item.nama_file}</TableCell>
-                    <TableCell><Badge variant="outline">{item.kategori}</Badge></TableCell>
-                    <TableCell>{fmtDate(item.tanggal_upload)}</TableCell>
-                    <TableCell>
-                      <div className="flex gap-1">
-                        {item.file_url && <a href={fileUrl(item.file_url) ?? "#"} target="_blank" rel="noopener noreferrer"><Button size="icon" variant="ghost" className="h-7 w-7"><Eye className="w-3 h-3" /></Button></a>}
-                        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => { if (confirm("Hapus dokumen?")) del(item.id); }}><Trash2 className="w-3 h-3" /></Button>
+      {isLoading ? <Skeleton className="h-40" /> : (
+        <>
+          {/* Inside folder view */}
+          {openFolder ? (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <Button variant="ghost" size="sm" onClick={() => setOpenFolder(null)}>
+                  <ChevronLeft className="w-4 h-4 mr-1" />Kembali
+                </Button>
+                <FolderOpen className="w-4 h-4 text-orange-500" />
+                <span className="font-semibold text-gray-800">{openFolder}</span>
+                <span className="text-xs text-gray-400">({folderItems.length} dokumen)</span>
+                <Button
+                  size="sm" variant="ghost" className="ml-auto text-red-500"
+                  onClick={() => setConfirmDelFolder(openFolder)}
+                >
+                  <Trash2 className="w-3 h-3 mr-1" />Hapus Folder
+                </Button>
+              </div>
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader><TableRow>
+                      <TableHead>Nama File</TableHead>
+                      <TableHead>Kategori</TableHead>
+                      <TableHead>Tgl Upload</TableHead>
+                      <TableHead className="w-24"></TableHead>
+                    </TableRow></TableHeader>
+                    <TableBody>
+                      {folderItems.map((item: any) => (
+                        <TableRow key={item.id}>
+                          <TableCell className="flex items-center gap-2"><FileText className="w-4 h-4 text-gray-400" />{item.nama_file}</TableCell>
+                          <TableCell><Badge variant="outline">{item.kategori}</Badge></TableCell>
+                          <TableCell>{fmtDate(item.tanggal_upload)}</TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              {item.file_url && <a href={fileUrl(item.file_url) ?? "#"} target="_blank" rel="noopener noreferrer"><Button size="icon" variant="ghost" className="h-7 w-7"><Eye className="w-3 h-3" /></Button></a>}
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => setConfirmDel(item)}><Trash2 className="w-3 h-3" /></Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          ) : (
+            /* Folder grid */
+            folderNames.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">Belum ada dokumen. Upload ke folder baru di atas.</p>
+            ) : (
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {folderNames.map((name) => {
+                  const fItems = folders[name];
+                  return (
+                    <div
+                      key={name}
+                      className="group relative rounded-xl border bg-white p-4 cursor-pointer hover:shadow-md transition flex flex-col gap-3"
+                      onClick={() => setOpenFolder(name)}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="p-3 bg-orange-50 rounded-xl">
+                          <Folder className="w-8 h-8 text-orange-400" />
+                        </div>
+                        <Button
+                          size="icon" variant="ghost" className="h-6 w-6 text-red-400 opacity-0 group-hover:opacity-100 transition"
+                          onClick={(e) => { e.stopPropagation(); setConfirmDelFolder(name); }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
                       </div>
-                    </TableCell>
-                  </TableRow>
-                ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                      <div>
+                        <p className="font-medium text-gray-700 text-sm truncate">{name}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{fItems.length} dokumen</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )
+          )}
+        </>
+      )}
+
+      {/* Confirm hapus dokumen */}
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => del(confirmDel?.id)}
+        title="Hapus Dokumen"
+        description={`Hapus dokumen "${confirmDel?.nama_file}"? Tindakan ini tidak dapat dibatalkan.`}
+        loading={deleting}
+      />
+
+      {/* Confirm hapus folder */}
+      <ConfirmDialog
+        open={!!confirmDelFolder}
+        onClose={() => setConfirmDelFolder(null)}
+        onConfirm={() => delFolder(confirmDelFolder!)}
+        title="Hapus Folder"
+        description={`Hapus folder "${confirmDelFolder}" beserta semua dokumen di dalamnya? Tindakan ini tidak dapat dibatalkan.`}
+        loading={deletingFolder}
+      />
     </div>
   );
 }
@@ -589,6 +833,7 @@ function TabAktivitas({ pid }: { pid: number }) {
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ judul: "", tanggal_mulai: "", tanggal_selesai: "", deskripsi: "", status: "Dalam Proses" });
   const [hasFoto, setHasFoto] = useState(false);
+  const [confirmDel, setConfirmDel] = useState<any>(null);
 
   const { data: items = [], isLoading } = useQuery({ queryKey: ["client-aktivitas", pid], queryFn: () => clientApi.listAktivitas(pid) });
 
@@ -626,12 +871,13 @@ function TabAktivitas({ pid }: { pid: number }) {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
   });
 
-  const { mutate: del } = useMutation({
+  const { mutate: del, isPending: deleting } = useMutation({
     mutationFn: (id: number) => clientApi.deleteAktivitas(pid, id),
     onSuccess: () => {
       toast.success("Aktivitas dihapus");
       qc.invalidateQueries({ queryKey: ["client-aktivitas", pid] });
       qc.invalidateQueries({ queryKey: ["client-project", pid] });
+      setConfirmDel(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
   });
@@ -651,14 +897,12 @@ function TabAktivitas({ pid }: { pid: number }) {
 
   const statusColor = (s: string) => s === "Selesai" ? "bg-green-100 text-green-700" : s === "Tertunda" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700";
 
-  // Progress stats
   const totalAktivitas = items.length;
   const selesai = items.filter((i: any) => i.status === "Selesai").length;
   const progressPersen = totalAktivitas > 0 ? Math.round((selesai / totalAktivitas) * 100) : 0;
 
   return (
     <div className="space-y-4">
-      {/* Progress stats */}
       {totalAktivitas > 0 && (
         <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-6">
           <div className="text-sm"><span className="text-gray-500">Total Aktivitas: </span><strong>{totalAktivitas}</strong></div>
@@ -702,7 +946,7 @@ function TabAktivitas({ pid }: { pid: number }) {
                   </div>
                   <div className="flex gap-1 shrink-0">
                     <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(item)}><Pencil className="w-3 h-3" /></Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => { if (confirm("Hapus aktivitas?")) del(item.id); }}><Trash2 className="w-3 h-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => setConfirmDel(item)}><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </div>
               </CardContent>
@@ -744,6 +988,15 @@ function TabAktivitas({ pid }: { pid: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => del(confirmDel?.id)}
+        title="Hapus Aktivitas"
+        description={`Hapus aktivitas "${confirmDel?.judul}"? Tindakan ini tidak dapat dibatalkan.`}
+        loading={deleting}
+      />
     </div>
   );
 }
@@ -756,6 +1009,7 @@ function TabKontak({ pid }: { pid: number }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ role: "PIC Proyek", nama: "", telepon: "", whatsapp: "", email: "", urutan: 0 });
+  const [confirmDel, setConfirmDel] = useState<any>(null);
 
   const { data: items = [], isLoading } = useQuery({ queryKey: ["client-kontak", pid], queryFn: () => clientApi.listKontak(pid) });
 
@@ -768,9 +1022,9 @@ function TabKontak({ pid }: { pid: number }) {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
   });
 
-  const { mutate: del } = useMutation({
+  const { mutate: del, isPending: deleting } = useMutation({
     mutationFn: (id: number) => clientApi.deleteKontak(pid, id),
-    onSuccess: () => { toast.success("Kontak dihapus"); qc.invalidateQueries({ queryKey: ["client-kontak", pid] }); },
+    onSuccess: () => { toast.success("Kontak dihapus"); qc.invalidateQueries({ queryKey: ["client-kontak", pid] }); setConfirmDel(null); },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
   });
 
@@ -786,7 +1040,7 @@ function TabKontak({ pid }: { pid: number }) {
                   <Badge variant="outline" className="text-xs">{item.role}</Badge>
                   <div className="flex gap-1">
                     <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => openEdit(item)}><Pencil className="w-3 h-3" /></Button>
-                    <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500" onClick={() => { if (confirm("Hapus kontak?")) del(item.id); }}><Trash2 className="w-3 h-3" /></Button>
+                    <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500" onClick={() => setConfirmDel(item)}><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </div>
                 <p className="font-semibold text-gray-800">{item.nama}</p>
@@ -821,6 +1075,15 @@ function TabKontak({ pid }: { pid: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => del(confirmDel?.id)}
+        title="Hapus Kontak"
+        description={`Hapus kontak "${confirmDel?.nama}"? Tindakan ini tidak dapat dibatalkan.`}
+        loading={deleting}
+      />
     </div>
   );
 }
@@ -987,6 +1250,7 @@ function TabCctv({ pid }: { pid: number }) {
   const [showForm, setShowForm] = useState(false);
   const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState({ nama: "", stream_url: "", stream_type: "youtube", is_active: true, urutan: 0 });
+  const [confirmDel, setConfirmDel] = useState<any>(null);
 
   const { data: streams = [], isLoading } = useQuery({
     queryKey: ["client-cctv", pid],
@@ -1004,9 +1268,9 @@ function TabCctv({ pid }: { pid: number }) {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menyimpan"),
   });
 
-  const { mutate: del } = useMutation({
+  const { mutate: del, isPending: deleting } = useMutation({
     mutationFn: (sid: number) => clientApi.deleteCctv(pid, sid),
-    onSuccess: () => { toast.success("Stream dihapus"); qc.invalidateQueries({ queryKey: ["client-cctv", pid] }); },
+    onSuccess: () => { toast.success("Stream dihapus"); qc.invalidateQueries({ queryKey: ["client-cctv", pid] }); setConfirmDel(null); },
   });
 
   function startEdit(s: any) {
@@ -1027,7 +1291,6 @@ function TabCctv({ pid }: { pid: number }) {
         </Button>
       </div>
 
-      {/* Info box per tipe */}
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-xs text-amber-700 space-y-1">
         <p className="font-semibold">Panduan per tipe kamera:</p>
         <ul className="list-disc pl-4 space-y-0.5">
@@ -1070,7 +1333,7 @@ function TabCctv({ pid }: { pid: number }) {
                 <TableCell className="text-right">
                   <div className="flex gap-1 justify-end">
                     <Button size="icon" variant="ghost" onClick={() => startEdit(s)}><Pencil className="w-3 h-3" /></Button>
-                    <Button size="icon" variant="ghost" className="text-red-500" onClick={() => del(s.id)}><Trash2 className="w-3 h-3" /></Button>
+                    <Button size="icon" variant="ghost" className="text-red-500" onClick={() => setConfirmDel(s)}><Trash2 className="w-3 h-3" /></Button>
                   </div>
                 </TableCell>
               </TableRow>
@@ -1122,6 +1385,15 @@ function TabCctv({ pid }: { pid: number }) {
           </div>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={!!confirmDel}
+        onClose={() => setConfirmDel(null)}
+        onConfirm={() => del(confirmDel?.id)}
+        title="Hapus Kamera"
+        description={`Hapus kamera "${confirmDel?.nama}"? Tindakan ini tidak dapat dibatalkan.`}
+        loading={deleting}
+      />
     </div>
   );
 }
@@ -1133,10 +1405,19 @@ export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const pid = Number(id);
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin());
+  const [confirmDelProject, setConfirmDelProject] = useState(false);
+  const qc = useQueryClient();
 
   const { data: project, isLoading } = useQuery({
     queryKey: ["client-project", pid],
     queryFn: () => clientApi.getProject(pid),
+  });
+
+  const { mutate: delProject, isPending: deletingProject } = useMutation({
+    mutationFn: () => clientApi.deleteProject(pid),
+    onSuccess: () => { toast.success("Data klien berhasil dihapus"); router.push("/client"); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menghapus"),
   });
 
   if (isLoading) return (
@@ -1169,17 +1450,22 @@ export default function ClientDetailPage() {
             <p className="text-sm text-gray-500 mt-0.5">{project.klien} {project.alamat ? `• ${project.alamat}` : ""}</p>
           </div>
         </div>
-        {/* Progress bar */}
+        {/* Progress bar + delete */}
         <div className="flex items-center gap-3 shrink-0">
           <span className="text-sm text-gray-500">Progress</span>
           <div className="w-32 h-2 bg-gray-100 rounded-full overflow-hidden">
             <div className="h-full bg-teal-500 rounded-full transition-all" style={{ width: `${project.progress_persen}%` }} />
           </div>
           <span className="text-sm font-semibold text-teal-600">{project.progress_persen}%</span>
+          {isSuperAdmin && (
+            <Button size="sm" variant="destructive" onClick={() => setConfirmDelProject(true)}>
+              <Trash2 className="w-3 h-3 mr-1" />Hapus Klien
+            </Button>
+          )}
         </div>
       </div>
 
-      {/* Tabs — Gantt/Progress removed, merged into Aktivitas */}
+      {/* Tabs */}
       <Tabs defaultValue="info">
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="info"><User className="w-3 h-3 mr-1" />Info</TabsTrigger>
@@ -1205,6 +1491,16 @@ export default function ClientDetailPage() {
           <TabsContent value="cctv"><TabCctv pid={pid} /></TabsContent>
         </div>
       </Tabs>
+
+      <ConfirmDialog
+        open={confirmDelProject}
+        onClose={() => setConfirmDelProject(false)}
+        onConfirm={() => delProject()}
+        title="Hapus Data Klien"
+        description={`Hapus seluruh data klien "${project.klien}" termasuk akun portal, galeri, dokumen, dan semua data terkait? Tindakan ini tidak dapat dibatalkan.`}
+        confirmLabel="Hapus Permanen"
+        loading={deletingProject}
+      />
     </div>
   );
 }
