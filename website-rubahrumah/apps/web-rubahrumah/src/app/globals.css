@@ -1,0 +1,37 @@
+@import url("https://fonts.googleapis.com/css2?family=Maven+Pro:wght@400;500;600;700&family=Montserrat:wght@400;500;600;700&display=swap");
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --orange: #FF9122;
+  --teal: #0B7B7B;
+  --blue: #0A5168;
+  --peach: #FFDAB5;
+}
+
+body {
+  font-family: "Maven Pro", sans-serif;
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 bg-[#FF9122] hover:bg-orange-500 text-white font-semibold rounded-lg transition-all duration-200;
+  }
+  .btn-outline {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 border-2 border-white text-white hover:bg-white hover:text-[#0B7B7B] font-semibold rounded-lg transition-all duration-200;
+  }
+  .btn-outline-orange {
+    @apply inline-flex items-center gap-2 px-5 py-2.5 border-2 border-[#FF9122] text-[#FF9122] hover:bg-[#FF9122] hover:text-white font-semibold rounded-lg transition-all duration-200;
+  }
+  .section-title {
+    @apply text-2xl md:text-3xl font-bold text-[#0A5168];
+  }
+  .section-subtitle {
+    @apply text-slate-500 text-sm md:text-base;
+  }
+  .card {
+    @apply bg-white rounded-xl border border-slate-200 overflow-hidden hover:shadow-md transition-shadow duration-200;
+  }
+}

@@ -1,0 +1,361 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum AdminRole {
+  SUPER_ADMIN
+  EDITOR
+}
+
+enum JenisJasa {
+  BANGUN_RUMAH
+  RENOVASI
+  DESIGN
+  INTERIOR
+}
+
+enum ProjectStatus {
+  BERJALAN
+  SELESAI
+  DITUNDA
+}
+
+enum RkJenisLayanan {
+  DESIGN_INTERIOR
+  FURNITURE
+  KEDUANYA
+}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+
+model AdminUser {
+  id         Int       @id @default(autoincrement())
+  name       String    @db.VarChar(255)
+  email      String    @unique @db.VarChar(255)
+  password   String    @db.VarChar(255)
+  role       AdminRole @default(EDITOR)
+  is_active  Boolean   @default(true)
+  last_login DateTime?
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
+
+  @@map("admin_users")
+}
+
+// ─── MEDIA ───────────────────────────────────────────────────────────────────
+
+model Media {
+  id            Int      @id @default(autoincrement())
+  filename      String   @db.VarChar(500)
+  original_name String   @db.VarChar(500)
+  mime_type     String   @db.VarChar(100)
+  size          Int
+  url           String   @db.VarChar(1000)
+  alt_text      String?  @db.VarChar(500)
+  created_at    DateTime @default(now())
+
+  rb_portfolio_images RbPortfolioImage[]
+  rb_project_images   RbProjectImage[]
+  rb_artikel_cover    RbArtikel[]        @relation("ArtikelCover")
+  rk_portfolio_images RkPortfolioImage[]
+  rk_project_images   RkProjectImage[]
+  rk_furniture_images RkFurnitureImage[]
+  rk_layanan_images   RkLayanan[]        @relation("LayananImage")
+
+  @@map("media")
+}
+
+// ─── RUBAHRUMAH — PORTFOLIO ───────────────────────────────────────────────────
+
+model RbPortfolio {
+  id              Int       @id @default(autoincrement())
+  slug            String    @unique @db.VarChar(255)
+  nama_klien      String    @db.VarChar(255)
+  jenis_jasa      JenisJasa
+  deskripsi       String?
+  budget          Decimal   @db.Decimal(15, 2)
+  luas            Decimal   @db.Decimal(10, 2)
+  tanggal_selesai DateTime  @db.Date
+  is_published    Boolean   @default(false)
+  sort_order      Int       @default(0)
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  images RbPortfolioImage[]
+
+  @@map("rb_portfolios")
+}
+
+model RbPortfolioImage {
+  id           Int         @id @default(autoincrement())
+  portfolio_id Int
+  media_id     Int
+  sort_order   Int         @default(0)
+  is_cover     Boolean     @default(false)
+  caption      String?     @db.VarChar(500)
+
+  portfolio RbPortfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade)
+  media     Media       @relation(fields: [media_id], references: [id])
+
+  @@map("rb_portfolio_images")
+}
+
+// ─── RUBAHRUMAH — PROJECT BERJALAN ───────────────────────────────────────────
+
+model RbProject {
+  id                       Int           @id @default(autoincrement())
+  slug                     String        @unique @db.VarChar(255)
+  nama_klien               String        @db.VarChar(255)
+  jenis_jasa               JenisJasa
+  lokasi                   String?       @db.VarChar(500)
+  budget                   Decimal       @db.Decimal(15, 2)
+  luas                     Decimal       @db.Decimal(10, 2)
+  tanggal_mulai            DateTime      @db.Date
+  tanggal_selesai_estimasi DateTime?     @db.Date
+  progress                 Int           @default(0)
+  status                   ProjectStatus @default(BERJALAN)
+  deskripsi                String?
+  is_published             Boolean       @default(false)
+  created_at               DateTime      @default(now())
+  updated_at               DateTime      @updatedAt
+
+  images RbProjectImage[]
+
+  @@map("rb_projects")
+}
+
+model RbProjectImage {
+  id         Int       @id @default(autoincrement())
+  project_id Int
+  media_id   Int
+  sort_order Int       @default(0)
+  is_cover   Boolean   @default(false)
+
+  project RbProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  media   Media     @relation(fields: [media_id], references: [id])
+
+  @@map("rb_project_images")
+}
+
+// ─── RUBAHRUMAH — ARTIKEL ────────────────────────────────────────────────────
+
+model RbArtikel {
+  id           Int       @id @default(autoincrement())
+  slug         String    @unique @db.VarChar(255)
+  judul        String    @db.VarChar(500)
+  excerpt      String?   @db.VarChar(1000)
+  konten       String
+  cover_id     Int?
+  kategori     String    @db.VarChar(100)
+  author       String    @default("Tim Rubahrumah") @db.VarChar(255)
+  read_time    Int       @default(5)
+  is_published Boolean   @default(false)
+  published_at DateTime?
+  created_at   DateTime  @default(now())
+  updated_at   DateTime  @updatedAt
+
+  cover Media? @relation("ArtikelCover", fields: [cover_id], references: [id])
+
+  @@map("rb_artikels")
+}
+
+// ─── RUBAHRUMAH — LAYANAN CONFIG ─────────────────────────────────────────────
+
+model RbLayanan {
+  id              Int       @id @default(autoincrement())
+  jenis           JenisJasa @unique
+  headline        String    @db.VarChar(500)
+  subheadline     String?   @db.VarChar(1000)
+  deskripsi       String?
+  kalkulator_data Json?
+  hero_images     Json?
+  created_at      DateTime  @default(now())
+  updated_at      DateTime  @updatedAt
+
+  @@map("rb_layanans")
+}
+
+// ─── RUBAHRUMAH — LEADS ──────────────────────────────────────────────────────
+
+model RbLead {
+  id         Int       @id @default(autoincrement())
+  jenis_jasa JenisJasa
+  nama       String    @db.VarChar(255)
+  whatsapp   String    @db.VarChar(30)
+  alamat     String?
+  instagram  String?   @db.VarChar(100)
+  detail     Json?
+  created_at DateTime  @default(now())
+
+  @@map("rb_leads")
+}
+
+// ─── RUBAHRUMAH — SITE CONFIG ────────────────────────────────────────────────
+
+model RbSiteConfig {
+  id               Int      @id @default(1)
+  whatsapp_number  String   @db.VarChar(30)
+  stats_hari       Int      @default(360)
+  stats_projek     Int      @default(100)
+  stats_mitra      Int      @default(20)
+  alamat_kantor    String?
+  alamat_workshop  String?
+  instagram        String?  @db.VarChar(100)
+  updated_at       DateTime @updatedAt
+
+  @@map("rb_site_config")
+}
+
+// ─── RUANGKERUANG — KATEGORI FURNITURE ───────────────────────────────────────
+
+model RkKategoriFurniture {
+  id         Int           @id @default(autoincrement())
+  nama       String        @db.VarChar(100)
+  slug       String        @unique @db.VarChar(100)
+  sort_order Int           @default(0)
+
+  furnitures RkFurniture[]
+
+  @@map("rk_kategori_furnitures")
+}
+
+// ─── RUANGKERUANG — FURNITURE ────────────────────────────────────────────────
+
+model RkFurniture {
+  id             Int                  @id @default(autoincrement())
+  slug           String               @unique @db.VarChar(255)
+  nama           String               @db.VarChar(255)
+  kategori_id    Int
+  deskripsi      String?
+  material       String?              @db.VarChar(255)
+  dimensi        String?              @db.VarChar(255)
+  warna_tersedia String?              @db.VarChar(500)
+  harga_mulai    Decimal?             @db.Decimal(15, 2)
+  is_published   Boolean              @default(false)
+  sort_order     Int                  @default(0)
+  created_at     DateTime             @default(now())
+  updated_at     DateTime             @updatedAt
+
+  kategori RkKategoriFurniture @relation(fields: [kategori_id], references: [id])
+  images   RkFurnitureImage[]
+
+  @@map("rk_furnitures")
+}
+
+model RkFurnitureImage {
+  id           Int         @id @default(autoincrement())
+  furniture_id Int
+  media_id     Int
+  sort_order   Int         @default(0)
+  is_cover     Boolean     @default(false)
+
+  furniture RkFurniture @relation(fields: [furniture_id], references: [id], onDelete: Cascade)
+  media     Media       @relation(fields: [media_id], references: [id])
+
+  @@map("rk_furniture_images")
+}
+
+// ─── RUANGKERUANG — PORTFOLIO ─────────────────────────────────────────────────
+
+model RkPortfolio {
+  id            Int      @id @default(autoincrement())
+  slug          String   @unique @db.VarChar(255)
+  judul         String?  @db.VarChar(255)
+  jenis_ruangan String?  @db.VarChar(100)
+  gaya_desain   String?  @db.VarChar(100)
+  tahun         Int?
+  is_published  Boolean  @default(false)
+  sort_order    Int      @default(0)
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  images RkPortfolioImage[]
+
+  @@map("rk_portfolios")
+}
+
+model RkPortfolioImage {
+  id           Int         @id @default(autoincrement())
+  portfolio_id Int
+  media_id     Int
+  sort_order   Int         @default(0)
+  is_cover     Boolean     @default(false)
+  caption      String?     @db.VarChar(500)
+
+  portfolio RkPortfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade)
+  media     Media       @relation(fields: [media_id], references: [id])
+
+  @@map("rk_portfolio_images")
+}
+
+// ─── RUANGKERUANG — PROJECT ──────────────────────────────────────────────────
+
+model RkProject {
+  id            Int            @id @default(autoincrement())
+  slug          String         @unique @db.VarChar(255)
+  judul         String         @db.VarChar(255)
+  deskripsi     String?
+  jenis_layanan RkJenisLayanan
+  lokasi        String?        @db.VarChar(500)
+  luas          Decimal?       @db.Decimal(10, 2)
+  tahun         Int?
+  is_published  Boolean        @default(false)
+  sort_order    Int            @default(0)
+  created_at    DateTime       @default(now())
+  updated_at    DateTime       @updatedAt
+
+  images RkProjectImage[]
+
+  @@map("rk_projects")
+}
+
+model RkProjectImage {
+  id         Int       @id @default(autoincrement())
+  project_id Int
+  media_id   Int
+  sort_order Int       @default(0)
+  is_cover   Boolean   @default(false)
+
+  project RkProject @relation(fields: [project_id], references: [id], onDelete: Cascade)
+  media   Media     @relation(fields: [media_id], references: [id])
+
+  @@map("rk_project_images")
+}
+
+// ─── RUANGKERUANG — LAYANAN CONFIG ───────────────────────────────────────────
+
+model RkLayanan {
+  id           Int            @id @default(autoincrement())
+  jenis        RkJenisLayanan @unique
+  headline     String         @db.VarChar(500)
+  deskripsi    String?
+  detail_items Json?
+  image_id     Int?
+  created_at   DateTime       @default(now())
+  updated_at   DateTime       @updatedAt
+
+  image Media? @relation("LayananImage", fields: [image_id], references: [id])
+
+  @@map("rk_layanans")
+}
+
+// ─── RUANGKERUANG — SITE CONFIG ──────────────────────────────────────────────
+
+model RkSiteConfig {
+  id              Int      @id @default(1)
+  whatsapp_number String   @db.VarChar(30)
+  hero_headline   String?  @db.VarChar(500)
+  hero_subtext    String?  @db.VarChar(1000)
+  filosofi_text   String?
+  instagram       String?  @db.VarChar(100)
+  updated_at      DateTime @updatedAt
+
+  @@map("rk_site_config")
+}
