@@ -66,6 +66,12 @@ coverage/
 Refrence/
 RefrenceKontrak/
 
+# ─── MediaMTX binaries ───────────────────────────────────────────────────────
+mediamtx
+mediamtx.exe
+mediamtx.tar.gz
+mediamtx.zip
+
 # ─── Personal / scratch files ────────────────────────────────────────────────
 new-app/backend/src/index-Jerry.ts
 new-app/backend/prisma/check-perms.ts

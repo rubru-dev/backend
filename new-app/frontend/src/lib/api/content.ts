@@ -70,6 +70,15 @@ export const desainApi = {
   getLinks: (timelineId: string) => apiClient.get(`/desain/timeline/${timelineId}/links`).then((r) => r.data),
   addLink: (timelineId: string, data: any) => apiClient.post(`/desain/timeline/${timelineId}/links`, data).then((r) => r.data),
   deleteLink: (linkId: string) => apiClient.delete(`/desain/timeline/links/${linkId}`).then((r) => r.data),
+  // Kanban Follow Up After Survey
+  getKanban: () => apiClient.get("/desain/kanban").then((r) => r.data),
+  getKanbanLeads: () => apiClient.get("/desain/kanban/leads").then((r) => r.data),
+  createColumn: (data: any) => apiClient.post("/desain/kanban/columns", data).then((r) => r.data),
+  updateColumn: (id: string, data: any) => apiClient.patch(`/desain/kanban/columns/${id}`, data).then((r) => r.data),
+  deleteColumn: (id: string) => apiClient.delete(`/desain/kanban/columns/${id}`).then((r) => r.data),
+  createCard: (columnId: string, data: any) => apiClient.post(`/desain/kanban/columns/${columnId}/cards`, data).then((r) => r.data),
+  updateCard: (id: string, data: any) => apiClient.patch(`/desain/kanban/cards/${id}`, data).then((r) => r.data),
+  deleteCard: (id: string) => apiClient.delete(`/desain/kanban/cards/${id}`).then((r) => r.data),
 };
 
 export const interiorApi = {

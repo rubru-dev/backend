@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Plus, Calculator, ChevronLeft, ChevronRight, Trash2, Truck, UserCheck, Banknote, Receipt,
   TrendingUp, Package, ClipboardList, Upload, Eye, Pencil, CheckCircle, XCircle,
-  ArrowRight, FileDown, PenLine, Wallet, ShieldCheck, Camera,
+  ArrowRight, FileDown, PenLine, Wallet, ShieldCheck, Camera, Images, X,
 } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 import dynamic from "next/dynamic";
@@ -213,7 +213,168 @@ const admApi = {
     apiClient.get(`/finance/adm-projek/${id}/gajian/available`).then((r) => r.data),
   pullGajianToCashflow: (id: number, tid: number, data: { gaji_tukang_id: number; tanggal: string }) =>
     apiClient.post(`/finance/adm-projek/${id}/termins/${tid}/cashflow/gajian`, data).then((r) => r.data),
+
+  // Foto Dokumentasi
+  getFotoDokumentasi: (id: number) =>
+    apiClient.get(`/finance/adm-projek/${id}/foto-dokumentasi`).then((r) => r.data),
+  addFotoDokumentasi: (id: number, data: any) =>
+    apiClient.post(`/finance/adm-projek/${id}/foto-dokumentasi`, data).then((r) => r.data),
+  deleteFotoDokumentasi: (id: number, fid: string) =>
+    apiClient.delete(`/finance/adm-projek/${id}/foto-dokumentasi/${fid}`).then((r) => r.data),
 };
+
+// ─── DokumentasiTab ───────────────────────────────────────────────────────────
+
+function DokumentasiTab({ proyekId }: { proyekId: number }) {
+  const qc = useQueryClient();
+  const fotoInputRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({ judul: "", deskripsi: "", tanggal_foto: today });
+  const [preview, setPreview] = useState<string | null>(null);
+  const [viewFoto, setViewFoto] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const { data, isLoading } = useQuery({
+    queryKey: ["foto-dokumentasi", proyekId],
+    queryFn: () => admApi.getFotoDokumentasi(proyekId),
+  });
+  const fotos: any[] = Array.isArray(data) ? data : [];
+
+  const addMut = useMutation({
+    mutationFn: (d: any) => admApi.addFotoDokumentasi(proyekId, d),
+    onSuccess: () => {
+      toast.success("Foto ditambahkan");
+      qc.invalidateQueries({ queryKey: ["foto-dokumentasi", proyekId] });
+      setShowForm(false);
+      setForm({ judul: "", deskripsi: "", tanggal_foto: today });
+      setPreview(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal upload foto"),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (fid: string) => admApi.deleteFotoDokumentasi(proyekId, fid),
+    onSuccess: () => {
+      toast.success("Foto dihapus");
+      qc.invalidateQueries({ queryKey: ["foto-dokumentasi", proyekId] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menghapus foto"),
+  });
+
+  function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function handleSubmit() {
+    if (!preview) { toast.error("Pilih foto terlebih dahulu"); return; }
+    addMut.mutate({ ...form, foto_data: preview });
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">{fotos.length} foto dokumentasi</p>
+        <Button size="sm" onClick={() => setShowForm((s) => !s)}>
+          <Plus className="h-4 w-4 mr-1" /> Tambah Foto
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Judul (opsional)</Label>
+              <Input value={form.judul} onChange={(e) => setForm((f) => ({ ...f, judul: e.target.value }))} className="h-8 text-xs" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tanggal Foto</Label>
+              <Input type="date" value={form.tanggal_foto} onChange={(e) => setForm((f) => ({ ...f, tanggal_foto: e.target.value }))} className="h-8 text-xs" />
+            </div>
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Deskripsi (opsional)</Label>
+            <Input value={form.deskripsi} onChange={(e) => setForm((f) => ({ ...f, deskripsi: e.target.value }))} className="h-8 text-xs" />
+          </div>
+          <div className="space-y-1">
+            <Label className="text-xs">Foto</Label>
+            <input ref={fotoInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoChange} />
+            {preview ? (
+              <div className="relative w-48">
+                <img src={preview} alt="preview" className="w-48 h-32 object-cover rounded border" />
+                <button
+                  className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5"
+                  onClick={() => { setPreview(null); if (fotoInputRef.current) fotoInputRef.current.value = ""; }}
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => fotoInputRef.current?.click()}>
+                <Camera className="h-3.5 w-3.5 mr-1" /> Pilih Foto
+              </Button>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" onClick={handleSubmit} disabled={addMut.isPending} className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white">
+              {addMut.isPending ? "Menyimpan..." : "Simpan"}
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setShowForm(false); setPreview(null); }}>Batal</Button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {Array.from({ length: 8 }).map((_, i) => <div key={i} className="h-36 bg-muted rounded-lg animate-pulse" />)}
+        </div>
+      ) : fotos.length === 0 ? (
+        <div className="text-center py-10 text-muted-foreground text-sm">
+          <Images className="h-8 w-8 mx-auto mb-2 opacity-40" />
+          Belum ada foto dokumentasi
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+          {fotos.map((foto: any) => (
+            <div key={foto.id} className="relative group border rounded-lg overflow-hidden bg-muted/30">
+              <img
+                src={foto.foto_data}
+                alt={foto.judul ?? "foto"}
+                className="w-full h-36 object-cover cursor-pointer"
+                onClick={() => setViewFoto(foto.foto_data)}
+              />
+              <div className="p-2">
+                {foto.judul && <p className="text-xs font-medium truncate">{foto.judul}</p>}
+                <p className="text-[10px] text-muted-foreground">
+                  {foto.tanggal_foto ? new Date(foto.tanggal_foto).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : ""}
+                </p>
+                {foto.uploaded_by && <p className="text-[10px] text-muted-foreground truncate">{foto.uploaded_by.nama}</p>}
+              </div>
+              <button
+                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={() => deleteMut.mutate(foto.id)}
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Lightbox */}
+      {viewFoto && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center"
+          onClick={() => setViewFoto(null)}
+        >
+          <img src={viewFoto} alt="foto" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── CashflowTab ──────────────────────────────────────────────────────────────
 
@@ -3092,6 +3253,9 @@ export default function AdministrasiProjekPage() {
             <TabsTrigger value="tukang" className="flex items-center gap-1 text-xs">
               <UserCheck className="h-3.5 w-3.5" /> Tukang
             </TabsTrigger>
+            <TabsTrigger value="dokumentasi" className="flex items-center gap-1 text-xs">
+              <Images className="h-3.5 w-3.5" /> Dokumentasi
+            </TabsTrigger>
           </TabsList>
 
           <Card className="mt-4">
@@ -3102,6 +3266,7 @@ export default function AdministrasiProjekPage() {
               <TabsContent value="dokumen"><UploadDokumenTab proyekId={selectedProyek.id} /></TabsContent>
               <TabsContent value="surat-jalan"><SuratJalanTab proyekId={selectedProyek.id} proyekNama={selectedProyek.nama_proyek || ""} /></TabsContent>
               <TabsContent value="tukang"><TukangTab proyekId={selectedProyek.id} proyekNama={selectedProyek.nama_proyek || ""} proyekKlien={selectedProyek.klien || ""} /></TabsContent>
+              <TabsContent value="dokumentasi"><DokumentasiTab proyekId={selectedProyek.id} /></TabsContent>
             </CardContent>
           </Card>
         </Tabs>

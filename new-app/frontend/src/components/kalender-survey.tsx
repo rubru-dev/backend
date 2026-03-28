@@ -20,6 +20,7 @@ import {
 
 interface KalenderSurveyProps {
   modul: "sales-admin" | "telemarketing";
+  showAll?: boolean;
 }
 
 const MONTH_NAMES = [
@@ -28,8 +29,9 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
-export function KalenderSurvey({ modul }: KalenderSurveyProps) {
+export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const qc = useQueryClient();
+  const [filterUserId, setFilterUserId] = useState<string>("_all");
   const canApproveSurvey = useAuthStore((s) =>
     s.isSuperAdmin() ||
     s.hasPermission("bd", "approve") ||
@@ -54,13 +56,27 @@ export function KalenderSurvey({ modul }: KalenderSurveyProps) {
   // ── API ─────────────────────────────────────────────────────────────────────
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["survey-kalender", modul, bulan, tahun],
+    queryKey: ["survey-kalender", modul, bulan, tahun, showAll, filterUserId],
     queryFn: () =>
       apiClient
-        .get(`/bd/${modul}/survey-kalender`, { params: { bulan, tahun } })
+        .get(`/bd/${modul}/survey-kalender`, {
+          params: {
+            bulan,
+            tahun,
+            ...(showAll ? { show_all: "true" } : {}),
+            ...(filterUserId !== "_all" ? { user_id: filterUserId } : {}),
+          },
+        })
         .then((r) => r.data),
     retry: 1,
   });
+
+  const { data: surveyUsers } = useQuery({
+    queryKey: ["survey-kalender-users"],
+    queryFn: () => apiClient.get("/bd/survey-kalender/users").then((r) => r.data),
+    enabled: !!showAll,
+  });
+  const surveyUserList: any[] = Array.isArray(surveyUsers) ? surveyUsers : [];
 
   const { data: picUsers } = useQuery({
     queryKey: ["survey-pic-users"],
@@ -210,7 +226,7 @@ export function KalenderSurvey({ modul }: KalenderSurveyProps) {
   const MONTH_NAMES_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
   function handleDownloadPdf() {
-    const modulLabel = modul === "sales-admin" ? "Sales Admin" : "Telemarketing";
+    const modulLabel = showAll ? "Semua Modul" : modul === "sales-admin" ? "Sales Admin" : "Telemarketing";
     const periodeLabel = `${MONTH_NAMES_ID[bulan - 1]} ${tahun}`;
     const now = new Date();
 
@@ -306,18 +322,33 @@ export function KalenderSurvey({ modul }: KalenderSurveyProps) {
     <div className="space-y-6">
 
       {/* ── Header ── */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <CalendarDays className="h-6 w-6 text-amber-500" /> Kalender Survey
           </h1>
           <p className="text-muted-foreground text-sm">
-            {modul === "sales-admin" ? "Sales Admin" : "Telemarketing"} — Jadwal survey klien
+            {showAll ? "Semua Modul (Sales Admin + Telemarketing)" : modul === "sales-admin" ? "Sales Admin" : "Telemarketing"} — Jadwal survey klien
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={isLoading || items.length === 0}>
-          <FileDown className="h-4 w-4 mr-1.5" /> Download PDF
-        </Button>
+        <div className="flex items-center gap-2">
+          {showAll && surveyUserList.length > 0 && (
+            <Select value={filterUserId} onValueChange={setFilterUserId}>
+              <SelectTrigger className="w-44 h-9 text-sm">
+                <SelectValue placeholder="Filter inputter" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="_all">Semua Inputter</SelectItem>
+                {surveyUserList.map((u: any) => (
+                  <SelectItem key={u.id} value={String(u.id)}>{u.nama}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={isLoading || items.length === 0}>
+            <FileDown className="h-4 w-4 mr-1.5" /> Download PDF
+          </Button>
+        </div>
       </div>
 
       {/* ── Stats ── */}
@@ -453,6 +484,9 @@ export function KalenderSurvey({ modul }: KalenderSurveyProps) {
                             <p className="text-[9px] font-semibold leading-tight truncate">
                               {e.nama}
                             </p>
+                            {showAll && e.modul && (
+                              <p className="text-[8px] leading-tight opacity-70">{e.modul === "sales-admin" ? "SA" : "TM"}</p>
+                            )}
                             {e.alamat && (
                               <p className="text-[8px] leading-tight truncate flex items-center gap-0.5 opacity-70">
                                 <MapPin className="h-2 w-2 shrink-0" />
@@ -507,6 +541,11 @@ export function KalenderSurvey({ modul }: KalenderSurveyProps) {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-semibold text-sm">{item.nama}</span>
                       {statusBadge(item.survey_approval_status)}
+                      {showAll && item.modul && (
+                        <Badge variant="outline" className="text-[10px] px-1.5">
+                          {item.modul === "sales-admin" ? "Sales Admin" : "Telemarketing"}
+                        </Badge>
+                      )}
                     </div>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1.5 text-xs text-muted-foreground">
                       {item.jam_survey && (

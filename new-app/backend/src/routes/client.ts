@@ -724,6 +724,8 @@ router.delete("/projects/:id/invoices/:invId/assign", async (req: Request, res: 
 });
 
 // ── CCTV STREAMS ──────────────────────────────────────────────────────────────
+import { registerPath, removePath, hlsUrl } from "../lib/mediamtx";
+
 router.get("/projects/:id/cctv", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const streams = await (prisma as any).clientPortalCctvStream.findMany({
@@ -735,6 +737,8 @@ router.get("/projects/:id/cctv", async (req: Request, res: Response) => {
     nama: s.nama,
     stream_url: s.stream_url,
     stream_type: s.stream_type,
+    stream_path: s.stream_path,
+    hls_url: s.stream_path ? hlsUrl(s.stream_path) : null,
     is_active: s.is_active,
     urutan: s.urutan,
   })));
@@ -744,22 +748,50 @@ router.post("/projects/:id/cctv", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { nama, stream_url, stream_type, is_active, urutan } = req.body;
   if (!nama || !stream_url) return res.status(400).json({ detail: "nama dan stream_url wajib diisi" });
+  if (stream_type === "rtsp" && !stream_url.startsWith("rtsp://")) {
+    return res.status(400).json({ detail: "RTSP URL harus diawali rtsp://" });
+  }
+
+  let streamPath: string | undefined;
+  if (stream_type === "rtsp") {
+    streamPath = `cam_${id}_${Date.now()}`;
+  }
+
   const stream = await (prisma as any).clientPortalCctvStream.create({
     data: {
       project_id: id,
       nama,
       stream_url,
       stream_type: stream_type ?? "youtube",
+      stream_path: streamPath ?? null,
       is_active: is_active !== false,
       urutan: urutan ?? 0,
     },
   });
-  return res.status(201).json({ id: stream.id, message: "CCTV stream berhasil ditambahkan" });
+
+  if (streamPath) {
+    try {
+      await registerPath(streamPath, stream_url);
+    } catch (err) {
+      console.warn("[MediaMTX] registerPath failed (server may not be running):", (err as Error).message);
+    }
+  }
+
+  return res.status(201).json({
+    id: stream.id,
+    stream_path: streamPath ?? null,
+    hls_url: streamPath ? hlsUrl(streamPath) : null,
+    message: "CCTV stream berhasil ditambahkan",
+  });
 });
 
 router.patch("/projects/:id/cctv/:sid", async (req: Request, res: Response) => {
   const sid = BigInt(req.params.sid);
   const { nama, stream_url, stream_type, is_active, urutan } = req.body;
+
+  const existing = await (prisma as any).clientPortalCctvStream.findUnique({ where: { id: sid } });
+  if (!existing) return res.status(404).json({ detail: "Stream tidak ditemukan" });
+
   const stream = await (prisma as any).clientPortalCctvStream.update({
     where: { id: sid },
     data: {
@@ -770,12 +802,30 @@ router.patch("/projects/:id/cctv/:sid", async (req: Request, res: Response) => {
       ...(urutan !== undefined && { urutan }),
     },
   });
+
+  // Re-register if RTSP URL changed
+  if (stream_url !== undefined && stream.stream_path && stream_url !== existing.stream_url) {
+    try {
+      await registerPath(stream.stream_path, stream_url);
+    } catch (err) {
+      console.warn("[MediaMTX] re-register failed:", (err as Error).message);
+    }
+  }
+
   return res.json({ id: stream.id, message: "CCTV stream berhasil diupdate" });
 });
 
 router.delete("/projects/:id/cctv/:sid", async (req: Request, res: Response) => {
   const sid = BigInt(req.params.sid);
+  const existing = await (prisma as any).clientPortalCctvStream.findUnique({ where: { id: sid } });
   await (prisma as any).clientPortalCctvStream.delete({ where: { id: sid } });
+  if (existing?.stream_path) {
+    try {
+      await removePath(existing.stream_path);
+    } catch (err) {
+      console.warn("[MediaMTX] removePath failed:", (err as Error).message);
+    }
+  }
   return res.json({ message: "CCTV stream berhasil dihapus" });
 });
 

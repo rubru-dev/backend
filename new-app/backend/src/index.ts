@@ -6,6 +6,11 @@ import rateLimit from "express-rate-limit";
 import { config } from "./config";
 import { authenticate } from "./middleware/auth";
 
+import { PrismaClient } from "@prisma/client";
+import { syncCamerasToMediaMTX } from "./lib/mediamtx";
+
+const prismaSync = new PrismaClient();
+
 import authRouter from "./routes/auth";
 import adminRouter from "./routes/admin";
 import bdRouter from "./routes/bd";
@@ -23,6 +28,8 @@ import telemarketingKanbanRouter from "./routes/telemarketingKanban";
 import clientRouter from "./routes/client";
 import clientPortalRouter from "./routes/clientPortal";
 import notificationsRouter from "./routes/notifications";
+import publicRbRouter from "./routes/publicRb";
+import websiteAdminRouter from "./routes/websiteAdmin";
 
 // BigInt serialization fix
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -68,7 +75,14 @@ app.use("/storage", express.static(path.resolve(config.storagePath)));
 
 // Health check
 app.get("/health", (_req, res) => {
-  res.json({ status: "ok", version: "1.0.0" });
+  res.json({
+    status: "ok",
+    version: "1.0.0",
+    storagePath: config.storagePath,
+    storageExists: require("fs").existsSync(config.storagePath),
+    cwd: process.cwd(),
+    dirname: __dirname,
+  });
 });
 
 // Apply rate limiters
@@ -98,6 +112,12 @@ app.use("/api/v1/client", authenticate, clientRouter);
 app.use("/api/v1/client-portal", clientPortalRouter);
 app.use("/api/v1/notifications", authenticate, notificationsRouter); // auth dihandle per-route (login public, sisanya via authenticateClientPortal)
 
+// Public website routes (no auth — for website-rubahrumah frontend)
+app.use("/v1/public/rb", publicRbRouter);
+
+// Website admin routes (auth required — for internal dashboard)
+app.use("/api/v1/website", authenticate, websiteAdminRouter);
+
 // Global error handler
 app.use(
   (
@@ -113,10 +133,24 @@ app.use(
   }
 );
 
-app.listen(config.port, () => {
+app.listen(config.port, async () => {
   console.log(`✓ StockOpname API running on http://localhost:${config.port}`);
   console.log(`  • Health: http://localhost:${config.port}/health`);
   console.log(`  • API:    http://localhost:${config.port}/api/v1`);
+
+  // Sync RTSP cameras to MediaMTX (graceful — won't crash if MediaMTX isn't running)
+  try {
+    const cameras = await prismaSync.clientPortalCctvStream.findMany({
+      where: { is_active: true, stream_type: "rtsp" },
+      select: { stream_path: true, stream_url: true, stream_type: true },
+    });
+    await syncCamerasToMediaMTX(cameras);
+    if (cameras.filter((c) => c.stream_path).length > 0) {
+      console.log(`  • MediaMTX: synced ${cameras.filter((c) => c.stream_path).length} RTSP camera(s)`);
+    }
+  } catch (err) {
+    console.warn("  • MediaMTX: sync skipped (not running or DB error):", (err as Error).message);
+  }
 });
 
 export default app;

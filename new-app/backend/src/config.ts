@@ -1,4 +1,5 @@
 import dotenv from "dotenv";
+import path from "path";
 dotenv.config();
 
 export const config = {
@@ -11,7 +12,7 @@ export const config = {
   refreshTokenExpireDays: parseInt(process.env.REFRESH_TOKEN_EXPIRE_DAYS ?? "30"),
   corsOrigins: process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()) ?? ["http://localhost:3000"],
   corsAllowAll: process.env.CORS_ALLOW_ALL === "true",
-  storagePath: process.env.STORAGE_PATH ?? "storage",
+  storagePath: process.env.STORAGE_PATH ?? path.resolve(__dirname, "../storage"),
   fonnteToken: process.env.FONNTE_TOKEN ?? "",
   fonnteApiUrl: process.env.FONNTE_API_URL ?? "https://api.fonnte.com/send",
   metaAdsAccessToken: process.env.META_ADS_ACCESS_TOKEN ?? "",
@@ -21,4 +22,6 @@ export const config = {
   frontendUrl: process.env.FRONTEND_URL ?? "http://localhost:3000",
   clientUrl: process.env.CLIENT_URL ?? "http://localhost:3001",
   port: parseInt(process.env.PORT ?? "8000"),
+  mediamtxApiUrl: process.env.MEDIAMTX_API_URL ?? "http://localhost:9997",
+  mediamtxHlsBaseUrl: process.env.MEDIAMTX_HLS_BASE_URL ?? "http://localhost:8888",
 };

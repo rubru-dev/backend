@@ -1,7 +1,101 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-03-17 (Kanban column DnD, Leads Projection, Move-to-TM full data, Dashboard notifications, Reminder time)
+> Last updated: 2026-03-28 (4 fitur baru: Dokumentasi Projek, Kalender Survey Gabungan, Database Client, Desain Kanban)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-03-28)
+
+### Task 1: Foto Dokumentasi Projek
+- **Prisma model baru:** `ProjekFotoDokumentasi` — foto dokumentasi per projek (adm_finance_projects)
+  - Fields: `id`, `project_id`, `judul`, `deskripsi`, `foto_data` (base64 text), `tanggal_foto`, `uploaded_by`, `created_at`
+  - Relasi: → `AdmFinanceProject`, → `User` (named: `"ProjekFotoDokumentasiUploader"`)
+- **Backend routes** (finance.ts):
+  - `GET /finance/adm-projek/:id/foto-dokumentasi` — list foto, ordered by tanggal_foto desc
+  - `POST /finance/adm-projek/:id/foto-dokumentasi` — upload foto (foto_data: base64, judul?, deskripsi?, tanggal_foto?)
+  - `DELETE /finance/adm-projek/:id/foto-dokumentasi/:fid` — hapus foto
+- **Frontend:**
+  - `DokumentasiTab` component di `finance/administrasi-projek/page.tsx` — tab ke-6 di projek detail
+  - Grid 4 kolom, lightbox on click, delete on hover
+  - `/absen` (Tukang): section "Foto Dokumentasi" — upload foto projek dari halaman absen
+  - `/pic/dokumentasi` (PIC): halaman baru untuk upload dokumentasi, pilih proyek dulu
+  - Sidebar PIC: ditambah item "Upload Dokumentasi" → `/pic/dokumentasi`
+- **admApi:** `getFotoDokumentasi`, `addFotoDokumentasi`, `deleteFotoDokumentasi`
+
+### Task 2: Kalender Survey Gabungan (Database Client)
+- **Backend `bd.ts`:**
+  - `GET /bd/:modul/survey-kalender` — ditambah query params: `show_all=true` (semua modul), `user_id` (filter by inputter)
+  - `GET /bd/survey-kalender/users` — list users yang pernah input lead dengan rencana_survey=Ya
+- **Frontend `KalenderSurvey` component** (`components/kalender-survey.tsx`):
+  - Props baru: `showAll?: boolean`
+  - Ketika `showAll=true`: pass `show_all=true` ke API, fetch dropdown inputter dari `/bd/survey-kalender/users`
+  - Filter dropdown "Semua Inputter" muncul di header ketika `showAll=true`
+  - Modul badge (SA/TM) tampil di calendar cell entries dan detail panel
+  - PDF label: "Semua Modul" ketika showAll=true
+- **Page:** `/database-client/kalender-survey` — menggunakan `<KalenderSurvey modul="sales-admin" showAll />`
+
+### Task 3: Database Client
+- **Backend `bd.ts`:**
+  - `GET /bd/database-client/leads` — tanpa permission check (cukup authenticate), filter: search, status, jenis, modul, page, limit=20
+  - Response: `{ items, total, total_pages }` dengan follow_ups last-5 per lead
+- **Frontend:**
+  - `/database-client/page.tsx` — unified view all leads (Sales Admin + Telemarketing)
+  - Filters: search nama/telepon, status, jenis, modul, pagination
+  - Expandable rows dengan riwayat follow-up + inline add follow-up form
+- **Sidebar:** Grup "Database Client" (warna #0ea5e9, permission: `sales_admin.view`)
+  - Items: "Data Klien" → `/database-client`, "Kalender Survey (Gabungan)" → `/database-client/kalender-survey`
+
+### Task 4: Desain Follow Up After Survey (Kanban)
+- **Prisma models baru:** `DesainKanbanColumn`, `DesainKanbanCard`
+  - Card punya named relations: `"DesainKanbanCardLead"` (→ Lead), `"DesainKanbanCardAssignee"` (→ User)
+- **Backend routes** (desain.ts):
+  - `GET /desain/kanban` — fetch columns+cards, seeds 5 default columns on first call
+  - `GET /desain/kanban/leads` — leads dengan rencana_survey=Ya untuk dropdown
+  - `POST /desain/kanban/columns` — buat column
+  - `PATCH /desain/kanban/columns/:id` — edit column (title, color)
+  - `DELETE /desain/kanban/columns/:id` — hapus column (blocked if is_permanent=true)
+  - `POST /desain/kanban/columns/:id/cards` — buat card
+  - `PATCH /desain/kanban/cards/:id` — update card (supports column_id untuk drag-and-drop)
+  - `DELETE /desain/kanban/cards/:id` — hapus card
+- **Frontend:** `/desain/follow-up-survey/page.tsx` — kanban board HTML5 drag-and-drop native
+- **Sidebar Desain:** ditambah item "Follow Up After Survey" → `/desain/follow-up-survey`
+- **desainApi** (`lib/api/content.ts`): `getKanban`, `getKanbanLeads`, `createColumn`, `updateColumn`, `deleteColumn`, `createCard`, `updateCard`, `deleteCard`
+
+### Task 15 (sebelumnya): Kalkulator CRUD
+- **Kalkulator config** diubah dari flat `{ KEY: number }` ke array `[{ key, label, harga, satuan }]`
+- **Backend:** `PUT /website/kalkulator` terima `base_prices` dan `surcharges` sebagai array atau object
+- **Dashboard `/website/kalkulator`:** tabel CRUD per item (tambah/edit/hapus baris)
+- **website-rubahrumah:** `normalizePrices()` handles both format lama dan baru secara transparan
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-03-24)
+
+### Website Content Management (integrasi dashboard ↔ website-rubahrumah)
+- **Prisma models baru:** `RbSiteConfig`, `RbBanner`, `RbKalkulatorConfig`, `RbPortfolio`, `RbPortfolioImage`, `RbProject`, `RbProjectImage`, `RbArtikel`, `RbWebsiteLead`
+- **Backend public routes** (tanpa auth, untuk website): `GET /v1/public/rb/*`
+  - `/config`, `/banner`, `/portfolio`, `/portfolio/:slug`, `/project`, `/project/:slug`
+  - `/artikel`, `/artikel/kategori`, `/artikel/:slug`, `/kalkulator`, `/leads` (POST)
+- **Backend admin routes** (auth required): `GET|PUT /api/v1/website/config|kalkulator`
+  - `GET|POST|PATCH|DELETE /api/v1/website/banner`
+  - `GET|POST|PATCH|DELETE /api/v1/website/portfolio` + `/portfolio/:id/images/*`
+  - `GET|POST|PATCH|DELETE /api/v1/website/project` + `/project/:id/images/*`
+  - `GET|POST|PATCH|DELETE /api/v1/website/artikel`
+  - `GET /api/v1/website/leads`
+- **Frontend pages** di `/website/*` (hanya Super Admin — `admin.view` permission):
+  - `/website/config` — Kontak, WhatsApp, alamat, statistik homepage
+  - `/website/banner` — Upload/kelola hero carousel
+  - `/website/portofolio` — CRUD portofolio + upload foto
+  - `/website/projek-berjalan` — CRUD projek aktif + upload foto + progress slider
+  - `/website/artikel` — Tulis/edit artikel (HTML/plain text, cover photo)
+  - `/website/kalkulator` — Edit harga dasar paket & surcharge material
+- **Sidebar:** Grup "Website" (warna orange, setelah PIC Project, sebelum Admin)
+- **API client:** `new-app/frontend/src/lib/api/website.ts`
+- **Image storage:** `backend/storage/website/{banner|portfolio|project|artikel}/`
+- **Koneksi website-rubahrumah:** set `NEXT_PUBLIC_API_URL=http://localhost:8000/api/v1`
+  (tidak perlu `/api` prefix karena public routes di-mount di `/v1/public/rb/*`)
+  **Atau:** ubah ke `NEXT_PUBLIC_API_URL=http://localhost:8000` dan gunakan `/api/v1` prefix di `api.ts`
 
 ---
 

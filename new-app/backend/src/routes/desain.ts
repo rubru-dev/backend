@@ -388,6 +388,153 @@ router.delete("/timeline/items/:id", async (req: Request, res: Response) => {
   return res.json({ message: "Item dihapus" });
 });
 
+// ── Desain Kanban (Follow Up After Survey) ────────────────────────────────
+
+const DEFAULT_KANBAN_COLUMNS = [
+  { title: "Setelah Survey", color: "#6366f1", urutan: 0, is_permanent: true },
+  { title: "Proses Desain",  color: "#f59e0b", urutan: 1, is_permanent: true },
+  { title: "Revisi",         color: "#ec4899", urutan: 2, is_permanent: true },
+  { title: "Presentasi",     color: "#10b981", urutan: 3, is_permanent: true },
+  { title: "Closing",        color: "#14b8a6", urutan: 4, is_permanent: true },
+];
+
+async function ensureDesainColumns() {
+  const count = await prisma.desainKanbanColumn.count();
+  if (count === 0) {
+    await prisma.desainKanbanColumn.createMany({ data: DEFAULT_KANBAN_COLUMNS });
+  }
+}
+
+// GET /desain/kanban
+router.get("/kanban", async (req: Request, res: Response) => {
+  await ensureDesainColumns();
+  const columns = await prisma.desainKanbanColumn.findMany({
+    orderBy: { urutan: "asc" },
+    include: {
+      cards: {
+        orderBy: { urutan: "asc" },
+        include: {
+          lead: { select: { id: true, nama: true, nomor_telepon: true, jenis: true, status: true } },
+          assignee: { select: { id: true, name: true } },
+        },
+      },
+    },
+  });
+  return res.json(columns.map((col) => ({
+    id: col.id,
+    title: col.title,
+    color: col.color,
+    urutan: col.urutan,
+    is_permanent: col.is_permanent,
+    cards: col.cards.map((c) => ({
+      id: c.id,
+      column_id: c.column_id,
+      catatan: c.catatan,
+      deadline: c.deadline ? c.deadline.toISOString().split("T")[0] : null,
+      urutan: c.urutan,
+      lead: c.lead ? { id: String(c.lead.id), nama: c.lead.nama, telepon: c.lead.nomor_telepon, jenis: c.lead.jenis, status: c.lead.status } : null,
+      assignee: c.assignee ? { id: String(c.assignee.id), nama: c.assignee.name } : null,
+    })),
+  })));
+});
+
+// GET /desain/kanban/leads - leads dropdown (surveyed / status Hot/Client)
+router.get("/kanban/leads", async (_req: Request, res: Response) => {
+  const leads = await prisma.lead.findMany({
+    where: { rencana_survey: "Ya", tanggal_survey: { not: null } },
+    select: { id: true, nama: true, nomor_telepon: true, jenis: true, status: true },
+    orderBy: { nama: "asc" },
+    take: 200,
+  });
+  return res.json(leads.map((l) => ({ id: String(l.id), nama: l.nama, telepon: l.nomor_telepon, jenis: l.jenis, status: l.status })));
+});
+
+// POST /desain/kanban/columns
+router.post("/kanban/columns", async (req: Request, res: Response) => {
+  const { title, color } = req.body;
+  if (!title) return res.status(400).json({ detail: "title wajib diisi" });
+  const lastCol = await prisma.desainKanbanColumn.findFirst({ orderBy: { urutan: "desc" } });
+  const col = await prisma.desainKanbanColumn.create({
+    data: { title, color: color || null, urutan: (lastCol?.urutan ?? 0) + 1 },
+  });
+  return res.status(201).json({ id: col.id, title: col.title, color: col.color, urutan: col.urutan, is_permanent: col.is_permanent, cards: [] });
+});
+
+// PATCH /desain/kanban/columns/:id
+router.patch("/kanban/columns/:id", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const col = await prisma.desainKanbanColumn.findUnique({ where: { id } });
+  if (!col) return res.status(404).json({ detail: "Kolom tidak ditemukan" });
+  const { title, color } = req.body;
+  await prisma.desainKanbanColumn.update({ where: { id }, data: { title, color } });
+  return res.json({ message: "OK" });
+});
+
+// DELETE /desain/kanban/columns/:id
+router.delete("/kanban/columns/:id", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const col = await prisma.desainKanbanColumn.findUnique({ where: { id } });
+  if (!col) return res.status(404).json({ detail: "Kolom tidak ditemukan" });
+  if (col.is_permanent) return res.status(400).json({ detail: "Kolom permanen tidak bisa dihapus" });
+  await prisma.desainKanbanColumn.delete({ where: { id } });
+  return res.json({ message: "OK" });
+});
+
+// POST /desain/kanban/columns/:id/cards
+router.post("/kanban/columns/:id/cards", async (req: Request, res: Response) => {
+  const column_id = BigInt(req.params.id);
+  const col = await prisma.desainKanbanColumn.findUnique({ where: { id: column_id } });
+  if (!col) return res.status(404).json({ detail: "Kolom tidak ditemukan" });
+  const { lead_id, catatan, assigned_to, deadline } = req.body;
+  const lastCard = await prisma.desainKanbanCard.findFirst({ where: { column_id }, orderBy: { urutan: "desc" } });
+  const card = await prisma.desainKanbanCard.create({
+    data: {
+      column_id,
+      lead_id: lead_id ? BigInt(lead_id) : null,
+      catatan: catatan || null,
+      assigned_to: assigned_to ? BigInt(assigned_to) : null,
+      deadline: deadline ? new Date(deadline) : null,
+      urutan: (lastCard?.urutan ?? 0) + 1,
+    },
+    include: {
+      lead: { select: { id: true, nama: true, nomor_telepon: true, jenis: true, status: true } },
+      assignee: { select: { id: true, name: true } },
+    },
+  });
+  return res.status(201).json({
+    id: card.id, column_id: card.column_id, catatan: card.catatan,
+    deadline: card.deadline ? card.deadline.toISOString().split("T")[0] : null,
+    lead: card.lead ? { id: String(card.lead.id), nama: card.lead.nama, telepon: card.lead.nomor_telepon, jenis: card.lead.jenis, status: card.lead.status } : null,
+    assignee: card.assignee ? { id: String(card.assignee.id), nama: card.assignee.name } : null,
+  });
+});
+
+// PATCH /desain/kanban/cards/:id  (update card, including move to column)
+router.patch("/kanban/cards/:id", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const card = await prisma.desainKanbanCard.findUnique({ where: { id } });
+  if (!card) return res.status(404).json({ detail: "Card tidak ditemukan" });
+  const { column_id, lead_id, catatan, assigned_to, deadline, urutan } = req.body;
+  const updates: Record<string, unknown> = {};
+  if (column_id !== undefined) updates.column_id = BigInt(column_id);
+  if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
+  if (catatan !== undefined) updates.catatan = catatan;
+  if (assigned_to !== undefined) updates.assigned_to = assigned_to ? BigInt(assigned_to) : null;
+  if (deadline !== undefined) updates.deadline = deadline ? new Date(deadline) : null;
+  if (urutan !== undefined) updates.urutan = urutan;
+  await prisma.desainKanbanCard.update({ where: { id }, data: updates });
+  return res.json({ message: "OK" });
+});
+
+// DELETE /desain/kanban/cards/:id
+router.delete("/kanban/cards/:id", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const card = await prisma.desainKanbanCard.findUnique({ where: { id } });
+  if (!card) return res.status(404).json({ detail: "Card tidak ditemukan" });
+  await prisma.desainKanbanCard.delete({ where: { id } });
+  return res.json({ message: "OK" });
+});
+
 // ── Docs/Link ──────────────────────────────────────────────────────────────
 
 // GET /timeline/:id/links

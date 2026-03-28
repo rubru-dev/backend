@@ -1295,9 +1295,10 @@ function TabCctv({ pid }: { pid: number }) {
         <p className="font-semibold">Panduan per tipe kamera:</p>
         <ul className="list-disc pl-4 space-y-0.5">
           <li><strong>YouTube Live:</strong> Masukkan URL video YouTube Live (contoh: https://youtu.be/xxxxx)</li>
-          <li><strong>RTSP (Tapo C310):</strong> Masukkan URL RTSP kamera (contoh: rtsp://admin:pass@192.168.1.xxx:554/stream1). Klien disarankan menggunakan Tapo App.</li>
+          <li><strong>RTSP (Tapo C310):</strong> Masukkan URL RTSP kamera. Kamera akan di-stream via MediaMTX sehingga klien bisa menonton langsung di browser tanpa install app. Jalankan <code className="bg-amber-100 px-1 rounded">npm run dev:cctv</code> di folder backend agar MediaMTX aktif.</li>
           <li><strong>Iframe:</strong> Masukkan URL halaman web yang bisa di-embed.</li>
         </ul>
+        <p className="text-amber-600 mt-1">Testing tanpa kamera fisik: gunakan RTSP publik <code className="bg-amber-100 px-1 rounded">rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov</code></p>
       </div>
 
       {isLoading ? <Skeleton className="h-40" /> : streams.length === 0 ? (

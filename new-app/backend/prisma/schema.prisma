@@ -141,6 +141,7 @@ model AdmFinanceProject {
   list_materials        ProjekListMaterial[]
   purchase_requests     ProjekPR[]
   dokumens              ProjekDokumen[]
+  foto_dokumentasis     ProjekFotoDokumentasi[]
   creator               User?                 @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   lead                  Lead?                 @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
   proyek_berjalan       ProyekBerjalan?       @relation(fields: [proyek_berjalan_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -150,6 +151,22 @@ model AdmFinanceProject {
   tukang_registries     TukangRegistry[]
   client_portal_project ClientPortalProject?
   @@map("adm_finance_projects")
+}
+
+model ProjekFotoDokumentasi {
+  id           BigInt              @id @default(autoincrement())
+  project_id   BigInt
+  judul        String?             @db.VarChar(255)
+  deskripsi    String?             @db.Text
+  foto_data    String              @db.Text
+  tanggal_foto DateTime            @db.Date
+  uploaded_by  BigInt?
+  created_at   DateTime            @default(now()) @db.Timestamptz(6)
+  project      AdmFinanceProject   @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  uploader     User?               @relation("ProjekFotoDokumentasiUploader", fields: [uploaded_by], references: [id], onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_projek_foto_project")
+  @@map("projek_foto_dokumentasis")
 }
 
 model AdmFinanceTermin {
@@ -461,6 +478,35 @@ model DesainTimeline {
   creator                 User?                  @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   lead                 Lead?                  @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
   @@map("desain_timelines")
+}
+
+model DesainKanbanColumn {
+  id           BigInt             @id @default(autoincrement())
+  title        String             @db.VarChar(100)
+  urutan       Int                @default(0)
+  color        String?            @db.VarChar(20)
+  is_permanent Boolean            @default(false)
+  created_at   DateTime           @default(now()) @db.Timestamptz(6)
+  cards        DesainKanbanCard[]
+
+  @@map("desain_kanban_columns")
+}
+
+model DesainKanbanCard {
+  id          BigInt             @id @default(autoincrement())
+  column_id   BigInt
+  lead_id     BigInt?
+  catatan     String?            @db.Text
+  assigned_to BigInt?
+  deadline    DateTime?          @db.Date
+  urutan      Int                @default(0)
+  created_at  DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime           @default(now()) @db.Timestamptz(6)
+  column      DesainKanbanColumn @relation(fields: [column_id], references: [id], onDelete: Cascade)
+  lead        Lead?              @relation("DesainKanbanCardLead", fields: [lead_id], references: [id], onUpdate: NoAction)
+  assignee    User?              @relation("DesainKanbanCardAssignee", fields: [assigned_to], references: [id], onUpdate: NoAction)
+
+  @@map("desain_kanban_cards")
 }
 
 model DesignReport {
@@ -825,6 +871,7 @@ model Lead {
   adm_finance_projects                  AdmFinanceProject[]
   administrasi_kantors                  AdministrasiKantor[]
   desain_timelines                      DesainTimeline[]
+  desain_kanban_cards                   DesainKanbanCard[]       @relation("DesainKanbanCardLead")
   interior_timelines                    InteriorTimeline[]
   follow_ups                     FollowUpClient[]
   invoices                              Invoice[]
@@ -1739,6 +1786,8 @@ model User {
   interior_timeline_items               InteriorTimelineItem[]
   interior_timelines                    InteriorTimeline[]
   design_reports                        DesignReport[]
+  desain_kanban_cards_assigned          DesainKanbanCard[]       @relation("DesainKanbanCardAssignee")
+  projek_foto_dokumentasis              ProjekFotoDokumentasi[]  @relation("ProjekFotoDokumentasiUploader")
   finance_reports                       FinanceReport[]
   follow_up_clients                     FollowUpClient[]
   gaji_tukangs                          GajiTukang[]
@@ -2284,6 +2333,7 @@ model ClientPortalCctvStream {
   nama        String              @db.VarChar(255)
   stream_url  String              @db.Text
   stream_type String              @default("youtube") @db.VarChar(50)
+  stream_path String?             @unique @db.VarChar(255)
   is_active   Boolean             @default(true)
   urutan      Int                 @default(0)
   created_at  DateTime            @default(now()) @db.Timestamptz(6)
@@ -2292,4 +2342,180 @@ model ClientPortalCctvStream {
 
   @@index([project_id], map: "idx_cp_cctv_project")
   @@map("client_portal_cctv_streams")
+}
+
+// ─── Website RubahRumah (public website content management) ──────────────────
+
+/// Konfigurasi umum site (kontak, WA, alamat, statistik)
+model RbSiteConfig {
+  id               Int      @id @default(1)
+  whatsapp_number  String   @default("") @db.VarChar(50)
+  alamat_kantor    String?  @db.Text
+  alamat_workshop  String?  @db.Text
+  telepon          String?  @db.VarChar(100)
+  email            String?  @db.VarChar(255)
+  jam_kerja        String?  @db.VarChar(255)
+  lokasi_maps      String?  @db.Text
+  instagram        String?  @db.VarChar(255)
+  instagram_url    String?  @db.VarChar(500)
+  tiktok_url       String?  @db.VarChar(500)
+  facebook_url     String?  @db.VarChar(500)
+  stats_hari       Int      @default(0)
+  stats_projek     Int      @default(0)
+  stats_mitra      Int      @default(0)
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("rb_site_configs")
+}
+
+/// Banner/hero carousel homepage
+model RbBanner {
+  id                 BigInt   @id @default(autoincrement())
+  title              String?  @db.VarChar(255)
+  subtitle           String?  @db.VarChar(500)
+  image_path         String   @db.Text
+  mobile_image_path  String?  @db.Text
+  sort_order         Int      @default(0)
+  is_active          Boolean  @default(true)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("rb_banners")
+}
+
+/// Konfigurasi harga kalkulator estimasi
+model RbKalkulatorConfig {
+  id          Int      @id @default(1)
+  base_prices Json     // { MINIMALIS: number, LUXURY: number }
+  surcharges  Json     // { [key: string]: number }
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("rb_kalkulator_configs")
+}
+
+/// Portofolio proyek selesai
+model RbPortfolio {
+  id              BigInt             @id @default(autoincrement())
+  slug            String             @unique @db.VarChar(255)
+  nama_klien      String             @db.VarChar(255)
+  jenis_jasa      String             @db.VarChar(50)
+  deskripsi       String?            @db.Text
+  budget          Decimal            @default(0) @db.Decimal(15, 2)
+  luas            Decimal            @default(0) @db.Decimal(10, 2)
+  tanggal_selesai DateTime           @db.Date
+  is_published    Boolean            @default(false)
+  sort_order      Int                @default(0)
+  created_at      DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at      DateTime           @default(now()) @db.Timestamptz(6)
+  images          RbPortfolioImage[]
+
+  @@map("rb_portfolios")
+}
+
+model RbPortfolioImage {
+  id           BigInt      @id @default(autoincrement())
+  portfolio_id BigInt
+  image_path   String      @db.Text
+  caption      String?     @db.VarChar(500)
+  group        String      @default("cover") @db.VarChar(50)
+  is_cover     Boolean     @default(false)
+  sort_order   Int         @default(0)
+  created_at   DateTime    @default(now()) @db.Timestamptz(6)
+  portfolio    RbPortfolio @relation(fields: [portfolio_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([portfolio_id], map: "idx_rb_portfolio_images_portfolio")
+  @@map("rb_portfolio_images")
+}
+
+/// Projek yang sedang berjalan (gallery)
+model RbProject {
+  id                       BigInt           @id @default(autoincrement())
+  slug                     String           @unique @db.VarChar(255)
+  nama_klien               String           @db.VarChar(255)
+  jenis_jasa               String           @db.VarChar(50)
+  lokasi                   String?          @db.VarChar(500)
+  budget                   Decimal          @default(0) @db.Decimal(15, 2)
+  luas                     Decimal          @default(0) @db.Decimal(10, 2)
+  tanggal_mulai            DateTime         @db.Date
+  tanggal_selesai_estimasi DateTime?        @db.Date
+  progress                 Int              @default(0)
+  progress_desc            String?          @db.VarChar(500)
+  status                   String           @default("Dalam Proses") @db.VarChar(50)
+  deskripsi                String?          @db.Text
+  is_published             Boolean          @default(false)
+  created_at               DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime         @default(now()) @db.Timestamptz(6)
+  images                   RbProjectImage[]
+
+  @@map("rb_projects")
+}
+
+model RbProjectImage {
+  id         BigInt    @id @default(autoincrement())
+  project_id BigInt
+  image_path String    @db.Text
+  group      String    @default("cover") @db.VarChar(50)
+  is_cover   Boolean   @default(false)
+  sort_order Int       @default(0)
+  created_at DateTime  @default(now()) @db.Timestamptz(6)
+  project    RbProject @relation(fields: [project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([project_id], map: "idx_rb_project_images_project")
+  @@map("rb_project_images")
+}
+
+/// Artikel/blog website
+model RbArtikel {
+  id           BigInt    @id @default(autoincrement())
+  slug         String    @unique @db.VarChar(255)
+  judul        String    @db.VarChar(500)
+  excerpt      String?   @db.VarChar(1000)
+  konten       String    @db.Text
+  cover_path   String?   @db.Text
+  kategori     String    @db.VarChar(100)
+  author       String    @default("Tim RubahRumah") @db.VarChar(255)
+  read_time    Int       @default(5)
+  is_published Boolean   @default(false)
+  published_at DateTime? @db.Timestamptz(6)
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@map("rb_artikels")
+}
+
+/// Kategori artikel website
+model RbArtikelKategori {
+  id         BigInt   @id @default(autoincrement())
+  nama       String   @db.VarChar(100)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("rb_artikel_kategoris")
+}
+
+/// Testimoni klien (YouTube video)
+model RbTestimoni {
+  id           BigInt   @id @default(autoincrement())
+  youtube_url  String   @db.Text
+  nama_klien   String   @db.VarChar(200)
+  jenis_jasa   String   @db.VarChar(100)
+  is_published Boolean  @default(false)
+  sort_order   Int      @default(0)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("rb_testimonis")
+}
+
+/// Lead dari form website publik
+model RbWebsiteLead {
+  id         BigInt   @id @default(autoincrement())
+  jenis_jasa String   @db.VarChar(50)
+  nama       String   @db.VarChar(255)
+  whatsapp   String   @db.VarChar(50)
+  alamat     String?  @db.Text
+  instagram  String?  @db.VarChar(255)
+  detail     Json?
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("rb_website_leads")
 }

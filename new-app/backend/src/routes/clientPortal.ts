@@ -300,6 +300,8 @@ router.get("/gantt", async (req: Request, res: Response) => {
 });
 
 // ── GET /monitoring ───────────────────────────────────────────────────────────
+import { hlsUrl as mediamtxHlsUrl } from "../lib/mediamtx";
+
 router.get("/monitoring", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const streams = await (prisma as any).clientPortalCctvStream.findMany({
@@ -311,6 +313,7 @@ router.get("/monitoring", async (req: Request, res: Response) => {
     nama: s.nama,
     stream_url: s.stream_url,
     stream_type: s.stream_type,
+    hls_url: s.stream_path ? mediamtxHlsUrl(s.stream_path) : null,
   })));
 });
 

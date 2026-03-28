@@ -859,7 +859,7 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
   });
   const clientName = (inv as any).lead?.nama ?? "—";
   const totalAmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(inv.grand_total));
-  const invoiceMsg = `🧾 *Invoice Baru Dibuat*\n\nInvoice untuk klien: *${clientName}*\nNomor: ${inv.invoice_number}\nTotal: ${totalAmt}\n\nSilakan review dan tanda tangani.\n\n🔗 ${FRONTEND_URL}/finance/invoices`;
+  const invoiceMsg = `🧾 *Invoice Baru Dibuat*\n\nInvoice untuk klien: *${clientName}*\nNomor: ${inv.invoice_number}\nTotal: ${totalAmt}\n\nSilakan review dan tanda tangani.\n\n🔗 ${FRONTEND_URL}/finance/invoice-kwitansi`;
   sendFonntToRoles(["Admin Finance", "Head Finance"], invoiceMsg).catch(() => {});
   return res.status(201).json(invoiceDictFrontend(inv));
 });
@@ -2558,10 +2558,22 @@ router.get("/adm-projek/:id/tukang/kwitansi", async (req: Request, res: Response
 
 // ── Tukang self-submission routes (dedicated /absen page) ────────────────────
 
-// GET /finance/tukang-absen/projects — list all active adm-finance projects
-router.get("/tukang-absen/projects", async (_req: Request, res: Response) => {
+// GET /finance/tukang-absen/projects — list active projects where current tukang is registered
+router.get("/tukang-absen/projects", async (req: Request, res: Response) => {
+  const userId = (req as any).user?.id;
+  if (!userId) return res.status(401).json({ detail: "Unauthorized" });
+
+  // Cari semua project di mana user ini terdaftar sebagai tukang
+  const registries = await prisma.tukangRegistry.findMany({
+    where: { user_id: userId, is_active: true },
+    select: { adm_finance_project_id: true },
+  });
+  const projectIds = registries.map((r) => r.adm_finance_project_id);
+
+  if (projectIds.length === 0) return res.json([]);
+
   const projects = await prisma.admFinanceProject.findMany({
-    where: { status: "aktif" },
+    where: { id: { in: projectIds }, status: "aktif" },
     select: { id: true, nama_proyek: true, klien: true, lokasi: true },
     orderBy: { nama_proyek: "asc" },
   });
@@ -2603,7 +2615,7 @@ router.post("/tukang-absen/:project_id/submit", async (req: Request, res: Respon
   if (!foto) return res.status(400).json({ detail: "Foto wajib diisi" });
   const tukang = await prisma.tukangRegistry.findFirst({
     where: { adm_finance_project_id: pid, user_id: userId },
-    include: { adm_finance_project: { select: { nama_project: true } } } as any,
+    include: { adm_finance_project: { select: { nama_proyek: true } } } as any,
   });
   if (!tukang) return res.status(403).json({ detail: "Anda tidak terdaftar sebagai tukang di proyek ini" });
   const absenDate = tanggal ? new Date(tanggal) : new Date();
@@ -2618,11 +2630,74 @@ router.post("/tukang-absen/:project_id/submit", async (req: Request, res: Respon
     },
   });
   const tukangName = tukang.nama;
-  const projectName = (tukang as any).adm_finance_project?.nama_project ?? "—";
+  const projectName = (tukang as any).adm_finance_project?.nama_proyek ?? "—";
   const absenDateStr = absenDate.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
   const absenMsg = `📸 *Absen Tukang Baru*\n\nTukang: *${tukangName}*\nProyek: ${projectName}\nTanggal: ${absenDateStr}\n\nSilakan review dan setujui foto absen.\n\n🔗 ${FRONTEND_URL}/finance/adm-projek`;
   sendFonntToRoles(["Admin Finance"], absenMsg).catch(() => {});
   return res.status(201).json({ id: p.id });
+});
+
+// ── Foto Dokumentasi ─────────────────────────────────────────────────────────
+
+// GET /finance/adm-projek/:id/foto-dokumentasi
+router.get("/adm-projek/:id/foto-dokumentasi", async (req: Request, res: Response) => {
+  const projectId = BigInt(req.params.id);
+  const fotos = await prisma.projekFotoDokumentasi.findMany({
+    where: { project_id: projectId },
+    include: { uploader: { select: { id: true, name: true } } },
+    orderBy: [{ tanggal_foto: "desc" }, { created_at: "desc" }],
+  });
+  return res.json(fotos.map((f) => ({
+    id: String(f.id),
+    project_id: String(f.project_id),
+    judul: f.judul,
+    deskripsi: f.deskripsi,
+    foto_data: f.foto_data,
+    tanggal_foto: f.tanggal_foto,
+    uploaded_by: f.uploader ? { id: String(f.uploader.id), nama: f.uploader.name } : null,
+    created_at: f.created_at,
+  })));
+});
+
+// POST /finance/adm-projek/:id/foto-dokumentasi
+router.post("/adm-projek/:id/foto-dokumentasi", async (req: Request, res: Response) => {
+  const projectId = BigInt(req.params.id);
+  const userId = (req as any).user?.id ? BigInt((req as any).user.id) : undefined;
+  const { judul, deskripsi, foto_data, tanggal_foto } = req.body;
+  if (!foto_data) return res.status(400).json({ detail: "foto_data wajib diisi" });
+  const f = await prisma.projekFotoDokumentasi.create({
+    data: {
+      project_id: projectId,
+      judul: judul || null,
+      deskripsi: deskripsi || null,
+      foto_data,
+      tanggal_foto: tanggal_foto ? new Date(tanggal_foto) : new Date(),
+      uploaded_by: userId ?? null,
+    },
+    include: { uploader: { select: { id: true, name: true } } },
+  });
+  return res.status(201).json({
+    id: String(f.id),
+    project_id: String(f.project_id),
+    judul: f.judul,
+    deskripsi: f.deskripsi,
+    foto_data: f.foto_data,
+    tanggal_foto: f.tanggal_foto,
+    uploaded_by: f.uploader ? { id: String(f.uploader.id), nama: f.uploader.name } : null,
+    created_at: f.created_at,
+  });
+});
+
+// DELETE /finance/adm-projek/:id/foto-dokumentasi/:fid
+router.delete("/adm-projek/:id/foto-dokumentasi/:fid", async (req: Request, res: Response) => {
+  const fid = BigInt(req.params.fid);
+  const projectId = BigInt(req.params.id);
+  const existing = await prisma.projekFotoDokumentasi.findFirst({
+    where: { id: fid, project_id: projectId },
+  });
+  if (!existing) return res.status(404).json({ detail: "Foto tidak ditemukan" });
+  await prisma.projekFotoDokumentasi.delete({ where: { id: fid } });
+  return res.json({ ok: true });
 });
 
 export default router;

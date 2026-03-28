@@ -1,0 +1,16 @@
+hlsAddress: :8888
+hlsAlwaysRemux: yes
+hlsSegmentCount: 3
+hlsSegmentDuration: 1s
+
+webrtcAddress: :8889
+
+api: yes
+apiAddress: :9997
+
+paths:
+  testcam:
+    runOnDemand: C:\temp\ffmpeg-build\ffmpeg-8.1-essentials_build\bin\ffmpeg.exe -re -f lavfi -i testsrc=size=640x480:rate=15 -vf format=yuv420p -c:v libx264 -preset ultrafast -tune zerolatency -g 30 -f rtsp rtsp://localhost:$RTSP_PORT/$MTX_PATH
+    runOnDemandRestart: yes
+    runOnDemandStartTimeout: 10s
+    runOnDemandCloseAfter: 0s

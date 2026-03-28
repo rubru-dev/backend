@@ -17,8 +17,7 @@ import { Plus, Pencil, Trash2, Search, PhoneCall, Printer, FileUp, FileDown, His
 import * as XLSX from "xlsx";
 
 interface FollowUpLeadsProps {
-  /** "sales-admin" | "telemarketing" — menentukan endpoint yang dipakai */
-  modul: "sales-admin" | "telemarketing";
+  modul: "sales-admin" | "telemarketing" | "database-client";
 }
 
 interface FollowUpHistoryItem {
@@ -66,8 +65,8 @@ const EMPTY = {
 
 export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   const qc = useQueryClient();
-  const endpoint = `/bd/${modul === "telemarketing" ? "telemarketing" : "sales-admin"}/leads`;
-  const bulkEndpoint = `/bd/${modul === "telemarketing" ? "telemarketing" : "sales-admin"}/leads/bulk`;
+  const endpoint = `/bd/${modul}/leads`;
+  const bulkEndpoint = `/bd/${modul}/leads/bulk`;
   const excelInputRef = useRef<HTMLInputElement>(null);
 
   const followUpApi = {
@@ -290,7 +289,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   }
 
   function handlePrintRiwayat(item: any, history: FollowUpHistoryItem[]) {
-    const modulLabel = modul === "sales-admin" ? "Sales Admin" : "Telemarketing";
+    const modulLabel = modul === "sales-admin" ? "Sales Admin" : modul === "telemarketing" ? "Telemarketing" : "Database Client";
     const now = new Date();
     const rows = history.map((h, i) => `
       <tr>
@@ -370,7 +369,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   }
 
   async function handlePrintBulkPdf() {
-    const modulLabel = modul === "sales-admin" ? "Sales Admin" : "Telemarketing";
+    const modulLabel = modul === "sales-admin" ? "Sales Admin" : modul === "telemarketing" ? "Telemarketing" : "Database Client";
     const now = new Date();
     let allLeads: any[] = [];
     try {
@@ -512,7 +511,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
 
   function handlePrint() {
     const now = new Date();
-    const modulLabel = modul === "sales-admin" ? "Sales Admin" : "Telemarketing";
+    const modulLabel = modul === "sales-admin" ? "Sales Admin" : modul === "telemarketing" ? "Telemarketing" : "Database Client";
 
     const filterParts: string[] = [];
     if (filterStatus !== "all") filterParts.push(`Status: ${filterStatus}`);
@@ -634,7 +633,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   }
 
   function handleExportExcel() {
-    const modulLabel = modul === "sales-admin" ? "Sales Admin" : "Telemarketing";
+    const modulLabel = modul === "sales-admin" ? "Sales Admin" : modul === "telemarketing" ? "Telemarketing" : "Database Client";
     const rows = items.map((item: any, i: number) => ({
       "No":              i + 1,
       "Nama":            item.nama,
@@ -657,7 +656,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   }
 
   async function handleExportBulkExcel() {
-    const modulLabel = modul === "sales-admin" ? "Sales Admin" : "Telemarketing";
+    const modulLabel = modul === "sales-admin" ? "Sales Admin" : modul === "telemarketing" ? "Telemarketing" : "Database Client";
     let allLeads: any[] = [];
     try {
       allLeads = await followUpApi.followUpReport({
@@ -750,7 +749,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
             <PhoneCall className="h-6 w-6 text-amber-500" /> Follow Up Leads
           </h1>
           <p className="text-muted-foreground">
-            {modul === "sales-admin" ? "Sales Admin" : "Telemarketing"} — Data leads dan follow up
+            {modul === "sales-admin" ? "Sales Admin" : modul === "telemarketing" ? "Telemarketing" : "Database Client"} — Data leads dan follow up
           </p>
         </div>
         <div className="flex gap-2">

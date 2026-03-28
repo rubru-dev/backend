@@ -11,7 +11,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Camera, CheckCircle, Clock, XCircle, ChevronLeft, Upload, ChevronRight } from "lucide-react";
+import { Camera, CheckCircle, Clock, XCircle, ChevronLeft, Upload, ChevronRight, Images, Plus, Trash2 } from "lucide-react";
 
 const api = {
   getProjects: () => apiClient.get("/finance/tukang-absen/projects").then((r) => r.data),
@@ -19,6 +19,8 @@ const api = {
   getMyAbsen: (pid: number) => apiClient.get(`/finance/tukang-absen/${pid}/my-absen`).then((r) => r.data),
   submitAbsen: (pid: number, data: { foto: string; tanggal: string }) =>
     apiClient.post(`/finance/tukang-absen/${pid}/submit`, data).then((r) => r.data),
+  addFotoDokumentasi: (pid: number, data: any) =>
+    apiClient.post(`/finance/adm-projek/${pid}/foto-dokumentasi`, data).then((r) => r.data),
 };
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
@@ -39,6 +41,10 @@ export default function AbsenTukangPage() {
   const [viewFoto, setViewFoto] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dokInputRef = useRef<HTMLInputElement>(null);
+  const [showDokForm, setShowDokForm] = useState(false);
+  const [dokPreviews, setDokPreviews] = useState<string[]>([]);
+  const [dokTanggal, setDokTanggal] = useState(new Date().toISOString().slice(0, 10));
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -73,12 +79,37 @@ export default function AbsenTukangPage() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal mengirim absensi"),
   });
 
+  const addDokMut = useMutation({
+    mutationFn: (fotos: string[]) =>
+      Promise.all(fotos.map((foto_data) =>
+        api.addFotoDokumentasi(selectedProject!.id, { foto_data, tanggal_foto: dokTanggal })
+      )),
+    onSuccess: (_, fotos) => {
+      toast.success(`${fotos.length} foto dokumentasi dikirim!`);
+      setShowDokForm(false);
+      setDokPreviews([]);
+      setDokTanggal(new Date().toISOString().slice(0, 10));
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal upload foto"),
+  });
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => setFotoPreview(reader.result as string);
     reader.readAsDataURL(file);
+  }
+
+  function handleDokFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = () => setDokPreviews((prev) => [...prev, reader.result as string]);
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
   }
 
   function handleSubmit() {
@@ -227,6 +258,67 @@ export default function AbsenTukangPage() {
                         );
                       })}
                 </CardContent>
+              </Card>
+
+              {/* Foto Dokumentasi Projek */}
+              <Card>
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Images className="h-4 w-4 text-blue-500" /> Foto Dokumentasi
+                    </CardTitle>
+                    <Button size="sm" variant="outline" onClick={() => setShowDokForm((s) => !s)}>
+                      <Plus className="h-3 w-3 mr-1" /> Tambah
+                    </Button>
+                  </div>
+                </CardHeader>
+                {showDokForm && (
+                  <CardContent className="pt-0 space-y-3">
+                    <div className="space-y-1">
+                      <Label className="text-xs">Tanggal Foto</Label>
+                      <Input type="date" value={dokTanggal} onChange={(e) => setDokTanggal(e.target.value)} className="h-8 text-xs" />
+                    </div>
+
+                    {/* Preview grid */}
+                    {dokPreviews.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {dokPreviews.map((src, i) => (
+                          <div key={i} className="relative">
+                            <img src={src} alt={`foto-${i + 1}`} className="w-full h-24 object-cover rounded border" />
+                            <button
+                              className="absolute top-0.5 right-0.5 bg-black/60 text-white rounded-full p-0.5"
+                              onClick={() => setDokPreviews((prev) => prev.filter((_, idx) => idx !== i))}
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Add more photos button */}
+                    <input ref={dokInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleDokFileChange} />
+                    <label
+                      className="flex items-center justify-center gap-2 border-2 border-dashed rounded-lg p-3 cursor-pointer hover:border-primary/50 text-muted-foreground text-sm"
+                      onClick={() => dokInputRef.current?.click()}
+                    >
+                      <Camera className="h-5 w-5" />
+                      {dokPreviews.length === 0 ? "Pilih foto (bisa lebih dari satu)" : `Tambah foto lagi (${dokPreviews.length} dipilih)`}
+                    </label>
+
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => { if (!dokPreviews.length) { toast.error("Pilih minimal 1 foto"); return; } addDokMut.mutate(dokPreviews); }}
+                        disabled={addDokMut.isPending || dokPreviews.length === 0}
+                        className="h-8 text-xs"
+                      >
+                        {addDokMut.isPending ? "Mengirim..." : `Kirim ${dokPreviews.length > 0 ? `(${dokPreviews.length} foto)` : ""}`}
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setShowDokForm(false); setDokPreviews([]); }}>Batal</Button>
+                    </div>
+                  </CardContent>
+                )}
               </Card>
             </>
           )}

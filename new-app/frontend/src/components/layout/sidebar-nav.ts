@@ -49,6 +49,18 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
+  // ── Database Client ───────────────────────────────────────────────────────────
+  // Group: sales_admin.view | Input leads database klien mandiri
+  {
+    title: "Database Client",
+    color: "#0ea5e9",
+    permission: "sales_admin.view",
+    roles: ["Sales Admin", "Telemarketing"],
+    items: [
+      { label: "Data Klien", href: "/database-client", icon: "Database", permission: "sales_admin.view" },
+    ],
+  },
+
   // ── Sales Admin ───────────────────────────────────────────────────────────────
   // Group: sales_admin.view | Items: sales_admin.kanban, sales_admin.follow_up, sales_admin.kalender, sales_admin.laporan_harian
   {
@@ -80,14 +92,15 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 
   // ── Desain ───────────────────────────────────────────────────────────────────
-  // Group: desain.view | Items: desain.laporan_harian
+  // Group: desain.view | Items: desain.follow_up, desain.laporan_harian
   {
     title: "Desain",
     color: "#8b5cf6",
     permission: "desain.view",
     roles: ["Desain"],
     items: [
-      { label: "Laporan Harian", href: "/desain/laporan-harian", icon: "ClipboardList", permission: "desain.laporan_harian" },
+      { label: "Follow Up After Survey", href: "/desain/follow-up-survey", icon: "Kanban",        permission: "desain.follow_up" },
+      { label: "Laporan Harian",         href: "/desain/laporan-harian",   icon: "ClipboardList", permission: "desain.laporan_harian" },
     ],
   },
 
@@ -135,14 +148,15 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 
   // ── PIC Project ───────────────────────────────────────────────────────────────
-  // Group: pic.view | Items: pic.laporan_harian
+  // Group: pic.view | Items: pic.laporan_harian, pic.dokumentasi
   {
     title: "PIC Project",
     color: "#f97316",
     permission: "pic.view",
     roles: ["PIC Project"],
     items: [
-      { label: "Laporan Harian", href: "/pic/laporan-harian", icon: "ClipboardList", permission: "pic.laporan_harian" },
+      { label: "Laporan Harian",    href: "/pic/laporan-harian",  icon: "ClipboardList", permission: "pic.laporan_harian" },
+      { label: "Upload Dokumentasi", href: "/pic/dokumentasi",    icon: "Images",        permission: "pic.view" },
     ],
   },
 
@@ -167,6 +181,24 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: [],
     items: [
       { label: "Akun & Data Klien", href: "/client", icon: "Users", permission: "client.manage" },
+    ],
+  },
+
+  // ── Web Rubah Rumah (Super Admin only) ───────────────────────────────────────
+  // Group: admin.view | Kelola konten website publik
+  {
+    title: "Web Rubah Rumah",
+    color: "#FF9122",
+    permission: "admin.view",
+    roles: [],
+    items: [
+      { label: "Kalkulator Harga",     href: "/website/kalkulator",      icon: "Calculator",  permission: "admin.view" },
+      { label: "Banner / Hero",        href: "/website/banner",          icon: "Images",      permission: "admin.view" },
+      { label: "Projek Berjalan",      href: "/website/projek-berjalan", icon: "HardHat",     permission: "admin.view" },
+      { label: "Portofolio",           href: "/website/portofolio",      icon: "Briefcase",   permission: "admin.view" },
+      { label: "Artikel",              href: "/website/artikel",         icon: "FileText",    permission: "admin.view" },
+      { label: "Testimoni",            href: "/website/testimoni",       icon: "MessageSquareQuote", permission: "admin.view" },
+      { label: "Konfigurasi & Kontak", href: "/website/config",          icon: "Globe",       permission: "admin.view" },
     ],
   },
 

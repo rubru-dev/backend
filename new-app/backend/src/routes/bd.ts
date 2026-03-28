@@ -48,12 +48,16 @@ router.get("/leads", requirePermission("bd", "view"), async (req: Request, res: 
   const status = req.query.status as string | undefined;
   const bulan = req.query.bulan ? parseInt(req.query.bulan as string) : undefined;
   const tahun = req.query.tahun ? parseInt(req.query.tahun as string) : undefined;
+  const modul = req.query.modul as string | undefined;
+  const jenis = req.query.jenis as string | undefined;
 
   const where: Record<string, unknown> = {};
   if (search) where.nama = { contains: search, mode: "insensitive" };
   if (status) where.status = status;
   if (bulan) where.bulan = bulan;
   if (tahun) where.tahun = tahun;
+  if (modul) where.modul = modul;
+  if (jenis) where.jenis = jenis;
 
   const [total, leads] = await Promise.all([
     prisma.lead.count({ where }),
@@ -66,6 +70,58 @@ router.get("/leads", requirePermission("bd", "view"), async (req: Request, res: 
     }),
   ]);
   return res.json(paginateResponse(leads.map(leadDict), total, page, limit));
+});
+
+// GET /bd/database-client/leads — accessible to sales_admin + telemarketing + BD (Super Admin bypass)
+router.get("/database-client/leads", async (req: Request, res: Response) => {
+  const { page, limit, skip } = getPagination(req.query);
+  const search = req.query.search as string | undefined;
+  const status = req.query.status as string | undefined;
+  const jenis = req.query.jenis as string | undefined;
+  const modul = req.query.modul as string | undefined;
+
+  const where: Record<string, unknown> = {};
+  if (search) {
+    where.OR = [
+      { nama: { contains: search, mode: "insensitive" } },
+      { nomor_telepon: { contains: search, mode: "insensitive" } },
+    ];
+  }
+  if (status) where.status = status;
+  if (jenis) where.jenis = jenis;
+  if (modul) where.modul = modul;
+
+  const [total, leads] = await Promise.all([
+    prisma.lead.count({ where }),
+    prisma.lead.findMany({
+      where,
+      include: {
+        user: true,
+        follow_ups: {
+          orderBy: { created_at: "desc" },
+          take: 5,
+          include: { user: { select: { id: true, name: true } } },
+        },
+      },
+      orderBy: { id: "desc" },
+      skip,
+      take: limit,
+    }),
+  ]);
+
+  const mapped = leads.map((l) => ({
+    ...leadDict(l),
+    follow_ups: (l as any).follow_ups?.map((fu: any) => ({
+      id: String(fu.id),
+      tanggal: fu.tanggal,
+      catatan: fu.catatan,
+      next_follow_up: fu.next_follow_up,
+      created_by: fu.user ? { id: String(fu.user.id), nama: fu.user.name } : null,
+      created_at: fu.created_at,
+    })) ?? [],
+  }));
+
+  return res.json(paginateResponse(mapped, total, page, limit));
 });
 
 router.post("/leads", async (req: Request, res: Response) => {
@@ -1358,7 +1414,7 @@ router.post("/kanban/labels", async (_req: Request, res: Response) => {
 
 // ── MODULAR LEADS (sales-admin / telemarketing) ───────────────────────────────
 
-const VALID_MODUL = new Set(["sales-admin", "telemarketing"]);
+const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client"]);
 
 function validateModul(modul: string, res: Response): boolean {
   if (!VALID_MODUL.has(modul)) {
@@ -1677,15 +1733,22 @@ router.get("/:modul/survey-kalender", async (req: Request, res: Response) => {
   if (!validateModul(modul, res)) return;
   const bulan = req.query.bulan ? parseInt(req.query.bulan as string) : undefined;
   const tahun = req.query.tahun ? parseInt(req.query.tahun as string) : undefined;
+  // show_all=true → gabungkan semua modul (untuk Database Client / Super Admin)
+  const showAll = req.query.show_all === "true";
+  const filterUser = req.query.user_id ? BigInt(req.query.user_id as string) : undefined;
 
   const where: Record<string, unknown> = {
-    modul,
     rencana_survey: "Ya",
     tanggal_survey: { not: null },
   };
 
+  // Jika tidak show_all, filter by modul
+  if (!showAll) where.modul = modul;
+
+  // Filter by inputter (user_id yang membuat lead)
+  if (filterUser) where.user_id = filterUser;
+
   if (bulan && tahun) {
-    // Filter by tanggal_survey month/year
     const startOfMonth = new Date(tahun, bulan - 1, 1);
     const endOfMonth = new Date(tahun, bulan, 0, 23, 59, 59);
     where.tanggal_survey = { gte: startOfMonth, lte: endOfMonth };
@@ -1701,6 +1764,20 @@ router.get("/:modul/survey-kalender", async (req: Request, res: Response) => {
     orderBy: { tanggal_survey: "asc" },
   });
   return res.json({ items: leads.map(leadDict), total: leads.length });
+});
+
+// GET /bd/survey-kalender/users — list users who have inputted surveys (for filter dropdown)
+router.get("/survey-kalender/users", async (_req: Request, res: Response) => {
+  const users = await prisma.user.findMany({
+    where: {
+      leads_leads_user_idTousers: {
+        some: { rencana_survey: "Ya", tanggal_survey: { not: null } },
+      },
+    },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+  });
+  return res.json(users.map((u) => ({ id: String(u.id), nama: u.name })));
 });
 
 router.post("/:modul/leads/:id/approve-survey", async (req: Request, res: Response) => {

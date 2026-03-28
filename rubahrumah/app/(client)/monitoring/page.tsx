@@ -1,16 +1,17 @@
 "use client";
 import { useState, useEffect } from "react";
 import { portalApi } from "@/lib/apiClient";
+import CameraPlayer from "@/components/ui/CameraPlayer";
 
 interface CctvStream {
   id: number;
   nama: string;
   stream_url: string;
-  stream_type: string; // youtube | hls | rtsp | iframe
+  stream_type: string; // youtube | rtsp | iframe
+  hls_url: string | null;
 }
 
 function getYouTubeEmbedUrl(url: string) {
-  // https://youtu.be/xxx or https://www.youtube.com/watch?v=xxx or https://www.youtube.com/live/xxx
   const patterns = [
     /youtu\.be\/([^?&\s]+)/,
     /youtube\.com\/watch\?v=([^&\s]+)/,
@@ -25,6 +26,11 @@ function getYouTubeEmbedUrl(url: string) {
 }
 
 function StreamPlayer({ stream }: { stream: CctvStream }) {
+  // RTSP with MediaMTX HLS → use CameraPlayer
+  if (stream.stream_type === "rtsp" && stream.hls_url) {
+    return <CameraPlayer hlsUrl={stream.hls_url} cameraName={stream.nama} />;
+  }
+
   if (stream.stream_type === "youtube") {
     const embedUrl = getYouTubeEmbedUrl(stream.stream_url);
     if (embedUrl) {
@@ -55,8 +61,8 @@ function StreamPlayer({ stream }: { stream: CctvStream }) {
     );
   }
 
+  // RTSP without MediaMTX (no hls_url) — show copy URL fallback
   if (stream.stream_type === "rtsp") {
-    // RTSP tidak bisa langsung di-embed di browser — tampilkan info & copy URL
     return (
       <div className="w-full aspect-video bg-slate-800 rounded-xl flex flex-col items-center justify-center gap-4 p-6">
         <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
@@ -68,7 +74,6 @@ function StreamPlayer({ stream }: { stream: CctvStream }) {
         <div className="text-center">
           <p className="text-white font-semibold mb-1">Stream RTSP</p>
           <p className="text-slate-400 text-xs mb-3">
-            RTSP tidak dapat diputar langsung di browser.<br/>
             Gunakan VLC, Tapo App, atau software RTSP player.
           </p>
           <div className="bg-slate-900 rounded-lg px-3 py-2 flex items-center gap-2 max-w-xs mx-auto">
@@ -84,15 +89,11 @@ function StreamPlayer({ stream }: { stream: CctvStream }) {
               </svg>
             </button>
           </div>
-          <p className="text-slate-500 text-xs mt-2">
-            Tapo C310: Buka Tapo App → Live View untuk akses langsung
-          </p>
         </div>
       </div>
     );
   }
 
-  // fallback / hls (tampilkan iframe atau pesan)
   return (
     <div className="w-full aspect-video bg-slate-800 rounded-xl flex items-center justify-center">
       <p className="text-slate-400 text-sm">Stream tidak dapat ditampilkan</p>
@@ -141,11 +142,11 @@ export default function MonitoringPage() {
             <circle cx="24" cy="22" r="5" stroke="currentColor" strokeWidth="2"/>
             <path d="M18 38h12M24 34v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/>
           </svg>
-          <p className="text-slate-400 font-medium mb-1">Belum ada kamera terpasang</p>
-          <p className="text-slate-300 text-sm">Admin akan mengatur kamera CCTV live untuk proyek ini.</p>
+          <p className="text-slate-500 font-medium mb-1">Kamera belum dipasang</p>
+          <p className="text-slate-400 text-sm">Tim kami akan segera memasang kamera CCTV di lokasi proyek Anda</p>
         </div>
       ) : (
-        <div className={`grid gap-5 ${streams.length === 1 ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-2"}`}>
+        <div className={`grid gap-5 ${streams.length === 1 ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3"}`}>
           {streams.map((stream) => (
             <div key={stream.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <StreamPlayer stream={stream} />
@@ -153,7 +154,7 @@ export default function MonitoringPage() {
                 <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse shrink-0" />
                 <span className="text-sm font-semibold text-slate-700">{stream.nama}</span>
                 <span className="ml-auto text-xs text-slate-400 uppercase bg-slate-100 px-2 py-0.5 rounded">
-                  {stream.stream_type}
+                  {stream.stream_type === "rtsp" && stream.hls_url ? "live" : stream.stream_type}
                 </span>
               </div>
             </div>
@@ -161,7 +162,6 @@ export default function MonitoringPage() {
         </div>
       )}
 
-      {/* Info box */}
       <div className="mt-5 flex items-start gap-3 bg-blue-50 border border-blue-100 text-blue-700 text-sm px-4 py-3 rounded-xl">
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none" className="shrink-0 mt-0.5">
           <circle cx="9" cy="9" r="7.5" stroke="currentColor" strokeWidth="1.5"/>
@@ -169,7 +169,7 @@ export default function MonitoringPage() {
         </svg>
         <span>
           Tampilan kamera live tergantung koneksi internet di lokasi proyek.
-          Untuk kamera RTSP (Tapo C310), gunakan aplikasi <strong>Tapo</strong> untuk live view.
+          Klik tombol play pada kamera untuk mulai streaming.
         </span>
       </div>
     </div>

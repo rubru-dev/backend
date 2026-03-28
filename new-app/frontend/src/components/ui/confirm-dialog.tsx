@@ -1,16 +1,15 @@
 "use client";
 
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Trash2 } from "lucide-react";
+import { AlertTriangle, Loader2 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./dialog";
+import { Button } from "./button";
 
-interface ConfirmDialogProps {
+interface Props {
   open: boolean;
   onClose: () => void;
   onConfirm: () => void;
   title?: string;
   description?: string;
-  confirmLabel?: string;
   loading?: boolean;
 }
 
@@ -18,27 +17,29 @@ export function ConfirmDialog({
   open,
   onClose,
   onConfirm,
-  title = "Hapus Data",
-  description = "Apakah Anda yakin ingin menghapus data ini? Tindakan ini tidak dapat dibatalkan.",
-  confirmLabel = "Hapus",
-  loading = false,
-}: ConfirmDialogProps) {
+  title = "Konfirmasi Hapus",
+  description = "Data yang dihapus tidak dapat dikembalikan. Lanjutkan?",
+  loading,
+}: Props) {
   return (
-    <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-sm">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-red-600">
-            <Trash2 className="w-4 h-4" />
+            <AlertTriangle size={18} />
             {title}
           </DialogTitle>
         </DialogHeader>
-        <p className="text-sm text-gray-600">{description}</p>
-        <div className="flex justify-end gap-2 pt-2">
-          <Button variant="outline" onClick={onClose} disabled={loading}>Batal</Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={loading}>
-            {loading ? "Menghapus..." : confirmLabel}
+        <p className="text-sm text-muted-foreground py-1">{description}</p>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onClose} disabled={loading}>
+            Batal
           </Button>
-        </div>
+          <Button variant="destructive" onClick={onConfirm} disabled={loading}>
+            {loading && <Loader2 className="animate-spin mr-2" size={14} />}
+            Ya, Hapus
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
