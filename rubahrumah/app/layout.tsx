@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ["latin"] });
 export const metadata: Metadata = {
   title: "RubahRumah - Platform Renovasi",
   description: "Pantau progres renovasi rumah Anda secara real-time",
-  icons: { icon: "/images/logo.png", apple: "/images/logo.png" },
+  icons: { icon: "/images/logo-browser.ico", apple: "/images/logo-browser.ico" },
 };
 
 export default function RootLayout({

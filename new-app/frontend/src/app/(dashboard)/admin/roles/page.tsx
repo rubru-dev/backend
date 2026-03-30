@@ -33,6 +33,7 @@ const MODULE_META: Record<string, { label: string; color: string }> = {
   finance:         { label: "Finance",                   color: "#ef4444" },
   pic:             { label: "PIC Project",               color: "#f97316" },
   tukang:          { label: "Tukang",                    color: "#f97316" },
+  website:         { label: "Web Rubah Rumah",           color: "#FF9122" },
   tutorial:        { label: "Tutorial",                  color: "#0ea5e9" },
   admin:           { label: "Admin Panel",               color: "#64748b" },
 };

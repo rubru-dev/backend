@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Save, Globe, Phone, MapPin, Link2, Loader2, Mail, Clock } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 
 function TikTokIcon() {
   return (
@@ -21,6 +22,7 @@ function TikTokIcon() {
 
 export default function WebsiteConfigPage() {
   const qc = useQueryClient();
+  const { _hasHydrated, isSuperAdmin, hasPermission } = useAuthStore();
   const [form, setForm] = useState({
     whatsapp_number: "",
     alamat_kantor: "",
@@ -98,6 +100,10 @@ export default function WebsiteConfigPage() {
         <Loader2 className="animate-spin text-muted-foreground" />
       </div>
     );
+  }
+
+  if (_hasHydrated && !isSuperAdmin() && !hasPermission("website", "view")) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Anda tidak memiliki akses ke halaman ini.</div>;
   }
 
   return (

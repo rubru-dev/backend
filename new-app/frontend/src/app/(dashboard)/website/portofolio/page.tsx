@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Card, CardContent } from "@/components/ui/card";
 import { Briefcase, Plus, Trash2, Loader2, Edit2, Images, Star } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAuthStore } from "@/store/authStore";
 
 const STORAGE = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000";
 const JENIS = ["BANGUN", "RENOVASI", "DESAIN", "INTERIOR"];
@@ -33,6 +34,7 @@ const emptyForm = {
 
 export default function WebsitePortofolioPage() {
   const qc = useQueryClient();
+  const { _hasHydrated, isSuperAdmin, hasPermission } = useAuthStore();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -113,6 +115,10 @@ export default function WebsitePortofolioPage() {
       sort_order: String(item.sort_order),
     });
     setOpen(true);
+  }
+
+  if (_hasHydrated && !isSuperAdmin() && !hasPermission("website", "view")) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Anda tidak memiliki akses ke halaman ini.</div>;
   }
 
   return (

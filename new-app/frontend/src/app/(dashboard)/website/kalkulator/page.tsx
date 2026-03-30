@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Calculator, Plus, Pencil, Trash2, Check, X, Loader2, ListChecks, GripVertical } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 
 interface KalkulatorItem {
   key: string;
@@ -57,6 +58,7 @@ const DEFAULT_SPEC_LUXURY = [
 
 export default function WebsiteKalkulatorPage() {
   const qc = useQueryClient();
+  const { _hasHydrated, isSuperAdmin, hasPermission } = useAuthStore();
   const [synced, setSynced] = useState(false);
   const [paketItems, setPaketItems] = useState<KalkulatorItem[]>([]);
   const [surchargeItems, setSurchargeItems] = useState<KalkulatorItem[]>([]);
@@ -219,6 +221,10 @@ export default function WebsiteKalkulatorPage() {
     setSpesifikasi((s) => ({ ...s, [paket]: updated }));
     setEditingSpecIdx(null);
     saveSpecMut.mutate({ paket, items: updated });
+  }
+
+  if (_hasHydrated && !isSuperAdmin() && !hasPermission("website", "view")) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Anda tidak memiliki akses ke halaman ini.</div>;
   }
 
   if (!synced) {

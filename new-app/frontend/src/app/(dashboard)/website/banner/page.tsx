@@ -13,11 +13,13 @@ import { Switch } from "@/components/ui/switch";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Images, Plus, Trash2, Loader2, Edit2, Monitor, Smartphone } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAuthStore } from "@/store/authStore";
 
 const STORAGE = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000";
 
 export default function WebsiteBannerPage() {
   const qc = useQueryClient();
+  const { _hasHydrated, isSuperAdmin, hasPermission } = useAuthStore();
   const fileRef = useRef<HTMLInputElement>(null);
   const mobileFileRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
@@ -98,6 +100,10 @@ export default function WebsiteBannerPage() {
     setOpen(false); setEditing(null);
     setFile(null); setMobileFile(null);
     setPreview(null); setMobilePreview(null);
+  }
+
+  if (_hasHydrated && !isSuperAdmin() && !hasPermission("website", "view")) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Anda tidak memiliki akses ke halaman ini.</div>;
   }
 
   return (

@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { MessageSquareQuote, Plus, Trash2, Loader2, Edit2, Play } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 
 function getYoutubeId(url: string): string | null {
   const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^&\n?#]+)/);
@@ -29,6 +30,7 @@ const emptyForm = {
 
 export default function WebsiteTestimoniPage() {
   const qc = useQueryClient();
+  const { _hasHydrated, isSuperAdmin, hasPermission } = useAuthStore();
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState({ ...emptyForm });
@@ -84,6 +86,10 @@ export default function WebsiteTestimoniPage() {
       sort_order: String(item.sort_order),
     });
     setOpen(true);
+  }
+
+  if (_hasHydrated && !isSuperAdmin() && !hasPermission("website", "view")) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Anda tidak memiliki akses ke halaman ini.</div>;
   }
 
   return (

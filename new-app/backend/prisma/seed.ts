@@ -113,6 +113,8 @@ async function main() {
     { name: "telemarketing.kalender",      module: "telemarketing", label: "Sub-menu: Kalender Survey TM" },
     { name: "telemarketing.laporan_harian",module: "telemarketing", label: "Sub-menu: Laporan Harian TM" },
     // Desain sub-menus
+    { name: "desain.follow_up",      module: "desain", label: "Sub-menu: Follow Up After Survey" },
+    { name: "desain.kanban_paket",   module: "desain", label: "Sub-menu: Kanban Paket Desain" },
     { name: "desain.laporan_harian", module: "desain", label: "Sub-menu: Laporan Harian Desain" },
     // Sales sub-menus
     { name: "sales.kanban",        module: "sales", label: "Sub-menu: Kanban Sales" },
@@ -140,6 +142,10 @@ async function main() {
     { name: "projek_sipil.docs",        module: "projek_sipil", label: "Tab: Docs/Link Sipil" },
     { name: "projek_sipil.rapp",        module: "projek_sipil", label: "Tab: RAPP Sipil" },
     { name: "projek_sipil.stock_opname",module: "projek_sipil", label: "Tab: Stock Opname Sipil" },
+    // Projek Desain tab-level
+    { name: "projek_desain.gantt",  module: "projek_desain", label: "Tab: Gantt Chart Desain" },
+    { name: "projek_desain.docs",   module: "projek_desain", label: "Tab: Docs/Link Desain" },
+    { name: "projek_desain.kanban", module: "projek_desain", label: "Tab: Kanban Pekerjaan Desain" },
     // Projek Interior tab-level
     { name: "projek_interior.termin",   module: "projek_interior", label: "Tab: Daftar Termin Interior" },
     { name: "projek_interior.gantt",    module: "projek_interior", label: "Tab: Gantt Chart Interior" },
@@ -149,6 +155,18 @@ async function main() {
     // Client Portal Management
     { name: "client.view",   module: "client", label: "Lihat Client Portal" },
     { name: "client.manage", module: "client", label: "Kelola Data Client Portal" },
+    // Website Rubah Rumah (konten publik)
+    { name: "website.view",              module: "website", label: "Lihat Web Rubah Rumah" },
+    { name: "website.create",            module: "website", label: "Buat Konten Website" },
+    { name: "website.edit",              module: "website", label: "Edit Konten Website" },
+    { name: "website.delete",            module: "website", label: "Hapus Konten Website" },
+    { name: "website.kalkulator",        module: "website", label: "Sub-menu: Kalkulator Harga" },
+    { name: "website.banner",            module: "website", label: "Sub-menu: Banner / Hero" },
+    { name: "website.projek_berjalan",   module: "website", label: "Sub-menu: Projek Berjalan Website" },
+    { name: "website.portofolio",        module: "website", label: "Sub-menu: Portofolio" },
+    { name: "website.artikel",           module: "website", label: "Sub-menu: Artikel" },
+    { name: "website.testimoni",         module: "website", label: "Sub-menu: Testimoni" },
+    { name: "website.config",            module: "website", label: "Sub-menu: Konfigurasi & Kontak" },
     // Tutorial
     { name: "tutorial.view",              module: "tutorial", label: "Lihat Tutorial" },
     { name: "tutorial.tutorial_aplikasi", module: "tutorial", label: "Sub-menu: Tutorial Aplikasi" },
@@ -242,7 +260,7 @@ async function main() {
       "telemarketing.kalender","telemarketing.laporan_harian",
       ...TUTORIAL_PERMS,
     ],
-    "Desain":       ["desain.laporan_harian", ...TUTORIAL_PERMS],
+    "Desain":       ["desain.follow_up","desain.kanban_paket","desain.laporan_harian", ...TUTORIAL_PERMS],
     "Sales":        ["sales.kanban","sales.laporan_harian", ...TUTORIAL_PERMS],
     "Finance": [
       "finance.invoice","finance.adm_projek","finance.adm_kantor","finance.laporan_harian",

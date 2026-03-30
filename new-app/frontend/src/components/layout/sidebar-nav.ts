@@ -99,8 +99,8 @@ export const NAV_GROUPS: NavGroup[] = [
     permission: "desain.view",
     roles: ["Desain"],
     items: [
-      { label: "Follow Up After Survey", href: "/desain/follow-up-survey",         icon: "Kanban",        permission: "desain.follow_up" },
-      { label: "Kanban Paket Desain",    href: "/desain/kanban-paket-desain",       icon: "LayoutDashboard", permission: "desain.view" },
+      { label: "Follow Up After Survey", href: "/desain/follow-up-survey",         icon: "Kanban",          permission: "desain.follow_up" },
+      { label: "Kanban Paket Desain",    href: "/desain/kanban-paket-desain",       icon: "LayoutDashboard", permission: "desain.kanban_paket" },
       { label: "Laporan Harian",         href: "/desain/laporan-harian",            icon: "ClipboardList", permission: "desain.laporan_harian" },
     ],
   },
@@ -185,21 +185,21 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ── Web Rubah Rumah (Super Admin only) ───────────────────────────────────────
-  // Group: admin.view | Kelola konten website publik
+  // ── Web Rubah Rumah ───────────────────────────────────────────────────────────
+  // Group: website.view | Kelola konten website publik
   {
     title: "Web Rubah Rumah",
     color: "#FF9122",
-    permission: "admin.view",
+    permission: "website.view",
     roles: [],
     items: [
-      { label: "Kalkulator Harga",     href: "/website/kalkulator",      icon: "Calculator",  permission: "admin.view" },
-      { label: "Banner / Hero",        href: "/website/banner",          icon: "Images",      permission: "admin.view" },
-      { label: "Projek Berjalan",      href: "/website/projek-berjalan", icon: "HardHat",     permission: "admin.view" },
-      { label: "Portofolio",           href: "/website/portofolio",      icon: "Briefcase",   permission: "admin.view" },
-      { label: "Artikel",              href: "/website/artikel",         icon: "FileText",    permission: "admin.view" },
-      { label: "Testimoni",            href: "/website/testimoni",       icon: "MessageSquareQuote", permission: "admin.view" },
-      { label: "Konfigurasi & Kontak", href: "/website/config",          icon: "Globe",       permission: "admin.view" },
+      { label: "Kalkulator Harga",     href: "/website/kalkulator",      icon: "Calculator",         permission: "website.kalkulator" },
+      { label: "Banner / Hero",        href: "/website/banner",          icon: "Images",             permission: "website.banner" },
+      { label: "Projek Berjalan",      href: "/website/projek-berjalan", icon: "HardHat",            permission: "website.projek_berjalan" },
+      { label: "Portofolio",           href: "/website/portofolio",      icon: "Briefcase",          permission: "website.portofolio" },
+      { label: "Artikel",              href: "/website/artikel",         icon: "FileText",           permission: "website.artikel" },
+      { label: "Testimoni",            href: "/website/testimoni",       icon: "MessageSquareQuote", permission: "website.testimoni" },
+      { label: "Konfigurasi & Kontak", href: "/website/config",          icon: "Globe",              permission: "website.config" },
     ],
   },
 

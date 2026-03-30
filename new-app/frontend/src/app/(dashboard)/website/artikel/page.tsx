@@ -16,6 +16,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RichTextEditor } from "@/components/ui/rich-text-editor";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { FileText, Plus, Trash2, Loader2, Edit2, ImageIcon, Tags, X } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 
 const STORAGE = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000";
 
@@ -26,6 +27,7 @@ const emptyForm = {
 
 export default function WebsiteArtikelPage() {
   const qc = useQueryClient();
+  const { _hasHydrated, isSuperAdmin, hasPermission } = useAuthStore();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState(false);
@@ -118,6 +120,10 @@ export default function WebsiteArtikelPage() {
   function handleClose() {
     setOpen(false); setEditing(null);
     setCoverFile(null); setCoverPreview(null);
+  }
+
+  if (_hasHydrated && !isSuperAdmin() && !hasPermission("website", "view")) {
+    return <div className="flex items-center justify-center h-64 text-muted-foreground">Anda tidak memiliki akses ke halaman ini.</div>;
   }
 
   return (
