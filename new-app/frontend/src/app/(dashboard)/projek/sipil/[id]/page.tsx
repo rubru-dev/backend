@@ -264,7 +264,8 @@ export default function ProyekSipilDetailPage() {
   const canTabDocs       = sa || hasPermission("projek_sipil", "docs");
   const canTabRapp       = sa || hasPermission("projek_sipil", "rapp");
   const canTabStockOpname= sa || hasPermission("projek_sipil", "stock_opname");
-  const defaultTab = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabDocs ? "docs" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : "termin";
+  const canTabDokumentasi= true;
+  const defaultTab = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabDocs ? "docs" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : "dokumentasi";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
   const [ganttFilter, setGanttFilter] = useState("all");
@@ -415,6 +416,14 @@ export default function ProyekSipilDetailPage() {
     mutationFn: (lid: string) => sipilApi.deleteUsageLog(lid),
     onSuccess: () => { toast.success("Log dihapus"); qc.invalidateQueries({ queryKey: ["sipil-usage-logs", id] }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
+
+  // Dokumentasi PIC
+  const { data: dokumentasiData, isLoading: loadingDokumentasi } = useQuery({
+    queryKey: ["sipil-dokumentasi-pic", id],
+    queryFn: () => sipilApi.getDokumentasiPic(id),
+    enabled: !!id,
+    retry: false,
   });
 
   function openCatatDialog(item: { id: string; nama: string; sat: string | null; type: string }) {
@@ -612,6 +621,7 @@ export default function ProyekSipilDetailPage() {
           {canTabDocs        && <TabsTrigger value="docs"><Link2 className="h-3.5 w-3.5 mr-1.5" />Docs/Link</TabsTrigger>}
           {canTabRapp        && <TabsTrigger value="rapp"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />RAPP</TabsTrigger>}
           {canTabStockOpname && <TabsTrigger value="stock-opname"><PackageSearch className="h-3.5 w-3.5 mr-1.5" />Stock Opname</TabsTrigger>}
+          {canTabDokumentasi && <TabsTrigger value="dokumentasi"><Camera className="h-3.5 w-3.5 mr-1.5" />Dokumentasi</TabsTrigger>}
         </TabsList>
 
         {/* Daftar Termin */}
@@ -975,6 +985,57 @@ export default function ProyekSipilDetailPage() {
             projekNama={detail.nama_proyek ?? null}
             projekLokasi={detail.lokasi ?? null}
           />
+        </TabsContent>
+
+        {/* Dokumentasi PIC */}
+        <TabsContent value="dokumentasi" className="mt-4 space-y-6">
+          {loadingDokumentasi ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : !dokumentasiData?.termins?.some((t: any) => t.tasks?.some((tk: any) => tk.fotos?.length > 0)) ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <Camera className="h-10 w-10 mb-3 opacity-20" />
+              <p className="text-sm">Belum ada dokumentasi yang diupload oleh PIC.</p>
+            </div>
+          ) : (
+            dokumentasiData.termins.map((termin: any) => {
+              const tasksWithFotos = termin.tasks.filter((tk: any) => tk.fotos?.length > 0);
+              if (tasksWithFotos.length === 0) return null;
+              return (
+                <div key={termin.id}>
+                  <div className="flex items-center gap-2 mb-3">
+                    <Layers className="h-4 w-4 text-teal-600 flex-shrink-0" />
+                    <h3 className="font-semibold text-sm">{termin.nama ?? `Termin ${termin.urutan}`}</h3>
+                  </div>
+                  <div className="space-y-4 pl-6">
+                    {tasksWithFotos.map((task: any) => (
+                      <div key={task.id} className="border rounded-lg p-3">
+                        <p className="text-sm font-medium mb-3 text-slate-700">{task.nama_pekerjaan ?? "—"}</p>
+                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                          {task.fotos.map((foto: any) => {
+                            const fotoUrl = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${foto.file_path}`;
+                            return (
+                              <div key={foto.id} className="space-y-1">
+                                <a href={fotoUrl} target="_blank" rel="noreferrer" className="block">
+                                  <img src={fotoUrl} alt="Dokumentasi" className="w-full h-28 object-cover rounded border hover:opacity-90 transition-opacity" />
+                                </a>
+                                {foto.keterangan && <p className="text-xs text-slate-600">{foto.keterangan}</p>}
+                                {foto.kendala && (
+                                  <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-2 py-1 rounded">⚠ {foto.kendala}</p>
+                                )}
+                                <p className="text-[10px] text-muted-foreground">{foto.uploader ?? "—"} · {new Date(foto.created_at).toLocaleDateString("id-ID")}</p>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </TabsContent>
       </Tabs>
 

@@ -18,7 +18,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Plus, Calculator, ChevronLeft, ChevronRight, Trash2, Truck, UserCheck, Banknote, Receipt,
   TrendingUp, Package, ClipboardList, Upload, Eye, Pencil, CheckCircle, XCircle,
-  ArrowRight, FileDown, PenLine, Wallet, ShieldCheck, Camera, Images, X,
+  ArrowRight, FileDown, PenLine, Wallet, ShieldCheck, Camera, Images, X, Loader2,
 } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 import dynamic from "next/dynamic";
@@ -225,7 +225,7 @@ const admApi = {
 
 // ─── DokumentasiTab ───────────────────────────────────────────────────────────
 
-function DokumentasiTab({ proyekId }: { proyekId: number }) {
+function DokumentasiTab({ proyekId, proyekBerjalanId, proyekJenis }: { proyekId: number; proyekBerjalanId?: number; proyekJenis?: string }) {
   const qc = useQueryClient();
   const fotoInputRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState({ judul: "", deskripsi: "", tanggal_foto: today });
@@ -238,6 +238,16 @@ function DokumentasiTab({ proyekId }: { proyekId: number }) {
     queryFn: () => admApi.getFotoDokumentasi(proyekId),
   });
   const fotos: any[] = Array.isArray(data) ? data : [];
+
+  const picEndpoint = proyekBerjalanId
+    ? (proyekJenis === "Interior" ? `/pic/projeks/interior/${proyekBerjalanId}/termins` : `/pic/projeks/sipil/${proyekBerjalanId}/termins`)
+    : null;
+  const { data: picDokData, isLoading: loadingPicDok } = useQuery({
+    queryKey: ["pic-dokumentasi", proyekBerjalanId, proyekJenis],
+    queryFn: () => apiClient.get(picEndpoint!).then((r) => r.data),
+    enabled: !!picEndpoint,
+    retry: false,
+  });
 
   const addMut = useMutation({
     mutationFn: (d: any) => admApi.addFotoDokumentasi(proyekId, d),
@@ -370,6 +380,65 @@ function DokumentasiTab({ proyekId }: { proyekId: number }) {
           onClick={() => setViewFoto(null)}
         >
           <img src={viewFoto} alt="foto" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+        </div>
+      )}
+
+      {/* Dokumentasi dari PIC (terhubung ke projek sipil/interior) */}
+      {proyekBerjalanId && (
+        <div className="mt-6 pt-6 border-t">
+          <h3 className="text-sm font-semibold text-slate-700 mb-4 flex items-center gap-2">
+            <Camera className="h-4 w-4 text-slate-500" />
+            Dokumentasi dari PIC
+          </h3>
+          {loadingPicDok ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+            </div>
+          ) : !picDokData?.termins?.some((t: any) => t.tasks?.some((tk: any) => tk.fotos?.length > 0)) ? (
+            <div className="text-center py-8 text-muted-foreground text-sm">
+              <Images className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              Belum ada dokumentasi dari PIC
+            </div>
+          ) : (
+            <div className="space-y-5">
+              {picDokData.termins.map((termin: any) => {
+                const tasksWithFotos = termin.tasks.filter((tk: any) => tk.fotos?.length > 0);
+                if (tasksWithFotos.length === 0) return null;
+                return (
+                  <div key={termin.id}>
+                    <p className="text-xs font-semibold text-slate-500 mb-2">{termin.nama ?? `Termin ${termin.urutan}`}</p>
+                    <div className="space-y-3 pl-4">
+                      {tasksWithFotos.map((task: any) => (
+                        <div key={task.id} className="border rounded-lg p-3">
+                          <p className="text-xs font-medium text-slate-700 mb-2">{task.nama_pekerjaan ?? "—"}</p>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                            {task.fotos.map((foto: any) => {
+                              const fotoUrl = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${foto.file_path}`;
+                              return (
+                                <div key={foto.id} className="space-y-1">
+                                  <img
+                                    src={fotoUrl}
+                                    alt="Dokumentasi"
+                                    className="w-full h-28 object-cover rounded border cursor-pointer hover:opacity-90 transition-opacity"
+                                    onClick={() => setViewFoto(fotoUrl)}
+                                  />
+                                  {foto.keterangan && <p className="text-[10px] text-slate-600">{foto.keterangan}</p>}
+                                  {foto.kendala && (
+                                    <p className="text-[10px] text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded">⚠ {foto.kendala}</p>
+                                  )}
+                                  <p className="text-[10px] text-muted-foreground">{foto.uploader ?? "—"} · {new Date(foto.created_at).toLocaleDateString("id-ID")}</p>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -3266,7 +3335,7 @@ export default function AdministrasiProjekPage() {
               <TabsContent value="dokumen"><UploadDokumenTab proyekId={selectedProyek.id} /></TabsContent>
               <TabsContent value="surat-jalan"><SuratJalanTab proyekId={selectedProyek.id} proyekNama={selectedProyek.nama_proyek || ""} /></TabsContent>
               <TabsContent value="tukang"><TukangTab proyekId={selectedProyek.id} proyekNama={selectedProyek.nama_proyek || ""} proyekKlien={selectedProyek.klien || ""} /></TabsContent>
-              <TabsContent value="dokumentasi"><DokumentasiTab proyekId={selectedProyek.id} /></TabsContent>
+              <TabsContent value="dokumentasi"><DokumentasiTab proyekId={selectedProyek.id} proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} proyekJenis={selectedProyek.jenis} /></TabsContent>
             </CardContent>
           </Card>
         </Tabs>

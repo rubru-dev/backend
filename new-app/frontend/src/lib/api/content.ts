@@ -175,6 +175,8 @@ export const sipilApi = {
     return apiClient.post(`/sipil/projeks/${projekId}/links`, data).then((r) => r.data);
   },
   deleteLink: (linkId: string) => apiClient.delete(`/sipil/links/${linkId}`).then((r) => r.data),
+  // Dokumentasi PIC
+  getDokumentasiPic: (id: string) => apiClient.get(`/pic/projeks/sipil/${id}/termins`).then((r) => r.data),
   // Task Fotos
   getTaskFotos: (taskId: string) => apiClient.get(`/sipil/tasks/${taskId}/fotos`).then((r) => r.data),
   uploadTaskFotos: (taskId: string, files: File[]) => {
@@ -224,6 +226,8 @@ export const interiorProjekApi = {
     return apiClient.post(`/interior/projeks/tasks/${taskId}/fotos`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
   deleteTaskFoto: (fotoId: string) => apiClient.delete(`/interior/projeks/tasks/fotos/${fotoId}`).then((r) => r.data),
+  // Dokumentasi PIC
+  getDokumentasiPic: (id: string) => apiClient.get(`/pic/projeks/interior/${id}/termins`).then((r) => r.data),
 };
 
 export const salesApi = {

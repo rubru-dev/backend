@@ -106,6 +106,7 @@ app.use("/api/v1/sales", authenticate, salesRouter);
 app.use("/api/v1/projek", authenticate, projekRouter);
 app.use("/api/v1/finance", authenticate, financeRouter);
 app.use("/api/v1/pic-project", authenticate, picProjectRouter);
+app.use("/api/v1/pic", authenticate, picProjectRouter);
 app.use("/api/v1/laporan-harian", authenticate, laporanHarianRouter);
 app.use("/api/v1/sales-admin", authenticate, salesAdminKanbanRouter);
 app.use("/api/v1/telemarketing", authenticate, telemarketingKanbanRouter);

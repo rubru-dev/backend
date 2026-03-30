@@ -2574,7 +2574,7 @@ router.get("/tukang-absen/projects", async (req: Request, res: Response) => {
 
   const projects = await prisma.admFinanceProject.findMany({
     where: { id: { in: projectIds }, status: "aktif" },
-    select: { id: true, nama_proyek: true, klien: true, lokasi: true },
+    select: { id: true, nama_proyek: true, klien: true, lokasi: true, proyek_berjalan_id: true, jenis: true },
     orderBy: { nama_proyek: "asc" },
   });
   return res.json(projects);
