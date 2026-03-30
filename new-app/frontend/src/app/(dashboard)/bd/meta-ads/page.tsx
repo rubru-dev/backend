@@ -287,6 +287,22 @@ function SetupPlatformTab() {
                     <CredRow label="Pixel ID" value={acc.pixel_id} />
                     <CredRow label="App Secret" value={acc.app_secret} masked />
                     <CredRow label="Access Token" value={acc.access_token} masked />
+                    {/* Token status */}
+                    {(() => {
+                      const refreshedAt = acc.token_refreshed_at ? new Date(acc.token_refreshed_at) : null;
+                      const daysSince = refreshedAt ? Math.floor((Date.now() - refreshedAt.getTime()) / (1000 * 60 * 60 * 24)) : null;
+                      const daysLeft = daysSince !== null ? 60 - daysSince : null;
+                      return (
+                        <div className={`flex items-center gap-1.5 text-xs px-2 py-1 rounded-md ${daysLeft === null ? "bg-gray-50 text-gray-500" : daysLeft <= 7 ? "bg-red-50 text-red-600" : daysLeft <= 14 ? "bg-amber-50 text-amber-600" : "bg-green-50 text-green-600"}`}>
+                          <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: daysLeft === null ? "#9ca3af" : daysLeft <= 7 ? "#dc2626" : daysLeft <= 14 ? "#d97706" : "#16a34a" }} />
+                          {daysLeft === null
+                            ? "Auto-refresh aktif — token belum pernah di-refresh manual"
+                            : daysLeft <= 0
+                              ? "Token sudah expired! Refresh manual sekarang."
+                              : `Token valid ~${daysLeft} hari lagi • Auto-refresh hari ke-45`}
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
                 {acc.platform === "TikTok" && (

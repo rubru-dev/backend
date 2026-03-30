@@ -913,6 +913,7 @@ router.get("/ads/accounts", async (_req: Request, res: Response) => {
     advertiser_id: a.advertiser_id,
     is_active: a.is_active,
     last_synced_at: a.last_synced_at,
+    token_refreshed_at: a.token_refreshed_at,
     created_at: a.created_at,
   })));
 });
@@ -1008,7 +1009,10 @@ router.post("/ads/accounts/:id/refresh-token", async (req: Request, res: Respons
   if (data.error) return res.status(400).json({ detail: `Meta API: ${data.error.message}` });
   if (!data.access_token) return res.status(400).json({ detail: "Tidak mendapat token baru dari Meta" });
 
-  await prisma.adPlatformAccount.update({ where: { id }, data: { access_token: data.access_token } });
+  await prisma.adPlatformAccount.update({
+    where: { id },
+    data: { access_token: data.access_token, token_refreshed_at: new Date() },
+  });
 
   const expiresInDays = data.expires_in ? Math.floor(data.expires_in / 86400) : null;
   return res.json({

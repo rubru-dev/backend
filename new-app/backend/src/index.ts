@@ -8,6 +8,7 @@ import { authenticate } from "./middleware/auth";
 
 import { PrismaClient } from "@prisma/client";
 import { syncCamerasToMediaMTX } from "./lib/mediamtx";
+import { startMetaAutoRefresh } from "./lib/metaAutoRefresh";
 
 const prismaSync = new PrismaClient();
 
@@ -137,6 +138,9 @@ app.listen(config.port, async () => {
   console.log(`✓ StockOpname API running on http://localhost:${config.port}`);
   console.log(`  • Health: http://localhost:${config.port}/health`);
   console.log(`  • API:    http://localhost:${config.port}/api/v1`);
+
+  // Auto-refresh Meta token setiap 45 hari
+  startMetaAutoRefresh();
 
   // Sync RTSP cameras to MediaMTX (graceful — won't crash if MediaMTX isn't running)
   try {

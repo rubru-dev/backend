@@ -125,12 +125,12 @@ export function Kalkulator({ basePrices, surcharges: surchargesData, spesifikasi
     setLantai(n);
     setKamarTidurPerLantai((prev) => {
       const arr = [...prev];
-      while (arr.length < n) arr.push(arr[arr.length - 1] ?? 3);
+      while (arr.length < n) arr.push(arr[arr.length - 1] ?? 0);
       return arr.slice(0, n);
     });
     setKamarMandiPerLantai((prev) => {
       const arr = [...prev];
-      while (arr.length < n) arr.push(arr[arr.length - 1] ?? 2);
+      while (arr.length < n) arr.push(arr[arr.length - 1] ?? 0);
       return arr.slice(0, n);
     });
   }
@@ -243,8 +243,10 @@ export function Kalkulator({ basePrices, surcharges: surchargesData, spesifikasi
               <label className="block text-xs font-semibold text-slate-500 mb-2">Luas Bangunan (m²)</label>
               <input
                 type="number"
-                value={luas || ""}
-                onChange={(e) => setLuas(Math.max(1, parseInt(e.target.value) || 0))}
+                value={luas === 0 ? "" : luas}
+                onFocus={(e) => e.target.select()}
+                onChange={(e) => setLuas(parseInt(e.target.value) || 0)}
+                onBlur={(e) => { if (!e.target.value || parseInt(e.target.value) < 1) setLuas(1); }}
                 placeholder="Masukkan luas bangunan..."
                 className="w-full h-10 px-3 rounded-lg border border-slate-200 text-sm focus:outline-none focus:border-[#FF9122] transition-colors"
               />
@@ -262,7 +264,7 @@ export function Kalkulator({ basePrices, surcharges: surchargesData, spesifikasi
                     <Counter
                       value={val}
                       onChange={(v) => setKamarTidurPerLantai((prev) => { const a = [...prev]; a[idx] = v; return a; })}
-                      min={1}
+                      min={0}
                       max={10}
                     />
                   </div>
@@ -282,7 +284,7 @@ export function Kalkulator({ basePrices, surcharges: surchargesData, spesifikasi
                     <Counter
                       value={val}
                       onChange={(v) => setKamarMandiPerLantai((prev) => { const a = [...prev]; a[idx] = v; return a; })}
-                      min={1}
+                      min={0}
                       max={6}
                     />
                   </div>

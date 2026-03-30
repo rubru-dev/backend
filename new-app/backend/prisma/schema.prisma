@@ -1886,10 +1886,11 @@ model AdPlatformAccount {
   pixel_id       String?   @db.VarChar(255)
   ad_account_id  String?   @db.VarChar(255)
   advertiser_id  String?   @db.VarChar(255)
-  is_active      Boolean   @default(true)
-  last_synced_at DateTime? @db.Timestamptz(6)
-  created_at     DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  is_active           Boolean   @default(true)
+  last_synced_at      DateTime? @db.Timestamptz(6)
+  token_refreshed_at  DateTime? @db.Timestamptz(6)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
 
   @@map("ad_platform_accounts")
 }
