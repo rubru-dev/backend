@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { publicApi } from "@/lib/api";
 import { HeroCarousel } from "@/components/sections/hero-carousel";
 import { ServiceCards } from "@/components/sections/service-cards";
@@ -20,7 +22,7 @@ export default async function BerandaPage() {
     publicApi.rb.artikels({ per_page: 3 }) as Promise<{ items: RbArtikelListItem[] }>,
     publicApi.rb.banners() as Promise<{ data: Array<{ id: number; title?: string | null; subtitle?: string | null; image_url?: string | null; mobile_image_url?: string | null }> }>,
     publicApi.rb.testimonis() as Promise<{ data: any[] }>,
-    publicApi.rb.kalkulator() as Promise<{ data: { base_prices: any; surcharges: any } }>,
+    publicApi.rb.kalkulator() as Promise<{ data: { base_prices: any; surcharges: any; spesifikasi?: Record<string, string[]> } }>,
   ]);
 
   const config = configRes.status === "fulfilled" ? configRes.value.data : ({} as RbSiteConfig);
@@ -54,7 +56,7 @@ export default async function BerandaPage() {
       <PortfolioPreview portfolios={portfolios} />
 
       {/* Kalkulator Estimasi */}
-      <Kalkulator basePrices={kalkulatorData?.base_prices} surcharges={kalkulatorData?.surcharges} />
+      <Kalkulator basePrices={kalkulatorData?.base_prices} surcharges={kalkulatorData?.surcharges} spesifikasi={kalkulatorData?.spesifikasi} />
 
       {/* Stats */}
       <StatsBanner config={config} />

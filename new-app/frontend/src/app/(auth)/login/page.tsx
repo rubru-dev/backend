@@ -56,7 +56,6 @@ export default function LoginPage() {
 
       toast.success(`Selamat datang, ${data.user.name}!`);
       router.push("/dashboard");
-      router.refresh();
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??

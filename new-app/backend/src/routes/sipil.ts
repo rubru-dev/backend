@@ -75,6 +75,7 @@ router.get("/projeks", async (req: Request, res: Response) => {
           orderBy: { urutan: "asc" },
         },
         lead: true,
+        ro: { select: { id: true, name: true } },
       },
       orderBy: { id: "desc" },
       skip,
@@ -88,6 +89,7 @@ router.get("/projeks", async (req: Request, res: Response) => {
       id: p.id,
       nama_proyek: p.nama_proyek,
       lead: p.lead ? { id: p.lead.id, nama: p.lead.nama } : null,
+      ro: p.ro ? { id: p.ro.id, nama: p.ro.name } : null,
       lokasi: p.lokasi,
       nilai_rab: parseFloat(String(p.nilai_rab ?? 0)),
       tanggal_mulai: fmtDate(p.tanggal_mulai),
@@ -103,11 +105,12 @@ router.get("/projeks", async (req: Request, res: Response) => {
 
 // POST /projeks
 router.post("/projeks", async (req: Request, res: Response) => {
-  const { nama_proyek, lead_id, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
+  const { nama_proyek, lead_id, ro_id, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
   const p = await prisma.proyekBerjalan.create({
     data: {
       nama_proyek: nama_proyek ?? null,
       lead_id: lead_id ? BigInt(lead_id) : null,
+      ro_id: ro_id ? BigInt(ro_id) : null,
       lokasi: lokasi ?? null,
       nilai_rab: nilai_rab ?? 0,
       tanggal_mulai: tanggal_mulai ? new Date(tanggal_mulai) : null,
@@ -135,6 +138,7 @@ router.get("/projeks/:id", async (req: Request, res: Response) => {
       },
       lead: true,
       pic: { select: { id: true, name: true } },
+      ro: { select: { id: true, name: true } },
     },
   });
   if (!p) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
@@ -144,6 +148,7 @@ router.get("/projeks/:id", async (req: Request, res: Response) => {
     id: p.id,
     nama_proyek: p.nama_proyek,
     lead: p.lead ? { id: p.lead.id, nama: p.lead.nama } : null,
+    ro: p.ro ? { id: p.ro.id, nama: p.ro.name } : null,
     lokasi: p.lokasi,
     nilai_rab: parseFloat(String(p.nilai_rab ?? 0)),
     tanggal_mulai: fmtDate(p.tanggal_mulai),
@@ -177,10 +182,11 @@ router.patch("/projeks/:id", async (req: Request, res: Response) => {
   const p = await prisma.proyekBerjalan.findUnique({ where: { id } });
   if (!p) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
 
-  const { nama_proyek, lead_id, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
+  const { nama_proyek, lead_id, ro_id, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
   const updates: Record<string, unknown> = {};
   if (nama_proyek !== undefined) updates.nama_proyek = nama_proyek;
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
+  if (ro_id !== undefined) updates.ro_id = ro_id ? BigInt(ro_id) : null;
   if (lokasi !== undefined) updates.lokasi = lokasi;
   if (nilai_rab !== undefined) updates.nilai_rab = nilai_rab;
   if (tanggal_mulai !== undefined) updates.tanggal_mulai = tanggal_mulai ? new Date(tanggal_mulai) : null;

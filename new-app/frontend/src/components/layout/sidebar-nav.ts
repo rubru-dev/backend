@@ -92,15 +92,16 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 
   // ── Desain ───────────────────────────────────────────────────────────────────
-  // Group: desain.view | Items: desain.follow_up, desain.laporan_harian
+  // Group: desain.view | Items: desain.follow_up, desain.kanban_paket, desain.laporan_harian
   {
     title: "Desain",
     color: "#8b5cf6",
     permission: "desain.view",
     roles: ["Desain"],
     items: [
-      { label: "Follow Up After Survey", href: "/desain/follow-up-survey", icon: "Kanban",        permission: "desain.follow_up" },
-      { label: "Laporan Harian",         href: "/desain/laporan-harian",   icon: "ClipboardList", permission: "desain.laporan_harian" },
+      { label: "Follow Up After Survey", href: "/desain/follow-up-survey",         icon: "Kanban",        permission: "desain.follow_up" },
+      { label: "Kanban Paket Desain",    href: "/desain/kanban-paket-desain",       icon: "LayoutDashboard", permission: "desain.view" },
+      { label: "Laporan Harian",         href: "/desain/laporan-harian",            icon: "ClipboardList", permission: "desain.laporan_harian" },
     ],
   },
 

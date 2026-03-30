@@ -49,10 +49,12 @@ apiClient.interceptors.response.use(
         originalRequest.headers.Authorization = `Bearer ${data.access_token}`;
         return apiClient(originalRequest);
       } catch {
-        // Refresh failed → clear tokens, redirect to login
+        // Refresh failed → clear tokens + cookie, redirect to login
         localStorage.removeItem("access_token");
         localStorage.removeItem("refresh_token");
         if (typeof window !== "undefined") {
+          // Clear the middleware auth cookie so it doesn't redirect back to /dashboard
+          document.cookie = "is_authed=; path=/; max-age=0";
           window.location.href = "/login";
         }
       }

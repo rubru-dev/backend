@@ -1,7 +1,7 @@
 "use client";
 import { getLogoBase64 } from "@/lib/get-logo";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
@@ -50,6 +50,8 @@ import {
   Loader2,
   Link2,
   X,
+  Kanban,
+  GripVertical,
 } from "lucide-react";
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -395,7 +397,8 @@ export default function ProyekDesainPage() {
 
   // Expand & view state
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [viewMode, setViewMode] = useState<Record<string, "list" | "gantt" | "docs">>({});
+  const [viewMode, setViewMode] = useState<Record<string, "list" | "gantt" | "docs" | "kanban">>({});
+  const kanbanDragItem = useRef<string | null>(null);
   const [linkForms, setLinkForms] = useState<Record<string, { title: string; url: string; catatan: string }>>({});
 
   // Dialog state
@@ -443,7 +446,7 @@ export default function ProyekDesainPage() {
   const createTl = useMutation({
     mutationFn: (d: any) => desainApi.createTimeline(d),
     onSuccess: () => {
-      toast.success("Timeline dibuat dengan 5 pekerjaan default");
+      toast.success("Timeline dibuat dengan 6 pekerjaan default");
       qc.invalidateQueries({ queryKey: ["desain-timelines"] });
       setTlDialog(false);
       setTlForm(EMPTY_TIMELINE);
@@ -614,11 +617,11 @@ export default function ProyekDesainPage() {
     setExpandedId((prev) => (prev === id ? null : id));
   }
 
-  function getView(id: string): "list" | "gantt" | "docs" {
+  function getView(id: string): "list" | "gantt" | "docs" | "kanban" {
     return viewMode[id] ?? "list";
   }
 
-  function setView(id: string, view: "list" | "gantt" | "docs") {
+  function setView(id: string, view: "list" | "gantt" | "docs" | "kanban") {
     setViewMode((prev) => ({ ...prev, [id]: view }));
   }
 
@@ -681,7 +684,7 @@ export default function ProyekDesainPage() {
   const { data: currentLinks = [] } = useQuery<any[]>({
     queryKey: ["desain-links", expandedId],
     queryFn: () => desainApi.getLinks(expandedId!),
-    enabled: !!expandedId && viewMode[expandedId ?? ""] === "docs",
+    enabled: !!expandedId && (viewMode[expandedId ?? ""] === "docs"),
     retry: false,
     staleTime: 30_000,
   });
@@ -977,6 +980,17 @@ export default function ProyekDesainPage() {
                         <Link2 className="h-3.5 w-3.5" />
                         Docs/Link
                       </button>
+                      <button
+                        className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-colors ${
+                          view === "kanban"
+                            ? "bg-white shadow-sm text-foreground"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                        onClick={() => setView(tl.id, "kanban")}
+                      >
+                        <Kanban className="h-3.5 w-3.5" />
+                        Kanban
+                      </button>
                     </div>
 
                     {/* LIST VIEW */}
@@ -1083,6 +1097,118 @@ export default function ProyekDesainPage() {
                     {view === "gantt" && (
                       <div className="p-4">
                         <GanttChart items={items} onEdit={openEditItem} />
+                      </div>
+                    )}
+
+                    {/* KANBAN VIEW */}
+                    {view === "kanban" && (
+                      <div className="p-4">
+                        {/* 3 status columns */}
+                        <div className="flex gap-3 overflow-x-auto pb-2">
+                          {(["Belum Mulai", "Proses", "Selesai"] as const).map((colStatus) => {
+                            const colItems = items.filter(
+                              (i) => (i.status ?? "Belum Mulai") === colStatus
+                            );
+                            const colColor =
+                              colStatus === "Belum Mulai"
+                                ? "border-gray-300 bg-gray-50"
+                                : colStatus === "Proses"
+                                ? "border-blue-300 bg-blue-50/50"
+                                : "border-green-300 bg-green-50/50";
+                            const dotColor =
+                              colStatus === "Belum Mulai"
+                                ? "bg-gray-400"
+                                : colStatus === "Proses"
+                                ? "bg-blue-500"
+                                : "bg-green-500";
+                            return (
+                              <div
+                                key={colStatus}
+                                className={`flex-1 min-w-[200px] flex flex-col rounded-xl border-2 ${colColor} p-2`}
+                                onDragOver={(e) => e.preventDefault()}
+                                onDrop={() => {
+                                  if (kanbanDragItem.current) {
+                                    updateItem.mutate({
+                                      itemId: kanbanDragItem.current,
+                                      data: { status: colStatus },
+                                    });
+                                    kanbanDragItem.current = null;
+                                  }
+                                }}
+                              >
+                                {/* Column header */}
+                                <div className="flex items-center gap-1.5 mb-2 px-1">
+                                  <div className={`w-2 h-2 rounded-full flex-none ${dotColor}`} />
+                                  <span className="text-xs font-semibold">{colStatus}</span>
+                                  <span className="ml-auto text-xs text-muted-foreground bg-white rounded-full px-1.5 border">
+                                    {colItems.length}
+                                  </span>
+                                </div>
+
+                                {/* Cards */}
+                                <div className="flex flex-col gap-2 flex-1 min-h-[80px]">
+                                  {colItems.map((item) => (
+                                    <div
+                                      key={item.id}
+                                      draggable
+                                      onDragStart={() => { kanbanDragItem.current = item.id; }}
+                                      onClick={() => openEditItem(item)}
+                                      className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-purple-300 transition-colors group"
+                                    >
+                                      <div className="flex items-start gap-1">
+                                        <GripVertical
+                                          size={13}
+                                          className="text-muted-foreground/40 mt-0.5 flex-none opacity-0 group-hover:opacity-100"
+                                        />
+                                        <div className="flex-1 min-w-0">
+                                          <p className="text-sm font-medium text-slate-800 leading-tight truncate">
+                                            {item.item_pekerjaan ?? "—"}
+                                          </p>
+                                          {item.pic && (
+                                            <p className="text-xs text-muted-foreground mt-1">
+                                              PIC: {item.pic.nama}
+                                            </p>
+                                          )}
+                                          {item.target_selesai && (
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                              Deadline:{" "}
+                                              {new Date(item.target_selesai).toLocaleDateString("id-ID", {
+                                                day: "numeric",
+                                                month: "short",
+                                              })}
+                                            </p>
+                                          )}
+                                          {item.tanggal_mulai && (
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                              Mulai:{" "}
+                                              {new Date(item.tanggal_mulai).toLocaleDateString("id-ID", {
+                                                day: "numeric",
+                                                month: "short",
+                                              })}
+                                            </p>
+                                          )}
+                                          {item.file_bukti && (
+                                            <span className="text-xs text-green-600 flex items-center gap-0.5 mt-0.5">
+                                              <FileCheck size={11} /> File tersedia
+                                            </span>
+                                          )}
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ))}
+                                  {colItems.length === 0 && (
+                                    <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground py-4 border-2 border-dashed border-muted-foreground/20 rounded-lg">
+                                      Kosong
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-3 text-right italic">
+                          Drag untuk ubah status · Klik kartu untuk edit detail (deadline, tanggal, PIC)
+                        </p>
                       </div>
                     )}
 
@@ -1272,8 +1398,7 @@ export default function ProyekDesainPage() {
             </div>
             {!editTl && (
               <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-                5 pekerjaan default akan otomatis dibuat: Layout Eksisting,
-                Fasad 3D, 3D Interior, RAB, Presentasi RAB
+                6 pekerjaan default: Layout Eksisting, Fasad 3D, 3D Interior, RAB, Presentasi RAB, Shop Drawing
               </p>
             )}
             <div className="flex justify-end gap-2 pt-2">

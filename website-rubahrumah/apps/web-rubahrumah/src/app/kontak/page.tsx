@@ -1,3 +1,5 @@
+export const dynamic = "force-dynamic";
+
 import { publicApi } from "@/lib/api";
 import { HeroBanner } from "@/components/sections/hero-banner";
 import { ContactForm } from "./contact-form";

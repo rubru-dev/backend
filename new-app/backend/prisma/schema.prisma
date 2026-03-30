@@ -471,6 +471,7 @@ model DesainTimeline {
   tahun                 Int?
   tanggal_mulai         DateTime?               @db.Date
   tanggal_selesai       DateTime?               @db.Date
+  paket_stage           Int?                    @default(0)
   created_by            BigInt?
   created_at            DateTime                @default(now()) @db.Timestamptz(6)
   updated_at            DateTime                @default(now()) @db.Timestamptz(6)
@@ -498,6 +499,7 @@ model DesainKanbanCard {
   lead_id     BigInt?
   catatan     String?            @db.Text
   assigned_to BigInt?
+  ro_id       BigInt?
   deadline    DateTime?          @db.Date
   urutan      Int                @default(0)
   created_at  DateTime           @default(now()) @db.Timestamptz(6)
@@ -505,6 +507,7 @@ model DesainKanbanCard {
   column      DesainKanbanColumn @relation(fields: [column_id], references: [id], onDelete: Cascade)
   lead        Lead?              @relation("DesainKanbanCardLead", fields: [lead_id], references: [id], onUpdate: NoAction)
   assignee    User?              @relation("DesainKanbanCardAssignee", fields: [assigned_to], references: [id], onUpdate: NoAction)
+  ro          User?              @relation("DesainKanbanCardRO", fields: [ro_id], references: [id], onUpdate: NoAction)
 
   @@map("desain_kanban_cards")
 }
@@ -1164,11 +1167,13 @@ model ProyekBerjalan {
   tanggal_mulai           DateTime?                 @db.Date
   tanggal_selesai         DateTime?                 @db.Date
   created_by              BigInt?
+  ro_id                   BigInt?
   created_at              DateTime                  @default(now()) @db.Timestamptz(6)
   updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
   termins ProyekBerjalanTermin[]
   sipil_usage_logs SipilUsageLog[]
-  pic                   User?                    @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  pic                   User?                    @relation("ProyekBerjalanPIC", fields: [created_by], references: [id], onUpdate: NoAction)
+  ro                    User?                    @relation("ProyekBerjalanRO", fields: [ro_id], references: [id], onUpdate: NoAction)
   lead                   Lead?                    @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
   @@map("proyek_berjalans")
 }
@@ -1787,6 +1792,7 @@ model User {
   interior_timelines                    InteriorTimeline[]
   design_reports                        DesignReport[]
   desain_kanban_cards_assigned          DesainKanbanCard[]       @relation("DesainKanbanCardAssignee")
+  desain_kanban_cards_ro                DesainKanbanCard[]       @relation("DesainKanbanCardRO")
   projek_foto_dokumentasis              ProjekFotoDokumentasi[]  @relation("ProjekFotoDokumentasiUploader")
   finance_reports                       FinanceReport[]
   follow_up_clients                     FollowUpClient[]
@@ -1808,7 +1814,8 @@ model User {
   sipil_usage_logs_created              SipilUsageLog[]             @relation("sipil_usage_log_creator")
   projeks                               Projek[]
   proyek_berjalan_tasks                 ProyekBerjalanTask[]
-  proyek_berjalans                      ProyekBerjalan[]
+  proyek_berjalans                      ProyekBerjalan[]         @relation("ProyekBerjalanPIC")
+  proyek_berjalans_ro                   ProyekBerjalan[]         @relation("ProyekBerjalanRO")
   proyek_interior_tasks                 ProyekInteriorTask[]
   proyek_interiors                      ProyekInterior[]
   sales_kanban_cards                    SalesKanbanCard[]
@@ -2385,10 +2392,11 @@ model RbBanner {
 
 /// Konfigurasi harga kalkulator estimasi
 model RbKalkulatorConfig {
-  id          Int      @id @default(1)
-  base_prices Json     // { MINIMALIS: number, LUXURY: number }
-  surcharges  Json     // { [key: string]: number }
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+  id           Int      @id @default(1)
+  base_prices  Json     // { MINIMALIS: number, LUXURY: number } or array of { key, label, harga, satuan }
+  surcharges   Json     // { [key: string]: number } or array of { key, label, harga, satuan, kategori }
+  spesifikasi  Json?    // { MINIMALIS: string[], LUXURY: string[] }
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("rb_kalkulator_configs")
 }

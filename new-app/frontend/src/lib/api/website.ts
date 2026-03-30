@@ -18,6 +18,8 @@ export const websiteApi = {
   updateSurcharge: (key: string, data: { label?: string; harga?: number; satuan?: string; kategori?: string }) =>
     apiClient.put(`/website/kalkulator/surcharge/${key}`, data).then((r) => r.data.data),
   deleteSurcharge: (key: string) => apiClient.delete(`/website/kalkulator/surcharge/${key}`).then((r) => r.data),
+  updateSpesifikasi: (paket: string, items: string[]) =>
+    apiClient.put(`/website/kalkulator/spesifikasi/${paket}`, { items }).then((r) => r.data.data),
 
   // ── Banner ────────────────────────────────────────────────────────────────
   listBanners: () => apiClient.get("/website/banner").then((r) => r.data.data),

@@ -79,6 +79,9 @@ export const desainApi = {
   createCard: (columnId: string, data: any) => apiClient.post(`/desain/kanban/columns/${columnId}/cards`, data).then((r) => r.data),
   updateCard: (id: string, data: any) => apiClient.patch(`/desain/kanban/cards/${id}`, data).then((r) => r.data),
   deleteCard: (id: string) => apiClient.delete(`/desain/kanban/cards/${id}`).then((r) => r.data),
+  // Kanban Paket Desain (linked to DesainTimeline)
+  getKanbanPaket: () => apiClient.get("/desain/kanban-paket").then((r) => r.data),
+  moveKanbanPaket: (id: string, stage: number) => apiClient.patch(`/desain/kanban-paket/cards/${id}/move`, { stage }).then((r) => r.data),
 };
 
 export const interiorApi = {

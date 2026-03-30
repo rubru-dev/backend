@@ -7,6 +7,50 @@ import { config } from "../config";
 
 const router = Router();
 
+const DEFAULT_SPESIFIKASI: Record<string, string[]> = {
+  MINIMALIS: [
+    "Pondasi batu kali + besi cakar ayam",
+    "Sloof & ring balk beton bertulang",
+    "Kolom & balok struktur standar SNI",
+    "Instalasi listrik & titik lampu",
+    "Cat dinding interior & eksterior",
+    "Instalasi air bersih & pembuangan",
+    "Closet duduk & wastafel keramik",
+    "Pintu panel & jendela kaca",
+    "Rangka atap & penutup atap",
+    "Garansi konstruksi 10 tahun",
+  ],
+  LUXURY: [
+    "Pondasi bore pile & besi ulir",
+    "Sloof & ring balk beton prategang",
+    "Kolom & balok struktur premium",
+    "Instalasi listrik 3 phase + smart home",
+    "Cat premium & wallpaper pilihan",
+    "Instalasi air panas & dingin",
+    "Sanitary premium (TOTO/American Standard)",
+    "Pintu kayu solid & jendela tempered",
+    "Rangka baja ringan + atap premium",
+    "Garansi konstruksi 15 tahun",
+  ],
+};
+
+const DEFAULT_SURCHARGES = [
+  { key: "KAMAR_TIDUR",      label: "Kamar Tidur",      harga: 50000,  satuan: "per kamar", kategori: "kamar" },
+  { key: "KAMAR_MANDI",      label: "Kamar Mandi",      harga: 80000,  satuan: "per kamar", kategori: "kamar" },
+  { key: "HEBEL",            label: "Hebel",             harga: 100000, satuan: "per m²",   kategori: "dinding" },
+  { key: "KERAMIK_60",       label: "Keramik 60x60",     harga: 80000,  satuan: "per m²",   kategori: "lantai" },
+  { key: "GRANIT",           label: "Granit",            harga: 200000, satuan: "per m²",   kategori: "lantai" },
+  { key: "GENTENG_KERAMIK",  label: "Genteng Keramik",   harga: 50000,  satuan: "per m²",   kategori: "atap" },
+  { key: "BAJA_RINGAN",      label: "Baja Ringan",       harga: 80000,  satuan: "per m²",   kategori: "atap" },
+  { key: "PVC",              label: "Plafon PVC",        harga: -50000, satuan: "per m²",   kategori: "plafon" },
+  { key: "KAYU_KAMPER",      label: "Kusen Kayu Kamper", harga: 120000, satuan: "per m²",   kategori: "kusen" },
+  { key: "UPVC",             label: "Kusen UPVC",        harga: 150000, satuan: "per m²",   kategori: "kusen" },
+  { key: "KITCHEN_SET",      label: "Kitchen Set",       harga: 500000, satuan: "per m²",   kategori: "dapur" },
+  { key: "CARPORT",          label: "Carport",           harga: 300000, satuan: "per m²",   kategori: "carport" },
+  { key: "GARASI",           label: "Garasi",            harga: 600000, satuan: "per m²",   kategori: "carport" },
+  { key: "TAMAN_DEPAN",      label: "Taman Depan",       harga: 200000, satuan: "per m²",   kategori: "taman" },
+];
+
 // ── Storage dirs ──────────────────────────────────────────────────────────────
 const baseDir = path.resolve(config.storagePath, "website");
 const dirs = {
@@ -92,29 +136,36 @@ router.get("/kalkulator", async (_req, res) => {
     cfg = await prisma.rbKalkulatorConfig.create({
       data: {
         id: 1,
-        base_prices: { MINIMALIS: 3000000, LUXURY: 5000000 },
-        surcharges: {
-          HEBEL: 100000, KERAMIK_60: 80000, GRANIT: 200000,
-          GENTENG_KERAMIK: 50000, BAJA_RINGAN: 80000,
-          PVC: -50000, KAYU_KAMPER: 120000, UPVC: 150000,
-          KITCHEN_SET: 500000, CARPORT: 300000, GARASI: 600000,
-          TAMAN_DEPAN: 200000,
-        },
+        base_prices: [
+          { key: "MINIMALIS", label: "Minimalis", harga: 3000000, satuan: "per m²" },
+          { key: "LUXURY",    label: "Luxury",    harga: 5000000, satuan: "per m²" },
+        ],
+        surcharges: DEFAULT_SURCHARGES,
+        spesifikasi: DEFAULT_SPESIFIKASI,
       },
+    });
+  }
+  // Ensure spesifikasi is set if null/undefined
+  if (!cfg.spesifikasi) {
+    cfg = await prisma.rbKalkulatorConfig.update({
+      where: { id: 1 },
+      data: { spesifikasi: DEFAULT_SPESIFIKASI },
     });
   }
   res.json({ data: cfg });
 });
 
 router.put("/kalkulator", async (req, res) => {
-  const { base_prices, surcharges } = req.body;
+  const { base_prices, surcharges, spesifikasi } = req.body;
   if (!base_prices || !surcharges) {
     return res.status(400).json({ detail: "base_prices dan surcharges wajib diisi" });
   }
+  const updateData: any = { base_prices, surcharges, updated_at: new Date() };
+  if (spesifikasi !== undefined) updateData.spesifikasi = spesifikasi;
   const cfg = await prisma.rbKalkulatorConfig.upsert({
     where: { id: 1 },
-    create: { id: 1, base_prices, surcharges },
-    update: { base_prices, surcharges, updated_at: new Date() },
+    create: { id: 1, base_prices, surcharges, spesifikasi: spesifikasi ?? DEFAULT_SPESIFIKASI },
+    update: updateData,
   });
   res.json({ data: cfg });
 });
@@ -193,6 +244,22 @@ router.delete("/kalkulator/surcharge/:key", async (req, res) => {
   const items: any[] = Array.isArray(cfg.surcharges) ? (cfg.surcharges as any[]) : Object.entries(cfg.surcharges as any).map(([k, v]) => ({ key: k, label: k, harga: v, satuan: "per m²", kategori: "" }));
   const updated_items = items.filter((i: any) => i.key !== req.params.key);
   const updated = await prisma.rbKalkulatorConfig.update({ where: { id: 1 }, data: { surcharges: updated_items, updated_at: new Date() } });
+  res.json({ data: updated });
+});
+
+// PUT /website/kalkulator/spesifikasi/:paket — replace spec list for one paket
+router.put("/kalkulator/spesifikasi/:paket", async (req, res) => {
+  const paket = req.params.paket.toUpperCase();
+  const { items } = req.body; // string[]
+  if (!Array.isArray(items)) return res.status(400).json({ detail: "items harus berupa array string" });
+  let cfg = await prisma.rbKalkulatorConfig.findFirst();
+  if (!cfg) return res.status(404).json({ detail: "Config tidak ditemukan" });
+  const current: Record<string, string[]> = (cfg.spesifikasi as any) ?? { ...DEFAULT_SPESIFIKASI };
+  current[paket] = items;
+  const updated = await prisma.rbKalkulatorConfig.update({
+    where: { id: 1 },
+    data: { spesifikasi: current, updated_at: new Date() },
+  });
   res.json({ data: updated });
 });
 

@@ -1,7 +1,70 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-03-28 (4 fitur baru: Dokumentasi Projek, Kalender Survey Gabungan, Database Client, Desain Kanban)
+> Last updated: 2026-03-30 (Fix auth loop, Shop Drawing default pekerjaan, Kanban tab di Projek Desain, hapus progress bar kanban paket)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-03-30)
+
+### Task 1: Fix Auth Redirect Loop
+- **File:** `new-app/frontend/src/lib/api/client.ts`
+- Saat access token expired + refresh gagal → hapus cookie `is_authed` sebelum redirect ke `/login`
+- `document.cookie = "is_authed=; path=/; max-age=0"` sebelum `window.location.href = "/login"`
+- **File:** `new-app/frontend/src/app/(auth)/login/page.tsx` + `hooks/useAuth.ts`
+- Hapus `router.refresh()` setelah `router.push("/dashboard")` — mencegah login loop
+
+### Task 2: Default Pekerjaan Projek Desain (6 item)
+- **File:** `new-app/backend/src/routes/desain.ts`
+- `DEFAULT_PEKERJAAN` diupdate menjadi 6 item: Layout Eksisting, Fasad 3D, 3D Interior, RAB, Presentasi RAB, **Shop Drawing**
+- Order: Layout → Fasad → 3D Interior → RAB → Presentasi RAB → Shop Drawing
+
+### Task 3: Hapus Progress Bar dari Kanban Paket Desain
+- **File:** `new-app/frontend/src/app/(dashboard)/desain/kanban-paket-desain/page.tsx`
+- Progress bar (div h-1.5) dihapus dari tiap card — card lebih ringkas
+
+### Task 4: Kanban Tab di Projek Desain
+- **File:** `new-app/frontend/src/app/(dashboard)/projek/desain/page.tsx`
+- Tambah tab "Kanban" sejajar dengan Docs/Link
+- 3 kolom: Belum Mulai (abu), Proses (biru), Selesai (hijau)
+- Drag card → update `status` item via `updateItem` mutation (field `DesainTimelineItem.status`)
+- Klik card → buka dialog edit (reuse dialog yang sama: progress, deadline, tanggal mulai/selesai, PIC)
+- **Backend:** `PATCH /desain/kanban-paket/cards/:id/move` juga auto-update status item (≤stage → Proses, >stage → Belum Mulai)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-03-29)
+
+### Task 1: Field RO di Follow Up Survey (Desain Kanban)
+- **Schema:** Tambah `ro_id BigInt?` di `DesainKanbanCard` → relasi ke `User` ("DesainKanbanCardRO")
+- **Backend `desain.ts`:** GET kanban include `ro`, POST/PATCH card accept `ro_id`
+- **Frontend `desain/follow-up-survey/page.tsx`:** Card dialog tambah dropdown RO (dari `/desain/employees`), card tampilkan RO badge ungu
+
+### Task 2: Kanban Paket Desain (sub menu Desain)
+- **Schema:** Tambah `paket_stage Int? @default(0)` di `DesainTimeline`
+- **Backend `desain.ts`:**
+  - `GET /desain/kanban-paket` — 6 kolom tetap (Pembuatan Layout Eksisting & Perubahan, Fasad 3D, 3D Interior, RAB, Presentasi RAB, Shop Drawing), cards = DesainTimeline dikelompokkan by `paket_stage`
+  - `PATCH /desain/kanban-paket/cards/:id/move` — update `paket_stage` di DesainTimeline
+- **Frontend:** `/desain/kanban-paket-desain/page.tsx` — kanban drag-and-drop, progress bar per card
+- **Sidebar Desain:** tambah item "Kanban Paket Desain" → `/desain/kanban-paket-desain` (permission: `desain.view`)
+- **desainApi:** `getKanbanPaket`, `moveKanbanPaket`
+- **Link ke Projek Desain:** saat paket_stage diupdate di kanban → DesainTimeline.paket_stage terupdate (field yang sama dibaca dari projek desain juga)
+
+### Task 3: Field RO di Projek Sipil
+- **Schema:** Tambah `ro_id BigInt?` di `ProyekBerjalan` → relasi ke User ("ProyekBerjalanRO"), existing pic relation renamed "ProyekBerjalanPIC"
+- **Backend `sipil.ts`:** GET/POST/PATCH projeks include/accept `ro_id`, return `ro: { id, nama }`
+- **Frontend `projek/sipil/page.tsx`:** Tabel tambah kolom RO, form dialog tambah dropdown RO
+
+### Task 4: Kalkulator website — hapus tombol Hitung Biaya
+- **File:** `website-rubahrumah/apps/web-rubahrumah/src/components/sections/kalkulator.tsx`
+- Tombol "Hitung Biaya" dihapus — hanya tersisa "Konsultasi Sekarang"
+
+### Task 5: Kalkulator website — kamar tidur & mandi per-lantai
+- **File:** `website-rubahrumah/apps/web-rubahrumah/src/components/sections/kalkulator.tsx`
+- State kamar tidur/mandi berubah dari single number ke array per lantai
+- Ketika lantai = 2 atau 3, tampil input terpisah per lantai (Lantai 1, Lantai 2, dst)
+- Surcharge kamar tidur: `SURCHARGE["KAMAR_TIDUR"] ?? 50_000`, kamar mandi: `SURCHARGE["KAMAR_MANDI"] ?? 80_000`
+- WA message di-update untuk include detail per lantai
 
 ---
 

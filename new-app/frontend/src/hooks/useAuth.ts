@@ -20,7 +20,6 @@ export function useAuth() {
       refresh_token: data.refresh_token,
     });
     router.push("/dashboard");
-    router.refresh();
   }
 
   async function logout() {

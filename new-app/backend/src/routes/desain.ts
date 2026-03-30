@@ -13,6 +13,16 @@ const DEFAULT_PEKERJAAN = [
   "Pembuatan 3D Interior",
   "Pembuatan RAB",
   "Presentasi RAB",
+  "Shop Drawing",
+];
+
+const KANBAN_PAKET_STAGES = [
+  "Pembuatan Layout Eksisting & Perubahan",
+  "Pembuatan Fasad 3D",
+  "Pembuatan 3D Interior",
+  "Pembuatan RAB",
+  "Presentasi RAB",
+  "Shop Drawing",
 ];
 
 const BULAN_NAMES = [
@@ -416,6 +426,7 @@ router.get("/kanban", async (req: Request, res: Response) => {
         include: {
           lead: { select: { id: true, nama: true, nomor_telepon: true, jenis: true, status: true } },
           assignee: { select: { id: true, name: true } },
+          ro: { select: { id: true, name: true } },
         },
       },
     },
@@ -434,6 +445,7 @@ router.get("/kanban", async (req: Request, res: Response) => {
       urutan: c.urutan,
       lead: c.lead ? { id: String(c.lead.id), nama: c.lead.nama, telepon: c.lead.nomor_telepon, jenis: c.lead.jenis, status: c.lead.status } : null,
       assignee: c.assignee ? { id: String(c.assignee.id), nama: c.assignee.name } : null,
+      ro: c.ro ? { id: String(c.ro.id), nama: c.ro.name } : null,
     })),
   })));
 });
@@ -485,7 +497,7 @@ router.post("/kanban/columns/:id/cards", async (req: Request, res: Response) => 
   const column_id = BigInt(req.params.id);
   const col = await prisma.desainKanbanColumn.findUnique({ where: { id: column_id } });
   if (!col) return res.status(404).json({ detail: "Kolom tidak ditemukan" });
-  const { lead_id, catatan, assigned_to, deadline } = req.body;
+  const { lead_id, catatan, assigned_to, ro_id, deadline } = req.body;
   const lastCard = await prisma.desainKanbanCard.findFirst({ where: { column_id }, orderBy: { urutan: "desc" } });
   const card = await prisma.desainKanbanCard.create({
     data: {
@@ -493,12 +505,14 @@ router.post("/kanban/columns/:id/cards", async (req: Request, res: Response) => 
       lead_id: lead_id ? BigInt(lead_id) : null,
       catatan: catatan || null,
       assigned_to: assigned_to ? BigInt(assigned_to) : null,
+      ro_id: ro_id ? BigInt(ro_id) : null,
       deadline: deadline ? new Date(deadline) : null,
       urutan: (lastCard?.urutan ?? 0) + 1,
     },
     include: {
       lead: { select: { id: true, nama: true, nomor_telepon: true, jenis: true, status: true } },
       assignee: { select: { id: true, name: true } },
+      ro: { select: { id: true, name: true } },
     },
   });
   return res.status(201).json({
@@ -506,6 +520,7 @@ router.post("/kanban/columns/:id/cards", async (req: Request, res: Response) => 
     deadline: card.deadline ? card.deadline.toISOString().split("T")[0] : null,
     lead: card.lead ? { id: String(card.lead.id), nama: card.lead.nama, telepon: card.lead.nomor_telepon, jenis: card.lead.jenis, status: card.lead.status } : null,
     assignee: card.assignee ? { id: String(card.assignee.id), nama: card.assignee.name } : null,
+    ro: card.ro ? { id: String(card.ro.id), nama: card.ro.name } : null,
   });
 });
 
@@ -514,12 +529,13 @@ router.patch("/kanban/cards/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const card = await prisma.desainKanbanCard.findUnique({ where: { id } });
   if (!card) return res.status(404).json({ detail: "Card tidak ditemukan" });
-  const { column_id, lead_id, catatan, assigned_to, deadline, urutan } = req.body;
+  const { column_id, lead_id, catatan, assigned_to, ro_id, deadline, urutan } = req.body;
   const updates: Record<string, unknown> = {};
   if (column_id !== undefined) updates.column_id = BigInt(column_id);
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
   if (catatan !== undefined) updates.catatan = catatan;
   if (assigned_to !== undefined) updates.assigned_to = assigned_to ? BigInt(assigned_to) : null;
+  if (ro_id !== undefined) updates.ro_id = ro_id ? BigInt(ro_id) : null;
   if (deadline !== undefined) updates.deadline = deadline ? new Date(deadline) : null;
   if (urutan !== undefined) updates.urutan = urutan;
   await prisma.desainKanbanCard.update({ where: { id }, data: updates });
@@ -532,6 +548,72 @@ router.delete("/kanban/cards/:id", async (req: Request, res: Response) => {
   const card = await prisma.desainKanbanCard.findUnique({ where: { id } });
   if (!card) return res.status(404).json({ detail: "Card tidak ditemukan" });
   await prisma.desainKanbanCard.delete({ where: { id } });
+  return res.json({ message: "OK" });
+});
+
+// ── Kanban Paket Desain (linked to DesainTimeline) ───────────────────────────
+
+// GET /desain/kanban-paket — board with 6 fixed columns, cards = DesainTimeline
+router.get("/kanban-paket", async (_req: Request, res: Response) => {
+  const timelines = await prisma.desainTimeline.findMany({
+    include: {
+      lead: { select: { id: true, nama: true } },
+      creator: { select: { id: true, name: true } },
+      items: { select: { status: true } },
+    },
+    orderBy: { id: "desc" },
+  });
+
+  const columns = KANBAN_PAKET_STAGES.map((title, idx) => ({
+    id: idx,
+    title,
+    cards: timelines
+      .filter((t) => (t.paket_stage ?? 0) === idx)
+      .map((t) => ({
+        id: String(t.id),
+        lead: t.lead ? { id: String(t.lead.id), nama: t.lead.nama } : null,
+        dibuat_oleh: t.creator ? { id: String(t.creator.id), nama: t.creator.name } : null,
+        jenis_desain: t.jenis_desain,
+        bulan: t.bulan,
+        tahun: t.tahun,
+        progress: t.items.length > 0
+          ? Math.round(t.items.filter((i) => i.status === "Selesai").length / t.items.length * 100)
+          : 0,
+        paket_stage: t.paket_stage ?? 0,
+      })),
+  }));
+  return res.json(columns);
+});
+
+// PATCH /desain/kanban-paket/cards/:id/move — move timeline to another stage
+// Also auto-updates item statuses: before stage → Proses, at stage → Proses, after → Belum Mulai
+router.patch("/kanban-paket/cards/:id/move", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const { stage } = req.body;
+  if (stage === undefined || stage < 0 || stage >= KANBAN_PAKET_STAGES.length) {
+    return res.status(400).json({ detail: "stage tidak valid (0–5)" });
+  }
+  const t = await prisma.desainTimeline.findUnique({ where: { id } });
+  if (!t) return res.status(404).json({ detail: "Timeline tidak ditemukan" });
+
+  // Update paket_stage on the timeline
+  await prisma.desainTimeline.update({ where: { id }, data: { paket_stage: stage } });
+
+  // Auto-update item statuses based on new stage
+  const items = await prisma.desainTimelineItem.findMany({
+    where: { desain_timeline_id: id },
+    orderBy: { id: "asc" },
+  });
+  for (let i = 0; i < items.length; i++) {
+    let newStatus: string;
+    if (i < stage) newStatus = "Proses";       // stages before current → in progress
+    else if (i === stage) newStatus = "Proses"; // current stage → in progress
+    else newStatus = "Belum Mulai";             // stages after → not started
+    if (items[i].status !== newStatus) {
+      await prisma.desainTimelineItem.update({ where: { id: items[i].id }, data: { status: newStatus } });
+    }
+  }
+
   return res.json({ message: "OK" });
 });
 

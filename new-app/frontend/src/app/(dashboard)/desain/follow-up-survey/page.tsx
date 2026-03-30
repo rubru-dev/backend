@@ -15,7 +15,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Loader2, Plus, Pencil, Trash2, GripVertical, User, CalendarDays, Kanban } from "lucide-react";
 
 interface Lead { id: string; nama: string; telepon?: string; jenis?: string; status?: string; }
-interface Card { id: string; column_id: string; catatan?: string | null; deadline?: string | null; lead?: Lead | null; assignee?: { id: string; nama: string } | null; urutan: number; }
+interface Employee { id: string; nama: string; }
+interface Card { id: string; column_id: string; catatan?: string | null; deadline?: string | null; lead?: Lead | null; assignee?: { id: string; nama: string } | null; ro?: { id: string; nama: string } | null; urutan: number; }
 interface Column { id: string; title: string; color?: string | null; urutan: number; is_permanent: boolean; cards: Card[]; }
 
 const JENIS_COLOR: Record<string, string> = { Sipil: "bg-blue-100 text-blue-700", Desain: "bg-purple-100 text-purple-700", Interior: "bg-amber-100 text-amber-700" };
@@ -39,6 +40,10 @@ export default function DesainFollowUpSurveyPage() {
     queryKey: ["desain-kanban-leads"],
     queryFn: () => desainApi.getKanbanLeads(),
   });
+  const { data: employees = [] } = useQuery<Employee[]>({
+    queryKey: ["desain-employees"],
+    queryFn: () => desainApi.listEmployees(),
+  });
 
   // Drag state
   const dragCard = useRef<{ cardId: string; fromColumnId: string } | null>(null);
@@ -49,8 +54,8 @@ export default function DesainFollowUpSurveyPage() {
   // Card dialog
   const [cardDialog, setCardDialog] = useState<{
     open: boolean; columnId?: string; cardId?: string;
-    lead_id: string; catatan: string; deadline: string; assigned_to: string;
-  }>({ open: false, lead_id: "", catatan: "", deadline: "", assigned_to: "" });
+    lead_id: string; catatan: string; deadline: string; assigned_to: string; ro_id: string;
+  }>({ open: false, lead_id: "", catatan: "", deadline: "", assigned_to: "", ro_id: "" });
 
   // Delete confirms
   const [deleteCol, setDeleteCol] = useState<string | null>(null);
@@ -73,14 +78,16 @@ export default function DesainFollowUpSurveyPage() {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
   });
 
+  const CARD_EMPTY = { open: false, lead_id: "", catatan: "", deadline: "", assigned_to: "", ro_id: "" };
   const createCardMut = useMutation({
     mutationFn: () => desainApi.createCard(cardDialog.columnId!, {
       lead_id: cardDialog.lead_id || undefined,
       catatan: cardDialog.catatan || undefined,
       deadline: cardDialog.deadline || undefined,
       assigned_to: cardDialog.assigned_to || undefined,
+      ro_id: cardDialog.ro_id || undefined,
     }),
-    onSuccess: () => { toast.success("Card ditambahkan"); qc.invalidateQueries({ queryKey: ["desain-kanban"] }); setCardDialog({ open: false, lead_id: "", catatan: "", deadline: "", assigned_to: "" }); },
+    onSuccess: () => { toast.success("Card ditambahkan"); qc.invalidateQueries({ queryKey: ["desain-kanban"] }); setCardDialog(CARD_EMPTY); },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
   });
   const updateCardMut = useMutation({
@@ -89,8 +96,9 @@ export default function DesainFollowUpSurveyPage() {
       catatan: cardDialog.catatan || null,
       deadline: cardDialog.deadline || null,
       assigned_to: cardDialog.assigned_to || null,
+      ro_id: cardDialog.ro_id || null,
     }),
-    onSuccess: () => { toast.success("Card diperbarui"); qc.invalidateQueries({ queryKey: ["desain-kanban"] }); setCardDialog({ open: false, lead_id: "", catatan: "", deadline: "", assigned_to: "" }); },
+    onSuccess: () => { toast.success("Card diperbarui"); qc.invalidateQueries({ queryKey: ["desain-kanban"] }); setCardDialog(CARD_EMPTY); },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
   });
   const deleteCardMut = useMutation({
@@ -104,7 +112,7 @@ export default function DesainFollowUpSurveyPage() {
   });
 
   function openAddCard(columnId: string) {
-    setCardDialog({ open: true, columnId, lead_id: "", catatan: "", deadline: "", assigned_to: "" });
+    setCardDialog({ open: true, columnId, lead_id: "", catatan: "", deadline: "", assigned_to: "", ro_id: "" });
   }
   function openEditCard(card: Card) {
     setCardDialog({
@@ -113,6 +121,7 @@ export default function DesainFollowUpSurveyPage() {
       catatan: card.catatan ?? "",
       deadline: card.deadline ?? "",
       assigned_to: card.assignee?.id ?? "",
+      ro_id: card.ro?.id ?? "",
     });
   }
 
@@ -209,11 +218,17 @@ export default function DesainFollowUpSurveyPage() {
                     </div>
                   </div>
                   {card.catatan && <p className="text-xs text-slate-500 mt-1 line-clamp-2">{card.catatan}</p>}
-                  <div className="flex items-center gap-2 mt-2">
+                  <div className="flex items-center gap-2 mt-2 flex-wrap">
                     {card.deadline && (
                       <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <CalendarDays size={11} />
                         {fmtDate(card.deadline)}
+                      </span>
+                    )}
+                    {card.ro && (
+                      <span className="flex items-center gap-1 text-xs text-purple-600 font-medium">
+                        <User size={11} />
+                        RO: {card.ro.nama}
                       </span>
                     )}
                     {card.assignee && (
@@ -271,7 +286,7 @@ export default function DesainFollowUpSurveyPage() {
       </Dialog>
 
       {/* Card Dialog */}
-      <Dialog open={cardDialog.open} onOpenChange={(o) => !o && setCardDialog({ open: false, lead_id: "", catatan: "", deadline: "", assigned_to: "" })}>
+      <Dialog open={cardDialog.open} onOpenChange={(o) => !o && setCardDialog(CARD_EMPTY)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{cardDialog.cardId ? "Edit Card" : "Tambah Card"}</DialogTitle>
@@ -281,12 +296,26 @@ export default function DesainFollowUpSurveyPage() {
               <Label>Lead (opsional)</Label>
               <Select value={cardDialog.lead_id} onValueChange={(v) => setCardDialog((d) => ({ ...d, lead_id: v === "_none" ? "" : v }))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Pilih lead..." />
+                  <SelectValue placeholder="Pilih lead dari kalender survey..." />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="_none">— Tanpa lead —</SelectItem>
                   {leads.map((l) => (
                     <SelectItem key={l.id} value={l.id}>{l.nama} {l.jenis ? `(${l.jenis})` : ""}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label>RO (Research Officer)</Label>
+              <Select value={cardDialog.ro_id} onValueChange={(v) => setCardDialog((d) => ({ ...d, ro_id: v === "_none" ? "" : v }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih RO..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">— Tanpa RO —</SelectItem>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={e.id}>{e.nama}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -301,7 +330,7 @@ export default function DesainFollowUpSurveyPage() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCardDialog({ open: false, lead_id: "", catatan: "", deadline: "", assigned_to: "" })}>Batal</Button>
+            <Button variant="outline" onClick={() => setCardDialog(CARD_EMPTY)}>Batal</Button>
             <Button
               onClick={() => cardDialog.cardId ? updateCardMut.mutate() : createCardMut.mutate()}
               disabled={createCardMut.isPending || updateCardMut.isPending}

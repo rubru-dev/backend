@@ -20,6 +20,7 @@ type Projek = {
   id: string;
   nama_proyek: string | null;
   lead: { id: string; nama: string } | null;
+  ro: { id: string; nama: string } | null;
   lokasi: string | null;
   nilai_rab: number;
   tanggal_mulai: string | null;
@@ -30,7 +31,7 @@ type Projek = {
   progress: number;
 };
 
-const EMPTY_FORM = { nama_proyek: "", lead_id: "", lokasi: "", nilai_rab: "", tanggal_mulai: "", tanggal_selesai: "" };
+const EMPTY_FORM = { nama_proyek: "", lead_id: "", ro_id: "", lokasi: "", nilai_rab: "", tanggal_mulai: "", tanggal_selesai: "" };
 
 export default function ProyekSipilListPage() {
   const router = useRouter();
@@ -51,6 +52,13 @@ export default function ProyekSipilListPage() {
   const { data: leads = [] } = useQuery<{ id: string; nama: string }[]>({
     queryKey: ["finance-leads-dropdown"],
     queryFn: () => sipilApi.listLeads(),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
+    queryKey: ["sipil-employees"],
+    queryFn: () => sipilApi.listEmployees(),
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -98,6 +106,7 @@ export default function ProyekSipilListPage() {
     setForm({
       nama_proyek: p.nama_proyek ?? "",
       lead_id: p.lead?.id ?? "",
+      ro_id: p.ro?.id ?? "",
       lokasi: p.lokasi ?? "",
       nilai_rab: p.nilai_rab?.toString() ?? "",
       tanggal_mulai: p.tanggal_mulai ?? "",
@@ -110,6 +119,7 @@ export default function ProyekSipilListPage() {
     const payload = {
       ...form,
       lead_id: form.lead_id || null,
+      ro_id: form.ro_id || null,
       nilai_rab: form.nilai_rab ? Number(form.nilai_rab) : 0,
       tanggal_mulai: form.tanggal_mulai || null,
       tanggal_selesai: form.tanggal_selesai || null,
@@ -137,6 +147,7 @@ export default function ProyekSipilListPage() {
           <TableRow className="bg-muted/50">
             <TableHead>Nama Proyek</TableHead>
             <TableHead>Klien</TableHead>
+            <TableHead>RO</TableHead>
             <TableHead>Lokasi</TableHead>
             <TableHead className="text-right">Nilai RAB</TableHead>
             <TableHead>Periode</TableHead>
@@ -148,7 +159,7 @@ export default function ProyekSipilListPage() {
         <TableBody>
           {isLoading && Array.from({ length: 4 }).map((_, i) => (
             <TableRow key={i}>
-              {Array.from({ length: 8 }).map((__, j) => (
+              {Array.from({ length: 9 }).map((__, j) => (
                 <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
               ))}
             </TableRow>
@@ -167,6 +178,7 @@ export default function ProyekSipilListPage() {
                 </div>
               </TableCell>
               <TableCell className="text-sm text-muted-foreground">{p.lead?.nama ?? "—"}</TableCell>
+              <TableCell className="text-sm text-muted-foreground">{p.ro?.nama ?? "—"}</TableCell>
               <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{p.lokasi ?? "—"}</TableCell>
               <TableCell className="text-right text-sm">
                 {p.nilai_rab > 0 ? "Rp " + p.nilai_rab.toLocaleString("id-ID") : "—"}
@@ -206,7 +218,7 @@ export default function ProyekSipilListPage() {
           ))}
           {!isLoading && projeks.length === 0 && (
             <TableRow>
-              <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+              <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
                 <Building2 className="mx-auto h-10 w-10 opacity-20 mb-3" />
                 <p className="font-medium">Belum ada Projek Sipil</p>
                 <p className="text-sm mt-1">Klik &quot;Tambah Proyek&quot; untuk membuat yang pertama</p>
@@ -235,6 +247,16 @@ export default function ProyekSipilListPage() {
                   </div>
                   <SelectItem value="__none__">— Tanpa klien —</SelectItem>
                   {(leads as any[]).filter((l: any) => !leadSearch || l.nama?.toLowerCase().includes(leadSearch.toLowerCase())).map((l: any) => <SelectItem key={l.id} value={String(l.id)}>{l.nama}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>RO (Research Officer)</Label>
+              <Select value={form.ro_id || "__none__"} onValueChange={(v) => setForm({ ...form, ro_id: v === "__none__" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Pilih RO (opsional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Tanpa RO —</SelectItem>
+                  {(employees as any[]).map((e: any) => <SelectItem key={e.id} value={String(e.id)}>{e.nama}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

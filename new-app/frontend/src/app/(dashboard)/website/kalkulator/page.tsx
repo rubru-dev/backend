@@ -7,7 +7,7 @@ import { websiteApi } from "@/lib/api/website";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Calculator, Plus, Pencil, Trash2, Check, X, Loader2 } from "lucide-react";
+import { Calculator, Plus, Pencil, Trash2, Check, X, Loader2, ListChecks, GripVertical } from "lucide-react";
 
 interface KalkulatorItem {
   key: string;
@@ -30,6 +30,31 @@ function normalizeItems(data: any): KalkulatorItem[] {
 const EMPTY_PAKET = { key: "", label: "", harga: "0", satuan: "per m²" };
 const EMPTY_SURCHARGE = { key: "", label: "", harga: "0", satuan: "per m²", kategori: "" };
 
+const DEFAULT_SPEC_MINIMALIS = [
+  "Pondasi batu kali + besi cakar ayam",
+  "Sloof & ring balk beton bertulang",
+  "Kolom & balok struktur standar SNI",
+  "Instalasi listrik & titik lampu",
+  "Cat dinding interior & eksterior",
+  "Instalasi air bersih & pembuangan",
+  "Closet duduk & wastafel keramik",
+  "Pintu panel & jendela kaca",
+  "Rangka atap & penutup atap",
+  "Garansi konstruksi 10 tahun",
+];
+const DEFAULT_SPEC_LUXURY = [
+  "Pondasi bore pile & besi ulir",
+  "Sloof & ring balk beton prategang",
+  "Kolom & balok struktur premium",
+  "Instalasi listrik 3 phase + smart home",
+  "Cat premium & wallpaper pilihan",
+  "Instalasi air panas & dingin",
+  "Sanitary premium (TOTO/American Standard)",
+  "Pintu kayu solid & jendela tempered",
+  "Rangka baja ringan + atap premium",
+  "Garansi konstruksi 15 tahun",
+];
+
 export default function WebsiteKalkulatorPage() {
   const qc = useQueryClient();
   const [synced, setSynced] = useState(false);
@@ -48,12 +73,27 @@ export default function WebsiteKalkulatorPage() {
   const [addingSurcharge, setAddingSurcharge] = useState(false);
   const [newSurcharge, setNewSurcharge] = useState({ ...EMPTY_SURCHARGE });
 
+  // Spesifikasi state
+  const [spesifikasi, setSpesifikasi] = useState<Record<string, string[]>>({});
+  const [expandedSpecPaket, setExpandedSpecPaket] = useState<string | null>(null);
+  const [editingSpecIdx, setEditingSpecIdx] = useState<{ paket: string; idx: number } | null>(null);
+  const [editSpecVal, setEditSpecVal] = useState("");
+  const [newSpecVal, setNewSpecVal] = useState<Record<string, string>>({});
+
   useQuery({
     queryKey: ["website-kalkulator"],
     queryFn: async () => {
       const data = await websiteApi.getKalkulator();
       setPaketItems(normalizeItems(data.base_prices));
       setSurchargeItems(normalizeItems(data.surcharges));
+      // Seed spesifikasi from API data or defaults
+      const rawSpec = data.spesifikasi as Record<string, string[]> | null;
+      const pakets = normalizeItems(data.base_prices).map((p) => p.key);
+      const specMap: Record<string, string[]> = {};
+      for (const pk of pakets) {
+        specMap[pk] = rawSpec?.[pk] ?? (pk === "MINIMALIS" ? DEFAULT_SPEC_MINIMALIS : pk === "LUXURY" ? DEFAULT_SPEC_LUXURY : []);
+      }
+      setSpesifikasi(specMap);
       setSynced(true);
       return data;
     },
@@ -141,6 +181,45 @@ export default function WebsiteKalkulatorPage() {
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menghapus"),
   });
+
+  // ── Spesifikasi mutations ──────────────────────────────────────────────────
+  const saveSpecMut = useMutation({
+    mutationFn: ({ paket, items }: { paket: string; items: string[] }) =>
+      websiteApi.updateSpesifikasi(paket, items),
+    onSuccess: (data, { paket }) => {
+      const rawSpec = (data as any)?.spesifikasi as Record<string, string[]> | null;
+      if (rawSpec?.[paket]) {
+        setSpesifikasi((s) => ({ ...s, [paket]: rawSpec[paket] }));
+      }
+      toast.success("Spesifikasi disimpan");
+      qc.invalidateQueries({ queryKey: ["website-kalkulator"] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menyimpan spesifikasi"),
+  });
+
+  function specAddItem(paket: string) {
+    const val = (newSpecVal[paket] ?? "").trim();
+    if (!val) return;
+    const updated = [...(spesifikasi[paket] ?? []), val];
+    setSpesifikasi((s) => ({ ...s, [paket]: updated }));
+    setNewSpecVal((s) => ({ ...s, [paket]: "" }));
+    saveSpecMut.mutate({ paket, items: updated });
+  }
+
+  function specDeleteItem(paket: string, idx: number) {
+    const updated = (spesifikasi[paket] ?? []).filter((_, i) => i !== idx);
+    setSpesifikasi((s) => ({ ...s, [paket]: updated }));
+    saveSpecMut.mutate({ paket, items: updated });
+  }
+
+  function specSaveEdit(paket: string, idx: number) {
+    const val = editSpecVal.trim();
+    if (!val) return;
+    const updated = (spesifikasi[paket] ?? []).map((item, i) => (i === idx ? val : item));
+    setSpesifikasi((s) => ({ ...s, [paket]: updated }));
+    setEditingSpecIdx(null);
+    saveSpecMut.mutate({ paket, items: updated });
+  }
 
   if (!synced) {
     return (
@@ -407,6 +486,105 @@ export default function WebsiteKalkulatorPage() {
           <p className="text-xs text-muted-foreground mt-3">
             Nilai negatif = pengurangan biaya (diskon material). Contoh: PVC plafon = -50.000
           </p>
+        </CardContent>
+      </Card>
+
+      {/* ── Spesifikasi Per Paket ────────────────────────────────────────── */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base flex items-center gap-2">
+            <ListChecks size={16} className="text-orange-500" />
+            Spesifikasi Termasuk (per Paket)
+          </CardTitle>
+          <CardDescription className="text-xs mt-0.5">
+            Daftar item yang ditampilkan di website kalkulator untuk setiap paket
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {paketItems.length === 0 && (
+            <p className="text-sm text-muted-foreground">Tambahkan paket terlebih dahulu.</p>
+          )}
+          {paketItems.map((paket) => {
+            const items = spesifikasi[paket.key] ?? [];
+            const isExpanded = expandedSpecPaket === paket.key;
+            return (
+              <div key={paket.key} className="border rounded-lg overflow-hidden">
+                <button
+                  className="w-full flex items-center justify-between px-4 py-2.5 bg-muted/40 hover:bg-muted/60 text-sm font-medium"
+                  onClick={() => setExpandedSpecPaket(isExpanded ? null : paket.key)}
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="font-mono text-xs bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded">{paket.key}</span>
+                    {paket.label}
+                    <span className="text-xs text-muted-foreground font-normal">({items.length} item)</span>
+                  </span>
+                  <span className="text-muted-foreground text-xs">{isExpanded ? "▲" : "▼"}</span>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 py-3 space-y-1">
+                    {items.map((item, idx) => (
+                      <div key={idx} className="flex items-center gap-2 group">
+                        <GripVertical size={14} className="text-muted-foreground/40 shrink-0" />
+                        {editingSpecIdx?.paket === paket.key && editingSpecIdx?.idx === idx ? (
+                          <>
+                            <Input
+                              value={editSpecVal}
+                              onChange={(e) => setEditSpecVal(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") specSaveEdit(paket.key, idx); if (e.key === "Escape") setEditingSpecIdx(null); }}
+                              className="h-7 text-sm flex-1"
+                              autoFocus
+                            />
+                            <button onClick={() => specSaveEdit(paket.key, idx)} className="text-green-500 hover:text-green-700 shrink-0">
+                              <Check size={14} />
+                            </button>
+                            <button onClick={() => setEditingSpecIdx(null)} className="text-muted-foreground hover:text-foreground shrink-0">
+                              <X size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <>
+                            <span className="flex-1 text-sm">{item}</span>
+                            <div className="hidden group-hover:flex gap-1">
+                              <button
+                                onClick={() => { setEditingSpecIdx({ paket: paket.key, idx }); setEditSpecVal(item); }}
+                                className="text-muted-foreground hover:text-foreground"
+                              >
+                                <Pencil size={13} />
+                              </button>
+                              <button onClick={() => specDeleteItem(paket.key, idx)} className="text-red-400 hover:text-red-600">
+                                <Trash2 size={13} />
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    ))}
+
+                    {/* Add new item */}
+                    <div className="flex items-center gap-2 mt-2 pt-2 border-t">
+                      <Input
+                        placeholder="Tambah item spesifikasi..."
+                        value={newSpecVal[paket.key] ?? ""}
+                        onChange={(e) => setNewSpecVal((s) => ({ ...s, [paket.key]: e.target.value }))}
+                        onKeyDown={(e) => { if (e.key === "Enter") specAddItem(paket.key); }}
+                        className="h-7 text-sm flex-1"
+                      />
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2"
+                        onClick={() => specAddItem(paket.key)}
+                        disabled={!(newSpecVal[paket.key] ?? "").trim() || saveSpecMut.isPending}
+                      >
+                        <Plus size={13} />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </CardContent>
       </Card>
     </div>

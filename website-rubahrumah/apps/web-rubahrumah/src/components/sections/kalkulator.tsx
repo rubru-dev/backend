@@ -108,7 +108,7 @@ function Counter({ value, onChange, min = 0, max = 10 }: {
 }
 
 /* ─── Komponen Utama ─── */
-export function Kalkulator({ basePrices, surcharges: surchargesData }: { basePrices?: any; surcharges?: any } = {}) {
+export function Kalkulator({ basePrices, surcharges: surchargesData, spesifikasi: spesifikasiData }: { basePrices?: any; surcharges?: any; spesifikasi?: Record<string, string[]> } = {}) {
   // useMemo so objects don't change reference on re-render (avoids dep array issues below)
   const BASE     = useMemo(() => normalizePrices(basePrices,     DEFAULT_BASE),     [basePrices]);
   const SURCHARGE = useMemo(() => normalizePrices(surchargesData, DEFAULT_SURCHARGE), [surchargesData]);
@@ -116,8 +116,27 @@ export function Kalkulator({ basePrices, surcharges: surchargesData }: { basePri
   const [paket,       setPaket]       = useState<Paket>("MINIMALIS");
   const [lantai,      setLantai]      = useState(1);
   const [luas,        setLuas]        = useState(120);
-  const [kamarTidur,  setKamarTidur]  = useState(3);
-  const [kamarMandi,  setKamarMandi]  = useState(2);
+  // Per-lantai: array length = jumlah lantai
+  const [kamarTidurPerLantai, setKamarTidurPerLantai] = useState<number[]>([3]);
+  const [kamarMandiPerLantai, setKamarMandiPerLantai] = useState<number[]>([2]);
+
+  // Adjust array lengths when lantai changes
+  function handleLantaiChange(n: number) {
+    setLantai(n);
+    setKamarTidurPerLantai((prev) => {
+      const arr = [...prev];
+      while (arr.length < n) arr.push(arr[arr.length - 1] ?? 3);
+      return arr.slice(0, n);
+    });
+    setKamarMandiPerLantai((prev) => {
+      const arr = [...prev];
+      while (arr.length < n) arr.push(arr[arr.length - 1] ?? 2);
+      return arr.slice(0, n);
+    });
+  }
+
+  const totalKamarTidur = kamarTidurPerLantai.reduce((a, b) => a + b, 0);
+  const totalKamarMandi = kamarMandiPerLantai.reduce((a, b) => a + b, 0);
   const [dapur,       setDapur]       = useState<Dapur>("STANDARD");
   const [carport,     setCarport]     = useState<Carport>("CARPORT");
   const [taman,       setTaman]       = useState<Taman>("TAMAN_DEPAN");
@@ -129,6 +148,8 @@ export function Kalkulator({ basePrices, surcharges: surchargesData }: { basePri
 
   const { total, perM2 } = useMemo(() => {
     const base = BASE[paket] ?? 0;
+    const kamarTidurSurcharge = SURCHARGE["KAMAR_TIDUR"] ?? 50_000;
+    const kamarMandiSurcharge = SURCHARGE["KAMAR_MANDI"] ?? 80_000;
     const surcharge =
       (SURCHARGE[dinding]   ?? 0) +
       (SURCHARGE[lantaiMat] ?? 0) +
@@ -138,23 +159,25 @@ export function Kalkulator({ basePrices, surcharges: surchargesData }: { basePri
       (SURCHARGE[dapur]     ?? 0) +
       (SURCHARGE[carport]   ?? 0) +
       (SURCHARGE[taman]     ?? 0) +
-      kamarTidur * 50_000 +
-      kamarMandi * 80_000;
+      totalKamarTidur * kamarTidurSurcharge +
+      totalKamarMandi * kamarMandiSurcharge;
 
     const hargaPerM2 = base + surcharge;
     const totalHarga = hargaPerM2 * luas * lantai;
     return { total: totalHarga, perM2: hargaPerM2 };
-  }, [BASE, SURCHARGE, paket, lantai, luas, kamarTidur, kamarMandi, dapur, carport, taman, dinding, lantaiMat, atap, plafon, kusen]);
+  }, [BASE, SURCHARGE, paket, lantai, luas, totalKamarTidur, totalKamarMandi, dapur, carport, taman, dinding, lantaiMat, atap, plafon, kusen]);
 
   const fmt = (n: number) =>
     "Rp. " + n.toLocaleString("id-ID");
 
+  const kamarDetail = lantai > 1
+    ? kamarTidurPerLantai.map((kt, i) => `\n  Lantai ${i + 1}: ${kt} KT, ${kamarMandiPerLantai[i]} KM`).join("")
+    : `${totalKamarTidur} Kamar Tidur, ${totalKamarMandi} Kamar Mandi`;
   const waMsg = encodeURIComponent(
-    `Halo Rubah Rumah, saya ingin konsultasi estimasi biaya:\n\nPaket: ${paket}\nLantai: ${lantai}\nLuas: ${luas} m²\nEstimasi: ${fmt(total)}`
+    `Halo Rubah Rumah, saya ingin konsultasi estimasi biaya:\n\nPaket: ${paket}\nLantai: ${lantai}\nLuas: ${luas} m²\nKamar: ${kamarDetail}\nEstimasi: ${fmt(total)}`
   );
 
-  const specs = SPESIFIKASI[paket];
-  const half  = Math.ceil(specs.length / 2);
+  const specs = spesifikasiData?.[paket] ?? SPESIFIKASI[paket] ?? [];
 
   return (
     <section className="py-14 bg-slate-50">
@@ -202,7 +225,7 @@ export function Kalkulator({ basePrices, surcharges: surchargesData }: { basePri
                   <button
                     key={l}
                     type="button"
-                    onClick={() => setLantai(l)}
+                    onClick={() => handleLantaiChange(l)}
                     className={`w-10 h-10 rounded-lg text-sm font-bold border-2 transition-all ${
                       lantai === l
                         ? "bg-[#FF9122] text-white border-[#FF9122]"
@@ -227,16 +250,44 @@ export function Kalkulator({ basePrices, surcharges: surchargesData }: { basePri
               />
             </div>
 
-            {/* Kamar Tidur */}
+            {/* Kamar Tidur per lantai */}
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-2">Jumlah Kamar Tidur</label>
-              <Counter value={kamarTidur} onChange={setKamarTidur} min={1} max={10} />
+              <div className="space-y-2">
+                {kamarTidurPerLantai.map((val, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    {lantai > 1 && (
+                      <span className="text-xs text-slate-400 w-14 shrink-0">Lantai {idx + 1}</span>
+                    )}
+                    <Counter
+                      value={val}
+                      onChange={(v) => setKamarTidurPerLantai((prev) => { const a = [...prev]; a[idx] = v; return a; })}
+                      min={1}
+                      max={10}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
-            {/* Kamar Mandi */}
+            {/* Kamar Mandi per lantai */}
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-2">Jumlah Kamar Mandi</label>
-              <Counter value={kamarMandi} onChange={setKamarMandi} min={1} max={6} />
+              <div className="space-y-2">
+                {kamarMandiPerLantai.map((val, idx) => (
+                  <div key={idx} className="flex items-center gap-3">
+                    {lantai > 1 && (
+                      <span className="text-xs text-slate-400 w-14 shrink-0">Lantai {idx + 1}</span>
+                    )}
+                    <Counter
+                      value={val}
+                      onChange={(v) => setKamarMandiPerLantai((prev) => { const a = [...prev]; a[idx] = v; return a; })}
+                      min={1}
+                      max={6}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
 
             {/* Dapur */}
@@ -345,17 +396,6 @@ export function Kalkulator({ basePrices, surcharges: surchargesData }: { basePri
           </div>
 
           <div className="flex flex-col sm:flex-row gap-3">
-            <button
-              type="button"
-              onClick={() => {
-                /* scroll ke atas atau trigger efek kalkulasi */
-                window.scrollTo({ top: 0, behavior: "smooth" });
-              }}
-              className="flex-1 btn-primary justify-center gap-2 py-3"
-            >
-              <Calculator size={16} />
-              Hitung Biaya
-            </button>
             <a
               href={`https://wa.me/6281376405550?text=${waMsg}`}
               target="_blank"

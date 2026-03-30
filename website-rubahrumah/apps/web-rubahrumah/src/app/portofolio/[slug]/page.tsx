@@ -1,3 +1,5 @@
+export const revalidate = 30;
+
 import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
