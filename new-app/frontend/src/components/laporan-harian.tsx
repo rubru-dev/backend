@@ -406,12 +406,15 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
               </Button>
             )}
           </div>
-          <Select value={filterUserId} onValueChange={setFilterUserId}>
+          <Select
+            value={filterUserId || "__all__"}
+            onValueChange={(v) => setFilterUserId(v === "__all__" ? "" : v)}
+          >
             <SelectTrigger className="w-44 text-sm h-9">
               <SelectValue placeholder="Semua Karyawan" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Semua Karyawan</SelectItem>
+              <SelectItem value="__all__">Semua Karyawan</SelectItem>
               {users.map((u) => (
                 <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
               ))}

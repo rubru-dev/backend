@@ -267,23 +267,29 @@ export default function KalenderVisitPage() {
 
       {/* Filters */}
       <div className="flex items-center gap-3 flex-wrap">
-        <Select value={filterProjekId} onValueChange={(v) => { setFilterProjekId(v); setSelectedDate(null); }}>
+        <Select
+          value={filterProjekId || "__all__"}
+          onValueChange={(v) => { setFilterProjekId(v === "__all__" ? "" : v); setSelectedDate(null); }}
+        >
           <SelectTrigger className="w-52 text-sm h-9">
             <SelectValue placeholder="Semua Projek" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Semua Projek</SelectItem>
+            <SelectItem value="__all__">Semua Projek</SelectItem>
             {(projekOptions as any[]).map((p: any) => (
               <SelectItem key={`${p.type}:${p.id}`} value={String(p.id)}>{p.label}</SelectItem>
             ))}
           </SelectContent>
         </Select>
-        <Select value={filterPicId} onValueChange={(v) => { setFilterPicId(v); setSelectedDate(null); }}>
+        <Select
+          value={filterPicId || "__all__"}
+          onValueChange={(v) => { setFilterPicId(v === "__all__" ? "" : v); setSelectedDate(null); }}
+        >
           <SelectTrigger className="w-44 text-sm h-9">
             <SelectValue placeholder="Semua PIC" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">Semua PIC</SelectItem>
+            <SelectItem value="__all__">Semua PIC</SelectItem>
             {(allUsers as any[]).map((u: any) => (
               <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
             ))}
