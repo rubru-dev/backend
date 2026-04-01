@@ -13,8 +13,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye,
+  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye, Settings,
 } from "lucide-react";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -121,6 +122,18 @@ export default function FinanceAbsenKaryawanPage() {
         </h1>
         <p className="text-muted-foreground text-sm">Rekap & approval absen harian seluruh karyawan</p>
       </div>
+
+      <Tabs defaultValue="rekap">
+        <TabsList>
+          <TabsTrigger value="rekap" className="flex items-center gap-1.5">
+            <ClipboardCheck className="h-4 w-4" /> Rekap Absen
+          </TabsTrigger>
+          <TabsTrigger value="konfigurasi" className="flex items-center gap-1.5">
+            <Settings className="h-4 w-4" /> Konfigurasi
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="rekap" className="space-y-6 mt-4">
 
       {/* Pending approvals */}
       {pending.length > 0 && (
@@ -256,6 +269,13 @@ export default function FinanceAbsenKaryawanPage() {
         </CardContent>
       </Card>
 
+        </TabsContent>
+
+        <TabsContent value="konfigurasi" className="mt-4">
+          <KonfigurasiTab />
+        </TabsContent>
+      </Tabs>
+
       {/* Photo Dialog */}
       <Dialog open={!!photoDialog} onOpenChange={v => { if (!v) setPhotoDialog(null); }}>
         <DialogContent className="max-w-2xl">
@@ -311,5 +331,122 @@ export default function FinanceAbsenKaryawanPage() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+// ── KonfigurasiTab ────────────────────────────────────────────────────────────
+function KonfigurasiTab() {
+  const qc = useQueryClient();
+  const [form, setForm] = useState<{
+    kantor_lat: string; kantor_lng: string; radius_meter: string;
+    jam_masuk_awal: string; jam_masuk_akhir: string; jam_pulang: string;
+  } | null>(null);
+
+  const { data: cfg, isLoading } = useQuery({
+    queryKey: ["absen-config"],
+    queryFn: () => apiClient.get("/absen-karyawan/config").then(r => r.data),
+  });
+
+  // Sync form ketika data berhasil diload
+  if (cfg && !form) {
+    // handled via useEffect pattern — just initialize lazily
+  }
+
+  const currentForm = form ?? (cfg ? {
+    kantor_lat: String(cfg.kantor_lat),
+    kantor_lng: String(cfg.kantor_lng),
+    radius_meter: String(cfg.radius_meter),
+    jam_masuk_awal: cfg.jam_masuk_awal,
+    jam_masuk_akhir: cfg.jam_masuk_akhir,
+    jam_pulang: cfg.jam_pulang,
+  } : null);
+
+  const saveMut = useMutation({
+    mutationFn: (data: any) => apiClient.put("/absen-karyawan/admin/config", data).then(r => r.data),
+    onSuccess: () => {
+      toast.success("Konfigurasi disimpan");
+      qc.invalidateQueries({ queryKey: ["absen-config"] });
+      setForm(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan"),
+  });
+
+  function handleSave() {
+    if (!currentForm) return;
+    saveMut.mutate({
+      kantor_lat: parseFloat(currentForm.kantor_lat),
+      kantor_lng: parseFloat(currentForm.kantor_lng),
+      radius_meter: parseInt(currentForm.radius_meter),
+      jam_masuk_awal: currentForm.jam_masuk_awal,
+      jam_masuk_akhir: currentForm.jam_masuk_akhir,
+      jam_pulang: currentForm.jam_pulang,
+    });
+  }
+
+  if (isLoading || !currentForm) {
+    return <div className="space-y-3">{Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-10 w-full" />)}</div>;
+  }
+
+  return (
+    <Card className="max-w-lg">
+      <CardContent className="pt-5 space-y-4">
+        <div>
+          <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+            <MapPin className="h-4 w-4 text-sky-500" /> Lokasi Kantor
+          </h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Latitude</Label>
+              <Input className="mt-1" value={currentForm.kantor_lat}
+                onChange={e => setForm({ ...currentForm, kantor_lat: e.target.value })}
+                placeholder="-6.200000" />
+            </div>
+            <div>
+              <Label>Longitude</Label>
+              <Input className="mt-1" value={currentForm.kantor_lng}
+                onChange={e => setForm({ ...currentForm, kantor_lng: e.target.value })}
+                placeholder="106.816000" />
+            </div>
+          </div>
+          <div className="mt-3">
+            <Label>Radius Toleransi (meter)</Label>
+            <Input className="mt-1 w-40" type="number" min={10} value={currentForm.radius_meter}
+              onChange={e => setForm({ ...currentForm, radius_meter: e.target.value })} />
+            <p className="text-xs text-muted-foreground mt-1">Karyawan di luar radius ini dianggap luar kantor</p>
+          </div>
+        </div>
+
+        <div className="border-t pt-4">
+          <h3 className="font-semibold text-sm mb-3 flex items-center gap-2">
+            <Clock className="h-4 w-4 text-sky-500" /> Jam Kerja
+          </h3>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <Label>Jam Masuk Awal</Label>
+              <Input className="mt-1" type="time" value={currentForm.jam_masuk_awal}
+                onChange={e => setForm({ ...currentForm, jam_masuk_awal: e.target.value })} />
+              <p className="text-xs text-muted-foreground mt-1">Batas masuk tepat waktu</p>
+            </div>
+            <div>
+              <Label>Jam Masuk Akhir</Label>
+              <Input className="mt-1" type="time" value={currentForm.jam_masuk_akhir}
+                onChange={e => setForm({ ...currentForm, jam_masuk_akhir: e.target.value })} />
+              <p className="text-xs text-muted-foreground mt-1">Lewat ini = terlambat</p>
+            </div>
+            <div>
+              <Label>Jam Pulang</Label>
+              <Input className="mt-1" type="time" value={currentForm.jam_pulang}
+                onChange={e => setForm({ ...currentForm, jam_pulang: e.target.value })} />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex justify-end pt-2">
+          <Button onClick={handleSave} disabled={saveMut.isPending}>
+            {saveMut.isPending ? "Menyimpan..." : "Simpan Konfigurasi"}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

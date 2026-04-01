@@ -271,7 +271,7 @@ async function main() {
       "absen.submit", ...TUTORIAL_PERMS,
     ],
     "Head Finance":  ["finance.invoice","finance.adm_projek","absen.submit","absen.manage", ...TUTORIAL_PERMS],
-    "Admin Finance": ["finance.invoice","finance.adm_projek","finance.adm_kantor","absen.submit", ...TUTORIAL_PERMS],
+    "Admin Finance": ["finance.invoice","finance.adm_projek","finance.adm_kantor","absen.submit","absen.manage", ...TUTORIAL_PERMS],
     "PIC Project":   ["pic.laporan_harian","absen.submit", ...TUTORIAL_PERMS],
     "Tukang":        ["tukang.absen_submit"],
   };
