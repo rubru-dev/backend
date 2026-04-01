@@ -534,8 +534,8 @@ export function DashboardHome() {
         ))}
       </div>
 
-      {/* ── Absen Harian ──────────────────────────────────────────────────── */}
-      {hasPermission("absen", "submit") && (
+      {/* ── Absen Harian (semua karyawan kecuali Tukang) ──────────────────── */}
+      {!hasAnyRole(["Tukang"]) && (
         <AbsenWidget userName={user.name} />
       )}
 

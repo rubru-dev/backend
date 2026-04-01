@@ -74,7 +74,7 @@ router.get("/leads", requirePermission("bd", "view"), async (req: Request, res: 
 
 // GET /bd/database-client/leads — accessible to sales_admin + telemarketing + BD (Super Admin bypass)
 router.get("/database-client/leads", async (req: Request, res: Response) => {
-  const { page, limit, skip } = getPagination(req.query);
+  const { page, limit, skip } = getPagination(req.query, 20, 10000);
   const search = req.query.search as string | undefined;
   const status = req.query.status as string | undefined;
   const jenis = req.query.jenis as string | undefined;

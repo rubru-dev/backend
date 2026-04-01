@@ -85,7 +85,7 @@ const STATUS_STYLE: Record<string, { color: string; icon: React.ReactNode; label
   Ditolak:   { color: "bg-red-100 text-red-700 border-red-200",         icon: <XCircle className="h-3.5 w-3.5" />,     label: "Ditolak" },
 };
 
-type GpsState = { lat: number; lng: number; jarak: number; diLuar: boolean } | null;
+type GpsState = { lat: number; lng: number; jarak: number; accuracy: number; diLuar: boolean } | null;
 
 export default function AbsenKaryawanPage() {
   const qc = useQueryClient();
@@ -164,12 +164,14 @@ export default function AbsenKaryawanPage() {
     setGpsLoading(true);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const { latitude: lat, longitude: lng } = pos.coords;
+        const { latitude: lat, longitude: lng, accuracy } = pos.coords;
         if (cfg) {
           const jarak = haversine(lat, lng, cfg.kantor_lat, cfg.kantor_lng);
-          setGps({ lat, lng, jarak, diLuar: jarak > cfg.radius_meter });
+          // Anggap dalam kantor jika jarak dikurangi akurasi GPS masih <= radius
+          const diLuar = (jarak - accuracy) > cfg.radius_meter;
+          setGps({ lat, lng, jarak, accuracy, diLuar });
         } else {
-          setGps({ lat, lng, jarak: 0, diLuar: false });
+          setGps({ lat, lng, jarak: 0, accuracy, diLuar: false });
         }
         setGpsLoading(false);
       },
@@ -351,6 +353,7 @@ export default function AbsenKaryawanPage() {
                   <span className={`text-xs px-2 py-1 rounded-full flex items-center gap-1 font-medium ${gps.diLuar ? "bg-red-500/80 text-white" : "bg-green-500/80 text-white"}`}>
                     <MapPin className="h-3 w-3" />
                     {gps.diLuar ? `Luar Kantor (${Math.round(gps.jarak)}m)` : `Dalam Kantor (${Math.round(gps.jarak)}m)`}
+                    {` ±${Math.round(gps.accuracy)}m`}
                   </span>
                 ) : (
                   <span className="bg-yellow-500/80 text-white text-xs px-2 py-1 rounded-full">Lokasi tidak tersedia</span>
@@ -386,6 +389,7 @@ export default function AbsenKaryawanPage() {
                   {gps.diLuar
                     ? `Luar kantor — ${Math.round(gps.jarak)} meter dari kantor`
                     : `Dalam kantor — ${Math.round(gps.jarak)} meter dari kantor`}
+                  <span className="opacity-60 ml-1">(akurasi GPS ±{Math.round(gps.accuracy)}m)</span>
                 </div>
               )}
 

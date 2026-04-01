@@ -162,6 +162,18 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
+  // ── Absen Karyawan (semua karyawan) ─────────────────────────────────────────
+  {
+    title: "Absen",
+    color: "#10b981",
+    permission: "absen.submit",
+    alwaysShow: true,
+    roles: [],
+    items: [
+      { label: "Absen Harian", href: "/karyawan/absen", icon: "ClipboardCheck" },
+    ],
+  },
+
   // ── Tukang ───────────────────────────────────────────────────────────────────
   // Group: tukang.absen_submit | Items: tukang.absen_submit
   {
