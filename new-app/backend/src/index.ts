@@ -31,6 +31,7 @@ import clientPortalRouter from "./routes/clientPortal";
 import notificationsRouter from "./routes/notifications";
 import publicRbRouter from "./routes/publicRb";
 import websiteAdminRouter from "./routes/websiteAdmin";
+import absenKaryawanRouter from "./routes/absenKaryawan";
 
 // BigInt serialization fix
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -119,6 +120,9 @@ app.use("/v1/public/rb", publicRbRouter);
 
 // Website admin routes (auth required — for internal dashboard)
 app.use("/api/v1/website", authenticate, websiteAdminRouter);
+
+// Absen Karyawan
+app.use("/api/v1/absen-karyawan", authenticate, absenKaryawanRouter);
 
 // Global error handler
 app.use(

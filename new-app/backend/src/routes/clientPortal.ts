@@ -18,8 +18,8 @@ router.post("/login", async (req: Request, res: Response) => {
     res.status(400).json({ detail: "Username dan password wajib diisi" }); return;
   }
 
-  const account = await prisma.clientPortalAccount.findUnique({
-    where: { username },
+  const account = await prisma.clientPortalAccount.findFirst({
+    where: { username: { equals: username, mode: "insensitive" } },
     include: { lead: { include: { client_portal_project: true } } },
   });
 

@@ -2049,6 +2049,11 @@ function UploadDokumenTab({ proyekId }: { proyekId: number }) {
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Ukuran file maksimal 2MB");
+      e.target.value = "";
+      return;
+    }
     const reader = new FileReader();
     reader.onload = (ev) => {
       const base64 = (ev.target?.result as string).split(",")[1];
@@ -2073,7 +2078,7 @@ function UploadDokumenTab({ proyekId }: { proyekId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Kategori</Label>
                 <select className="w-full border rounded-md px-3 py-2 text-sm" value={form.kategori} onChange={(e) => setForm({ ...form, kategori: e.target.value })}>
-                  <option>Nota</option><option>Bukti Transfer</option>
+                  <option>Nota</option><option>Bukti Transfer</option><option>Kontrak</option><option>RAPP</option><option>Time Schedule</option>
                 </select></div>
               <div><Label>Tanggal Upload</Label>
                 <Input type="date" value={form.tanggal_upload} onChange={(e) => setForm({ ...form, tanggal_upload: e.target.value })} /></div>
@@ -2084,7 +2089,7 @@ function UploadDokumenTab({ proyekId }: { proyekId: number }) {
             >
               <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
               <p className="text-sm text-muted-foreground">Klik untuk pilih file PDF atau gambar</p>
-              <p className="text-xs text-muted-foreground/70 mt-1">Nota, Faktur, Bukti Transfer (PDF/JPG/PNG)</p>
+              <p className="text-xs text-muted-foreground/70 mt-1">Nota, Bukti Transfer, Kontrak, RAPP, Time Schedule (PDF/JPG/PNG, maks. 2MB)</p>
               {uploadMut.isPending && <p className="text-xs text-primary mt-2">Mengupload...</p>}
             </div>
             <input ref={fileRef} type="file" accept=".pdf,image/*" className="hidden" onChange={handleFileChange} />
@@ -3314,7 +3319,7 @@ export default function AdministrasiProjekPage() {
               <ClipboardList className="h-3.5 w-3.5" /> PR
             </TabsTrigger>
             <TabsTrigger value="dokumen" className="flex items-center gap-1 text-xs">
-              <Upload className="h-3.5 w-3.5" /> Upload Nota/Bukti Transfer
+              <Upload className="h-3.5 w-3.5" /> Upload Dokumen
             </TabsTrigger>
             <TabsTrigger value="surat-jalan" className="flex items-center gap-1 text-xs">
               <Truck className="h-3.5 w-3.5" /> Surat Jalan Material

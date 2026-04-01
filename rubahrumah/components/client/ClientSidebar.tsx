@@ -61,19 +61,7 @@ const mainMenu = [
       </svg>
     ),
   },
-  {
-    href: "/monitoring",
-    label: "Pantau Online",
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-        <rect x="2" y="4" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5"/>
-        <circle cx="10" cy="9.5" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
-        <path d="M7 17h6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-        <circle cx="10" cy="9.5" r="1" fill="currentColor"/>
-        <circle cx="15" cy="5.5" r="1" fill="#ef4444"/>
-      </svg>
-    ),
-  },
+  // { href: "/monitoring", label: "Pantau Online", icon: null }, // hidden temporarily
 ];
 
 const otherMenu = [

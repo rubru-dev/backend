@@ -132,6 +132,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
         tahun: filterTahun !== "all" ? filterTahun : undefined,
         tanggal_mulai: filterTanggalMulai || undefined,
         tanggal_selesai: filterTanggalSelesai || undefined,
+        limit: 10000,
       }),
   });
 
@@ -494,7 +495,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
   const pending = createMut.isPending || updateMut.isPending;
 
-  const PAGE_SIZE = 15;
+  const PAGE_SIZE = 20;
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 

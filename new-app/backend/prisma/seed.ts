@@ -152,6 +152,9 @@ async function main() {
     { name: "projek_interior.rapp",     module: "projek_interior", label: "Tab: RAPP Interior" },
     // Tukang
     { name: "tukang.absen_submit", module: "tukang", label: "Submit Absen Tukang" },
+    // Absen Karyawan
+    { name: "absen.submit",  module: "absen", label: "Absen Harian Karyawan" },
+    { name: "absen.manage",  module: "absen", label: "Kelola Absen Karyawan (Admin)" },
     // Client Portal Management
     { name: "client.view",   module: "client", label: "Lihat Client Portal" },
     { name: "client.manage", module: "client", label: "Kelola Data Client Portal" },
@@ -244,32 +247,32 @@ async function main() {
   // Menggunakan createMany + skipDuplicates agar tidak menimpa perubahan manual
   const TUTORIAL_PERMS = ["tutorial.view","tutorial.tutorial_aplikasi","tutorial.api_eksternal","tutorial.deployment"];
   const subMenuRolePerms: Record<string, string[]> = {
-    "BD":            ["bd.dashboard","bd.kanban","bd.meta_ads", ...TUTORIAL_PERMS],
+    "BD":            ["bd.dashboard","bd.kanban","bd.meta_ads","absen.submit", ...TUTORIAL_PERMS],
     "Content Creator": [
       "content.dashboard_sosmed","content.social_media",
       "content.timelines","content.laporan_harian","content.target",
-      ...TUTORIAL_PERMS,
+      "absen.submit", ...TUTORIAL_PERMS,
     ],
     "Sales Admin": [
       "sales_admin.kanban","sales_admin.follow_up",
       "sales_admin.kalender","sales_admin.laporan_harian",
-      ...TUTORIAL_PERMS,
+      "absen.submit", ...TUTORIAL_PERMS,
     ],
     "Telemarketing": [
       "telemarketing.kanban","telemarketing.follow_up",
       "telemarketing.kalender","telemarketing.laporan_harian",
-      ...TUTORIAL_PERMS,
+      "absen.submit", ...TUTORIAL_PERMS,
     ],
-    "Desain":       ["desain.follow_up","desain.kanban_paket","desain.laporan_harian", ...TUTORIAL_PERMS],
-    "Sales":        ["sales.kanban","sales.laporan_harian", ...TUTORIAL_PERMS],
+    "Desain":       ["desain.follow_up","desain.kanban_paket","desain.laporan_harian","absen.submit", ...TUTORIAL_PERMS],
+    "Sales":        ["sales.kanban","sales.laporan_harian","absen.submit", ...TUTORIAL_PERMS],
     "Finance": [
       "finance.invoice","finance.adm_projek","finance.adm_kantor","finance.laporan_harian",
       "finance.cashflow","finance.pr","finance.upload_dokumen","finance.surat_jalan","finance.tukang",
-      ...TUTORIAL_PERMS,
+      "absen.submit", ...TUTORIAL_PERMS,
     ],
-    "Head Finance":  ["finance.invoice","finance.adm_projek", ...TUTORIAL_PERMS],
-    "Admin Finance": ["finance.invoice","finance.adm_projek","finance.adm_kantor", ...TUTORIAL_PERMS],
-    "PIC Project":   ["pic.laporan_harian", ...TUTORIAL_PERMS],
+    "Head Finance":  ["finance.invoice","finance.adm_projek","absen.submit","absen.manage", ...TUTORIAL_PERMS],
+    "Admin Finance": ["finance.invoice","finance.adm_projek","finance.adm_kantor","absen.submit", ...TUTORIAL_PERMS],
+    "PIC Project":   ["pic.laporan_harian","absen.submit", ...TUTORIAL_PERMS],
     "Tukang":        ["tukang.absen_submit"],
   };
 

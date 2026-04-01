@@ -1849,6 +1849,8 @@ model User {
   telemarketing_kanban_cards            TelemarketingKanbanCard[]
   telemarketing_kanban_comments         TelemarketingKanbanComment[]
   client_portal_projects_created        ClientPortalProject[]
+  absen_karyawans                       AbsenKaryawan[]      @relation("KaryawanAbsen")
+  absen_karyawan_approvals              AbsenKaryawan[]      @relation("KaryawanAbsenApprover")
 
   @@index([email], map: "idx_users_email")
   @@map("users")
@@ -2537,4 +2539,57 @@ model RbWebsiteLead {
   created_at DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("rb_website_leads")
+}
+
+// ── Absen Karyawan ────────────────────────────────────────────────────────────
+
+model AbsenKaryawan {
+  id               BigInt    @id @default(autoincrement())
+  user_id          BigInt
+  tanggal          DateTime  @db.Date
+
+  foto_masuk       String?   @db.Text
+  jam_masuk        DateTime? @db.Timestamptz(6)
+  lat_masuk        Float?
+  lng_masuk        Float?
+  jarak_masuk      Float?    // meter dari kantor
+  terlambat        Boolean   @default(false)
+
+  foto_keluar      String?   @db.Text
+  jam_keluar       DateTime? @db.Timestamptz(6)
+  lat_keluar       Float?
+  lng_keluar       Float?
+  jarak_keluar     Float?
+
+  di_luar_kantor   Boolean   @default(false)
+  alasan_luar      String?   @db.Text
+
+  // status: Hadir | Terlambat | Pending | Disetujui | Ditolak
+  status           String    @default("Hadir") @db.VarChar(50)
+  catatan_reject   String?   @db.Text
+  approved_by      BigInt?
+  approved_at      DateTime? @db.Timestamptz(6)
+
+  user             User      @relation("KaryawanAbsen", fields: [user_id], references: [id])
+  approver         User?     @relation("KaryawanAbsenApprover", fields: [approved_by], references: [id])
+
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@unique([user_id, tanggal])
+  @@index([tanggal], map: "idx_absen_karyawan_tanggal")
+  @@index([status], map: "idx_absen_karyawan_status")
+  @@map("absen_karyawans")
+}
+
+model AbsenKaryawanConfig {
+  id              Int      @id @default(1)
+  kantor_lat      Float    @default(-6.2)
+  kantor_lng      Float    @default(106.816)
+  radius_meter    Int      @default(100)
+  jam_masuk_awal  String   @default("07:00") @db.VarChar(5)
+  jam_masuk_akhir String   @default("09:00") @db.VarChar(5)
+  jam_pulang      String   @default("17:00") @db.VarChar(5)
+  updated_at      DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("absen_karyawan_config")
 }

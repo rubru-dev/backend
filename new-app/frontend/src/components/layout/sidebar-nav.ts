@@ -141,10 +141,11 @@ export const NAV_GROUPS: NavGroup[] = [
     permission: "finance.view",
     roles: ["Finance"],
     items: [
-      { label: "Invoice & Kwitansi",  href: "/finance/invoice-kwitansi",    icon: "FileText",    permission: "finance.invoice" },
-      { label: "Administrasi Projek", href: "/finance/administrasi-projek", icon: "Calculator",  permission: "finance.adm_projek" },
-      { label: "Administrasi Kantor", href: "/finance/administrasi-kantor", icon: "Folder",      permission: "finance.adm_kantor" },
-      { label: "Laporan Harian",      href: "/finance/laporan-harian",      icon: "ClipboardList",permission: "finance.laporan_harian" },
+      { label: "Invoice & Kwitansi",  href: "/finance/invoice-kwitansi",    icon: "FileText",       permission: "finance.invoice" },
+      { label: "Administrasi Projek", href: "/finance/administrasi-projek", icon: "Calculator",     permission: "finance.adm_projek" },
+      { label: "Administrasi Kantor", href: "/finance/administrasi-kantor", icon: "Folder",         permission: "finance.adm_kantor" },
+      { label: "Absen Karyawan",      href: "/finance/absen-karyawan",      icon: "ClipboardCheck", permission: "absen.manage" },
+      { label: "Laporan Harian",      href: "/finance/laporan-harian",      icon: "ClipboardList",  permission: "finance.laporan_harian" },
     ],
   },
 

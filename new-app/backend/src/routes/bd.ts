@@ -1432,7 +1432,7 @@ router.get("/:modul/leads", async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
 
-  const { page, limit, skip } = getPagination(req.query, 50, 200);
+  const { page, limit, skip } = getPagination(req.query, 20, 10000);
   const search = req.query.search as string | undefined;
   const status = req.query.status as string | undefined;
   const jenis = req.query.jenis as string | undefined;

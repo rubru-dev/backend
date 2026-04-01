@@ -1301,6 +1301,53 @@ function TabCctv({ pid }: { pid: number }) {
         <p className="text-amber-600 mt-1">Testing tanpa kamera fisik: gunakan RTSP publik <code className="bg-amber-100 px-1 rounded">rtsp://wowzaec2demo.streamlock.net/vod/mp4:BigBuckBunny_115k.mov</code></p>
       </div>
 
+      {/* Live Preview */}
+      {!isLoading && streams.filter((s: any) => s.is_active).length > 0 && (
+        <div className="space-y-3">
+          <p className="text-sm font-semibold text-gray-700">Live Preview</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {streams.filter((s: any) => s.is_active).map((s: any) => {
+              const embedUrl = (() => {
+                if (s.stream_type === "youtube") {
+                  const ytMatch = s.stream_url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);
+                  return ytMatch ? `https://www.youtube.com/embed/${ytMatch[1]}?autoplay=1&mute=1` : null;
+                }
+                if (s.stream_type === "iframe") return s.stream_url;
+                return null; // rtsp handled separately
+              })();
+              return (
+                <div key={s.id} className="border rounded-xl overflow-hidden bg-black">
+                  <div className="bg-gray-900 px-3 py-1.5 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+                    <span className="text-xs text-gray-200 font-medium">{s.nama}</span>
+                    <Badge variant="outline" className="text-[10px] ml-auto border-gray-600 text-gray-300">{STREAM_TYPES.find(t => t.value === s.stream_type)?.label ?? s.stream_type}</Badge>
+                  </div>
+                  {embedUrl ? (
+                    <iframe
+                      src={embedUrl}
+                      className="w-full aspect-video"
+                      allowFullScreen
+                      allow="autoplay; encrypted-media"
+                      referrerPolicy="strict-origin-when-cross-origin"
+                    />
+                  ) : (
+                    <div className="aspect-video flex flex-col items-center justify-center text-gray-400 text-xs gap-2 px-4 text-center">
+                      <p className="text-gray-300 font-medium">Stream RTSP</p>
+                      <p>Untuk menonton RTSP di browser, jalankan MediaMTX di backend.</p>
+                      <code className="bg-gray-800 px-2 py-1 rounded text-[10px] text-green-400 break-all">{s.stream_url}</code>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center">
+        <p className="text-sm font-semibold text-gray-700">Konfigurasi Kamera</p>
+      </div>
+
       {isLoading ? <Skeleton className="h-40" /> : streams.length === 0 ? (
         <div className="text-center py-10 text-gray-400 text-sm">Belum ada kamera. Klik &quot;Tambah Kamera&quot; untuk memulai.</div>
       ) : (

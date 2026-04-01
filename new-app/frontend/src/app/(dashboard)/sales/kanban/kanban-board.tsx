@@ -572,27 +572,29 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
     }
   }, [initialColumns]);
 
-  // ── Carry-over: when switching to a past month, copy expired Follow Up Admin cards ──
-  useEffect(() => {
-    if (filterMonth === null) return;
-    const now = new Date();
-    // Don't carry over for future months
-    if (
-      filterYear > now.getFullYear() ||
-      (filterYear === now.getFullYear() && filterMonth > now.getMonth() + 1)
-    ) return;
-
-    salesKanbanApi
-      .carryover({ month: filterMonth, year: filterYear })
-      .then(({ copied }) => {
-        if (copied > 0) {
-          onRefresh();
-          toast.info(`${copied} kartu disalin ke Follow Up Admin bulan ini`);
-        }
-      })
-      .catch(() => {});
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filterMonth, filterYear]);
+  // ── Manual carryover: copy cards from filterMonth (or prev month) into the next/current month ──
+  const [carryoverLoading, setCarryoverLoading] = useState(false);
+  const handleCarryover = useCallback(async () => {
+    const nowDate = new Date();
+    // Source = filterMonth if set, else previous month
+    const srcMonth = filterMonth ?? (nowDate.getMonth() === 0 ? 12 : nowDate.getMonth());
+    const srcYear  = filterMonth !== null
+      ? filterYear
+      : (nowDate.getMonth() === 0 ? nowDate.getFullYear() - 1 : nowDate.getFullYear());
+    // Target = month after source
+    const targetMonth = srcMonth === 12 ? 1 : srcMonth + 1;
+    const targetYear  = srcMonth === 12 ? srcYear + 1 : srcYear;
+    setCarryoverLoading(true);
+    try {
+      const { copied } = await salesKanbanApi.carryover({ month: targetMonth, year: targetYear });
+      onRefresh();
+      toast.success(copied > 0 ? `${copied} kartu berhasil di-carryover` : "Tidak ada kartu baru untuk di-carryover");
+    } catch {
+      toast.error("Gagal carryover");
+    } finally {
+      setCarryoverLoading(false);
+    }
+  }, [filterMonth, filterYear, onRefresh]);
 
   // ── Drag handlers — COPY behavior ────────────────────────────────────────
   const onDragStart = useCallback(() => {
@@ -817,6 +819,10 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
             {filteredTotal} kartu
           </Badge>
         )}
+
+        <Button size="sm" variant="outline" onClick={handleCarryover} disabled={carryoverLoading} className="no-print">
+          {carryoverLoading ? "Memproses..." : "Carryover dari bulan lalu"}
+        </Button>
       </div>
 
       {/* ── Board ───────────────────────────────────────────────────────────── */}

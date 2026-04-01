@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -17,6 +18,7 @@ import {
   FileText, Kanban, CalendarDays, ShieldCheck, Home,
   ClipboardList, Settings, Palette,
   Send, MessageSquare, RefreshCw,
+  LogIn, LogOut, Clock, CheckCircle, XCircle, Camera, MapPin, Loader2, AlertTriangle,
 } from "lucide-react";
 
 type QuickCard = { title: string; desc: string; href: string; icon: React.ElementType; color: string };
@@ -110,6 +112,254 @@ const PERMISSION_CARDS: { permission: string; cards: QuickCard[] }[] = [
     ],
   },
 ];
+
+// ── Absen Widget helpers ──────────────────────────────────────────────────────
+function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
+  const R = 6371000;
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLng = ((lng2 - lng1) * Math.PI) / 180;
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function stampPhoto(imageSrc: string, lines: string[]): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const fh = Math.max(img.width * 0.035, 18);
+      const pad = fh * 0.6;
+      const boxH = fh * lines.length + pad * (lines.length + 1);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(0, img.height - boxH, img.width, boxH);
+      ctx.font = `bold ${fh}px Arial, sans-serif`;
+      ctx.fillStyle = "#ffffff";
+      ctx.textBaseline = "top";
+      lines.forEach((line, i) => {
+        ctx.fillText(line, pad, img.height - boxH + pad + i * (fh + pad * 0.4));
+      });
+      resolve(canvas.toDataURL("image/jpeg", 0.88));
+    };
+    img.src = imageSrc;
+  });
+}
+
+const ABSEN_STATUS: Record<string, { color: string; label: string; icon: React.ReactNode }> = {
+  Hadir:     { color: "bg-green-100 text-green-700 border-green-200",    label: "Hadir",             icon: <CheckCircle className="h-3 w-3" /> },
+  Terlambat: { color: "bg-yellow-100 text-yellow-700 border-yellow-200", label: "Terlambat",         icon: <Clock className="h-3 w-3" /> },
+  Pending:   { color: "bg-blue-100 text-blue-700 border-blue-200",       label: "Menunggu Approval", icon: <Clock className="h-3 w-3" /> },
+  Disetujui: { color: "bg-green-100 text-green-700 border-green-200",    label: "Disetujui",         icon: <CheckCircle className="h-3 w-3" /> },
+  Ditolak:   { color: "bg-red-100 text-red-700 border-red-200",          label: "Ditolak",           icon: <XCircle className="h-3 w-3" /> },
+};
+
+function formatJam(d: string | null) {
+  if (!d) return "—";
+  return new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+}
+
+function AbsenWidget({ userName }: { userName: string }) {
+  const qc = useQueryClient();
+  const { user } = useAuthStore();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [step, setStep] = useState<"idle" | "camera" | "preview">("idle");
+  const [mode, setMode] = useState<"masuk" | "keluar">("masuk");
+  const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
+  const [gps, setGps] = useState<{ lat: number; lng: number; jarak: number; diLuar: boolean } | null>(null);
+  const [gpsLoading, setGpsLoading] = useState(false);
+  const [alasan, setAlasan] = useState("");
+  const [stream, setStream] = useState<MediaStream | null>(null);
+
+  const { data: cfg } = useQuery({ queryKey: ["absen-cfg"], queryFn: () => apiClient.get("/absen-karyawan/config").then(r => r.data) });
+  const { data: today, isLoading: loadingToday } = useQuery({
+    queryKey: ["absen-today", user?.id],
+    queryFn: () => apiClient.get("/absen-karyawan/today").then(r => r.data),
+    refetchInterval: 60000,
+  });
+
+  const checkInMut = useMutation({
+    mutationFn: (data: any) => apiClient.post("/absen-karyawan/check-in", data).then(r => r.data),
+    onSuccess: () => { toast.success("Absen masuk berhasil!"); qc.invalidateQueries({ queryKey: ["absen-today", user?.id] }); resetCamera(); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal absen masuk"),
+  });
+  const checkOutMut = useMutation({
+    mutationFn: (data: any) => apiClient.post("/absen-karyawan/check-out", data).then(r => r.data),
+    onSuccess: () => { toast.success("Absen keluar berhasil!"); qc.invalidateQueries({ queryKey: ["absen-today", user?.id] }); resetCamera(); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal absen keluar"),
+  });
+
+  function resetCamera() {
+    if (stream) stream.getTracks().forEach(t => t.stop());
+    setStream(null); setCapturedPhoto(null); setGps(null); setAlasan(""); setStep("idle");
+  }
+
+  async function startCamera(m: "masuk" | "keluar") {
+    setMode(m); setStep("camera"); setCapturedPhoto(null); setGps(null);
+    try {
+      const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user" }, audio: false });
+      setStream(s);
+      if (videoRef.current) videoRef.current.srcObject = s;
+    } catch { toast.error("Tidak bisa mengakses kamera."); setStep("idle"); return; }
+    setGpsLoading(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const { latitude: lat, longitude: lng } = pos.coords;
+        const jarak = cfg ? haversine(lat, lng, cfg.kantor_lat, cfg.kantor_lng) : 0;
+        setGps({ lat, lng, jarak, diLuar: cfg ? jarak > cfg.radius_meter : false });
+        setGpsLoading(false);
+      },
+      () => { setGpsLoading(false); },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
+
+  async function capturePhoto() {
+    if (!videoRef.current || !canvasRef.current) return;
+    const video = videoRef.current;
+    canvasRef.current.width = video.videoWidth;
+    canvasRef.current.height = video.videoHeight;
+    canvasRef.current.getContext("2d")!.drawImage(video, 0, 0);
+    const raw = canvasRef.current.toDataURL("image/jpeg", 0.9);
+    if (stream) stream.getTracks().forEach(t => t.stop()); setStream(null);
+    const now = new Date();
+    const tgl = now.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    const jam = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const lokasiTeks = gps ? (gps.diLuar ? `📍 Luar Kantor (${Math.round(gps.jarak)}m)` : `📍 Dalam Kantor (${Math.round(gps.jarak)}m)`) : "📍 Lokasi tidak tersedia";
+    const stamped = await stampPhoto(raw, [`👤 ${userName}`, `🕐 ${jam}  📅 ${tgl}`, lokasiTeks]);
+    setCapturedPhoto(stamped); setStep("preview");
+  }
+
+  function handleSubmit() {
+    if (!capturedPhoto) return;
+    if (gps?.diLuar && mode === "masuk" && !alasan.trim()) { toast.error("Wajib isi alasan karena di luar kantor"); return; }
+    const payload = {
+      [mode === "masuk" ? "foto_masuk" : "foto_keluar"]: capturedPhoto,
+      lat: gps?.lat ?? null, lng: gps?.lng ?? null,
+      ...(mode === "masuk" && gps?.diLuar ? { alasan_luar: alasan.trim() } : {}),
+    };
+    if (mode === "masuk") checkInMut.mutate(payload);
+    else checkOutMut.mutate(payload);
+  }
+
+  const sudahMasuk = !!today?.foto_masuk;
+  const sudahKeluar = !!today?.foto_keluar;
+  const isMutating = checkInMut.isPending || checkOutMut.isPending;
+
+  if (loadingToday) return <div className="h-28 bg-muted/30 rounded-xl animate-pulse" />;
+
+  return (
+    <Card className="rounded-xl">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2">
+          <Clock className="h-4 w-4 text-sky-500" /> Absen Harian
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Status */}
+        {today ? (
+          <div className="flex items-center justify-between">
+            <div className="flex gap-4 text-sm">
+              <span className="text-muted-foreground">Masuk: <b>{formatJam(today.jam_masuk)}</b></span>
+              <span className="text-muted-foreground">Keluar: <b>{formatJam(today.jam_keluar)}</b></span>
+            </div>
+            {(() => {
+              const s = ABSEN_STATUS[today.status];
+              return s ? (
+                <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${s.color}`}>
+                  {s.icon}{s.label}
+                </span>
+              ) : null;
+            })()}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Belum absen hari ini</p>
+        )}
+
+        {cfg && (
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            Jam masuk: {cfg.jam_masuk_awal}–{cfg.jam_masuk_akhir} · Pulang: {cfg.jam_pulang}
+          </p>
+        )}
+
+        {/* Step idle — tombol */}
+        {step === "idle" && (
+          <div className="flex gap-2">
+            <Button size="sm" className="bg-green-600 hover:bg-green-700 gap-1.5" disabled={sudahMasuk} onClick={() => startCamera("masuk")}>
+              <LogIn className="h-3.5 w-3.5" />{sudahMasuk ? "Sudah Masuk" : "Absen Masuk"}
+            </Button>
+            <Button size="sm" variant="outline" className="border-orange-300 text-orange-600 hover:bg-orange-50 gap-1.5" disabled={!sudahMasuk || sudahKeluar} onClick={() => startCamera("keluar")}>
+              <LogOut className="h-3.5 w-3.5" />{sudahKeluar ? "Sudah Keluar" : "Absen Keluar"}
+            </Button>
+          </div>
+        )}
+
+        {/* Step camera */}
+        {step === "camera" && (
+          <div className="space-y-2">
+            <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-h-48">
+              <video ref={videoRef} autoPlay playsInline muted className="w-full h-full object-cover" />
+              {gpsLoading && (
+                <div className="absolute top-2 left-2 bg-black/60 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Mendapatkan lokasi...
+                </div>
+              )}
+              {!gpsLoading && gps && (
+                <div className={`absolute top-2 left-2 text-xs px-2 py-1 rounded-full flex items-center gap-1 font-medium ${gps.diLuar ? "bg-red-500/80 text-white" : "bg-green-500/80 text-white"}`}>
+                  <MapPin className="h-3 w-3" />{gps.diLuar ? `Luar Kantor (${Math.round(gps.jarak)}m)` : `Dalam Kantor (${Math.round(gps.jarak)}m)`}
+                </div>
+              )}
+            </div>
+            <canvas ref={canvasRef} className="hidden" />
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="flex-1" onClick={resetCamera}>Batal</Button>
+              <Button size="sm" className="flex-1 bg-orange-500 hover:bg-orange-600" onClick={capturePhoto} disabled={gpsLoading}>
+                <Camera className="h-3.5 w-3.5 mr-1.5" />Ambil Foto
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {/* Step preview */}
+        {step === "preview" && capturedPhoto && (
+          <div className="space-y-2">
+            <img src={capturedPhoto} alt="preview" className="w-full rounded-lg object-cover max-h-48" />
+            {gps?.diLuar && mode === "masuk" && (
+              <div className="space-y-1">
+                <Label className="text-xs flex items-center gap-1 text-amber-700 font-semibold">
+                  <AlertTriangle className="h-3.5 w-3.5" />Alasan luar kantor <span className="text-red-500">*</span>
+                </Label>
+                <Textarea rows={2} placeholder="Contoh: WFH, dinas luar, meeting klien..." value={alasan}
+                  onChange={e => setAlasan(e.target.value)} className="text-sm resize-none border-amber-300" />
+              </div>
+            )}
+            <div className="flex gap-2">
+              <Button size="sm" variant="outline" className="flex-1" onClick={() => { setCapturedPhoto(null); startCamera(mode); }}>Ulangi</Button>
+              <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" disabled={isMutating || (gps?.diLuar && mode === "masuk" && !alasan.trim())} onClick={handleSubmit}>
+                {isMutating ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Mengirim...</> : `Kirim Absen ${mode === "masuk" ? "Masuk" : "Keluar"}`}
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {today?.status === "Pending" && (
+          <p className="text-xs text-blue-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2">
+            Absen luar kantor menunggu persetujuan. Alasan: {today.alasan_luar}
+          </p>
+        )}
+        {today?.status === "Ditolak" && today.catatan_reject && (
+          <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-3 py-2">
+            Ditolak: {today.catatan_reject}
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -283,6 +533,11 @@ export function DashboardHome() {
           </Badge>
         ))}
       </div>
+
+      {/* ── Absen Harian ──────────────────────────────────────────────────── */}
+      {hasPermission("absen", "submit") && (
+        <AbsenWidget userName={user.name} />
+      )}
 
       {/* ── Pesan Internal ────────────────────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
