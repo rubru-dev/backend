@@ -1851,6 +1851,8 @@ model User {
   client_portal_projects_created        ClientPortalProject[]
   absen_karyawans                       AbsenKaryawan[]      @relation("KaryawanAbsen")
   absen_karyawan_approvals              AbsenKaryawan[]      @relation("KaryawanAbsenApprover")
+  kalender_visits_created               KalenderVisit[]      @relation("kalender_visit_creator")
+  kalender_visit_pics                   KalenderVisitPic[]   @relation("kalender_visit_pic_user")
 
   @@index([email], map: "idx_users_email")
   @@map("users")
@@ -2592,4 +2594,43 @@ model AbsenKaryawanConfig {
   updated_at      DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("absen_karyawan_config")
+}
+
+// ── Kalender Visit PIC ────────────────────────────────────────────────────────
+
+model KalenderVisit {
+  id           BigInt   @id @default(autoincrement())
+  nama_projek  String   @db.VarChar(255)
+  projek_id    BigInt?
+  projek_type  String?  @db.VarChar(20)
+  tanggal      DateTime @db.Date
+  jam          String?  @db.VarChar(5)
+  keterangan   String?  @db.Text
+  status       String   @default("Terjadwal") @db.VarChar(50)
+  created_by   BigInt?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  creator     User?              @relation("kalender_visit_creator", fields: [created_by], references: [id], onUpdate: NoAction)
+  pics        KalenderVisitPic[]
+
+  @@index([tanggal], map: "idx_kalender_visit_tanggal")
+  @@map("kalender_visits")
+}
+
+model KalenderVisitPic {
+  id                BigInt    @id @default(autoincrement())
+  kalender_visit_id BigInt
+  user_id           BigInt
+  status_konfirmasi String    @default("Pending") @db.VarChar(50)
+  foto_bukti        String?   @db.Text
+  uploaded_at       DateTime? @db.Timestamptz(6)
+  catatan           String?   @db.Text
+  created_at        DateTime  @default(now()) @db.Timestamptz(6)
+
+  kalender_visit    KalenderVisit @relation(fields: [kalender_visit_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user              User          @relation("kalender_visit_pic_user", fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@unique([kalender_visit_id, user_id])
+  @@map("kalender_visit_pics")
 }

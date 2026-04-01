@@ -161,6 +161,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   const [form, setForm] = useState({ ...EMPTY });
   const [filterMulai, setFilterMulai] = useState("");
   const [filterSelesai, setFilterSelesai] = useState("");
+  const [filterUserId, setFilterUserId] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [viewItem, setViewItem] = useState<any>(null);
 
@@ -173,7 +174,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   // ── Queries ──────────────────────────────────────────────────────────────────
 
   const { data, isLoading } = useQuery({
-    queryKey: ["laporan-harian", modul, filterMulai, filterSelesai],
+    queryKey: ["laporan-harian", modul, filterMulai, filterSelesai, filterUserId],
     queryFn: () =>
       apiClient
         .get("/laporan-harian", {
@@ -181,6 +182,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
             modul,
             tanggal_mulai: filterMulai || undefined,
             tanggal_selesai: filterSelesai || undefined,
+            user_id: filterUserId || undefined,
           },
         })
         .then((r) => r.data),
@@ -283,6 +285,8 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
         : filterSelesai
         ? `Sampai ${fmtDate(filterSelesai)}`
         : "Semua Periode";
+    const selectedUser = filterUserId ? users.find(u => String(u.id) === filterUserId) : null;
+    const userLabel = selectedUser ? selectedUser.name : "Semua Karyawan";
 
     const rows = items
       .map(
@@ -338,6 +342,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   <hr class="letterhead-divider"/>
   <h1>Laporan Harian — ${modul}</h1>
   <div class="subtitle">Periode: ${fmtPeriod}</div>
+  <div class="subtitle">Karyawan: ${userLabel}</div>
   <div class="meta">Dicetak: ${now.toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" })} ${now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" })}</div>
   <div class="summary">
     <div class="scard"><div class="scard-label">Total Laporan</div><div class="scard-value">${items.length}</div></div>
@@ -401,6 +406,23 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
               </Button>
             )}
           </div>
+          <Select value={filterUserId} onValueChange={setFilterUserId}>
+            <SelectTrigger className="w-44 text-sm h-9">
+              <SelectValue placeholder="Semua Karyawan" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Semua Karyawan</SelectItem>
+              {users.map((u) => (
+                <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {filterUserId && (
+            <Button variant="ghost" size="sm" className="text-xs px-2 h-8"
+              onClick={() => setFilterUserId("")}>
+              Reset User
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handlePrint} disabled={isLoading || items.length === 0}>
             <Printer className="h-4 w-4 mr-1.5" /> Cetak PDF
           </Button>

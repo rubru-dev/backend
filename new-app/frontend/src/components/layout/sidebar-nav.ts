@@ -157,7 +157,8 @@ export const NAV_GROUPS: NavGroup[] = [
     permission: "pic.view",
     roles: ["PIC Project"],
     items: [
-      { label: "Laporan Harian",    href: "/pic/laporan-harian",  icon: "ClipboardList", permission: "pic.laporan_harian" },
+      { label: "Laporan Harian",    href: "/pic/laporan-harian",   icon: "ClipboardList", permission: "pic.laporan_harian" },
+      { label: "Kalender Visit",    href: "/pic/kalender-visit",   icon: "CalendarDays",  permission: "pic.kalender_visit" },
       { label: "Upload Dokumentasi", href: "/pic/dokumentasi",    icon: "Images",        permission: "pic.view" },
     ],
   },

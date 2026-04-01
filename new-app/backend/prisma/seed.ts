@@ -131,7 +131,8 @@ async function main() {
     { name: "finance.surat_jalan",    module: "finance", label: "Tab: Surat Jalan Material" },
     { name: "finance.tukang",         module: "finance", label: "Tab: Tukang (Gaji & Absen)" },
     // PIC sub-menus
-    { name: "pic.laporan_harian", module: "pic", label: "Sub-menu: Laporan Harian PIC" },
+    { name: "pic.laporan_harian",   module: "pic", label: "Sub-menu: Laporan Harian PIC" },
+    { name: "pic.kalender_visit",   module: "pic", label: "Sub-menu: Kalender Visit PIC" },
     // Admin sub-menus
     { name: "admin.users",    module: "admin", label: "Sub-menu: Users" },
     { name: "admin.roles",    module: "admin", label: "Sub-menu: Roles & Permission" },
@@ -272,7 +273,7 @@ async function main() {
     ],
     "Head Finance":  ["finance.invoice","finance.adm_projek","absen.submit","absen.manage", ...TUTORIAL_PERMS],
     "Admin Finance": ["finance.invoice","finance.adm_projek","finance.adm_kantor","absen.submit","absen.manage", ...TUTORIAL_PERMS],
-    "PIC Project":   ["pic.laporan_harian","absen.submit", ...TUTORIAL_PERMS],
+    "PIC Project":   ["pic.laporan_harian","pic.kalender_visit","absen.submit", ...TUTORIAL_PERMS],
     "Tukang":        ["tukang.absen_submit"],
   };
 

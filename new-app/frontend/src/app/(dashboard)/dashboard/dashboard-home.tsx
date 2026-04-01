@@ -476,6 +476,12 @@ export function DashboardHome() {
 
   if (!_hasHydrated || !user) return null;
 
+  // Tukang: redirect langsung ke halaman absen
+  if (hasAnyRole(["Tukang"])) {
+    router.replace("/absen");
+    return null;
+  }
+
   // Quick access cards
   let uniqueCards: QuickCard[];
   if (showAll) {
