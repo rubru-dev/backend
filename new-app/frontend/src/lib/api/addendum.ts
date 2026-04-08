@@ -14,6 +14,7 @@ export interface KontrakTemplate {
   pihak_satu: string | null;
   pihak_dua: string | null;
   pembuka: string | null;
+  penutup: string | null;
   status: string;
   created_by: number | null;
   created_at: string;
@@ -58,6 +59,7 @@ export interface KontrakDokumen {
     pihak_satu: string | null;
     pihak_dua: string | null;
     pembuka: string | null;
+    penutup: string | null;
     pasals: KontrakTemplatePasal[];
   } | null;
   lead: { nama: string; nomor_telepon: string | null; alamat: string | null } | null;
@@ -73,10 +75,10 @@ export const kontrakTemplateApi = {
   get: (id: number) =>
     apiClient.get<KontrakTemplate>(`/sales/kontrak-template/${id}`).then((r) => r.data),
 
-  create: (payload: { judul: string; pihak_satu?: string; pihak_dua?: string; pembuka?: string }) =>
+  create: (payload: { judul: string; pihak_satu?: string; pihak_dua?: string; pembuka?: string; penutup?: string }) =>
     apiClient.post<KontrakTemplate>("/sales/kontrak-template", payload).then((r) => r.data),
 
-  update: (id: number, payload: { judul?: string; pihak_satu?: string; pihak_dua?: string; pembuka?: string }) =>
+  update: (id: number, payload: { judul?: string; pihak_satu?: string; pihak_dua?: string; pembuka?: string; penutup?: string }) =>
     apiClient.patch<KontrakTemplate>(`/sales/kontrak-template/${id}`, payload).then((r) => r.data),
 
   publish: (id: number) =>

@@ -77,6 +77,9 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
   const pembuka = dok.template?.pembuka ??
     "Sehubungan dengan adanya perubahan dalam lingkup pekerjaan, maka Para Pihak dengan ini sepakat untuk membuat Addendum Kontrak Kerja, yang merupakan bagian tidak terpisahkan dari kontrak utama tersebut, dengan ketentuan sebagai berikut:";
 
+  const penutup = dok.template?.penutup ??
+    "Demikian Addendum Kontrak ini dibuat dan ditandatangani oleh Para Pihak dalam keadaan sehat dan tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.";
+
   const pasalHtml = pasals.map((p, i) => `
     <div style="margin:16px 0">
       <p style="font-weight:bold;text-align:center;text-transform:uppercase;white-space:pre-line;margin-bottom:6px">PASAL ${i + 1}${p.judul_pasal ? "\n" + p.judul_pasal.toUpperCase() : ""}</p>
@@ -190,34 +193,40 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
 <!-- PASAL-PASAL -->
 ${pasalHtml}
 
-<!-- TANGGAL -->
-<p style="text-align:right;font-size:11pt;margin:24px 0 20px">
-  ${dok.tanggal ? `Bekasi, ${fmtDate(dok.tanggal)}` : "Bekasi, __________ ____"}
-</p>
+<!-- BLOK PENUTUP + TANGGAL + TTD (jaga tetap satu halaman) -->
+<div style="page-break-inside:avoid;break-inside:avoid;margin-top:18px">
+  <!-- PENUTUP -->
+  <p style="font-size:11pt;text-align:justify;margin-bottom:18px;white-space:pre-wrap">${penutup}</p>
 
-<!-- TANDA TANGAN -->
-<!-- Layout:
-     Kiri: RO (atas) + Management (bawah)     Kanan: Client
--->
-<table style="width:100%;border-collapse:collapse">
-  <tr style="vertical-align:top">
-    <!-- PIHAK PERTAMA: 2 TTD vertikal -->
-    <td style="width:50%;padding-right:20px;border-right:1px solid #ccc">
-      <p style="font-weight:bold;text-align:center;font-size:11pt;margin-bottom:14px">PIHAK PERTAMA</p>
-      <!-- RO (atas) -->
-      ${sigCell("Relationship Officer", dok.ro_name, dok.ro_signature, dok.ro_signed_at)}
-      <!-- Management (bawah RO, geser kiri sedikit biar rapi) -->
-      <div style="margin-top:32px">
-        ${sigCell("Management RUBAHRUMAH", dok.management_name, dok.management_signature, dok.management_signed_at)}
-      </div>
-    </td>
-    <!-- PIHAK KEDUA -->
-    <td style="width:50%;padding-left:20px;vertical-align:middle">
-      <p style="font-weight:bold;text-align:center;font-size:11pt;margin-bottom:14px">PIHAK KEDUA</p>
-      ${sigCell("Customer", dok.client_name ?? dok.nama_client, dok.client_signature, dok.client_signed_at)}
-    </td>
-  </tr>
-</table>
+  <!-- TANGGAL -->
+  <p style="text-align:right;font-size:11pt;margin:0 0 16px">
+    ${dok.tanggal ? `Bekasi, ${fmtDate(dok.tanggal)}` : "Bekasi, __________ ____"}
+  </p>
+
+  <!-- TANDA TANGAN -->
+  <!-- Layout:
+       Kiri: RO (atas) + Management (bawah)     Kanan: Client
+  -->
+  <table style="width:100%;border-collapse:collapse">
+    <tr style="vertical-align:top">
+      <!-- PIHAK PERTAMA: 2 TTD vertikal -->
+      <td style="width:50%;padding-right:20px;border-right:1px solid #ccc">
+        <p style="font-weight:bold;text-align:center;font-size:11pt;margin-bottom:14px">PIHAK PERTAMA</p>
+        <!-- RO (atas) -->
+        ${sigCell("Relationship Officer", dok.ro_name, dok.ro_signature, dok.ro_signed_at)}
+        <!-- Management (bawah RO, geser kiri sedikit biar rapi) -->
+        <div style="margin-top:32px">
+          ${sigCell("Management RUBAHRUMAH", dok.management_name, dok.management_signature, dok.management_signed_at)}
+        </div>
+      </td>
+      <!-- PIHAK KEDUA -->
+      <td style="width:50%;padding-left:20px;vertical-align:middle">
+        <p style="font-weight:bold;text-align:center;font-size:11pt;margin-bottom:14px">PIHAK KEDUA</p>
+        ${sigCell("Customer", dok.client_name ?? dok.nama_client, dok.client_signature, dok.client_signed_at)}
+      </td>
+    </tr>
+  </table>
+</div>
 
 <!-- DAFTAR LAMPIRAN (list di akhir kontrak) -->
 ${lampiranListSectionHtml}
@@ -240,6 +249,9 @@ ${lampiranListSectionHtml}
 const DEFAULT_PEMBUKA =
   "Sehubungan dengan adanya perubahan dalam lingkup pekerjaan, maka Para Pihak dengan ini sepakat untuk membuat Addendum Kontrak Kerja, yang merupakan bagian tidak terpisahkan dari kontrak utama tersebut, dengan ketentuan sebagai berikut:";
 
+const DEFAULT_PENUTUP =
+  "Demikian Addendum Kontrak ini dibuat dan ditandatangani oleh Para Pihak dalam keadaan sehat dan tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.";
+
 function TemplateFormDialog({ open, onOpenChange, initial, onSaved }: {
   open: boolean; onOpenChange: (v: boolean) => void;
   initial?: KontrakTemplate | null; onSaved: () => void;
@@ -250,12 +262,13 @@ function TemplateFormDialog({ open, onOpenChange, initial, onSaved }: {
   );
   const [pihakDua, setPihakDua] = useState(initial?.pihak_dua ?? "");
   const [pembuka, setPembuka] = useState(initial?.pembuka ?? DEFAULT_PEMBUKA);
+  const [penutup, setPenutup] = useState(initial?.penutup ?? DEFAULT_PENUTUP);
   const qc = useQueryClient();
 
   const save = useMutation({
     mutationFn: () => initial
-      ? kontrakTemplateApi.update(initial.id, { judul, pihak_satu: pihakSatu, pihak_dua: pihakDua, pembuka })
-      : kontrakTemplateApi.create({ judul, pihak_satu: pihakSatu, pihak_dua: pihakDua, pembuka }),
+      ? kontrakTemplateApi.update(initial.id, { judul, pihak_satu: pihakSatu, pihak_dua: pihakDua, pembuka, penutup })
+      : kontrakTemplateApi.create({ judul, pihak_satu: pihakSatu, pihak_dua: pihakDua, pembuka, penutup }),
     onSuccess: () => {
       toast.success(initial ? "Template diperbarui" : "Template dibuat");
       qc.invalidateQueries({ queryKey: ["kontrak-templates"] });
@@ -281,6 +294,11 @@ function TemplateFormDialog({ open, onOpenChange, initial, onSaved }: {
             <Label>Kalimat Pembuka</Label>
             <p className="text-xs text-muted-foreground">Paragraf yang muncul sebelum pasal-pasal dimulai.</p>
             <Textarea rows={5} value={pembuka} onChange={(e) => setPembuka(e.target.value)} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Kalimat Penutup</Label>
+            <p className="text-xs text-muted-foreground">Paragraf yang muncul setelah pasal terakhir, sebelum tanggal & tanda tangan. Penutup, tanggal, dan tanda tangan akan tetap berada di satu halaman.</p>
+            <Textarea rows={4} value={penutup} onChange={(e) => setPenutup(e.target.value)} />
           </div>
           <div className="space-y-1.5">
             <Label>Keterangan Tambahan Pihak Kedua <span className="text-xs text-muted-foreground">(opsional)</span></Label>

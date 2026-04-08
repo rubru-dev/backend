@@ -666,7 +666,7 @@ async function autoPushAddendum(a: {
 // ── Kontrak Template ──────────────────────────────────────────────────────────
 
 function mapKontrakTemplate(t: {
-  id: bigint; judul: string; pihak_satu: string | null; pihak_dua: string | null; pembuka: string | null;
+  id: bigint; judul: string; pihak_satu: string | null; pihak_dua: string | null; pembuka: string | null; penutup: string | null;
   status: string; created_by: bigint | null; created_at: Date; updated_at: Date;
   creator?: { name: string } | null;
   pasals?: { id: bigint; urutan: number; judul_pasal: string | null; isi_pasal: string | null }[];
@@ -677,6 +677,7 @@ function mapKontrakTemplate(t: {
     pihak_satu: t.pihak_satu,
     pihak_dua: t.pihak_dua,
     pembuka: t.pembuka,
+    penutup: t.penutup,
     status: t.status,
     created_by: t.created_by ? Number(t.created_by) : null,
     created_at: t.created_at,
@@ -700,7 +701,7 @@ function mapKontrakDokumen(d: {
   management_name: string | null; management_signature: string | null; management_signed_at: Date | null;
   client_name: string | null; client_signature: string | null; client_signed_at: Date | null;
   created_by: bigint | null; created_at: Date;
-  template?: { id: bigint; judul: string; pihak_satu: string | null; pihak_dua: string | null; pembuka: string | null; pasals: { id: bigint; urutan: number; judul_pasal: string | null; isi_pasal: string | null }[] } | null;
+  template?: { id: bigint; judul: string; pihak_satu: string | null; pihak_dua: string | null; pembuka: string | null; penutup: string | null; pasals: { id: bigint; urutan: number; judul_pasal: string | null; isi_pasal: string | null }[] } | null;
   lead?: { nama: string; nomor_telepon: string | null; alamat: string | null } | null;
   creator?: { name: string } | null;
   lampirans?: { id: bigint; urutan: number; judul: string; file_url: string | null }[];
@@ -733,6 +734,7 @@ function mapKontrakDokumen(d: {
       pihak_satu: d.template.pihak_satu,
       pihak_dua: d.template.pihak_dua,
       pembuka: d.template.pembuka,
+      penutup: d.template.penutup,
       pasals: d.template.pasals.map((p) => ({ id: Number(p.id), urutan: p.urutan, judul_pasal: p.judul_pasal, isi_pasal: p.isi_pasal })),
     } : null,
     lead: d.lead ?? null,
@@ -758,10 +760,10 @@ router.get("/kontrak-template", async (req: Request, res: Response) => {
 
 // POST /sales/kontrak-template
 router.post("/kontrak-template", async (req: Request, res: Response) => {
-  const { judul, pihak_satu, pihak_dua, pembuka } = req.body;
+  const { judul, pihak_satu, pihak_dua, pembuka, penutup } = req.body;
   if (!judul) return res.status(400).json({ detail: "Judul wajib diisi" });
   const t = await prisma.kontrakTemplate.create({
-    data: { judul, pihak_satu: pihak_satu ?? null, pihak_dua: pihak_dua ?? null, pembuka: pembuka ?? null, created_by: req.user?.id ?? null },
+    data: { judul, pihak_satu: pihak_satu ?? null, pihak_dua: pihak_dua ?? null, pembuka: pembuka ?? null, penutup: penutup ?? null, created_by: req.user?.id ?? null },
     include: { creator: { select: { name: true } }, pasals: { orderBy: { urutan: "asc" } } },
   });
   return res.status(201).json(mapKontrakTemplate(t));
@@ -783,12 +785,13 @@ router.patch("/kontrak-template/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const t = await prisma.kontrakTemplate.findUnique({ where: { id } });
   if (!t) return res.status(404).json({ detail: "Template tidak ditemukan" });
-  const { judul, pihak_satu, pihak_dua, pembuka } = req.body;
+  const { judul, pihak_satu, pihak_dua, pembuka, penutup } = req.body;
   const updates: Record<string, unknown> = { updated_at: new Date() };
   if (judul !== undefined) updates.judul = judul;
   if (pihak_satu !== undefined) updates.pihak_satu = pihak_satu;
   if (pihak_dua !== undefined) updates.pihak_dua = pihak_dua;
   if (pembuka !== undefined) updates.pembuka = pembuka;
+  if (penutup !== undefined) updates.penutup = penutup;
   const updated = await prisma.kontrakTemplate.update({
     where: { id },
     data: updates,
@@ -868,7 +871,7 @@ router.get("/kontrak-dokumen", async (req: Request, res: Response) => {
     prisma.kontrakDokumen.count(),
     prisma.kontrakDokumen.findMany({
       include: {
-        template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, pasals: { orderBy: { urutan: "asc" } } } },
+        template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, penutup: true, pasals: { orderBy: { urutan: "asc" } } } },
         lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
         creator: { select: { name: true } },
         lampirans: { orderBy: { urutan: "asc" } },
@@ -914,7 +917,7 @@ router.post("/kontrak-dokumen", async (req: Request, res: Response) => {
       created_by: req.user?.id ?? null,
     },
     include: {
-      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, pasals: { orderBy: { urutan: "asc" } } } },
+      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, penutup: true, pasals: { orderBy: { urutan: "asc" } } } },
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
@@ -929,7 +932,7 @@ router.get("/kontrak-dokumen/:id", async (req: Request, res: Response) => {
   const d = await prisma.kontrakDokumen.findUnique({
     where: { id },
     include: {
-      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, pasals: { orderBy: { urutan: "asc" } } } },
+      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, penutup: true, pasals: { orderBy: { urutan: "asc" } } } },
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
@@ -965,7 +968,7 @@ router.post("/kontrak-dokumen/:id/sign-ro", async (req: Request, res: Response) 
       updated_at: new Date(),
     },
     include: {
-      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, pasals: { orderBy: { urutan: "asc" } } } },
+      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, penutup: true, pasals: { orderBy: { urutan: "asc" } } } },
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
@@ -992,7 +995,7 @@ router.post("/kontrak-dokumen/:id/sign-management", async (req: Request, res: Re
       updated_at: new Date(),
     },
     include: {
-      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, pasals: { orderBy: { urutan: "asc" } } } },
+      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, penutup: true, pasals: { orderBy: { urutan: "asc" } } } },
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
@@ -1019,7 +1022,7 @@ router.post("/kontrak-dokumen/:id/sign-client", async (req: Request, res: Respon
       updated_at: new Date(),
     },
     include: {
-      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, pasals: { orderBy: { urutan: "asc" } } } },
+      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, penutup: true, pasals: { orderBy: { urutan: "asc" } } } },
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
