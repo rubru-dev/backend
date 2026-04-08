@@ -2637,6 +2637,65 @@ router.post("/tukang-absen/:project_id/submit", async (req: Request, res: Respon
   return res.status(201).json({ id: p.id });
 });
 
+// GET /finance/tukang-absen/admin/all — Super Admin: semua projek + semua tukang + rincian absen
+router.get("/tukang-absen/admin/all", async (req: Request, res: Response) => {
+  const isSuperAdmin = (req as any).user?.roles?.some((r: any) => r.role?.name === "Super Admin");
+  const hasFinancePermission = (req as any).userPermissions?.has("finance.view");
+  if (!isSuperAdmin && !hasFinancePermission) {
+    return res.status(403).json({ detail: "Forbidden" });
+  }
+
+  const projects = await prisma.admFinanceProject.findMany({
+    where: { status: "aktif" },
+    select: { id: true, nama_proyek: true, klien: true, lokasi: true },
+    orderBy: { nama_proyek: "asc" },
+  });
+
+  const result = await Promise.all(projects.map(async (proj) => {
+    const tukangs = await prisma.tukangRegistry.findMany({
+      where: { adm_finance_project_id: proj.id },
+      select: {
+        id: true, nama: true, jabatan: true, upah_harian: true, is_active: true,
+        user: { select: { id: true, name: true } },
+      },
+      orderBy: { nama: "asc" },
+    });
+
+    const tukangWithAbsen = await Promise.all(tukangs.map(async (t) => {
+      const absenList = await prisma.tukangAbsenFoto.findMany({
+        where: { tukang_id: t.id },
+        orderBy: { tanggal: "desc" },
+        take: 30,
+        select: { id: true, tanggal: true, status: true, foto: true, catatan: true, foto_timestamp: true },
+      });
+      return {
+        id: String(t.id),
+        nama: t.nama,
+        jabatan: t.jabatan,
+        upah_harian: parseFloat(String(t.upah_harian ?? 0)),
+        is_active: t.is_active,
+        user: t.user ? { id: String(t.user.id), name: t.user.name } : null,
+        total_absen: absenList.filter(a => a.status === "Disetujui").length,
+        absen: absenList.map(a => ({
+          id: String(a.id), tanggal: a.tanggal, status: a.status,
+          foto: a.foto, catatan: a.catatan, foto_timestamp: a.foto_timestamp,
+        })),
+      };
+    }));
+
+    return {
+      id: String(proj.id),
+      nama_proyek: proj.nama_proyek,
+      klien: proj.klien,
+      lokasi: proj.lokasi,
+      total_tukang: tukangs.length,
+      tukangs: tukangWithAbsen,
+    };
+  }));
+
+  return res.json(result);
+});
+
 // ── Foto Dokumentasi ─────────────────────────────────────────────────────────
 
 // GET /finance/adm-projek/:id/foto-dokumentasi
@@ -2698,6 +2757,129 @@ router.delete("/adm-projek/:id/foto-dokumentasi/:fid", async (req: Request, res:
   if (!existing) return res.status(404).json({ detail: "Foto tidak ditemukan" });
   await prisma.projekFotoDokumentasi.delete({ where: { id: fid } });
   return res.json({ ok: true });
+});
+
+// ── Tukang Bon/Struk Material ─────────────────────────────────────────────────
+
+// GET /finance/adm-projek/:id/tukang/bon-material
+router.get("/adm-projek/:id/tukang/bon-material", async (req: Request, res: Response) => {
+  const projectId = BigInt(req.params.id);
+  const bons = await prisma.tukangBonMaterial.findMany({
+    where: { adm_finance_project_id: projectId },
+    include: {
+      tukang: { select: { id: true, nama: true, jabatan: true } },
+      creator: { select: { id: true, name: true } },
+    },
+    orderBy: { tanggal: "desc" },
+  });
+  return res.json(bons.map((b) => ({
+    id: b.id,
+    tukang_id: b.tukang_id,
+    tukang: b.tukang,
+    tanggal: b.tanggal,
+    keterangan: b.keterangan,
+    total_harga: parseFloat(String(b.total_harga ?? 0)),
+    foto_bon: b.foto_bon,
+    catatan: b.catatan,
+    created_by: b.created_by,
+    creator: b.creator,
+    created_at: b.created_at,
+  })));
+});
+
+// POST /finance/adm-projek/:id/tukang/bon-material
+router.post("/adm-projek/:id/tukang/bon-material", async (req: Request, res: Response) => {
+  const projectId = BigInt(req.params.id);
+  const { tukang_id, tanggal, keterangan, total_harga, foto_bon, catatan } = req.body;
+  if (!tukang_id) return res.status(400).json({ detail: "tukang_id diperlukan" });
+  const b = await prisma.tukangBonMaterial.create({
+    data: {
+      adm_finance_project_id: projectId,
+      tukang_id: BigInt(tukang_id),
+      tanggal: tanggal ? new Date(tanggal) : new Date(),
+      keterangan: keterangan ?? null,
+      total_harga: total_harga ?? 0,
+      foto_bon: foto_bon ?? null,
+      catatan: catatan ?? null,
+      created_by: req.user?.id ?? null,
+    },
+    include: {
+      tukang: { select: { id: true, nama: true, jabatan: true } },
+      creator: { select: { id: true, name: true } },
+    },
+  });
+  return res.status(201).json({
+    id: b.id,
+    tukang: b.tukang,
+    tanggal: b.tanggal,
+    keterangan: b.keterangan,
+    total_harga: parseFloat(String(b.total_harga ?? 0)),
+    foto_bon: b.foto_bon,
+    catatan: b.catatan,
+    creator: b.creator,
+    created_at: b.created_at,
+  });
+});
+
+// DELETE /finance/adm-projek/:id/tukang/bon-material/:bid
+router.delete("/adm-projek/:id/tukang/bon-material/:bid", async (req: Request, res: Response) => {
+  const bid = BigInt(req.params.bid);
+  const projectId = BigInt(req.params.id);
+  const existing = await prisma.tukangBonMaterial.findFirst({
+    where: { id: bid, adm_finance_project_id: projectId },
+  });
+  if (!existing) return res.status(404).json({ detail: "Bon tidak ditemukan" });
+  await prisma.tukangBonMaterial.delete({ where: { id: bid } });
+  return res.json({ ok: true });
+});
+
+// POST /finance/tukang-absen/:pid/submit-bon  — Tukang submit bon sendiri
+router.post("/tukang-absen/:pid/submit-bon", async (req: Request, res: Response) => {
+  const projectId = BigInt(req.params.pid);
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ detail: "Unauthorized" });
+  const tukang = await prisma.tukangRegistry.findFirst({
+    where: { adm_finance_project_id: projectId, user_id: userId },
+  });
+  if (!tukang) return res.status(404).json({ detail: "Tukang tidak ditemukan di proyek ini" });
+  const { tanggal, keterangan, total_harga, foto_bon, catatan } = req.body;
+  const b = await prisma.tukangBonMaterial.create({
+    data: {
+      adm_finance_project_id: projectId,
+      tukang_id: tukang.id,
+      tanggal: tanggal ? new Date(tanggal) : new Date(),
+      keterangan: keterangan ?? null,
+      total_harga: total_harga ?? 0,
+      foto_bon: foto_bon ?? null,
+      catatan: catatan ?? null,
+      created_by: userId,
+    },
+  });
+  return res.status(201).json({ id: b.id, ok: true });
+});
+
+// GET /finance/tukang-absen/:pid/my-bon  — Tukang lihat bon sendiri
+router.get("/tukang-absen/:pid/my-bon", async (req: Request, res: Response) => {
+  const projectId = BigInt(req.params.pid);
+  const userId = req.user?.id;
+  if (!userId) return res.status(401).json({ detail: "Unauthorized" });
+  const tukang = await prisma.tukangRegistry.findFirst({
+    where: { adm_finance_project_id: projectId, user_id: userId },
+  });
+  if (!tukang) return res.json([]);
+  const bons = await prisma.tukangBonMaterial.findMany({
+    where: { tukang_id: tukang.id },
+    orderBy: { tanggal: "desc" },
+  });
+  return res.json(bons.map((b) => ({
+    id: b.id,
+    tanggal: b.tanggal,
+    keterangan: b.keterangan,
+    total_harga: parseFloat(String(b.total_harga ?? 0)),
+    foto_bon: b.foto_bon,
+    catatan: b.catatan,
+    created_at: b.created_at,
+  })));
 });
 
 export default router;

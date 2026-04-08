@@ -1517,7 +1517,6 @@ export default function ClientDetailPage() {
       <Tabs defaultValue="info">
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="info"><User className="w-3 h-3 mr-1" />Info</TabsTrigger>
-          <TabsTrigger value="pembayaran"><TrendingUp className="w-3 h-3 mr-1" />Pembayaran</TabsTrigger>
           <TabsTrigger value="galeri"><ImageIcon className="w-3 h-3 mr-1" />Galeri</TabsTrigger>
           <TabsTrigger value="dokumen"><FileText className="w-3 h-3 mr-1" />Dokumen</TabsTrigger>
           <TabsTrigger value="aktivitas"><Calendar className="w-3 h-3 mr-1" />Aktivitas</TabsTrigger>
@@ -1529,7 +1528,6 @@ export default function ClientDetailPage() {
 
         <div className="mt-5">
           <TabsContent value="info"><TabInfo pid={pid} project={project} /></TabsContent>
-          <TabsContent value="pembayaran"><TabPembayaran pid={pid} /></TabsContent>
           <TabsContent value="galeri"><TabGaleri pid={pid} /></TabsContent>
           <TabsContent value="dokumen"><TabDokumen pid={pid} /></TabsContent>
           <TabsContent value="aktivitas"><TabAktivitas pid={pid} /></TabsContent>

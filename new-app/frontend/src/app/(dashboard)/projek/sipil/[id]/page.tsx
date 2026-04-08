@@ -190,13 +190,14 @@ function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
               } else if (start) leftPct = (differenceInDays(start, minDate) / totalDays) * 100;
               else if (end) leftPct = (differenceInDays(end, minDate) / totalDays) * 100;
 
-              const barColor = GANTT_BAR_COLOR[task.status ?? ""] ?? "bg-gray-300";
               const dateLabel = start || end
                 ? `${start ? format(start, "dd/MM", { locale: idLocale }) : "?"} – ${end ? format(end, "dd/MM", { locale: idLocale }) : "?"}`
                 : null;
+              const isLate = !!end && task.status !== "Selesai" && end < new Date(new Date().toDateString());
+              const barColor = isLate ? "bg-red-500" : (GANTT_BAR_COLOR[task.status ?? ""] ?? "bg-gray-300");
 
               return (
-                <div key={task.id} className="flex items-center py-1 border-b last:border-0 hover:bg-muted/20">
+                <div key={task.id} className={`flex items-center py-1 border-b last:border-0 hover:bg-muted/20 ${isLate ? "bg-red-50 hover:bg-red-100/70" : ""}`}>
                   <div className="w-64 flex-shrink-0 px-2 pl-5 flex items-center gap-1">
                     <div className="flex-1 min-w-0">
                       <div className="text-sm truncate font-medium">{task.nama_pekerjaan ?? "—"}</div>
@@ -245,6 +246,10 @@ function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
               {s}
             </div>
           ))}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="w-3 h-3 rounded-sm bg-red-500" />
+            Terlambat
+          </div>
           <span className="text-xs text-muted-foreground ml-auto italic">Klik bar untuk edit · <Camera className="h-3 w-3 inline text-blue-400" /> untuk foto</span>
         </div>
       </div>
@@ -680,8 +685,10 @@ export default function ProyekSipilDetailPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {termin.tasks.map((task, idx) => (
-                            <TableRow key={task.id}>
+                          {termin.tasks.map((task, idx) => {
+                            const isLateRow = !!task.tanggal_selesai && task.status !== "Selesai" && new Date(task.tanggal_selesai) < new Date(new Date().toDateString());
+                            return (
+                            <TableRow key={task.id} className={isLateRow ? "bg-red-50 hover:bg-red-100/70" : ""}>
                               <TableCell className="pl-6 text-muted-foreground text-sm">{idx + 1}</TableCell>
                               <TableCell className="font-medium">{task.nama_pekerjaan ?? "—"}</TableCell>
                               <TableCell className="text-sm">{task.tanggal_mulai ? new Date(task.tanggal_mulai).toLocaleDateString("id-ID") : "—"}</TableCell>
@@ -698,7 +705,8 @@ export default function ProyekSipilDetailPage() {
                                 </div>
                               </TableCell>
                             </TableRow>
-                          ))}
+                            );
+                          })}
                           {termin.tasks.length === 0 && (
                             <TableRow>
                               <TableCell colSpan={7} className="text-center py-6 text-muted-foreground text-sm">

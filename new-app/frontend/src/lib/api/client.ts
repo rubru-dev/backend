@@ -54,7 +54,7 @@ apiClient.interceptors.response.use(
         localStorage.removeItem("refresh_token");
         if (typeof window !== "undefined") {
           // Clear the middleware auth cookie so it doesn't redirect back to /dashboard
-          document.cookie = "is_authed=; path=/; max-age=0";
+          document.cookie = "is_authed=; path=/; max-age=0"; document.cookie = "is_tukang=; path=/; max-age=0";
           window.location.href = "/login";
         }
       }

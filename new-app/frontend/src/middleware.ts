@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
  */
 
 // Routes that require authentication
-const PROTECTED_PREFIXES = ["/dashboard", "/bd", "/content", "/leads", "/telemarketing", "/desain", "/sales", "/projek", "/finance", "/pic", "/admin"];
+const PROTECTED_PREFIXES = ["/dashboard", "/bd", "/content", "/leads", "/telemarketing", "/desain", "/sales", "/projek", "/finance", "/pic", "/admin", "/absen", "/karyawan"];
 
 // Routes accessible only when NOT authenticated
 const AUTH_ROUTES = ["/login"];
@@ -25,7 +25,6 @@ const AUTH_ROUTES = ["/login"];
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Check for our session cookie (set by the login action)
   const isAuthed = request.cookies.has("is_authed");
 
   // Redirect authenticated users away from login

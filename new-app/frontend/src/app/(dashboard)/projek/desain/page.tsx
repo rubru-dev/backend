@@ -228,18 +228,20 @@ function GanttChart({
             leftPct = (differenceInDays(end, minDate) / totalDays) * 100;
           }
 
-          const barColor = GANTT_BAR_COLOR[item.status ?? ""] ?? "bg-gray-300";
           const dateLabel =
             start || end
               ? `${start ? format(start, "dd/MM", { locale: idLocale }) : "?"} – ${
                   end ? format(end, "dd/MM", { locale: idLocale }) : "?"
                 }`
               : null;
+          const isLate =
+            !!end && item.status !== "Selesai" && end < new Date(new Date().toDateString());
+          const barColor = isLate ? "bg-red-500" : (GANTT_BAR_COLOR[item.status ?? ""] ?? "bg-gray-300");
 
           return (
             <div
               key={item.id}
-              className="flex items-center py-1 border-b last:border-0 hover:bg-muted/20"
+              className={`flex items-center py-1 border-b last:border-0 hover:bg-muted/20 ${isLate ? "bg-red-50 hover:bg-red-100/70" : ""}`}
             >
               {/* Task name + dates */}
               <div className="w-56 flex-shrink-0 px-2">
@@ -294,6 +296,10 @@ function GanttChart({
               {s}
             </div>
           ))}
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <div className="w-3 h-3 rounded-sm bg-red-500" />
+            Terlambat
+          </div>
           <span className="text-xs text-muted-foreground ml-auto italic">
             Klik bar untuk edit pekerjaan
           </span>
@@ -1008,8 +1014,10 @@ export default function ProyekDesainPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {items.map((item, idx) => (
-                              <TableRow key={item.id}>
+                          {items.map((item, idx) => {
+                            const isLateRow = !!item.target_selesai && item.status !== "Selesai" && new Date(item.target_selesai) < new Date(new Date().toDateString());
+                            return (
+                              <TableRow key={item.id} className={isLateRow ? "bg-red-50 hover:bg-red-100/70" : ""}>
                                 <TableCell className="pl-4 text-muted-foreground text-sm">
                                   {idx + 1}
                                 </TableCell>
@@ -1078,7 +1086,8 @@ export default function ProyekDesainPage() {
                                   </div>
                                 </TableCell>
                               </TableRow>
-                          ))}
+                            );
+                          })}
                           {items.length === 0 && (
                             <TableRow>
                               <TableCell
@@ -1147,13 +1156,15 @@ export default function ProyekDesainPage() {
 
                                 {/* Cards */}
                                 <div className="flex flex-col gap-2 flex-1 min-h-[80px]">
-                                  {colItems.map((item) => (
+                                  {colItems.map((item) => {
+                                    const isLateCard = !!item.target_selesai && item.status !== "Selesai" && new Date(item.target_selesai) < new Date(new Date().toDateString());
+                                    return (
                                     <div
                                       key={item.id}
                                       draggable
                                       onDragStart={() => { kanbanDragItem.current = item.id; }}
                                       onClick={() => openEditItem(item)}
-                                      className="bg-white rounded-lg border border-slate-200 p-2.5 shadow-sm cursor-grab active:cursor-grabbing hover:border-purple-300 transition-colors group"
+                                      className={`rounded-lg border p-2.5 shadow-sm cursor-grab active:cursor-grabbing transition-colors group ${isLateCard ? "bg-red-50 border-red-200 hover:border-red-400" : "bg-white border-slate-200 hover:border-purple-300"}`}
                                     >
                                       <div className="flex items-start gap-1">
                                         <GripVertical
@@ -1170,12 +1181,13 @@ export default function ProyekDesainPage() {
                                             </p>
                                           )}
                                           {item.target_selesai && (
-                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                            <p className={`text-xs mt-0.5 ${isLateCard ? "text-red-600 font-medium" : "text-muted-foreground"}`}>
                                               Deadline:{" "}
                                               {new Date(item.target_selesai).toLocaleDateString("id-ID", {
                                                 day: "numeric",
                                                 month: "short",
                                               })}
+                                              {isLateCard && " ⚠ Terlambat"}
                                             </p>
                                           )}
                                           {item.tanggal_mulai && (
@@ -1195,7 +1207,8 @@ export default function ProyekDesainPage() {
                                         </div>
                                       </div>
                                     </div>
-                                  ))}
+                                    );
+                                  })}
                                   {colItems.length === 0 && (
                                     <div className="flex-1 flex items-center justify-center text-xs text-muted-foreground py-4 border-2 border-dashed border-muted-foreground/20 rounded-lg">
                                       Kosong

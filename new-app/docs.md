@@ -1,7 +1,47 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-03-30 (Fix auth loop, Shop Drawing default pekerjaan, Kanban tab di Projek Desain, hapus progress bar kanban paket)
+> Last updated: 2026-04-03 (Rename Kanban Paket Desain→Progress Desain, pindah menu Projek Desain→Desain, hapus menu Absen, pindah KalenderVisit+Dokumentasi→Projek, hapus tab Pembayaran client portal, Tukang login redirect ke /absen, hapus tab Kehadiran Tukang di rubahrumah, fix portofolio filter+artikel typography)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-04-03)
+
+### Task 1: Rename Kanban Paket Desain → Progress Desain
+- **File:** `new-app/frontend/src/components/layout/sidebar-nav.ts` — label "Kanban Paket Desain" → "Progress Desain"
+- **File:** `new-app/frontend/src/app/(dashboard)/desain/kanban-paket-desain/page.tsx` — page title renamed
+- **File:** `new-app/backend/src/routes/desain.ts` — `PATCH /desain/kanban-paket/cards/:id/move` — hapus auto-update DesainTimelineItem statuses (putus koneksi ke Projek Desain)
+
+### Task 2: Sub menu Projek Desain pindah ke menu Desain
+- **File:** `new-app/frontend/src/components/layout/sidebar-nav.ts`
+- Hapus "Projek Desain" dari grup Projek, tambah ke grup Desain (permission: `projek_desain.view`)
+
+### Task 3: Hapus menu Absen dari sidebar
+- **File:** `new-app/frontend/src/components/layout/sidebar-nav.ts` — hapus grup "Absen" (`alwaysShow: true`, `/karyawan/absen`)
+
+### Task 4: PIC Kalender Visit + Upload Dokumentasi pindah ke menu Projek
+- **File:** `new-app/frontend/src/components/layout/sidebar-nav.ts`
+- Hapus dari PIC Project group, tambah ke Projek group dengan nama "Upload Dokumentasi Projek"
+- Projek group sudah include roles: ["Sales", "PIC Project"] sebagai fallback
+
+### Task 5: Role Tukang — hanya tampil menu Tukang, tanpa Dashboard
+- **File:** `new-app/frontend/src/components/layout/sidebar.tsx` — Dashboard link dibungkus `!hasAnyRole("Tukang")`
+- **File:** `new-app/frontend/src/hooks/useAuth.ts` — setelah login cek role Tukang → redirect ke `/absen` bukan `/dashboard`
+
+### Task 6: Client Portal — hapus tab Pembayaran
+- **File:** `new-app/frontend/src/app/(dashboard)/client/[id]/page.tsx` — hapus TabTrigger + TabContent "pembayaran"
+
+### Task 7: Rubahrumah — hapus tab Kehadiran Tukang
+- **File:** `rubahrumah/app/(client)/aktivitas/page.tsx` — hapus tab "kehadiran" dari list, hapus kehadiran state + fetch + content
+
+### Task 8: Website Public — fix portofolio kategori filter
+- **File:** `website-rubahrumah/apps/web-rubahrumah/src/app/portofolio/filter.tsx`
+- Nilai filter disesuaikan dengan yang tersimpan di DB: `BANGUN_RUMAH`→`BANGUN`, `DESIGN`→`DESAIN`
+
+### Task 9: Website Public — fix artikel formatting (typography)
+- **File:** `website-rubahrumah/apps/web-rubahrumah/package.json` — tambah `@tailwindcss/typography` ke devDependencies
+- **File:** `website-rubahrumah/apps/web-rubahrumah/tailwind.config.ts` — tambah `require("@tailwindcss/typography")` ke plugins
+- **Action required:** jalankan `npm install` di folder `website-rubahrumah/apps/web-rubahrumah/`
 
 ---
 

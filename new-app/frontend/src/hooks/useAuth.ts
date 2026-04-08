@@ -19,7 +19,9 @@ export function useAuth() {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
     });
-    router.push("/dashboard");
+    // Tukang langsung ke halaman absen, bukan dashboard
+    const isTukang = data.user.roles?.some((r: { name: string }) => r.name === "Tukang");
+    router.push(isTukang ? "/absen" : "/dashboard");
   }
 
   async function logout() {

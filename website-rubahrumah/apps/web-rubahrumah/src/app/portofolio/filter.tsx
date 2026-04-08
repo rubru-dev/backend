@@ -2,12 +2,12 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 
-// Values must match Prisma JenisJasa enum: BANGUN_RUMAH | RENOVASI | DESIGN | INTERIOR
+// Values must match what dashboard stores in DB: BANGUN | RENOVASI | DESAIN | INTERIOR
 const FILTERS = [
   { label: "Semua", value: "" },
-  { label: "Bangun Rumah", value: "BANGUN_RUMAH" },
+  { label: "Bangun Rumah", value: "BANGUN" },
   { label: "Renovasi Rumah", value: "RENOVASI" },
-  { label: "Design Rumah", value: "DESIGN" },
+  { label: "Design Rumah", value: "DESAIN" },
   { label: "Interior Rumah", value: "INTERIOR" },
 ];
 

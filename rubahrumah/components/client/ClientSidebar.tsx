@@ -19,7 +19,7 @@ const mainMenu = [
   },
   {
     href: "/pembayaran",
-    label: "Pembayaran",
+    label: "Invoice",
     icon: (
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
         <rect x="2" y="5" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5"/>

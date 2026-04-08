@@ -2,16 +2,17 @@
 import { useState, useEffect } from "react";
 import { portalApi } from "@/lib/apiClient";
 
-interface Payment {
+interface Invoice {
   id: number;
-  termin_ke: number;
-  nama_termin: string | null;
-  tagihan: number;
-  retensi: number;
+  invoice_number: string;
+  tanggal: string | null;
+  overdue_date: string | null;
+  grand_total: number;
+  subtotal: number;
+  ppn_amount: number;
   status: string;
-  jatuh_tempo: string | null;
-  tanggal_bayar: string | null;
   catatan: string | null;
+  kwitansi: { tanggal_bayar: string | null; metode_bayar: string | null } | null;
 }
 
 function fmtDate(d?: string | null) {
@@ -23,16 +24,27 @@ function fmtRupiah(n: number) {
   return "Rp " + (n ?? 0).toLocaleString("id-ID");
 }
 
+function StatusBadge({ status }: { status: string }) {
+  const isLunas = status === "Lunas";
+  return (
+    <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
+      isLunas ? "bg-green-50 text-green-600" : "bg-orange-50 text-orange-600"
+    }`}>
+      {isLunas ? "Lunas" : "Belum Dibayar"}
+    </span>
+  );
+}
+
 export default function PembayaranPage() {
-  const [payments, setPayments] = useState<Payment[]>([]);
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [project, setProject] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([portalApi.me(), portalApi.payments()])
-      .then(([p, pay]) => {
+    Promise.all([portalApi.me(), portalApi.invoices()])
+      .then(([p, inv]) => {
         setProject(p);
-        setPayments(pay);
+        setInvoices(inv);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -46,8 +58,8 @@ export default function PembayaranPage() {
     );
   }
 
-  const totalTagihan = payments.reduce((s, p) => s + (p.tagihan ?? 0), 0);
-  const totalLunas = payments.filter((p) => p.status === "Sudah Dibayar").reduce((s, p) => s + (p.tagihan ?? 0), 0);
+  const totalTagihan = invoices.reduce((s, inv) => s + (inv.grand_total ?? 0), 0);
+  const totalLunas = invoices.filter((inv) => inv.status === "Lunas").reduce((s, inv) => s + (inv.grand_total ?? 0), 0);
 
   return (
     <div>
@@ -65,9 +77,9 @@ export default function PembayaranPage() {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          { label: "Total Tagihan", value: fmtRupiah(totalTagihan), color: "text-slate-700" },
+          { label: "Total Invoice", value: fmtRupiah(totalTagihan), color: "text-slate-700" },
           { label: "Sudah Dibayar", value: fmtRupiah(totalLunas), color: "text-green-600" },
-          { label: "Belum Dibayar", value: fmtRupiah(totalTagihan - totalLunas), color: "text-red-500" },
+          { label: "Belum Dibayar", value: fmtRupiah(totalTagihan - totalLunas), color: "text-orange-500" },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-2xl p-3 sm:p-4 shadow-sm border border-slate-100">
             <p className="text-xs text-slate-400 mb-1">{s.label}</p>
@@ -76,41 +88,35 @@ export default function PembayaranPage() {
         ))}
       </div>
 
-      <h2 className="text-base font-semibold text-slate-700 mb-3">Daftar Pembayaran</h2>
+      <h2 className="text-base font-semibold text-slate-700 mb-3">Daftar Invoice</h2>
 
-      {payments.length === 0 ? (
+      {invoices.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center text-slate-400">
-          Belum ada data pembayaran
+          Belum ada invoice
         </div>
       ) : (<>
         {/* Desktop Table */}
         <div className="hidden md:block bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto">
-          <table className="w-full text-sm min-w-[600px]">
+          <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">Termin</th>
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">Tagihan</th>
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">Retensi</th>
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">Status</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">No. Invoice</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">Tanggal</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Jatuh Tempo</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">Total</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">Status</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Tgl Bayar</th>
               </tr>
             </thead>
             <tbody>
-              {payments.map((p) => (
-                <tr key={p.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                  <td className="px-5 py-4 text-slate-600 font-medium">
-                    {p.nama_termin || `Termin ${p.termin_ke}`}
-                  </td>
-                  <td className="px-5 py-4 text-slate-700">{fmtRupiah(p.tagihan)}</td>
-                  <td className="px-5 py-4 text-slate-700">{fmtRupiah(p.retensi)}</td>
-                  <td className="px-5 py-4">
-                    <span className={p.status === "Sudah Dibayar" ? "text-green-500 font-medium" : "text-red-500 font-medium"}>
-                      {p.status}
-                    </span>
-                  </td>
-                  <td className="px-5 py-4 text-slate-600">{fmtDate(p.jatuh_tempo)}</td>
-                  <td className="px-5 py-4 text-slate-600">{fmtDate(p.tanggal_bayar)}</td>
+              {invoices.map((inv) => (
+                <tr key={inv.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                  <td className="px-5 py-4 text-slate-700 font-medium">{inv.invoice_number}</td>
+                  <td className="px-5 py-4 text-slate-600">{fmtDate(inv.tanggal)}</td>
+                  <td className="px-5 py-4 text-slate-600">{fmtDate(inv.overdue_date)}</td>
+                  <td className="px-5 py-4 text-slate-700 font-medium">{fmtRupiah(inv.grand_total)}</td>
+                  <td className="px-5 py-4"><StatusBadge status={inv.status} /></td>
+                  <td className="px-5 py-4 text-slate-600">{fmtDate(inv.kwitansi?.tanggal_bayar)}</td>
                 </tr>
               ))}
             </tbody>
@@ -119,41 +125,41 @@ export default function PembayaranPage() {
 
         {/* Mobile Cards */}
         <div className="md:hidden space-y-3">
-          {payments.map((p) => (
-            <div key={p.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          {invoices.map((inv) => (
+            <div key={inv.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-[#0F4C75]">
-                  {p.nama_termin || `Termin ${p.termin_ke}`}
-                </span>
-                <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
-                  p.status === "Sudah Dibayar" ? "bg-green-50 text-green-600" : "bg-red-50 text-red-500"
-                }`}>
-                  {p.status}
-                </span>
+                <span className="text-sm font-bold text-[#0F4C75]">{inv.invoice_number}</span>
+                <StatusBadge status={inv.status} />
               </div>
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Tagihan</span>
-                  <span className="text-slate-700 font-medium">{fmtRupiah(p.tagihan)}</span>
+                  <span className="text-slate-400">Total</span>
+                  <span className="text-slate-700 font-medium">{fmtRupiah(inv.grand_total)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Retensi</span>
-                  <span className="text-slate-700 font-medium">{fmtRupiah(p.retensi)}</span>
+                  <span className="text-slate-400">Tanggal</span>
+                  <span className="text-slate-600">{fmtDate(inv.tanggal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Jatuh Tempo</span>
-                  <span className="text-slate-600">{fmtDate(p.jatuh_tempo)}</span>
+                  <span className="text-slate-600">{fmtDate(inv.overdue_date)}</span>
                 </div>
-                {p.tanggal_bayar && (
+                {inv.kwitansi?.tanggal_bayar && (
                   <div className="flex justify-between">
                     <span className="text-slate-400">Tgl Bayar</span>
-                    <span className="text-slate-600">{fmtDate(p.tanggal_bayar)}</span>
+                    <span className="text-slate-600">{fmtDate(inv.kwitansi.tanggal_bayar)}</span>
                   </div>
                 )}
-                {p.catatan && (
+                {inv.kwitansi?.metode_bayar && (
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Metode Bayar</span>
+                    <span className="text-slate-600">{inv.kwitansi.metode_bayar}</span>
+                  </div>
+                )}
+                {inv.catatan && (
                   <div className="flex justify-between">
                     <span className="text-slate-400">Catatan</span>
-                    <span className="text-slate-600">{p.catatan}</span>
+                    <span className="text-slate-600">{inv.catatan}</span>
                   </div>
                 )}
               </div>

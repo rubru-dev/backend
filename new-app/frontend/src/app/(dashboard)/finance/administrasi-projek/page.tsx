@@ -221,6 +221,14 @@ const admApi = {
     apiClient.post(`/finance/adm-projek/${id}/foto-dokumentasi`, data).then((r) => r.data),
   deleteFotoDokumentasi: (id: number, fid: string) =>
     apiClient.delete(`/finance/adm-projek/${id}/foto-dokumentasi/${fid}`).then((r) => r.data),
+
+  // Bon Material Tukang
+  getBonMaterial: (id: number) =>
+    apiClient.get(`/finance/adm-projek/${id}/tukang/bon-material`).then((r) => r.data),
+  addBonMaterial: (id: number, data: any) =>
+    apiClient.post(`/finance/adm-projek/${id}/tukang/bon-material`, data).then((r) => r.data),
+  deleteBonMaterial: (id: number, bid: string) =>
+    apiClient.delete(`/finance/adm-projek/${id}/tukang/bon-material/${bid}`).then((r) => r.data),
 };
 
 // ─── DokumentasiTab ───────────────────────────────────────────────────────────
@@ -439,6 +447,196 @@ function DokumentasiTab({ proyekId, proyekBerjalanId, proyekJenis }: { proyekId:
               })}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Bon/Struk Material Tukang */}
+      <BonMaterialSection proyekId={proyekId} />
+    </div>
+  );
+}
+
+// ─── BonMaterialSection ───────────────────────────────────────────────────────
+
+function BonMaterialSection({ proyekId }: { proyekId: number }) {
+  const qc = useQueryClient();
+  const bonFotoRef = useRef<HTMLInputElement>(null);
+  const [showForm, setShowForm] = useState(false);
+  const [viewBon, setViewBon] = useState<string | null>(null);
+  const [form, setForm] = useState({ tukang_id: "", tanggal: today, keterangan: "", total_harga: "", catatan: "" });
+  const [fotoBon, setFotoBon] = useState<string | null>(null);
+
+  const { data: registryData } = useQuery({
+    queryKey: ["tukang-registry", proyekId],
+    queryFn: () => admApi.getTukangRegistry(proyekId),
+    retry: false,
+  });
+  const tukangs: any[] = Array.isArray(registryData) ? registryData : [];
+
+  const { data: bonData, isLoading } = useQuery({
+    queryKey: ["bon-material", proyekId],
+    queryFn: () => admApi.getBonMaterial(proyekId),
+  });
+  const bons: any[] = Array.isArray(bonData) ? bonData : [];
+
+  const addMut = useMutation({
+    mutationFn: (d: any) => admApi.addBonMaterial(proyekId, d),
+    onSuccess: () => {
+      toast.success("Bon material ditambahkan");
+      qc.invalidateQueries({ queryKey: ["bon-material", proyekId] });
+      setShowForm(false);
+      setForm({ tukang_id: "", tanggal: today, keterangan: "", total_harga: "", catatan: "" });
+      setFotoBon(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menambahkan"),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (bid: string) => admApi.deleteBonMaterial(proyekId, bid),
+    onSuccess: () => {
+      toast.success("Bon dihapus");
+      qc.invalidateQueries({ queryKey: ["bon-material", proyekId] });
+    },
+  });
+
+  function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setFotoBon(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  function handleSubmit() {
+    if (!form.tukang_id) { toast.error("Pilih tukang terlebih dahulu"); return; }
+    addMut.mutate({
+      tukang_id: Number(form.tukang_id),
+      tanggal: form.tanggal,
+      keterangan: form.keterangan || undefined,
+      total_harga: parseFloat(form.total_harga) || 0,
+      foto_bon: fotoBon ?? undefined,
+      catatan: form.catatan || undefined,
+    });
+  }
+
+  const totalBon = bons.reduce((s: number, b: any) => s + (b.total_harga ?? 0), 0);
+
+  return (
+    <div className="mt-6 pt-6 border-t">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold text-slate-700 flex items-center gap-2">
+          <Receipt className="h-4 w-4 text-slate-500" />
+          Bon / Struk Material Tukang
+          <span className="text-xs text-muted-foreground font-normal ml-1">
+            ({bons.length} bon · Total: Rp {totalBon.toLocaleString("id-ID")})
+          </span>
+        </h3>
+        <Button size="sm" variant="outline" onClick={() => setShowForm((s) => !s)}>
+          <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Bon
+        </Button>
+      </div>
+
+      {showForm && (
+        <div className="border rounded-lg p-4 space-y-3 bg-muted/20 mb-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Tukang</Label>
+              <select
+                className="w-full h-8 text-xs border rounded px-2"
+                value={form.tukang_id}
+                onChange={(e) => setForm((f) => ({ ...f, tukang_id: e.target.value }))}
+              >
+                <option value="">-- Pilih Tukang --</option>
+                {tukangs.map((t: any) => (
+                  <option key={t.id} value={t.id}>{t.nama}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Tanggal</Label>
+              <Input type="date" className="h-8 text-xs" value={form.tanggal} onChange={(e) => setForm((f) => ({ ...f, tanggal: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Keterangan / Item</Label>
+              <Input className="h-8 text-xs" placeholder="cat tembok, pasir, dll" value={form.keterangan} onChange={(e) => setForm((f) => ({ ...f, keterangan: e.target.value }))} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Total Harga (Rp)</Label>
+              <Input type="number" className="h-8 text-xs" value={form.total_harga} onChange={(e) => setForm((f) => ({ ...f, total_harga: e.target.value }))} />
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Foto Bon/Struk</Label>
+              <input ref={bonFotoRef} type="file" accept="image/*" className="hidden" onChange={handleFotoChange} />
+              {fotoBon ? (
+                <div className="relative w-32">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={fotoBon} alt="bon" className="w-32 h-24 object-cover rounded border" />
+                  <button className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5" onClick={() => { setFotoBon(null); if (bonFotoRef.current) bonFotoRef.current.value = ""; }}>
+                    <Trash2 className="h-3 w-3" />
+                  </button>
+                </div>
+              ) : (
+                <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => bonFotoRef.current?.click()}>
+                  <Upload className="h-3.5 w-3.5 mr-1" /> Upload Foto Bon
+                </Button>
+              )}
+            </div>
+            <div className="col-span-2 space-y-1">
+              <Label className="text-xs">Catatan</Label>
+              <Input className="h-8 text-xs" value={form.catatan} onChange={(e) => setForm((f) => ({ ...f, catatan: e.target.value }))} />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <Button size="sm" className="h-8 text-xs bg-blue-500 hover:bg-blue-600 text-white" onClick={handleSubmit} disabled={addMut.isPending}>
+              {addMut.isPending ? "Menyimpan..." : "Simpan"}
+            </Button>
+            <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setShowForm(false); setFotoBon(null); }}>Batal</Button>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="text-sm text-muted-foreground">Memuat...</div>
+      ) : bons.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground text-sm">
+          <Receipt className="h-8 w-8 mx-auto mb-2 opacity-30" />
+          Belum ada bon material
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {bons.map((b: any) => (
+            <div key={b.id} className="flex items-center gap-3 border rounded-lg p-3 bg-white">
+              {b.foto_bon ? (
+                <button onClick={() => setViewBon(b.foto_bon)}>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={b.foto_bon} alt="bon" className="w-14 h-14 object-cover rounded border flex-shrink-0 hover:opacity-80" />
+                </button>
+              ) : (
+                <div className="w-14 h-14 rounded border bg-slate-50 flex items-center justify-center flex-shrink-0">
+                  <Receipt className="h-5 w-5 text-slate-300" />
+                </div>
+              )}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-700">{b.tukang?.nama ?? "Tukang"}</p>
+                <p className="text-xs text-muted-foreground">{b.keterangan ?? "-"}</p>
+                <p className="text-xs text-muted-foreground">{b.tanggal ? new Date(b.tanggal).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : ""}</p>
+              </div>
+              <div className="text-right flex-shrink-0">
+                <p className="text-sm font-semibold text-slate-700">Rp {(b.total_harga ?? 0).toLocaleString("id-ID")}</p>
+                {b.creator && <p className="text-[10px] text-muted-foreground">{b.creator.name}</p>}
+              </div>
+              <Button size="icon" variant="ghost" className="text-destructive h-7 w-7 flex-shrink-0" onClick={() => deleteMut.mutate(String(b.id))}>
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {viewBon && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setViewBon(null)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={viewBon} alt="bon" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
         </div>
       )}
     </div>

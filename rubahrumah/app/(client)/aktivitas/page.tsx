@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { portalApi } from "@/lib/apiClient";
 
 interface AktivitasItem {
@@ -10,13 +10,6 @@ interface AktivitasItem {
   tanggal_mulai: string | null;
   tanggal_selesai: string | null;
   status: string;
-}
-
-interface KehadiranRecord {
-  id: number;
-  tanggal: string;
-  keterangan: string | null;
-  items: { id: number; tukang_name: string; hadir: boolean; keterangan: string | null }[];
 }
 
 function fmtDate(d?: string | null) {
@@ -42,10 +35,6 @@ const statusClass: Record<string, string> = {
   "Dalam Proses": "text-yellow-500",
   Tertunda: "text-red-500",
 };
-const hadirBg: Record<string, string> = {
-  true: "bg-green-50 text-green-600",
-  false: "bg-red-50 text-red-500",
-};
 const GANTT_COLOR: Record<string, string> = {
   Selesai: "bg-green-500",
   "Dalam Proses": "bg-yellow-400",
@@ -53,16 +42,14 @@ const GANTT_COLOR: Record<string, string> = {
 };
 const DAY_W = 32; // px per hari
 
-type Tab = "riwayat" | "kehadiran" | "gantt";
+type Tab = "riwayat" | "gantt";
 
 export default function AktivitasPage() {
   const [activeTab, setActiveTab] = useState<Tab>("riwayat");
   const [project, setProject] = useState<Record<string, unknown> | null>(null);
   const [aktivitas, setAktivitas] = useState<AktivitasItem[]>([]);
-  const [kehadiran, setKehadiran] = useState<KehadiranRecord[]>([]);
   const [search, setSearch] = useState("");
   const [loadingA, setLoadingA] = useState(true);
-  const [loadingK, setLoadingK] = useState(false);
   const [selectedTask, setSelectedTask] = useState<AktivitasItem | null>(null);
 
   useEffect(() => {
@@ -72,18 +59,6 @@ export default function AktivitasPage() {
       .catch(console.error)
       .finally(() => setLoadingA(false));
   }, []);
-
-  const fetchKehadiran = useCallback(() => {
-    setLoadingK(true);
-    portalApi.kehadiran()
-      .then(setKehadiran)
-      .catch(console.error)
-      .finally(() => setLoadingK(false));
-  }, []);
-
-  useEffect(() => {
-    if (activeTab === "kehadiran" && kehadiran.length === 0) fetchKehadiran();
-  }, [activeTab, fetchKehadiran, kehadiran.length]);
 
   function handleSearch() {
     setLoadingA(true);
@@ -143,7 +118,6 @@ export default function AktivitasPage() {
 
   const tabLabels: Record<Tab, string> = {
     riwayat: "Riwayat Pekerjaan",
-    kehadiran: "Kehadiran Tukang",
     gantt: "Gantt Chart",
   };
 
@@ -165,7 +139,7 @@ export default function AktivitasPage() {
       {/* Tabs + Filter */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
         <div className="flex border-b border-slate-200 overflow-x-auto scrollbar-none">
-          {(["riwayat", "kehadiran", "gantt"] as Tab[]).map((tab) => (
+          {(["riwayat", "gantt"] as Tab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -266,54 +240,6 @@ export default function AktivitasPage() {
             ))}
           </div>
         </>)
-      )}
-
-      {/* ── Tab: Kehadiran Tukang ── */}
-      {activeTab === "kehadiran" && (
-        loadingK ? (
-          <div className="flex items-center justify-center h-40">
-            <div className="w-8 h-8 border-4 border-orange-400 border-t-transparent rounded-full animate-spin" />
-          </div>
-        ) : kehadiran.length === 0 ? (
-          <div className="text-center py-16 text-slate-400">Belum ada data kehadiran</div>
-        ) : (
-          <div className="space-y-4">
-            {kehadiran.map((rec) => (
-              <div key={rec.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-                <div className="px-5 py-3 border-b border-slate-50 flex items-center justify-between">
-                  <span className="text-sm font-semibold text-slate-700">{fmtDate(rec.tanggal)}</span>
-                  {rec.keterangan && <span className="text-xs text-slate-400">{rec.keterangan}</span>}
-                </div>
-                {rec.items.length === 0 ? (
-                  <p className="px-5 py-3 text-xs text-slate-400">Tidak ada tukang</p>
-                ) : (
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-slate-50">
-                        <th className="text-left px-5 py-2 text-xs text-slate-400 font-medium">Nama Pekerja</th>
-                        <th className="text-left px-5 py-2 text-xs text-slate-400 font-medium">Status</th>
-                        <th className="text-left px-5 py-2 text-xs text-slate-400 font-medium">Keterangan</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rec.items.map((item) => (
-                        <tr key={item.id} className="border-b border-slate-50 last:border-0">
-                          <td className="px-5 py-2.5 text-slate-600">{item.tukang_name}</td>
-                          <td className="px-5 py-2.5">
-                            <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${hadirBg[String(item.hadir)]}`}>
-                              {item.hadir ? "Hadir" : "Tidak Hadir"}
-                            </span>
-                          </td>
-                          <td className="px-5 py-2.5 text-slate-400 text-xs">{item.keterangan ?? "-"}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
-              </div>
-            ))}
-          </div>
-        )
       )}
 
       {/* ── Tab: Gantt Chart ── */}

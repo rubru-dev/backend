@@ -372,6 +372,7 @@ function getGreeting(): string {
 interface Stats {
   leadsSalesAdmin: number | null;
   leadsTelemarketing: number | null;
+  leadsDataKlien: number | null;
 }
 
 interface NotifLog {
@@ -394,7 +395,7 @@ interface UserOption {
 export function DashboardHome() {
   const { user, isSuperAdmin, hasAnyRole, hasPermission, _hasHydrated } = useAuthStore();
   const router = useRouter();
-  const [stats, setStats] = useState<Stats>({ leadsSalesAdmin: null, leadsTelemarketing: null });
+  const [stats, setStats] = useState<Stats>({ leadsSalesAdmin: null, leadsTelemarketing: null, leadsDataKlien: null });
 
   // ── Notification panel ─────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -458,8 +459,9 @@ export function DashboardHome() {
   useEffect(() => {
     if (!_hasHydrated || !user) return;
 
-    const canSeeAdmin   = showAll || hasPermission("sales_admin",   "view");
-    const canSeeTM      = showAll || hasPermission("telemarketing", "view");
+    const canSeeAdmin     = showAll || hasPermission("sales_admin",   "view");
+    const canSeeTM        = showAll || hasPermission("telemarketing", "view");
+    const canSeeDataKlien = showAll || hasPermission("sales_admin",   "view");
 
     if (canSeeAdmin) {
       apiClient.get<{ id: number; nama: string }[]>("/sales-admin/kanban/leads")
@@ -471,15 +473,35 @@ export function DashboardHome() {
         .then((r) => setStats((s) => ({ ...s, leadsTelemarketing: r.data.length })))
         .catch(() => setStats((s) => ({ ...s, leadsTelemarketing: 0 })));
     }
+    if (canSeeDataKlien) {
+      apiClient.get("/bd/database-client/leads")
+        .then((r) => setStats((s) => ({ ...s, leadsDataKlien: r.data?.total ?? r.data?.length ?? 0 })))
+        .catch(() => setStats((s) => ({ ...s, leadsDataKlien: 0 })));
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_hasHydrated, user?.id]);
 
   if (!_hasHydrated || !user) return null;
 
-  // Tukang: redirect langsung ke halaman absen
-  if (hasAnyRole(["Tukang"])) {
-    router.replace("/absen");
-    return null;
+  // Tukang: tampilkan dashboard sederhana dengan tombol ke halaman absen
+  if (hasAnyRole("Tukang")) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-6 text-center">
+        <div className="w-20 h-20 rounded-full bg-orange-50 flex items-center justify-center">
+          <span className="text-4xl">👷</span>
+        </div>
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800">Selamat Datang, {user.name}!</h1>
+          <p className="text-slate-500 mt-1">Gunakan tombol di bawah untuk mengisi absensi harian.</p>
+        </div>
+        <button
+          onClick={() => router.push("/absen")}
+          className="inline-flex items-center gap-2 bg-orange-500 hover:bg-orange-600 text-white font-semibold px-8 py-3 rounded-xl shadow-sm transition-colors text-lg"
+        >
+          <span>📋</span> Absen Harian Tukang
+        </button>
+      </div>
+    );
   }
 
   // Quick access cards
@@ -498,8 +520,9 @@ export function DashboardHome() {
     );
   }
 
-  const canSeeAdmin = showAll || hasPermission("sales_admin",   "view");
-  const canSeeTM    = showAll || hasPermission("telemarketing", "view");
+  const canSeeAdmin     = showAll || hasPermission("sales_admin",   "view");
+  const canSeeTM        = showAll || hasPermission("telemarketing", "view");
+  const canSeeDataKlien = showAll || hasPermission("sales_admin",   "view");
 
   const statCards = [
     canSeeAdmin && {
@@ -515,6 +538,13 @@ export function DashboardHome() {
       icon: Users,
       color: "text-purple-600",
       href: "/telemarketing/kanban",
+    },
+    canSeeDataKlien && {
+      label: "Total Leads Data Klien",
+      value: stats.leadsDataKlien,
+      icon: Users,
+      color: "text-green-600",
+      href: "/database-client",
     },
   ].filter(Boolean) as { label: string; value: number | null; icon: React.ElementType; color: string; href: string }[];
 

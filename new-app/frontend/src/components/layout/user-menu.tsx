@@ -32,7 +32,7 @@ export function UserMenu() {
     } finally {
       logout();
       // Clear the middleware auth cookie
-      document.cookie = "is_authed=; path=/; max-age=0";
+      document.cookie = "is_authed=; path=/; max-age=0"; document.cookie = "is_tukang=; path=/; max-age=0";
       router.push("/login");
       router.refresh();
     }

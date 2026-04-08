@@ -596,23 +596,8 @@ router.patch("/kanban-paket/cards/:id/move", async (req: Request, res: Response)
   const t = await prisma.desainTimeline.findUnique({ where: { id } });
   if (!t) return res.status(404).json({ detail: "Timeline tidak ditemukan" });
 
-  // Update paket_stage on the timeline
+  // Update paket_stage on the timeline only — tidak auto-update item status Projek Desain
   await prisma.desainTimeline.update({ where: { id }, data: { paket_stage: stage } });
-
-  // Auto-update item statuses based on new stage
-  const items = await prisma.desainTimelineItem.findMany({
-    where: { desain_timeline_id: id },
-    orderBy: { id: "asc" },
-  });
-  for (let i = 0; i < items.length; i++) {
-    let newStatus: string;
-    if (i < stage) newStatus = "Proses";       // stages before current → in progress
-    else if (i === stage) newStatus = "Proses"; // current stage → in progress
-    else newStatus = "Belum Mulai";             // stages after → not started
-    if (items[i].status !== newStatus) {
-      await prisma.desainTimelineItem.update({ where: { id: items[i].id }, data: { status: newStatus } });
-    }
-  }
 
   return res.json({ message: "OK" });
 });

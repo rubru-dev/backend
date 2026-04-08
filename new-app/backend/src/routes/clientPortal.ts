@@ -110,9 +110,9 @@ router.get("/payments", async (req: Request, res: Response) => {
       where: { project_id: projectId },
       orderBy: { termin_ke: "asc" },
     }),
-    // Auto-link: invoice dengan lead_id yang sama otomatis masuk
+    // Hanya invoice yang di-assign ke portal project ini
     prisma.invoice.findMany({
-      where: { lead_id: project?.lead_id ?? BigInt(0), status: { in: ["Terbit", "Lunas"] } },
+      where: { client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } },
       include: { kwitansi: { select: { tanggal: true } } },
       orderBy: { tanggal: "asc" },
     }),
@@ -145,6 +145,28 @@ router.get("/payments", async (req: Request, res: Response) => {
   }));
 
   return res.json([...manualPayments, ...invoicePayments]);
+});
+
+// ── GET /invoices — invoice yang di-assign ke portal (untuk tab Invoice di rubahrumah) ──
+router.get("/invoices", async (req: Request, res: Response) => {
+  const projectId = req.clientPortal!.projectId;
+  const invoices = await prisma.invoice.findMany({
+    where: { client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } },
+    include: { kwitansi: { select: { tanggal: true, nomor_kwitansi: true } } },
+    orderBy: { tanggal: "asc" },
+  });
+  return res.json(invoices.map(inv => ({
+    id: String(inv.id),
+    invoice_number: inv.invoice_number,
+    tanggal: inv.tanggal,
+    overdue_date: inv.overdue_date,
+    grand_total: toNum(inv.grand_total),
+    subtotal: toNum(inv.subtotal),
+    ppn_amount: toNum(inv.ppn_amount),
+    status: inv.status,
+    catatan: inv.catatan,
+    kwitansi: inv.kwitansi ? { tanggal: inv.kwitansi.tanggal, nomor: inv.kwitansi.nomor_kwitansi } : null,
+  })));
 });
 
 // ── GET /galeri ───────────────────────────────────────────────────────────────

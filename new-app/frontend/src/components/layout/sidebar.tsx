@@ -141,12 +141,14 @@ export function Sidebar({ className }: { className?: string }) {
 
       {/* Nav */}
       <ScrollArea className="flex-1 py-4">
-        <div className="px-2 space-y-0.5">
-          {/* Dashboard shortcut */}
-          <SidebarItem
-            item={{ label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }}
-          />
-        </div>
+        {!hasAnyRole("Tukang") && (
+          <div className="px-2 space-y-0.5">
+            {/* Dashboard shortcut — disembunyikan untuk role Tukang */}
+            <SidebarItem
+              item={{ label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }}
+            />
+          </div>
+        )}
 
         <div className="mt-4 px-2 space-y-1">
           {visibleGroups.map((group) => (

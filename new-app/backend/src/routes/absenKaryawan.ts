@@ -167,7 +167,7 @@ router.post("/check-out", async (req: Request, res: Response) => {
 
 // ── GET /absen-karyawan/admin/list — semua absen (admin/head finance) ──────────
 router.get("/admin/list", async (req: Request, res: Response) => {
-  const { tanggal, user_id, status, page = "1", per_page = "30" } = req.query;
+  const { tanggal, tanggal_mulai, tanggal_selesai, bulan, tahun, user_id, status, page = "1", per_page = "100" } = req.query;
   const skip = (Number(page) - 1) * Number(per_page);
 
   const where: any = {};
@@ -175,6 +175,24 @@ router.get("/admin/list", async (req: Request, res: Response) => {
     const d = new Date(tanggal as string);
     d.setHours(0, 0, 0, 0);
     where.tanggal = d;
+  } else if (tanggal_mulai || tanggal_selesai) {
+    where.tanggal = {};
+    if (tanggal_mulai) {
+      const d = new Date(tanggal_mulai as string); d.setHours(0, 0, 0, 0);
+      where.tanggal.gte = d;
+    }
+    if (tanggal_selesai) {
+      const d = new Date(tanggal_selesai as string); d.setHours(23, 59, 59, 999);
+      where.tanggal.lte = d;
+    }
+  } else if (bulan || tahun) {
+    const year = tahun ? parseInt(tahun as string) : new Date().getFullYear();
+    const month = bulan ? parseInt(bulan as string) : null;
+    if (month) {
+      where.tanggal = { gte: new Date(year, month - 1, 1), lte: new Date(year, month, 0, 23, 59, 59) };
+    } else {
+      where.tanggal = { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59) };
+    }
   }
   if (user_id) where.user_id = BigInt(user_id as string);
   if (status) where.status = status;

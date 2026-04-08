@@ -52,7 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     stopCountdown();
     setShowIdleWarning(false);
     logout();
-    document.cookie = "is_authed=; path=/; max-age=0";
+    document.cookie = "is_authed=; path=/; max-age=0"; document.cookie = "is_tukang=; path=/; max-age=0";
     router.replace("/login");
   }, [logout, router, stopCountdown]);
 
@@ -80,7 +80,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (!_hasHydrated) return;
     if (!isAuthenticated) {
-      document.cookie = "is_authed=; path=/; max-age=0";
+      document.cookie = "is_authed=; path=/; max-age=0"; document.cookie = "is_tukang=; path=/; max-age=0";
       router.replace("/login");
     }
   }, [isAuthenticated, _hasHydrated, router]);

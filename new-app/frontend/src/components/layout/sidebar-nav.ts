@@ -92,7 +92,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 
   // ── Desain ───────────────────────────────────────────────────────────────────
-  // Group: desain.view | Items: desain.follow_up, desain.kanban_paket, desain.laporan_harian
+  // Group: desain.view | Items: desain.follow_up, desain.kanban_paket, desain.laporan_harian, projek_desain.view
   {
     title: "Desain",
     color: "#8b5cf6",
@@ -100,8 +100,9 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["Desain"],
     items: [
       { label: "Follow Up After Survey", href: "/desain/follow-up-survey",         icon: "Kanban",          permission: "desain.follow_up" },
-      { label: "Kanban Paket Desain",    href: "/desain/kanban-paket-desain",       icon: "LayoutDashboard", permission: "desain.kanban_paket" },
-      { label: "Laporan Harian",         href: "/desain/laporan-harian",            icon: "ClipboardList", permission: "desain.laporan_harian" },
+      { label: "Progress Desain",        href: "/desain/kanban-paket-desain",       icon: "LayoutDashboard", permission: "desain.kanban_paket" },
+      { label: "Projek Desain",          href: "/projek/desain",                    icon: "Palette",         permission: "projek_desain.view" },
+      { label: "Laporan Harian",         href: "/desain/laporan-harian",            icon: "ClipboardList",   permission: "desain.laporan_harian" },
     ],
   },
 
@@ -113,22 +114,24 @@ export const NAV_GROUPS: NavGroup[] = [
     permission: "sales.view",
     roles: ["Sales"],
     items: [
-      { label: "Kanban Sales",   href: "/sales/kanban",         icon: "Kanban",        permission: "sales.kanban" },
-      { label: "Laporan Harian", href: "/sales/laporan-harian", icon: "ClipboardList", permission: "sales.laporan_harian" },
+      { label: "Kanban Sales",      href: "/sales/kanban",          icon: "Kanban",        permission: "sales.kanban" },
+      { label: "Laporan Harian",    href: "/sales/laporan-harian",  icon: "ClipboardList", permission: "sales.laporan_harian" },
+      { label: "Addendum Kontrak",  href: "/sales/addendum",        icon: "FileSignature", permission: "sales.view" },
     ],
   },
 
   // ── Projek ───────────────────────────────────────────────────────────────────
-  // Group: projek_sipil.view | Items: projek_sipil.view, projek_desain.view, projek_interior.view
+  // Group: projek_sipil.view | Items: projek_sipil.view, projek_interior.view, pic.kalender_visit, pic.dokumentasi
   {
     title: "Projek",
     color: "#14b8a6",
     permission: "projek_sipil.view",
     roles: ["Sales", "PIC Project"],
     items: [
-      { label: "Projek Sipil",    href: "/projek/sipil",    icon: "Building2", permission: "projek_sipil.view" },
-      { label: "Projek Desain",   href: "/projek/desain",   icon: "Palette",   permission: "projek_desain.view" },
-      { label: "Projek Interior", href: "/projek/interior", icon: "Home",      permission: "projek_interior.view" },
+      { label: "Projek Sipil",              href: "/projek/sipil",       icon: "Building2",   permission: "projek_sipil.view" },
+      { label: "Projek Interior",           href: "/projek/interior",    icon: "Home",         permission: "projek_interior.view" },
+      { label: "Kalender Visit",            href: "/pic/kalender-visit", icon: "CalendarDays", permission: "pic.kalender_visit" },
+      { label: "Upload Dokumentasi Projek", href: "/pic/dokumentasi",    icon: "Images",       permission: "pic.view" },
     ],
   },
 
@@ -150,28 +153,14 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 
   // ── PIC Project ───────────────────────────────────────────────────────────────
-  // Group: pic.view | Items: pic.laporan_harian, pic.dokumentasi
+  // Group: pic.view | Items: pic.laporan_harian (Kalender Visit + Dokumentasi dipindah ke menu Projek)
   {
     title: "PIC Project",
     color: "#f97316",
     permission: "pic.view",
     roles: ["PIC Project"],
     items: [
-      { label: "Laporan Harian",    href: "/pic/laporan-harian",   icon: "ClipboardList", permission: "pic.laporan_harian" },
-      { label: "Kalender Visit",    href: "/pic/kalender-visit",   icon: "CalendarDays",  permission: "pic.kalender_visit" },
-      { label: "Upload Dokumentasi", href: "/pic/dokumentasi",    icon: "Images",        permission: "pic.view" },
-    ],
-  },
-
-  // ── Absen Karyawan (semua karyawan) ─────────────────────────────────────────
-  {
-    title: "Absen",
-    color: "#10b981",
-    permission: "absen.submit",
-    alwaysShow: true,
-    roles: [],
-    items: [
-      { label: "Absen Harian", href: "/karyawan/absen", icon: "ClipboardCheck" },
+      { label: "Laporan Harian", href: "/pic/laporan-harian", icon: "ClipboardList", permission: "pic.laporan_harian" },
     ],
   },
 

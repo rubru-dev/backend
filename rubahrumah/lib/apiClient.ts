@@ -55,6 +55,7 @@ export const portalApi = {
   me: () => apiFetch("/me"),
 
   payments: () => apiFetch("/payments"),
+  invoices: () => apiFetch("/invoices"),
 
   galeri: (search?: string) => {
     const qs = search ? `?search=${encodeURIComponent(search)}` : "";

@@ -142,6 +142,7 @@ model AdmFinanceProject {
   purchase_requests     ProjekPR[]
   dokumens              ProjekDokumen[]
   foto_dokumentasis     ProjekFotoDokumentasi[]
+  bon_materials         TukangBonMaterial[]
   creator               User?                 @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   lead                  Lead?                 @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
   proyek_berjalan       ProyekBerjalan?       @relation(fields: [proyek_berjalan_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -764,6 +765,7 @@ model TukangRegistry {
   cashbounds             TukangCashbound[]
   gaji_items             GajiTukangItem[]
   kwitansi_items         KwitansiGajiTukang[]
+  bon_materials          TukangBonMaterial[]
   @@map("tukang_registries")
 }
 
@@ -798,6 +800,27 @@ model TukangCashbound {
   updated_at     DateTime       @default(now()) @db.Timestamptz(6)
   tukang         TukangRegistry @relation(fields: [tukang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   @@map("tukang_cashbounds")
+}
+
+model TukangBonMaterial {
+  id                     BigInt            @id @default(autoincrement())
+  adm_finance_project_id BigInt
+  tukang_id              BigInt
+  tanggal                DateTime          @db.Date
+  keterangan             String?           @db.VarChar(500)
+  total_harga            Decimal           @default(0) @db.Decimal(15, 2)
+  foto_bon               String?           @db.Text
+  catatan                String?
+  created_by             BigInt?
+  created_at             DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime          @default(now()) @db.Timestamptz(6)
+  project                AdmFinanceProject @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  tukang                 TukangRegistry    @relation(fields: [tukang_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator                User?             @relation("bon_material_creator", fields: [created_by], references: [id], onDelete: SetNull, onUpdate: NoAction)
+
+  @@index([adm_finance_project_id], map: "idx_tukang_bon_project")
+  @@index([tukang_id], map: "idx_tukang_bon_tukang")
+  @@map("tukang_bon_materials")
 }
 
 model Kwitansi {
@@ -889,6 +912,8 @@ model Lead {
   telemarketing_kanban_cards            TelemarketingKanbanCard[]
   client_portal_account                 ClientPortalAccount?
   client_portal_project                 ClientPortalProject?
+  addendum_kontraks                     AddendumKontrak[]
+  kontrak_dokumens                      KontrakDokumen[]
 
   @@index([bulan, tahun], map: "idx_leads_bulan_tahun")
   @@index([status], map: "idx_leads_status")
@@ -1802,6 +1827,7 @@ model User {
   desain_kanban_cards_assigned          DesainKanbanCard[]       @relation("DesainKanbanCardAssignee")
   desain_kanban_cards_ro                DesainKanbanCard[]       @relation("DesainKanbanCardRO")
   projek_foto_dokumentasis              ProjekFotoDokumentasi[]  @relation("ProjekFotoDokumentasiUploader")
+  bon_materials_created                 TukangBonMaterial[]      @relation("bon_material_creator")
   finance_reports                       FinanceReport[]
   follow_up_clients                     FollowUpClient[]
   gaji_tukangs                          GajiTukang[]
@@ -1853,6 +1879,9 @@ model User {
   absen_karyawan_approvals              AbsenKaryawan[]      @relation("KaryawanAbsenApprover")
   kalender_visits_created               KalenderVisit[]      @relation("kalender_visit_creator")
   kalender_visit_pics                   KalenderVisitPic[]   @relation("kalender_visit_pic_user")
+  addendum_kontraks_created             AddendumKontrak[]    @relation("addendum_creator")
+  kontrak_templates_created             KontrakTemplate[]    @relation("kontrak_template_creator")
+  kontrak_dokumens_created              KontrakDokumen[]     @relation("kontrak_dokumen_creator")
 
   @@index([email], map: "idx_users_email")
   @@map("users")
@@ -2066,6 +2095,39 @@ model ProjekDokumen {
   updated_at             DateTime          @default(now()) @db.Timestamptz(6)
   project                AdmFinanceProject @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   @@map("projek_dokumens")
+}
+
+// ─── Addendum Kontrak ────────────────────────────────────────────────────────
+
+/// Addendum/perubahan kontrak yang dibuat Sales, ditandatangani RO + Klien
+model AddendumKontrak {
+  id                     BigInt    @id @default(autoincrement())
+  lead_id                BigInt?
+  nomor_addendum         String?   @db.VarChar(100)
+  tanggal                DateTime? @db.Date
+  perihal                String?   @db.VarChar(500)
+  isi                    String?   @db.Text
+  nilai_kontrak_awal     Decimal   @default(0) @db.Decimal(15, 2)
+  nilai_addendum         Decimal   @default(0) @db.Decimal(15, 2)
+  status                 String    @default("draft") @db.VarChar(50)
+  // RO signature
+  ro_name                String?   @db.VarChar(255)
+  ro_signature           String?   @db.Text
+  ro_signed_at           DateTime? @db.Timestamptz(6)
+  // Client signature
+  client_name            String?   @db.VarChar(255)
+  client_signature       String?   @db.Text
+  client_signed_at       DateTime? @db.Timestamptz(6)
+  // Auto-push tracking
+  auto_pushed            Boolean   @default(false)
+  created_by             BigInt?
+  created_at             DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime  @default(now()) @db.Timestamptz(6)
+  lead                   Lead?     @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  creator                User?     @relation("addendum_creator", fields: [created_by], references: [id], onUpdate: NoAction)
+
+  @@index([lead_id], map: "idx_addendum_kontrak_lead")
+  @@map("addendum_kontraks")
 }
 
 // ─── Admin (Sales Admin) Kanban ──────────────────────────────────────────────
@@ -2633,4 +2695,89 @@ model KalenderVisitPic {
 
   @@unique([kalender_visit_id, user_id])
   @@map("kalender_visit_pics")
+}
+
+// ─── Kontrak Template (Template Pembuatan Kontrak) ────────────────────────────
+
+/// Template kontrak yang bisa dipakai ulang. User buat pihak 1/2 + pasal-pasal, lalu publish.
+model KontrakTemplate {
+  id           BigInt                 @id @default(autoincrement())
+  judul        String                 @db.VarChar(255)
+  pihak_satu   String?                @db.Text
+  pihak_dua    String?                @db.Text
+  pembuka      String?                @db.Text
+  status       String                 @default("draft") @db.VarChar(50)
+  created_by   BigInt?
+  created_at   DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime               @default(now()) @db.Timestamptz(6)
+  creator      User?                  @relation("kontrak_template_creator", fields: [created_by], references: [id], onUpdate: NoAction)
+  pasals       KontrakTemplatePasal[]
+  dokumens     KontrakDokumen[]
+
+  @@map("kontrak_templates")
+}
+
+/// Pasal-pasal dalam template kontrak
+model KontrakTemplatePasal {
+  id          BigInt          @id @default(autoincrement())
+  template_id BigInt
+  urutan      Int             @default(0)
+  judul_pasal String?         @db.VarChar(255)
+  isi_pasal   String?         @db.Text
+  created_at  DateTime        @default(now()) @db.Timestamptz(6)
+  template    KontrakTemplate @relation(fields: [template_id], references: [id], onDelete: Cascade)
+
+  @@index([template_id], map: "idx_kontrak_template_pasals_template")
+  @@map("kontrak_template_pasals")
+}
+
+/// Kontrak yang digenerate dari template + data klien dari Lead
+model KontrakDokumen {
+  id                    BigInt           @id @default(autoincrement())
+  template_id           BigInt?
+  lead_id               BigInt?
+  nomor_kontrak         String?          @db.VarChar(100)
+  jenis_pekerjaan       String?          @db.VarChar(500)
+  tanggal               DateTime?        @db.Date
+  nama_client           String?          @db.VarChar(255)
+  telepon_client        String?          @db.VarChar(50)
+  alamat_client         String?          @db.Text
+  status                String           @default("draft") @db.VarChar(50)
+  // RO (Relationship Officer) — Pihak Pertama signature 1
+  ro_name               String?          @db.VarChar(255)
+  ro_signature          String?          @db.Text
+  ro_signed_at          DateTime?        @db.Timestamptz(6)
+  // Management RubahRumah — Pihak Pertama signature 2
+  management_name       String?          @db.VarChar(255)
+  management_signature  String?          @db.Text
+  management_signed_at  DateTime?        @db.Timestamptz(6)
+  // Client — Pihak Kedua
+  client_name           String?          @db.VarChar(255)
+  client_signature      String?          @db.Text
+  client_signed_at      DateTime?        @db.Timestamptz(6)
+  created_by            BigInt?
+  created_at            DateTime         @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime         @default(now()) @db.Timestamptz(6)
+  template         KontrakTemplate?       @relation(fields: [template_id], references: [id], onUpdate: NoAction)
+  lead             Lead?                  @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
+  creator          User?                  @relation("kontrak_dokumen_creator", fields: [created_by], references: [id], onUpdate: NoAction)
+  lampirans        KontrakDokumenLampiran[]
+
+  @@index([template_id], map: "idx_kontrak_dokumens_template")
+  @@index([lead_id], map: "idx_kontrak_dokumens_lead")
+  @@map("kontrak_dokumens")
+}
+
+/// Lampiran per kontrak dokumen — bisa lebih dari satu, masing-masing punya judul + file PDF opsional
+model KontrakDokumenLampiran {
+  id         BigInt         @id @default(autoincrement())
+  dokumen_id BigInt
+  urutan     Int            @default(0)
+  judul      String         @db.VarChar(255)
+  file_url   String?        @db.VarChar(500)
+  created_at DateTime       @default(now()) @db.Timestamptz(6)
+  dokumen    KontrakDokumen @relation(fields: [dokumen_id], references: [id], onDelete: Cascade)
+
+  @@index([dokumen_id], map: "idx_kontrak_dok_lampirans_dokumen")
+  @@map("kontrak_dokumen_lampirans")
 }

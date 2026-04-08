@@ -69,7 +69,7 @@ export default function KanbanPaketDesainPage() {
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Kanban className="text-purple-500" size={24} />
-            Kanban Paket Desain
+            Progress Desain
           </h1>
           <p className="text-muted-foreground text-sm mt-1">
             Progres paket desain per klien — drag &amp; drop untuk update tahap

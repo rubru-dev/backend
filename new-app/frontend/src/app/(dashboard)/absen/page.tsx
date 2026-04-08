@@ -15,7 +15,10 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Camera, CheckCircle, Clock, XCircle, ChevronLeft, Upload, ChevronRight,
   Images, Plus, Trash2, FolderOpen, AlertTriangle, X, Loader2, ImageIcon,
+  Building2, Users, ChevronDown,
 } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 const api = {
   getProjects: () => apiClient.get("/finance/tukang-absen/projects").then((r) => r.data),
@@ -23,6 +26,8 @@ const api = {
   getMyAbsen: (pid: number) => apiClient.get(`/finance/tukang-absen/${pid}/my-absen`).then((r) => r.data),
   submitAbsen: (pid: number, data: { foto: string; tanggal: string }) =>
     apiClient.post(`/finance/tukang-absen/${pid}/submit`, data).then((r) => r.data),
+  getMyBon: (pid: number) => apiClient.get(`/finance/tukang-absen/${pid}/my-bon`).then((r) => r.data),
+  submitBon: (pid: number, data: any) => apiClient.post(`/finance/tukang-absen/${pid}/submit-bon`, data).then((r) => r.data),
   getTermins: (type: string, proyekBerjalanId: string) =>
     apiClient.get(`/pic/projeks/${type}/${proyekBerjalanId}/termins`).then((r) => r.data),
   uploadFotos: (type: string, taskId: string, formData: FormData) =>
@@ -64,7 +69,150 @@ function getPicType(jenis?: string | null) {
   return jenis.toLowerCase() === "interior" ? "interior" : "sipil";
 }
 
+// ── Admin Overview Component ──────────────────────────────────────────────────
+function AdminAbsenOverview() {
+  const [expandedProject, setExpandedProject] = useState<string | null>(null);
+  const [expandedTukang, setExpandedTukang] = useState<string | null>(null);
+  const [viewFoto, setViewFoto] = useState<string | null>(null);
+
+  const { data: allData = [], isLoading } = useQuery({
+    queryKey: ["tukang-absen-admin-all"],
+    queryFn: () => apiClient.get("/finance/tukang-absen/admin/all").then(r => r.data as any[]),
+  });
+
+  const STATUS_COLOR: Record<string, string> = {
+    Disetujui: "bg-green-100 text-green-700",
+    Pending: "bg-blue-100 text-blue-700",
+    Ditolak: "bg-red-100 text-red-700",
+  };
+
+  function fmtTgl(d: string) { return new Date(d).toLocaleDateString("id-ID", { day:"numeric", month:"short", year:"numeric" }); }
+
+  if (isLoading) return <div className="flex items-center justify-center py-20"><Loader2 className="animate-spin h-8 w-8 text-muted-foreground" /></div>;
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Users className="text-orange-500" size={22} /> Absen Tukang — Semua Projek
+        </h1>
+        <p className="text-sm text-muted-foreground">Super Admin view: semua tukang terdaftar di semua projek aktif beserta rincian absennya</p>
+      </div>
+
+      {allData.length === 0 && (
+        <div className="text-center py-16 text-muted-foreground">
+          <Building2 className="mx-auto h-12 w-12 opacity-20 mb-3" />
+          <p>Tidak ada projek aktif dengan tukang terdaftar</p>
+        </div>
+      )}
+
+      {allData.map((proj: any) => (
+        <div key={proj.id} className="border rounded-xl overflow-hidden">
+          <button
+            className="w-full flex items-center justify-between px-4 py-3 bg-slate-50 hover:bg-slate-100 transition"
+            onClick={() => setExpandedProject(expandedProject === proj.id ? null : proj.id)}
+          >
+            <div className="flex items-center gap-3">
+              <Building2 className="h-4 w-4 text-teal-600" />
+              <div className="text-left">
+                <p className="font-semibold text-sm">{proj.nama_proyek}</p>
+                <p className="text-xs text-muted-foreground">{proj.klien} {proj.lokasi ? `· ${proj.lokasi}` : ""}</p>
+              </div>
+              <Badge variant="outline" className="text-xs">{proj.total_tukang} tukang</Badge>
+            </div>
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${expandedProject === proj.id ? "rotate-180" : ""}`} />
+          </button>
+
+          {expandedProject === proj.id && (
+            <div className="divide-y">
+              {proj.tukangs.length === 0 && (
+                <p className="px-4 py-3 text-sm text-muted-foreground">Belum ada tukang terdaftar</p>
+              )}
+              {proj.tukangs.map((t: any) => (
+                <div key={t.id} className="px-4">
+                  <button
+                    className="w-full flex items-center justify-between py-3 hover:opacity-80 transition"
+                    onClick={() => setExpandedTukang(expandedTukang === t.id ? null : t.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-2 h-2 rounded-full ${t.is_active ? "bg-green-500" : "bg-gray-300"}`} />
+                      <div className="text-left">
+                        <p className="font-medium text-sm">{t.nama}</p>
+                        <p className="text-xs text-muted-foreground">{t.jabatan || "—"} · {t.total_absen} hari hadir</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge variant="secondary" className="text-xs">{t.absen.length} catatan absen</Badge>
+                      <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${expandedTukang === t.id ? "rotate-180" : ""}`} />
+                    </div>
+                  </button>
+
+                  {expandedTukang === t.id && (
+                    <div className="pb-3">
+                      {t.absen.length === 0 ? (
+                        <p className="text-sm text-muted-foreground pl-5">Belum ada absen</p>
+                      ) : (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-xs">Tanggal</TableHead>
+                              <TableHead className="text-xs">Status</TableHead>
+                              <TableHead className="text-xs">Catatan</TableHead>
+                              <TableHead className="text-xs w-16">Foto</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {t.absen.map((a: any) => (
+                              <TableRow key={a.id}>
+                                <TableCell className="text-xs py-2">{fmtTgl(a.tanggal)}</TableCell>
+                                <TableCell className="py-2">
+                                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${STATUS_COLOR[a.status] ?? "bg-gray-100 text-gray-600"}`}>{a.status}</span>
+                                </TableCell>
+                                <TableCell className="text-xs text-muted-foreground py-2">{a.catatan || "—"}</TableCell>
+                                <TableCell className="py-2">
+                                  {a.foto && (
+                                    <button onClick={() => setViewFoto(a.foto)} className="text-xs text-blue-600 underline">Lihat</button>
+                                  )}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Foto dialog */}
+      {viewFoto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60" onClick={() => setViewFoto(null)}>
+          <div className="relative max-w-sm w-full mx-4" onClick={e => e.stopPropagation()}>
+            <img src={viewFoto} alt="Foto absen" className="w-full rounded-xl border-4 border-white shadow-xl" />
+            <button onClick={() => setViewFoto(null)} className="absolute -top-3 -right-3 bg-white rounded-full p-1 shadow">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Page Router ───────────────────────────────────────────────────────────────
 export default function AbsenTukangPage() {
+  const { isSuperAdmin, hasPermission } = useAuthStore();
+  if (isSuperAdmin() || hasPermission("finance", "view")) {
+    return <AdminAbsenOverview />;
+  }
+  return <AbsenTukangPageInner />;
+}
+
+function AbsenTukangPageInner() {
   const qc = useQueryClient();
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [openUpload, setOpenUpload] = useState(false);
@@ -72,6 +220,13 @@ export default function AbsenTukangPage() {
   const [viewFoto, setViewFoto] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Bon Material state
+  const [showBonForm, setShowBonForm] = useState(false);
+  const [bonForm, setBonForm] = useState({ tanggal: new Date().toISOString().slice(0, 10), keterangan: "", total_harga: "", catatan: "" });
+  const [bonFoto, setBonFoto] = useState<string | null>(null);
+  const bonFotoRef = useRef<HTMLInputElement>(null);
+  const [viewBonFoto, setViewBonFoto] = useState<string | null>(null);
 
   // Dokumentasi state
   const [dokStep, setDokStep] = useState<"termin" | "task" | "upload">("termin");
@@ -103,6 +258,26 @@ export default function AbsenTukangPage() {
     queryFn: () => api.getMyAbsen(selectedProject!.id),
     enabled: !!selectedProject && !!myTukang,
     retry: false,
+  });
+
+  const { data: myBonData } = useQuery({
+    queryKey: ["my-bon", selectedProject?.id],
+    queryFn: () => api.getMyBon(selectedProject!.id),
+    enabled: !!selectedProject && !!myTukang,
+    retry: false,
+  });
+  const myBons: any[] = Array.isArray(myBonData) ? myBonData : [];
+
+  const submitBonMut = useMutation({
+    mutationFn: (data: any) => api.submitBon(selectedProject!.id, data),
+    onSuccess: () => {
+      toast.success("Bon material berhasil dikirim");
+      qc.invalidateQueries({ queryKey: ["my-bon", selectedProject?.id] });
+      setShowBonForm(false);
+      setBonForm({ tanggal: new Date().toISOString().slice(0, 10), keterangan: "", total_harga: "", catatan: "" });
+      setBonFoto(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal mengirim bon"),
   });
 
   const picType = getPicType(selectedProject?.jenis);
@@ -539,9 +714,103 @@ export default function AbsenTukangPage() {
                   </CardContent>
                 )}
               </Card>
+
+              {/* Bon / Struk Material */}
+              <Card>
+                <CardHeader className="pb-3 pt-4 px-4">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                      <span>🧾</span> Bon / Struk Material
+                    </CardTitle>
+                    <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setShowBonForm((s) => !s)}>
+                      <Plus className="h-3.5 w-3.5 mr-1" /> Tambah
+                    </Button>
+                  </div>
+                </CardHeader>
+                {showBonForm && (
+                  <CardContent className="pt-0 pb-4 space-y-3">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-xs">Tanggal</Label>
+                        <Input type="date" className="h-8 text-xs" value={bonForm.tanggal} onChange={(e) => setBonForm((f) => ({ ...f, tanggal: e.target.value }))} />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-xs">Total Harga (Rp)</Label>
+                        <Input type="number" className="h-8 text-xs" placeholder="0" value={bonForm.total_harga} onChange={(e) => setBonForm((f) => ({ ...f, total_harga: e.target.value }))} />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <Label className="text-xs">Keterangan Material</Label>
+                        <Input className="h-8 text-xs" placeholder="cat tembok, pasir, semen, dll" value={bonForm.keterangan} onChange={(e) => setBonForm((f) => ({ ...f, keterangan: e.target.value }))} />
+                      </div>
+                      <div className="col-span-2 space-y-1">
+                        <Label className="text-xs">Foto Bon/Struk</Label>
+                        <input ref={bonFotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          const reader = new FileReader();
+                          reader.onload = () => setBonFoto(reader.result as string);
+                          reader.readAsDataURL(file);
+                        }} />
+                        {bonFoto ? (
+                          <div className="relative w-28">
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={bonFoto} alt="bon" className="w-28 h-20 object-cover rounded border" />
+                            <button className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5" onClick={() => { setBonFoto(null); if (bonFotoRef.current) bonFotoRef.current.value = ""; }}>
+                              <X className="h-3 w-3" />
+                            </button>
+                          </div>
+                        ) : (
+                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => bonFotoRef.current?.click()}>
+                            <Camera className="h-3.5 w-3.5 mr-1" /> Foto Bon
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" className="h-8 text-xs" disabled={submitBonMut.isPending} onClick={() => submitBonMut.mutate({ tanggal: bonForm.tanggal, keterangan: bonForm.keterangan || undefined, total_harga: parseFloat(bonForm.total_harga) || 0, foto_bon: bonFoto ?? undefined, catatan: bonForm.catatan || undefined })}>
+                        {submitBonMut.isPending ? "Mengirim..." : "Kirim Bon"}
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setShowBonForm(false); setBonFoto(null); }}>Batal</Button>
+                    </div>
+                  </CardContent>
+                )}
+                <CardContent className="pt-0 pb-4">
+                  {myBons.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-3">Belum ada bon material</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {myBons.map((b: any) => (
+                        <div key={b.id} className="flex items-center gap-3 border rounded-lg p-2.5 bg-slate-50">
+                          {b.foto_bon ? (
+                            <button onClick={() => setViewBonFoto(b.foto_bon)}>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={b.foto_bon} alt="bon" className="w-12 h-12 object-cover rounded border flex-shrink-0" />
+                            </button>
+                          ) : (
+                            <div className="w-12 h-12 rounded border bg-white flex items-center justify-center flex-shrink-0 text-slate-300 text-lg">🧾</div>
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium truncate">{b.keterangan ?? "-"}</p>
+                            <p className="text-[10px] text-muted-foreground">{b.tanggal ? new Date(b.tanggal).toLocaleDateString("id-ID") : ""}</p>
+                          </div>
+                          <p className="text-xs font-semibold text-slate-700 flex-shrink-0">Rp {(b.total_harga ?? 0).toLocaleString("id-ID")}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
             </>
           )}
         </>
+      )}
+
+      {/* View Bon Foto */}
+      {viewBonFoto && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setViewBonFoto(null)}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={viewBonFoto} alt="bon" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+        </div>
       )}
 
       {/* Upload Absen Dialog */}
