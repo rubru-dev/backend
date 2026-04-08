@@ -47,6 +47,37 @@ export function SalesKanbanPage() {
   const totalProyeksiClosing = sumProyeksiDedup(closingCol?.cards);
   const totalProyeksiLost = sumProyeksiDedup(lostCol?.cards);
 
+  // ── Closing per bulan (group by created_at) ────────────────────────────────
+  const MONTH_NAMES = [
+    "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
+    "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
+  ];
+  function sumProyeksiByMonth(cards: KanbanColumn["cards"]): { key: string; label: string; total: number; count: number }[] {
+    const buckets = new Map<string, { label: string; total: number; count: number; seen: Set<string> }>();
+    for (const card of cards ?? []) {
+      if (!card.created_at) continue;
+      const d = new Date(card.created_at);
+      if (isNaN(d.getTime())) continue;
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
+      let bucket = buckets.get(key);
+      if (!bucket) { bucket = { label, total: 0, count: 0, seen: new Set() }; buckets.set(key, bucket); }
+      bucket.count += 1;
+      if (card.projeksi_sales == null) continue;
+      const dedupKey = card.lead ? `lead-${card.lead.id}-${card.projeksi_sales}` : `card-${card.id}-${card.projeksi_sales}`;
+      if (bucket.seen.has(dedupKey)) continue;
+      bucket.seen.add(dedupKey);
+      bucket.total += card.projeksi_sales;
+    }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => b.localeCompare(a))
+      .map(([key, b]) => ({ key, label: b.label, total: b.total, count: b.count }));
+  }
+  const closingPerBulan = sumProyeksiByMonth(closingCol?.cards);
+  const now = new Date();
+  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+  const closingBulanIni = closingPerBulan.find((m) => m.key === currentMonthKey);
+
   const colStats = columns.map((col) => ({
     id: col.id,
     title: col.title,
@@ -208,11 +239,25 @@ export function SalesKanbanPage() {
       />
 
       {/* ── Metrics Summary ── */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card>
           <CardContent className="pt-4 pb-3">
             <p className="text-xs text-muted-foreground">Total Proyek Sales (Closing)</p>
             <p className="text-lg font-bold mt-1 text-emerald-600">{formatRupiah(totalProyeksiClosing)}</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">Akumulasi semua bulan</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4 pb-3">
+            <p className="text-xs text-muted-foreground">
+              Closing {MONTH_NAMES[now.getMonth()]} {now.getFullYear()}
+            </p>
+            <p className="text-lg font-bold mt-1 text-emerald-600">
+              {formatRupiah(closingBulanIni?.total ?? 0)}
+            </p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              {closingBulanIni?.count ?? 0} kartu bulan ini
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -222,6 +267,33 @@ export function SalesKanbanPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* ── Closing per bulan breakdown ── */}
+      {closingPerBulan.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="text-xs font-medium text-muted-foreground">Closing per Bulan</p>
+          <div className="flex flex-wrap gap-2">
+            {closingPerBulan.map((m) => (
+              <div
+                key={m.key}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm bg-card ${
+                  m.key === currentMonthKey ? "border-emerald-400 bg-emerald-50" : ""
+                }`}
+                style={{ borderLeftColor: "#10b981", borderLeftWidth: 3 }}
+              >
+                <span className="font-medium text-xs">{m.label}</span>
+                <span className="text-muted-foreground text-xs">{m.count} kartu</span>
+                {m.total > 0 && (
+                  <span className="text-emerald-600 font-semibold text-xs flex items-center gap-1">
+                    <TrendingUp className="h-3 w-3" />
+                    {formatRupiah(m.total)}
+                  </span>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Per-column proyeksi breakdown ── */}
       {colStats.some((c) => c.proyeksi > 0) && (
