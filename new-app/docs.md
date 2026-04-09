@@ -1,11 +1,20 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-04-09 (Permission pic.kalender_visit auto-sync ke matrix admin, Edit Invoice di FE+BE sebelum tanda tangan)
+> Last updated: 2026-04-09 (Permission pic.kalender_visit auto-sync, Edit Invoice sebelum tanda tangan, Reminder WA harian Kalender Visit jam 08:00)
 
 ---
 
 ## 0. Changelog Fitur Terbaru (2026-04-09)
+
+### Task 3: Reminder WhatsApp Kalender Visit (Fontee, harian 08:00)
+- **File baru:** `new-app/backend/src/lib/kalenderVisitReminder.ts`
+  - Cron `0 8 * * *` (node-cron, TZ server = WIB) — query semua `KalenderVisit.tanggal = today`, kirim WA via `sendFonnte` ke setiap PIC (`KalenderVisitPic.user.whatsapp_number`)
+  - Idempotent: pakai `AppSetting` key `kalender_visit_reminder_last_run` (value `{ date: "YYYY-MM-DD" }`) untuk skip kalau sudah jalan hari ini (proteksi dari restart server)
+  - Pesan: "🔔 Reminder Kunjungan Hari Ini" + nama_projek, tanggal (lokal ID), jam (kalau ada), keterangan
+  - Export `sendKalenderVisitReminders(force?)` untuk testing manual via REPL/script
+- **Wire-up:** `new-app/backend/src/index.ts` — import `startKalenderVisitReminder` + call setelah `startMetaAutoRefresh()` di `app.listen` callback
+- **Catatan:** PIC tanpa `whatsapp_number` di-skip; error per-user di-log tapi tidak menghentikan loop (fire-and-forget pattern)
 
 ### Task 1: Permission Kalender Visit dapat dikelola via Admin Roles
 - **File:** `new-app/backend/src/routes/admin.ts` — `GET /admin/permissions` sekarang auto-upsert permission `pic.kalender_visit` (via array `ENSURED_PERMISSIONS`) sehingga muncul di matrix tanpa perlu re-run seeder
