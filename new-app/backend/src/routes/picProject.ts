@@ -329,8 +329,10 @@ router.get("/kalender-visit/my-schedule", async (req: Request, res: Response) =>
   const { bulan, tahun } = req.query;
   const where: any = { user_id: userId };
   if (bulan && tahun) {
-    const start = new Date(Number(tahun), Number(bulan) - 1, 1);
-    const end   = new Date(Number(tahun), Number(bulan), 1);
+    // Pakai UTC supaya cocok dengan Prisma @db.Date (yang menormalisasi tanggal sebagai UTC).
+    // Bila pakai local time (WIB), end date jadi mundur 1 hari → hari terakhir bulan ke-skip.
+    const start = new Date(Date.UTC(Number(tahun), Number(bulan) - 1, 1));
+    const end   = new Date(Date.UTC(Number(tahun), Number(bulan), 1));
     where.kalender_visit = { tanggal: { gte: start, lt: end } };
   }
   const items = await prisma.kalenderVisitPic.findMany({
@@ -350,8 +352,9 @@ router.get("/kalender-visit", async (req: Request, res: Response) => {
   const { bulan, tahun } = req.query;
   const where: any = {};
   if (bulan && tahun) {
-    const start = new Date(Number(tahun), Number(bulan) - 1, 1);
-    const end   = new Date(Number(tahun), Number(bulan), 1);
+    // Pakai UTC supaya cocok dengan Prisma @db.Date (lihat my-schedule untuk penjelasan).
+    const start = new Date(Date.UTC(Number(tahun), Number(bulan) - 1, 1));
+    const end   = new Date(Date.UTC(Number(tahun), Number(bulan), 1));
     where.tanggal = { gte: start, lt: end };
   }
   const items = await prisma.kalenderVisit.findMany({
