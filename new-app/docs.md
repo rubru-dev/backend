@@ -1,7 +1,27 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-04-03 (Rename Kanban Paket Desain→Progress Desain, pindah menu Projek Desain→Desain, hapus menu Absen, pindah KalenderVisit+Dokumentasi→Projek, hapus tab Pembayaran client portal, Tukang login redirect ke /absen, hapus tab Kehadiran Tukang di rubahrumah, fix portofolio filter+artikel typography)
+> Last updated: 2026-04-09 (Permission pic.kalender_visit auto-sync ke matrix admin, Edit Invoice di FE+BE sebelum tanda tangan)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-04-09)
+
+### Task 1: Permission Kalender Visit dapat dikelola via Admin Roles
+- **File:** `new-app/backend/src/routes/admin.ts` — `GET /admin/permissions` sekarang auto-upsert permission `pic.kalender_visit` (via array `ENSURED_PERMISSIONS`) sehingga muncul di matrix tanpa perlu re-run seeder
+- Sidebar item "Kalender Visit" (`/pic/kalender-visit`) sudah pakai `permission: "pic.kalender_visit"` — sekarang Super Admin bisa assign permission ini ke role manapun via `/admin/roles`
+- Untuk menambah permission "ensured" baru: append entry ke array `ENSURED_PERMISSIONS` di `admin.ts`
+
+### Task 2: Edit Invoice sebelum Tanda Tangan
+- **Backend `finance.ts` PATCH `/invoices/:id`:**
+  - Tambah guard: tolak jika `head_finance_id` ATAU `admin_finance_id` sudah terisi → "Invoice yang sudah ditandatangani tidak bisa diubah"
+  - Sekarang menerima full payload: `nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, items[]`
+  - Bila `items` dikirim → hapus semua `InvoiceItem` lama dan re-create, recalc `subtotal`/`ppn_amount`/`grand_total`
+- **Frontend `finance/invoice-kwitansi/page.tsx`:**
+  - Tambah state `editId`, mutation `updateMut`, API `api.update`
+  - Tombol Edit (icon Pencil) muncul di kolom aksi hanya saat `inv.status === "Draft" && !inv.head_finance && !inv.admin_finance`
+  - Klik Edit → reuse dialog "Buat Invoice" dengan title "Edit Invoice", form pre-filled dari row, tombol berubah jadi "Simpan Perubahan"
+  - Dialog reset state (`editId`, `form`, `leadSearch`) saat ditutup atau batal
 
 ---
 
@@ -477,6 +497,7 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 
 **Workflow:** `draft → (sign-head + sign-admin) → Terbit → (mark-paid) → Lunas`
 **Delete rules:** Non-Lunas: semua role dengan `finance.delete`. Lunas: **hanya Super Admin** (cascade hapus kwitansi + items).
+**Edit rules:** Hanya bisa diedit saat `status = draft` DAN belum ada `head_finance_id`/`admin_finance_id`. PATCH menerima full payload (items array → replace semua item, recalc subtotal/ppn/grand_total).
 
 #### Bank Accounts (`/bank-accounts`)
 | Method | Path | Keterangan |

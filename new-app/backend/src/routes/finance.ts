@@ -869,19 +869,45 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   const inv = await prisma.invoice.findUnique({ where: { id } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
   if (inv.status !== "draft") return res.status(400).json({ detail: "Hanya invoice Draft yang bisa diubah" });
-  const { nomor_invoice, lead_id, tanggal, catatan, ppn_percentage } = req.body;
+  if (inv.head_finance_id || inv.admin_finance_id) {
+    return res.status(400).json({ detail: "Invoice yang sudah ditandatangani tidak bisa diubah" });
+  }
+  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, items } = req.body;
   const updates: Record<string, unknown> = {};
   if (nomor_invoice !== undefined) updates.invoice_number = nomor_invoice;
-  if (lead_id !== undefined) updates.lead_id = BigInt(lead_id);
+  if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
   if (tanggal !== undefined) updates.tanggal = new Date(tanggal);
+  if (overdue_date !== undefined) updates.overdue_date = overdue_date ? new Date(overdue_date) : null;
   if (catatan !== undefined) updates.catatan = catatan;
-  if (ppn_percentage !== undefined) {
-    const pct = parseFloat(String(ppn_percentage));
-    const sub = parseFloat(String(inv.subtotal));
+  if (bank_account_id !== undefined) updates.bank_account_id = bank_account_id ? BigInt(bank_account_id) : null;
+
+  // Recalculate subtotal/ppn/grand_total bila items atau ppn_percentage berubah
+  let newSubtotal: number | null = null;
+  if (Array.isArray(items)) {
+    newSubtotal = 0;
+    const itemsData = (items as Array<{ keterangan?: string; jumlah?: number; harga_satuan?: number }>).map((item) => {
+      const qty = item.jumlah ?? 1;
+      const price = item.harga_satuan ?? 0;
+      const sub = qty * price;
+      newSubtotal! += sub;
+      return { description: item.keterangan ?? null, quantity: qty, unit_price: price, subtotal: sub };
+    });
+    // Replace seluruh items
+    await prisma.invoiceItem.deleteMany({ where: { invoice_id: id } });
+    if (itemsData.length > 0) {
+      await prisma.invoiceItem.createMany({ data: itemsData.map((d) => ({ ...d, invoice_id: id })) });
+    }
+    updates.subtotal = newSubtotal;
+  }
+
+  if (ppn_percentage !== undefined || newSubtotal !== null) {
+    const pct = ppn_percentage !== undefined ? parseFloat(String(ppn_percentage)) : parseFloat(String(inv.ppn_percentage ?? 0));
+    const sub = newSubtotal !== null ? newSubtotal : parseFloat(String(inv.subtotal ?? 0));
     updates.ppn_percentage = pct;
     updates.ppn_amount = sub * pct / 100;
     updates.grand_total = sub + (sub * pct / 100);
   }
+
   await prisma.invoice.update({ where: { id }, data: updates });
   return res.json({ message: "Invoice diupdate" });
 });

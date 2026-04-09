@@ -208,8 +208,21 @@ router.put("/roles/:id/permissions", requireRole("Super Admin"), async (req: Req
   return res.json({ message: "Permission berhasil diperbarui" });
 });
 
+// Permission yang harus selalu ada (auto-sync tanpa perlu re-run seeder)
+const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }> = [
+  { name: "pic.kalender_visit", module: "pic", label: "Sub-menu: Kalender Visit PIC" },
+];
+
 // GET /permissions — list all, grouped by module
 router.get("/permissions", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  // Auto-upsert permission yang dideklarasikan tapi mungkin belum ada di DB
+  for (const p of ENSURED_PERMISSIONS) {
+    await prisma.permission.upsert({
+      where: { name: p.name },
+      update: { module: p.module, label: p.label },
+      create: p,
+    });
+  }
   const permissions = await prisma.permission.findMany({
     orderBy: [{ module: "asc" }, { name: "asc" }],
   });

@@ -31,6 +31,7 @@ const api = {
     apiClient.get("/finance/leads-dropdown", { params: search ? { search } : {} }).then(r => r.data),
   list: (params?: any) => apiClient.get("/finance/invoices", { params }).then(r => r.data),
   create: (data: any) => apiClient.post("/finance/invoices", data).then(r => r.data),
+  update: (id: number, data: any) => apiClient.patch(`/finance/invoices/${id}`, data).then(r => r.data),
   delete: (id: number) => apiClient.delete(`/finance/invoices/${id}`).then(r => r.data),
   signHead: (id: number, signature_data: string) =>
     apiClient.post(`/finance/invoices/${id}/sign-head`, { signature_data }).then(r => r.data),
@@ -253,6 +254,7 @@ export default function InvoiceKwitansiPage() {
 
   // Form state
   const [open, setOpen] = useState(false);
+  const [editId, setEditId] = useState<number | null>(null);
   const [form, setForm] = useState<any>(EMPTY_FORM);
   const [leadSearch, setLeadSearch] = useState("");
   const [showLeadDropdown, setShowLeadDropdown] = useState(false);
@@ -323,9 +325,22 @@ export default function InvoiceKwitansiPage() {
       toast.success("Invoice berhasil dibuat");
       qc.invalidateQueries({ queryKey: ["invoices"] });
       setOpen(false);
+      setEditId(null);
       setForm(EMPTY_FORM);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal membuat invoice"),
+  });
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) => api.update(id, data),
+    onSuccess: () => {
+      toast.success("Invoice berhasil diperbarui");
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setOpen(false);
+      setEditId(null);
+      setForm(EMPTY_FORM);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui invoice"),
   });
 
   const signMut = useMutation({
@@ -635,6 +650,33 @@ export default function InvoiceKwitansiPage() {
                                     <Download className="h-3 w-3 mr-1" /> PDF Invoice
                                   </Button>
                                 )}
+                                {inv.status === "Draft" && !inv.head_finance && !inv.admin_finance && (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs"
+                                    onClick={() => {
+                                      setEditId(inv.id);
+                                      setForm({
+                                        lead_id: inv.lead?.id ? String(inv.lead.id) : "",
+                                        nomor_invoice: inv.nomor_invoice || "",
+                                        tanggal: inv.tanggal ? new Date(inv.tanggal).toISOString().split("T")[0] : today,
+                                        ppn_percentage: inv.ppn_percentage || 0,
+                                        catatan: inv.catatan || "",
+                                        items: (inv.items || []).length > 0
+                                          ? inv.items.map((it: any) => ({
+                                              keterangan: it.keterangan || "",
+                                              jumlah: Number(it.jumlah) || 1,
+                                              harga_satuan: Number(it.harga_satuan) || 0,
+                                            }))
+                                          : [{ keterangan: "", jumlah: 1, harga_satuan: 0 }],
+                                        bank_account_id: inv.bank_account?.id ? String(inv.bank_account.id) : "",
+                                        overdue_date: inv.overdue_date ? new Date(inv.overdue_date).toISOString().split("T")[0] : "",
+                                        _nomorManual: true,
+                                      });
+                                      setLeadSearch(inv.lead?.nama || "");
+                                      setOpen(true);
+                                    }}>
+                                    <Pencil className="h-3 w-3 mr-1" /> Edit
+                                  </Button>
+                                )}
                                 {canDelete && (inv.status !== "Lunas" || isSuperAdmin()) && (
                                   <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
                                     onClick={() => setConfirmDeleteId(inv.id)}>
@@ -748,12 +790,12 @@ export default function InvoiceKwitansiPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Create Invoice Dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      {/* Create / Edit Invoice Dialog */}
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm(EMPTY_FORM); setLeadSearch(""); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" /> Buat Invoice Baru
+              <FileText className="h-5 w-5" /> {editId ? "Edit Invoice" : "Buat Invoice Baru"}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -848,21 +890,27 @@ export default function InvoiceKwitansiPage() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
+              <Button variant="outline" onClick={() => { setOpen(false); setEditId(null); setForm(EMPTY_FORM); setLeadSearch(""); }}>Batal</Button>
               <Button
-                disabled={!form.lead_id || !form.nomor_invoice || createMut.isPending}
-                onClick={() => createMut.mutate({
-                  lead_id: form.lead_id,
-                  nomor_invoice: form.nomor_invoice,
-                  tanggal: form.tanggal,
-                  overdue_date: form.overdue_date || undefined,
-                  ppn_percentage: form.ppn_percentage,
-                  bank_account_id: form.bank_account_id || undefined,
-                  catatan: form.catatan,
-                  items: form.items,
-                })}
+                disabled={!form.lead_id || !form.nomor_invoice || createMut.isPending || updateMut.isPending}
+                onClick={() => {
+                  const payload = {
+                    lead_id: form.lead_id,
+                    nomor_invoice: form.nomor_invoice,
+                    tanggal: form.tanggal,
+                    overdue_date: form.overdue_date || undefined,
+                    ppn_percentage: form.ppn_percentage,
+                    bank_account_id: form.bank_account_id || undefined,
+                    catatan: form.catatan,
+                    items: form.items,
+                  };
+                  if (editId) updateMut.mutate({ id: editId, data: payload });
+                  else createMut.mutate(payload);
+                }}
               >
-                {createMut.isPending ? "Menyimpan..." : "Buat Invoice"}
+                {(createMut.isPending || updateMut.isPending)
+                  ? "Menyimpan..."
+                  : editId ? "Simpan Perubahan" : "Buat Invoice"}
               </Button>
             </div>
           </div>
