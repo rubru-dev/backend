@@ -440,11 +440,19 @@ menunggu → dikonfirmasi → berjalan → selesai
 - **Quick Links:** Tombol navigasi cepat ke halaman manajemen
 
 #### FR-09: Manajemen Kendaraan
-- **List:** Tabel semua kendaraan (nama, kategori, plat, harga, stok, status, aksi)
+- **List:** Tabel semua kendaraan (gambar thumbnail, nama, kategori, plat, harga, stok, status, aksi)
 - **Tambah:** Form input kendaraan baru (nama, kategori, plat, harga/hari, stok, status, deskripsi, upload gambar)
-- **Edit:** Inline edit pada halaman yang sama, form pre-filled dengan data existing
+- **Edit:** Inline edit pada halaman yang sama, form pre-filled dengan data existing + preview gambar saat ini
 - **Hapus:** Konfirmasi modal sebelum delete
-- **Upload Gambar:** File upload ke `/backend/uploads/`, simpan nama file di kolom `gambar`
+- **Upload Gambar:**
+  - File upload ke `/backend/uploads/`, simpan nama file di kolom `gambar`
+  - Form menggunakan `enctype="multipart/form-data"`
+  - Validasi tipe file: JPG, PNG, WebP, GIF
+  - Validasi ukuran: maksimal 2MB
+  - Nama file unik: `kendaraan_{timestamp}_{random}.{ext}`
+  - Saat edit: upload gambar baru otomatis menghapus gambar lama dari server
+  - Saat edit: gambar bersifat opsional (tidak wajib upload ulang)
+  - Tabel menampilkan thumbnail 50x50px per kendaraan, fallback icon jika belum ada gambar
 
 #### FR-10: Manajemen Kategori
 - **List:** Tabel kategori dengan jumlah kendaraan per kategori
@@ -929,4 +937,4 @@ RNT-20260323-001  → Booking pertama tanggal 23 Maret 2026
 ---
 
 *Dokumen ini dibuat berdasarkan analisis kode sumber proyek Web Lanjutan - RentalKu.*
-*Terakhir diperbarui: 22 Maret 2026*
+*Terakhir diperbarui: 10 April 2026*

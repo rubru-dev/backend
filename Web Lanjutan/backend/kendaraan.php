@@ -30,18 +30,55 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $status       = $_POST['status'];
     $id           = (int)$_POST['id']; // 0 = tambah baru, > 0 = edit
 
-    if ($id > 0) {
-        // UPDATE data yang sudah ada
-        $conn->query("UPDATE kendaraan SET
-            nama='$nama', kategori_id=$kategori_id, plat='$plat',
-            harga_per_hari=$harga, stok=$stok, deskripsi='$deskripsi', status='$status'
-            WHERE id=$id");
-        $pesan = 'Kendaraan berhasil diupdate!';
-    } else {
-        // INSERT data baru
-        $conn->query("INSERT INTO kendaraan (nama, kategori_id, plat, harga_per_hari, stok, deskripsi, status)
-            VALUES ('$nama', $kategori_id, '$plat', $harga, $stok, '$deskripsi', '$status')");
-        $pesan = 'Kendaraan berhasil ditambahkan!';
+    // ---- Handle upload gambar ----
+    $namaGambar = null;
+    if (isset($_FILES['gambar']) && $_FILES['gambar']['error'] === UPLOAD_ERR_OK) {
+        $allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+        $maxSize = 2 * 1024 * 1024; // 2MB
+
+        if (!in_array($_FILES['gambar']['type'], $allowedTypes)) {
+            $pesan = 'Format gambar tidak valid! Gunakan JPG, PNG, WebP, atau GIF.';
+        } elseif ($_FILES['gambar']['size'] > $maxSize) {
+            $pesan = 'Ukuran gambar maksimal 2MB!';
+        } else {
+            $ext = pathinfo($_FILES['gambar']['name'], PATHINFO_EXTENSION);
+            $namaGambar = 'kendaraan_' . time() . '_' . rand(100, 999) . '.' . $ext;
+            $uploadPath = __DIR__ . '/uploads/' . $namaGambar;
+
+            if (!move_uploaded_file($_FILES['gambar']['tmp_name'], $uploadPath)) {
+                $pesan = 'Gagal mengupload gambar!';
+                $namaGambar = null;
+            }
+        }
+    }
+
+    // Lanjut simpan kalau tidak ada error upload
+    if (!$pesan) {
+        if ($id > 0) {
+            // UPDATE data yang sudah ada
+            $sql = "UPDATE kendaraan SET
+                nama='$nama', kategori_id=$kategori_id, plat='$plat',
+                harga_per_hari=$harga, stok=$stok, deskripsi='$deskripsi', status='$status'";
+
+            if ($namaGambar) {
+                // Hapus gambar lama jika ada
+                $old = $conn->query("SELECT gambar FROM kendaraan WHERE id=$id")->fetch_assoc();
+                if ($old['gambar'] && file_exists(__DIR__ . '/uploads/' . $old['gambar'])) {
+                    unlink(__DIR__ . '/uploads/' . $old['gambar']);
+                }
+                $sql .= ", gambar='$namaGambar'";
+            }
+
+            $sql .= " WHERE id=$id";
+            $conn->query($sql);
+            $pesan = 'Kendaraan berhasil diupdate!';
+        } else {
+            // INSERT data baru
+            $gambarValue = $namaGambar ? "'$namaGambar'" : 'NULL';
+            $conn->query("INSERT INTO kendaraan (nama, kategori_id, plat, harga_per_hari, stok, deskripsi, status, gambar)
+                VALUES ('$nama', $kategori_id, '$plat', $harga, $stok, '$deskripsi', '$status', $gambarValue)");
+            $pesan = 'Kendaraan berhasil ditambahkan!';
+        }
     }
 }
 
@@ -83,7 +120,7 @@ if (isset($_GET['aksi']) && $_GET['aksi'] == 'edit' && isset($_GET['id'])) {
             <div class="col-md-4">
                 <div class="card page-card p-4">
                     <h6 class="fw-bold mb-3"><?= $editData ? 'Edit Kendaraan' : 'Tambah Kendaraan' ?></h6>
-                    <form method="POST">
+                    <form method="POST" enctype="multipart/form-data">
                         <!-- ID hidden: 0 = tambah baru, > 0 = edit -->
                         <input type="hidden" name="id" value="<?= $editData['id'] ?? 0 ?>">
 
@@ -142,6 +179,19 @@ if (isset($_GET['aksi']) && $_GET['aksi'] == 'edit' && isset($_GET['id'])) {
                             <textarea name="deskripsi" class="form-control form-control-sm" rows="3"><?= htmlspecialchars($editData['deskripsi'] ?? '') ?></textarea>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="form-label small fw-semibold">Gambar Kendaraan</label>
+                            <?php if ($editData && $editData['gambar']): ?>
+                            <div class="mb-2">
+                                <img src="uploads/<?= htmlspecialchars($editData['gambar']) ?>" alt="Gambar saat ini"
+                                     class="img-thumbnail" style="max-height:120px;">
+                                <small class="d-block text-muted mt-1">Gambar saat ini. Upload baru untuk mengganti.</small>
+                            </div>
+                            <?php endif; ?>
+                            <input type="file" name="gambar" class="form-control form-control-sm" accept="image/*">
+                            <small class="text-muted">Maks 2MB. Format: JPG, PNG, WebP, GIF</small>
+                        </div>
+
                         <div class="d-flex gap-2">
                             <button type="submit" class="btn btn-sm text-white" style="background:#f0a500;">
                                 <?= $editData ? 'Update' : 'Simpan' ?>
@@ -164,6 +214,7 @@ if (isset($_GET['aksi']) && $_GET['aksi'] == 'edit' && isset($_GET['id'])) {
                         <table class="table table-hover mb-0">
                             <thead>
                                 <tr>
+                                    <th>Gambar</th>
                                     <th>Nama</th>
                                     <th>Kategori</th>
                                     <th>Plat</th>
@@ -176,6 +227,13 @@ if (isset($_GET['aksi']) && $_GET['aksi'] == 'edit' && isset($_GET['id'])) {
                             <tbody>
                                 <?php while ($row = $kendaraanList->fetch_assoc()): ?>
                                 <tr>
+                                    <td>
+                                        <?php if ($row['gambar'] && file_exists(__DIR__ . '/uploads/' . $row['gambar'])): ?>
+                                        <img src="uploads/<?= htmlspecialchars($row['gambar']) ?>" alt="" style="width:50px;height:50px;object-fit:cover;border-radius:4px;">
+                                        <?php else: ?>
+                                        <span class="text-muted"><i class="bi bi-image"></i></span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="fw-semibold"><?= htmlspecialchars($row['nama']) ?></td>
                                     <td><?= $row['nama_kategori'] ?></td>
                                     <td><code><?= $row['plat'] ?></code></td>
