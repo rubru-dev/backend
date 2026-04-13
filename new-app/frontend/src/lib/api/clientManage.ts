@@ -37,6 +37,12 @@ export const clientApi = {
     apiClient.patch(`/client/projects/${pid}/aktivitas/${aid}`, data, { headers: data instanceof FormData ? { "Content-Type": "multipart/form-data" } : {} }).then((r) => r.data),
   deleteAktivitas: (pid: number, aid: number) => apiClient.delete(`/client/projects/${pid}/aktivitas/${aid}`).then((r) => r.data),
 
+  // ── Aktivitas Projek (live dari ProyekBerjalan/Interior) ─────────────────
+  listAktivitasProjek: (pid: number) =>
+    apiClient.get(`/client/projects/${pid}/aktivitas-projek`).then((r) => r.data),
+  updateAktivitasProjek: (pid: number, type: "sipil" | "interior", taskId: number, data: any) =>
+    apiClient.patch(`/client/projects/${pid}/aktivitas-projek/${type}/${taskId}`, data).then((r) => r.data),
+
   // ── Gantt ─────────────────────────────────────────────────────────────────
   listGantt: (pid: number) => apiClient.get(`/client/projects/${pid}/gantt`).then((r) => r.data),
   createGantt: (pid: number, data: any) => apiClient.post(`/client/projects/${pid}/gantt`, data).then((r) => r.data),

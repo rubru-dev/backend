@@ -2276,7 +2276,7 @@ function UploadDokumenTab({ proyekId }: { proyekId: number }) {
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Kategori</Label>
                 <select className="w-full border rounded-md px-3 py-2 text-sm" value={form.kategori} onChange={(e) => setForm({ ...form, kategori: e.target.value })}>
-                  <option>Nota</option><option>Bukti Transfer</option><option>Kontrak</option><option>RAPP</option><option>Time Schedule</option>
+                  <option>Nota</option><option>Bukti Transfer</option><option>Kontrak</option><option>RAPP</option><option>Time Schedule</option><option>PR</option>
                 </select></div>
               <div><Label>Tanggal Upload</Label>
                 <Input type="date" value={form.tanggal_upload} onChange={(e) => setForm({ ...form, tanggal_upload: e.target.value })} /></div>
@@ -3511,10 +3511,10 @@ export default function AdministrasiProjekPage() {
         <Tabs defaultValue="cashflow">
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="cashflow" className="flex items-center gap-1 text-xs">
-              <TrendingUp className="h-3.5 w-3.5" /> Cashflow Project
+              <TrendingUp className="h-3.5 w-3.5" /> PR
             </TabsTrigger>
             <TabsTrigger value="pr" className="flex items-center gap-1 text-xs">
-              <ClipboardList className="h-3.5 w-3.5" /> PR
+              <ClipboardList className="h-3.5 w-3.5" /> Cashflow Projek
             </TabsTrigger>
             <TabsTrigger value="dokumen" className="flex items-center gap-1 text-xs">
               <Upload className="h-3.5 w-3.5" /> Upload Dokumen

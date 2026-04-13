@@ -440,4 +440,121 @@ router.get("/kontak", async (req: Request, res: Response) => {
   }]);
 });
 
+// ── GET /aktivitas-projek ─────────────────────────────────────────────────────
+// Baca live dari ProyekBerjalan/ProyekInterior berdasarkan lead_id klien.
+// Deadline yang ditampilkan = tanggal_selesai asli + 4 hari (buffer untuk klien).
+const DEADLINE_BUFFER_DAYS = 4;
+function addDays(date: Date | null | undefined, n: number): Date | null {
+  if (!date) return null;
+  const d = new Date(date);
+  d.setDate(d.getDate() + n);
+  return d;
+}
+
+router.get("/aktivitas-projek", async (req: Request, res: Response) => {
+  const projectId = req.clientPortal!.projectId;
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
+  if (!project?.lead_id) return res.json([]);
+
+  const leadId = project.lead_id;
+
+  const [sipilProyeks, interiorProyeks] = await Promise.all([
+    prisma.proyekBerjalan.findMany({
+      where: { lead_id: leadId },
+      include: {
+        termins: {
+          orderBy: { urutan: "asc" },
+          include: { tasks: { orderBy: { created_at: "asc" } } },
+        },
+      },
+    }),
+    prisma.proyekInterior.findMany({
+      where: { lead_id: leadId },
+      include: {
+        termins: {
+          orderBy: { urutan: "asc" },
+          include: { tasks: { orderBy: { created_at: "asc" } } },
+        },
+      },
+    }),
+  ]);
+
+  const result: any[] = [];
+
+  for (const p of sipilProyeks) {
+    for (const t of p.termins) {
+      for (const task of t.tasks) {
+        result.push({
+          id: `sipil_${task.id}`,
+          type: "sipil",
+          task_id: Number(task.id),
+          proyek_nama: p.nama_proyek,
+          termin_nama: t.nama,
+          judul: task.nama_pekerjaan,
+          tanggal_mulai: task.tanggal_mulai,
+          tanggal_selesai: addDays(task.tanggal_selesai, DEADLINE_BUFFER_DAYS),
+          status: task.status,
+        });
+      }
+    }
+  }
+
+  for (const p of interiorProyeks) {
+    for (const t of p.termins) {
+      for (const task of t.tasks) {
+        result.push({
+          id: `interior_${task.id}`,
+          type: "interior",
+          task_id: Number(task.id),
+          proyek_nama: p.nama_proyek,
+          termin_nama: t.nama,
+          judul: task.nama_pekerjaan,
+          tanggal_mulai: task.tanggal_mulai,
+          tanggal_selesai: addDays(task.tanggal_selesai, DEADLINE_BUFFER_DAYS),
+          status: task.status,
+        });
+      }
+    }
+  }
+
+  // Sort: belum selesai dulu, lalu urut deadline
+  result.sort((a, b) => {
+    const done = (s: string) => s === "Selesai";
+    if (done(a.status) !== done(b.status)) return done(a.status) ? 1 : -1;
+    if (!a.tanggal_selesai) return 1;
+    if (!b.tanggal_selesai) return -1;
+    return new Date(a.tanggal_selesai).getTime() - new Date(b.tanggal_selesai).getTime();
+  });
+
+  return res.json(result);
+});
+
+// ── PATCH /aktivitas-projek/:type/:taskId ─────────────────────────────────────
+// Update status/tanggal task di ProyekBerjalanTask atau ProyekInteriorTask.
+// Perubahan langsung masuk ke tabel projek sipil/interior (data live).
+router.patch("/aktivitas-projek/:type/:taskId", async (req: Request, res: Response) => {
+  const { type, taskId } = req.params;
+  const { status, tanggal_mulai, tanggal_selesai } = req.body;
+
+  const id = BigInt(taskId);
+  const data: Record<string, unknown> = {};
+  if (status !== undefined) data.status = status;
+  if (tanggal_mulai !== undefined) data.tanggal_mulai = tanggal_mulai ? new Date(tanggal_mulai) : null;
+  if (tanggal_selesai !== undefined) data.tanggal_selesai = tanggal_selesai ? new Date(tanggal_selesai) : null;
+
+  if (Object.keys(data).length === 0) {
+    res.status(400).json({ detail: "Tidak ada field yang diubah" }); return;
+  }
+
+  if (type === "sipil") {
+    await prisma.proyekBerjalanTask.update({ where: { id }, data });
+  } else if (type === "interior") {
+    await prisma.proyekInteriorTask.update({ where: { id }, data });
+  } else {
+    res.status(400).json({ detail: "Type harus sipil atau interior" }); return;
+  }
+
+  return res.json({ ok: true });
+});
+
 export default router;

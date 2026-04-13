@@ -1,5 +1,7 @@
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000") + "/api/v1/client-portal";
-export const STORAGE_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Images are proxied via Next.js rewrite /storage/* → backend/storage/*
+// so no absolute URL prefix is needed.
+export const STORAGE_BASE = "";
 
 // ── Token management ──────────────────────────────────────────────────────────
 export function getToken(): string | null {
@@ -78,6 +80,10 @@ export const portalApi = {
     const qs = p.toString();
     return apiFetch(`/aktivitas${qs ? `?${qs}` : ""}`);
   },
+
+  // Live data dari ProyekBerjalan/ProyekInterior (sipil/interior) berdasarkan lead klien
+  // Portal client hanya bisa lihat, edit ada di dashboard admin (menu Client)
+  aktivitasProjek: () => apiFetch("/aktivitas-projek"),
 
   kehadiran: (tanggal_mulai?: string, tanggal_selesai?: string) => {
     const p = new URLSearchParams();

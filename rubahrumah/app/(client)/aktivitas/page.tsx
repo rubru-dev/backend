@@ -1,12 +1,14 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { portalApi } from "@/lib/apiClient";
 
-interface AktivitasItem {
-  id: number;
-  judul: string;
-  deskripsi: string | null;
-  tanggal: string | null;
+interface TaskItem {
+  id: string;
+  type: "sipil" | "interior";
+  task_id: number;
+  proyek_nama: string | null;
+  termin_nama: string | null;
+  judul: string | null;
   tanggal_mulai: string | null;
   tanggal_selesai: string | null;
   status: string;
@@ -20,79 +22,89 @@ function fmtDate(d?: string | null) {
 function fmtMonth(d: Date) {
   return d.toLocaleDateString("id-ID", { month: "short", year: "numeric" });
 }
-function startOfMonth(d: Date) { return new Date(d.getFullYear(), d.getMonth(), 1); }
-function addMonths(d: Date, n: number) { return new Date(d.getFullYear(), d.getMonth() + n, 1); }
 function addDays(d: Date, n: number) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + n); }
 function startOfDay(d: Date) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 
 const statusBg: Record<string, string> = {
   Selesai: "bg-green-50 text-green-600",
   "Dalam Proses": "bg-yellow-50 text-yellow-600",
+  "Belum Mulai": "bg-slate-50 text-slate-500",
   Tertunda: "bg-red-50 text-red-500",
 };
 const statusClass: Record<string, string> = {
   Selesai: "text-green-500",
   "Dalam Proses": "text-yellow-500",
+  "Belum Mulai": "text-slate-400",
   Tertunda: "text-red-500",
 };
 const GANTT_COLOR: Record<string, string> = {
   Selesai: "bg-green-500",
   "Dalam Proses": "bg-yellow-400",
   Tertunda: "bg-red-500",
+  "Belum Mulai": "bg-slate-400",
 };
-const DAY_W = 32; // px per hari
+const DAY_W = 32;
 
 type Tab = "riwayat" | "gantt";
+
+function groupByTermin(items: TaskItem[]) {
+  const map = new Map<string, TaskItem[]>();
+  for (const item of items) {
+    const key = item.termin_nama ?? "(Tanpa Termin)";
+    if (!map.has(key)) map.set(key, []);
+    map.get(key)!.push(item);
+  }
+  return Array.from(map.entries()).map(([termin, tasks]) => ({ termin, tasks }));
+}
 
 export default function AktivitasPage() {
   const [activeTab, setActiveTab] = useState<Tab>("riwayat");
   const [project, setProject] = useState<Record<string, unknown> | null>(null);
-  const [aktivitas, setAktivitas] = useState<AktivitasItem[]>([]);
+  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
-  const [loadingA, setLoadingA] = useState(true);
-  const [selectedTask, setSelectedTask] = useState<AktivitasItem | null>(null);
+  const [selectedTask, setSelectedTask] = useState<TaskItem | null>(null);
 
-  useEffect(() => {
-    setLoadingA(true);
-    Promise.all([portalApi.me(), portalApi.aktivitas()])
-      .then(([p, a]) => { setProject(p); setAktivitas(a); })
+  const loadData = useCallback(() => {
+    setLoading(true);
+    Promise.all([portalApi.me(), portalApi.aktivitasProjek()])
+      .then(([p, t]) => { setProject(p); setTasks(t); })
       .catch(console.error)
-      .finally(() => setLoadingA(false));
+      .finally(() => setLoading(false));
   }, []);
 
-  function handleSearch() {
-    setLoadingA(true);
-    portalApi.aktivitas(search || undefined)
-      .then(setAktivitas)
-      .catch(console.error)
-      .finally(() => setLoadingA(false));
-  }
+  useEffect(() => { loadData(); }, [loadData]);
 
-  // ── Gantt chart helpers ──────────────────────────────────────────────────────
-  const ganttItems = aktivitas.filter(
-    (a) => (a.tanggal_mulai || a.tanggal) && (a.tanggal_selesai || a.tanggal)
-  );
+  const filtered = search
+    ? tasks.filter(
+        (t) =>
+          (t.judul ?? "").toLowerCase().includes(search.toLowerCase()) ||
+          (t.termin_nama ?? "").toLowerCase().includes(search.toLowerCase())
+      )
+    : tasks;
 
-  // Build day array
+  const groups = groupByTermin(filtered);
+
+  // ── Gantt helpers ────────────────────────────────────────────────────────────
+  const ganttItems = filtered.filter((a) => a.tanggal_mulai || a.tanggal_selesai);
   const days: Date[] = [];
   let ganttRangeStart = startOfDay(new Date());
   let ganttRangeEnd = startOfDay(addDays(new Date(), 29));
 
   if (ganttItems.length > 0) {
-    const starts = ganttItems.map((a) => startOfDay(new Date(a.tanggal_mulai || a.tanggal!)));
-    const ends = ganttItems.map((a) => startOfDay(new Date(a.tanggal_selesai || a.tanggal!)));
+    const starts = ganttItems.map((a) => startOfDay(new Date(a.tanggal_mulai || a.tanggal_selesai!)));
+    const ends = ganttItems.map((a) => startOfDay(new Date(a.tanggal_selesai || a.tanggal_mulai!)));
     ganttRangeStart = new Date(Math.min(...starts.map((d) => d.getTime())));
     ganttRangeEnd = new Date(Math.max(...ends.map((d) => d.getTime())));
   }
 
   let cur = ganttRangeStart;
   while (cur <= ganttRangeEnd) { days.push(new Date(cur)); cur = addDays(cur, 1); }
-  if (days.length === 0) { for (let i = 0; i < 30; i++) { days.push(addDays(ganttRangeStart, i)); } }
+  if (days.length === 0) { for (let i = 0; i < 30; i++) days.push(addDays(ganttRangeStart, i)); }
 
   const totalWidth = days.length * DAY_W;
   const rangeStartMs = ganttRangeStart.getTime();
 
-  // Group days by month for header
   const monthGroups: { label: string; days: number }[] = [];
   for (const d of days) {
     const label = fmtMonth(d);
@@ -103,9 +115,9 @@ export default function AktivitasPage() {
     }
   }
 
-  function barStyle(item: AktivitasItem) {
-    const s = startOfDay(new Date(item.tanggal_mulai || item.tanggal!)).getTime();
-    const e = startOfDay(new Date(item.tanggal_selesai || item.tanggal!)).getTime();
+  function barStyle(item: TaskItem) {
+    const s = startOfDay(new Date(item.tanggal_mulai || item.tanggal_selesai!)).getTime();
+    const e = startOfDay(new Date(item.tanggal_selesai || item.tanggal_mulai!)).getTime();
     const dayStart = Math.round((s - rangeStartMs) / 86400000);
     const dayEnd = Math.round((e - rangeStartMs) / 86400000);
     const left = Math.max(0, dayStart * DAY_W);
@@ -116,10 +128,7 @@ export default function AktivitasPage() {
   const today = startOfDay(new Date()).getTime();
   const todayIdx = Math.round((today - rangeStartMs) / 86400000);
 
-  const tabLabels: Record<Tab, string> = {
-    riwayat: "Riwayat Pekerjaan",
-    gantt: "Gantt Chart",
-  };
+  const tabLabels: Record<Tab, string> = { riwayat: "Riwayat Pekerjaan", gantt: "Gantt Chart" };
 
   return (
     <>
@@ -164,87 +173,92 @@ export default function AktivitasPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && handleSearch()}
                 placeholder="Cari aktivitas"
                 className="pl-9 pr-3 py-2 border border-slate-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white w-full sm:w-40 placeholder:text-slate-300"
               />
             </div>
-            <button
-              onClick={handleSearch}
-              className="bg-orange-500 text-white px-3 py-2 rounded-xl text-xs font-medium hover:bg-orange-600 transition"
-            >
-              Cari
-            </button>
           </div>
         )}
       </div>
 
       {/* ── Tab: Riwayat Pekerjaan ── */}
       {activeTab === "riwayat" && (
-        loadingA ? (
+        loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="w-8 h-8 border-4 border-orange-400 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : aktivitas.length === 0 ? (
-          <div className="text-center py-16 text-slate-400">Belum ada aktivitas</div>
-        ) : (<>
-          {/* Desktop Table */}
-          <div className="hidden sm:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
-            <table className="w-full text-sm min-w-[580px]">
-              <thead>
-                <tr className="border-b border-slate-100">
-                  <th className="text-left px-5 py-4 text-slate-400 font-medium w-10">No</th>
-                  <th className="text-left px-5 py-4 text-slate-400 font-medium">Nama Aktivitas</th>
-                  <th className="text-left px-5 py-4 text-slate-400 font-medium">Tgl Mulai</th>
-                  <th className="text-left px-5 py-4 text-slate-400 font-medium">Tgl Selesai</th>
-                  <th className="text-left px-5 py-4 text-slate-400 font-medium">Status</th>
-                  <th className="text-left px-5 py-4 text-slate-400 font-medium">Catatan</th>
-                </tr>
-              </thead>
-              <tbody>
-                {aktivitas.map((row, idx) => (
-                  <tr key={row.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                    <td className="px-5 py-3 text-orange-500 font-medium">{idx + 1}</td>
-                    <td className="px-5 py-3 text-slate-600">{row.judul}</td>
-                    <td className="px-5 py-3 text-slate-500">{fmtDate(row.tanggal_mulai || row.tanggal)}</td>
-                    <td className="px-5 py-3 text-slate-500">{fmtDate(row.tanggal_selesai)}</td>
-                    <td className="px-5 py-3">
-                      <span className={`font-medium ${statusClass[row.status] ?? "text-slate-500"}`}>{row.status}</span>
-                    </td>
-                    <td className="px-5 py-3 text-slate-400 text-xs">{row.deskripsi ?? "-"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Mobile Cards */}
-          <div className="sm:hidden space-y-3">
-            {aktivitas.map((row, idx) => (
-              <div key={row.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-                <div className="flex items-start justify-between mb-2">
-                  <div>
-                    <span className="text-xs text-orange-500 font-bold">#{idx + 1}</span>
-                    <p className="text-sm font-medium text-slate-700 mt-0.5">{row.judul}</p>
-                  </div>
-                  <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBg[row.status] ?? "bg-slate-50 text-slate-500"}`}>
-                    {row.status}
-                  </span>
+        ) : filtered.length === 0 ? (
+          <div className="text-center py-16 text-slate-400">Belum ada aktivitas proyek</div>
+        ) : (
+          <div className="space-y-6">
+            {groups.map(({ termin, tasks: groupTasks }) => (
+              <div key={termin}>
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 rounded-full bg-orange-400 shrink-0" />
+                  <h3 className="text-sm font-semibold text-slate-600">{termin}</h3>
+                  <div className="flex-1 h-px bg-slate-100" />
+                  <span className="text-xs text-slate-400">{groupTasks.length} item</span>
                 </div>
-                <div className="flex items-center gap-3 text-xs text-slate-400 mt-2 flex-wrap">
-                  <span>Mulai: {fmtDate(row.tanggal_mulai || row.tanggal)}</span>
-                  {row.tanggal_selesai && <span>Selesai: {fmtDate(row.tanggal_selesai)}</span>}
-                  {row.deskripsi && <span className="text-slate-500">{row.deskripsi}</span>}
+
+                {/* Desktop Table */}
+                <div className="hidden sm:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto">
+                  <table className="w-full text-sm min-w-[560px]">
+                    <thead>
+                      <tr className="border-b border-slate-100">
+                        <th className="text-left px-5 py-3 text-slate-400 font-medium w-8">No</th>
+                        <th className="text-left px-5 py-3 text-slate-400 font-medium">Nama Pekerjaan</th>
+                        <th className="text-left px-5 py-3 text-slate-400 font-medium">Tgl Mulai</th>
+                        <th className="text-left px-5 py-3 text-slate-400 font-medium">Target Selesai</th>
+                        <th className="text-left px-5 py-3 text-slate-400 font-medium">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {groupTasks.map((row, idx) => (
+                        <tr key={row.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                          <td className="px-5 py-3 text-orange-500 font-medium">{idx + 1}</td>
+                          <td className="px-5 py-3 text-slate-600">{row.judul ?? "-"}</td>
+                          <td className="px-5 py-3 text-slate-500">{fmtDate(row.tanggal_mulai)}</td>
+                          <td className="px-5 py-3 text-slate-500">{fmtDate(row.tanggal_selesai)}</td>
+                          <td className="px-5 py-3">
+                            <span className={`font-medium ${statusClass[row.status] ?? "text-slate-500"}`}>
+                              {row.status}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Mobile Cards */}
+                <div className="sm:hidden space-y-2">
+                  {groupTasks.map((row, idx) => (
+                    <div key={row.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <span className="text-xs text-orange-500 font-bold">#{idx + 1}</span>
+                          <p className="text-sm font-medium text-slate-700 mt-0.5">{row.judul ?? "-"}</p>
+                        </div>
+                        <span className={`text-xs font-semibold px-2 py-1 rounded-full ${statusBg[row.status] ?? "bg-slate-50 text-slate-500"}`}>
+                          {row.status}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-slate-400 mt-2 flex-wrap">
+                        {row.tanggal_mulai && <span>Mulai: {fmtDate(row.tanggal_mulai)}</span>}
+                        {row.tanggal_selesai && <span>Target: {fmtDate(row.tanggal_selesai)}</span>}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             ))}
           </div>
-        </>)
+        )
       )}
 
       {/* ── Tab: Gantt Chart ── */}
       {activeTab === "gantt" && (
-        loadingA ? (
+        loading ? (
           <div className="flex items-center justify-center h-40">
             <div className="w-8 h-8 border-4 border-orange-400 border-t-transparent rounded-full animate-spin" />
           </div>
@@ -256,7 +270,6 @@ export default function AktivitasPage() {
           <>
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
               <div className="overflow-x-auto">
-                {/* Header Row 1: Bulan */}
                 <div className="border-b border-slate-100" style={{ minWidth: 200 + totalWidth }}>
                   <div className="flex">
                     <div className="w-44 shrink-0 px-4 py-2 text-xs font-semibold text-slate-400 border-r border-slate-100 bg-slate-50">
@@ -272,7 +285,6 @@ export default function AktivitasPage() {
                       </div>
                     ))}
                   </div>
-                  {/* Header Row 2: Tanggal */}
                   <div className="flex border-t border-slate-100">
                     <div className="w-44 shrink-0 border-r border-slate-100 bg-white" />
                     {days.map((d, i) => {
@@ -294,7 +306,6 @@ export default function AktivitasPage() {
                   </div>
                 </div>
 
-                {/* Rows */}
                 <div style={{ minWidth: 200 + totalWidth }}>
                   {ganttItems.map((task, idx) => {
                     const bar = barStyle(task);
@@ -307,30 +318,19 @@ export default function AktivitasPage() {
                       >
                         <div className="w-44 shrink-0 px-3 border-r border-slate-100">
                           <p className="text-xs font-medium text-slate-600 truncate">{task.judul}</p>
-                          <p className={`text-xs mt-0.5 ${
-                            task.status === "Selesai" ? "text-green-500" :
-                            task.status === "Dalam Proses" ? "text-yellow-500" :
-                            task.status === "Tertunda" ? "text-red-500" : "text-slate-400"
-                          }`}>{task.status}</p>
+                          <p className={`text-xs mt-0.5 ${statusClass[task.status] ?? "text-slate-400"}`}>{task.status}</p>
                         </div>
                         <div className="relative shrink-0" style={{ width: totalWidth, height: 48 }}>
-                          {/* Today line */}
                           {todayIdx >= 0 && todayIdx < days.length && (
-                            <div
-                              className="absolute top-0 bottom-0 w-px bg-orange-400 opacity-50 z-10"
-                              style={{ left: todayIdx * DAY_W + DAY_W / 2 }}
-                            />
+                            <div className="absolute top-0 bottom-0 w-px bg-orange-400 opacity-50 z-10"
+                              style={{ left: todayIdx * DAY_W + DAY_W / 2 }} />
                           )}
-                          {/* Weekend shading */}
-                          {days.map((d, di) => (
+                          {days.map((d, di) =>
                             (d.getDay() === 0 || d.getDay() === 6) ? (
-                              <div
-                                key={di}
-                                className="absolute top-0 bottom-0 bg-slate-100/60"
-                                style={{ left: di * DAY_W, width: DAY_W }}
-                              />
+                              <div key={di} className="absolute top-0 bottom-0 bg-slate-100/60"
+                                style={{ left: di * DAY_W, width: DAY_W }} />
                             ) : null
-                          ))}
+                          )}
                           <div
                             className={`${color} rounded flex items-center px-2 py-1 absolute top-1/2 -translate-y-1/2 z-20 cursor-pointer hover:brightness-90 transition-all`}
                             style={{ left: bar.left, width: bar.width, minWidth: DAY_W }}
@@ -346,12 +346,11 @@ export default function AktivitasPage() {
                 </div>
               </div>
 
-              {/* Legend */}
               <div className="flex flex-wrap items-center gap-4 sm:gap-6 px-4 sm:px-6 py-4 border-t border-slate-100">
                 {[
                   { color: "bg-green-500", label: "Selesai", text: "text-green-600" },
                   { color: "bg-yellow-400", label: "Dalam Proses", text: "text-yellow-500" },
-                  { color: "bg-red-500", label: "Tertunda", text: "text-red-500" },
+                  { color: "bg-slate-400", label: "Belum Mulai", text: "text-slate-500" },
                 ].map((l) => (
                   <div key={l.label} className="flex items-center gap-2 text-sm">
                     <div className={`w-3 h-3 rounded-full ${l.color} shrink-0`}/>
@@ -360,32 +359,24 @@ export default function AktivitasPage() {
                 ))}
               </div>
             </div>
-            <p className="text-xs text-slate-400 text-center mt-3 sm:hidden">
-              Geser ke kanan untuk melihat seluruh grafik
-            </p>
+            <p className="text-xs text-slate-400 text-center mt-3 sm:hidden">Geser ke kanan untuk melihat seluruh grafik</p>
           </>
         )
       )}
     </div>
 
-    {/* ── Gantt Detail Modal ── */}
+    {/* ── Gantt Detail Modal (read-only) ── */}
     {selectedTask && (
-      <div
-        className="fixed inset-0 z-50 flex items-center justify-center p-4"
-        onClick={() => setSelectedTask(null)}
-      >
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={() => setSelectedTask(null)}>
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" />
-        <div
-          className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Status badge */}
+        <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
           <span className={`inline-block text-xs font-semibold px-2.5 py-1 rounded-full mb-3 ${statusBg[selectedTask.status] ?? "bg-slate-50 text-slate-500"}`}>
             {selectedTask.status}
           </span>
-
-          <h3 className="text-lg font-bold text-slate-800 mb-4">{selectedTask.judul}</h3>
-
+          <h3 className="text-lg font-bold text-slate-800 mb-1">{selectedTask.judul}</h3>
+          {selectedTask.termin_nama && (
+            <p className="text-xs text-slate-400 mb-4">{selectedTask.termin_nama}</p>
+          )}
           <div className="space-y-3 text-sm">
             <div className="flex items-center gap-3 text-slate-500">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
@@ -393,34 +384,15 @@ export default function AktivitasPage() {
                 <path d="M5 2v2M11 2v2M2 7h12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
               </svg>
               <div className="flex gap-4">
-                <span>Mulai: <span className="font-medium text-slate-700">{fmtDate(selectedTask.tanggal_mulai || selectedTask.tanggal)}</span></span>
+                {selectedTask.tanggal_mulai && (
+                  <span>Mulai: <span className="font-medium text-slate-700">{fmtDate(selectedTask.tanggal_mulai)}</span></span>
+                )}
                 {selectedTask.tanggal_selesai && (
-                  <span>Selesai: <span className="font-medium text-slate-700">{fmtDate(selectedTask.tanggal_selesai)}</span></span>
+                  <span>Target: <span className="font-medium text-slate-700">{fmtDate(selectedTask.tanggal_selesai)}</span></span>
                 )}
               </div>
             </div>
-
-            {selectedTask.tanggal_mulai && selectedTask.tanggal_selesai && (
-              <div className="flex items-center gap-3 text-slate-500">
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" className="shrink-0">
-                  <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.3"/>
-                  <path d="M8 5v3l2 1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-                </svg>
-                <span>
-                  Durasi: <span className="font-medium text-slate-700">
-                    {Math.round((new Date(selectedTask.tanggal_selesai).getTime() - new Date(selectedTask.tanggal_mulai).getTime()) / 86400000) + 1} hari
-                  </span>
-                </span>
-              </div>
-            )}
-
-            {selectedTask.deskripsi && (
-              <div className="bg-slate-50 rounded-xl p-3 text-slate-600 text-xs leading-relaxed">
-                {selectedTask.deskripsi}
-              </div>
-            )}
           </div>
-
           <button
             onClick={() => setSelectedTask(null)}
             className="mt-5 w-full py-2.5 bg-orange-500 text-white text-sm font-medium rounded-xl hover:bg-orange-600 transition"

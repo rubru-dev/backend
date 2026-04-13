@@ -1011,84 +1011,59 @@ function TabDokumen({ pid }: { pid: number }) {
 // ─────────────────────────────────────────────────────────────────────────────
 function TabAktivitas({ pid }: { pid: number }) {
   const qc = useQueryClient();
-  const fotoRef = useRef<HTMLInputElement>(null);
-  const [showForm, setShowForm] = useState(false);
-  const [editing, setEditing] = useState<any>(null);
-  const [form, setForm] = useState<any>({ judul: "", tanggal_mulai: "", tanggal_selesai: "", deskripsi: "", status: "Dalam Proses" });
-  const [hasFoto, setHasFoto] = useState(false);
-  const [confirmDel, setConfirmDel] = useState<any>(null);
+  const [editItem, setEditItem] = useState<any>(null);
+  const [form, setForm] = useState<any>({ status: "", tanggal_mulai: "", tanggal_selesai: "" });
 
-  const { data: items = [], isLoading } = useQuery({ queryKey: ["client-aktivitas", pid], queryFn: () => clientApi.listAktivitas(pid) });
+  const { data: items = [], isLoading } = useQuery({
+    queryKey: ["client-aktivitas-projek", pid],
+    queryFn: () => clientApi.listAktivitasProjek(pid),
+  });
 
-  function openCreate() {
-    setEditing(null);
-    setForm({ judul: "", tanggal_mulai: new Date().toISOString().slice(0, 10), tanggal_selesai: "", deskripsi: "", status: "Dalam Proses" });
-    setHasFoto(false);
-    if (fotoRef.current) fotoRef.current.value = "";
-    setShowForm(true);
-  }
   function openEdit(item: any) {
-    setEditing(item);
+    setEditItem(item);
     setForm({
-      judul: item.judul,
-      tanggal_mulai: item.tanggal_mulai?.slice(0, 10) ?? item.tanggal?.slice(0, 10) ?? "",
-      tanggal_selesai: item.tanggal_selesai?.slice(0, 10) ?? "",
-      deskripsi: item.deskripsi ?? "",
       status: item.status,
+      tanggal_mulai: item.tanggal_mulai ? item.tanggal_mulai.slice(0, 10) : "",
+      tanggal_selesai: item.tanggal_selesai ? item.tanggal_selesai.slice(0, 10) : "",
     });
-    setHasFoto(false);
-    if (fotoRef.current) fotoRef.current.value = "";
-    setShowForm(true);
   }
 
   const { mutate: save, isPending } = useMutation({
-    mutationFn: (fd: FormData) => editing
-      ? clientApi.updateAktivitas(pid, editing.id, fd as any)
-      : clientApi.createAktivitas(pid, fd as any),
+    mutationFn: () => clientApi.updateAktivitasProjek(pid, editItem.type, editItem.task_id, {
+      status: form.status,
+      tanggal_mulai: form.tanggal_mulai || null,
+      tanggal_selesai: form.tanggal_selesai || null,
+    }),
     onSuccess: () => {
-      toast.success("Aktivitas disimpan");
-      qc.invalidateQueries({ queryKey: ["client-aktivitas", pid] });
-      qc.invalidateQueries({ queryKey: ["client-project", pid] });
-      setShowForm(false);
+      toast.success("Item berhasil diupdate");
+      qc.invalidateQueries({ queryKey: ["client-aktivitas-projek", pid] });
+      setEditItem(null);
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menyimpan"),
   });
 
-  const { mutate: del, isPending: deleting } = useMutation({
-    mutationFn: (id: number) => clientApi.deleteAktivitas(pid, id),
-    onSuccess: () => {
-      toast.success("Aktivitas dihapus");
-      qc.invalidateQueries({ queryKey: ["client-aktivitas", pid] });
-      qc.invalidateQueries({ queryKey: ["client-project", pid] });
-      setConfirmDel(null);
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal"),
-  });
+  const statusColor = (s: string) =>
+    s === "Selesai" ? "bg-green-100 text-green-700"
+    : s === "Dalam Proses" ? "bg-blue-100 text-blue-700"
+    : "bg-gray-100 text-gray-600";
 
-  function handleSave() {
-    if (!form.judul) { toast.error("Nama aktivitas wajib diisi"); return; }
-    const fd = new FormData();
-    fd.append("judul", form.judul);
-    if (form.tanggal_mulai) fd.append("tanggal_mulai", form.tanggal_mulai);
-    if (form.tanggal_selesai) fd.append("tanggal_selesai", form.tanggal_selesai);
-    fd.append("deskripsi", form.deskripsi ?? "");
-    fd.append("status", form.status);
-    const fotoFile = fotoRef.current?.files?.[0];
-    if (fotoFile) fd.append("foto_progress", fotoFile);
-    save(fd);
-  }
+  // Group by termin
+  const groups = (items as any[]).reduce((acc: any, item: any) => {
+    const key = item.termin_nama ?? "(Tanpa Termin)";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(item);
+    return acc;
+  }, {} as Record<string, any[]>);
 
-  const statusColor = (s: string) => s === "Selesai" ? "bg-green-100 text-green-700" : s === "Tertunda" ? "bg-red-100 text-red-700" : "bg-blue-100 text-blue-700";
-
-  const totalAktivitas = items.length;
-  const selesai = items.filter((i: any) => i.status === "Selesai").length;
-  const progressPersen = totalAktivitas > 0 ? Math.round((selesai / totalAktivitas) * 100) : 0;
+  const totalItems = items.length;
+  const selesai = (items as any[]).filter((i: any) => i.status === "Selesai").length;
+  const progressPersen = totalItems > 0 ? Math.round((selesai / totalItems) * 100) : 0;
 
   return (
     <div className="space-y-4">
-      {totalAktivitas > 0 && (
+      {totalItems > 0 && (
         <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-6">
-          <div className="text-sm"><span className="text-gray-500">Total Aktivitas: </span><strong>{totalAktivitas}</strong></div>
+          <div className="text-sm"><span className="text-gray-500">Total Item: </span><strong>{totalItems}</strong></div>
           <div className="text-sm"><span className="text-gray-500">Selesai: </span><strong className="text-green-600">{selesai}</strong></div>
           <div className="flex items-center gap-2 flex-1">
             <div className="flex-1 h-2 bg-gray-200 rounded-full overflow-hidden">
@@ -1099,87 +1074,78 @@ function TabAktivitas({ pid }: { pid: number }) {
         </div>
       )}
 
-      <div className="flex justify-end">
-        <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />Tambah Aktivitas</Button>
-      </div>
+      <p className="text-xs text-gray-400">Data langsung dari menu Projek Sipil/Interior. Edit di sini akan terupdate di halaman projek terkait.</p>
 
       {isLoading ? <Skeleton className="h-40" /> : (
-        <div className="space-y-3">
-          {items.length === 0 && <p className="text-center text-gray-400 py-8">Belum ada riwayat aktivitas</p>}
-          {items.map((item: any) => (
-            <Card key={item.id}>
-              <CardContent className="py-3 px-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(item.status)}`}>{item.status}</span>
-                      <span className="text-xs text-gray-400 flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
-                        {item.tanggal_mulai ? fmtDate(item.tanggal_mulai) : fmtDate(item.tanggal)}
-                        {item.tanggal_selesai && <> → {fmtDate(item.tanggal_selesai)}</>}
-                      </span>
-                    </div>
-                    <p className="font-medium text-gray-800 truncate">{item.judul}</p>
-                    {item.deskripsi && <p className="text-sm text-gray-500 mt-0.5 line-clamp-2">{item.deskripsi}</p>}
-                    {item.foto_url && (
-                      <a href={fileUrl(item.foto_url) ?? "#"} target="_blank" rel="noopener noreferrer">
-                        <img src={fileUrl(item.foto_url) ?? ""} alt="foto progress" className="mt-2 h-16 w-auto rounded-lg border object-cover" />
-                      </a>
-                    )}
-                  </div>
-                  <div className="flex gap-1 shrink-0">
-                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit(item)}><Pencil className="w-3 h-3" /></Button>
-                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" onClick={() => setConfirmDel(item)}><Trash2 className="w-3 h-3" /></Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+        <div className="space-y-5">
+          {Object.keys(groups).length === 0 && (
+            <p className="text-center text-gray-400 py-8">Belum ada data item pekerjaan dari projek terkait</p>
+          )}
+          {Object.entries(groups).map(([termin, tasks]: [string, any]) => (
+            <div key={termin}>
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-2 h-2 rounded-full bg-orange-400 shrink-0" />
+                <h4 className="text-sm font-semibold text-gray-600">{termin}</h4>
+                <div className="flex-1 h-px bg-gray-100" />
+                <span className="text-xs text-gray-400">{(tasks as any[]).length} item</span>
+              </div>
+              <div className="space-y-2">
+                {(tasks as any[]).map((item: any) => (
+                  <Card key={item.id}>
+                    <CardContent className="py-3 px-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(item.status)}`}>{item.status}</span>
+                            <span className="text-xs text-gray-400 flex items-center gap-1">
+                              <Calendar className="w-3 h-3" />
+                              {fmtDate(item.tanggal_mulai)}
+                              {item.tanggal_selesai && <> → {fmtDate(item.tanggal_selesai)}</>}
+                            </span>
+                            <span className="text-xs text-gray-300 capitalize">[{item.type}]</span>
+                          </div>
+                          <p className="font-medium text-gray-800 truncate">{item.judul ?? "-"}</p>
+                        </div>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => openEdit(item)}>
+                          <Pencil className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       )}
 
-      <Dialog open={showForm} onOpenChange={setShowForm}>
+      <Dialog open={!!editItem} onOpenChange={(open) => { if (!open) setEditItem(null); }}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{editing ? "Edit Aktivitas" : "Tambah Aktivitas"}</DialogTitle></DialogHeader>
-          <div className="space-y-3">
-            <div><Label>Nama Aktivitas *</Label><Input value={form.judul} onChange={(e) => setForm((f: any) => ({ ...f, judul: e.target.value }))} placeholder="Pemasangan keramik lantai 2..." /></div>
-            <div className="grid grid-cols-2 gap-3">
-              <div><Label>Tanggal Mulai</Label><Input type="date" value={form.tanggal_mulai} onChange={(e) => setForm((f: any) => ({ ...f, tanggal_mulai: e.target.value }))} /></div>
-              <div><Label>Tanggal Selesai</Label><Input type="date" value={form.tanggal_selesai} onChange={(e) => setForm((f: any) => ({ ...f, tanggal_selesai: e.target.value }))} /></div>
-            </div>
-            <div><Label>Status</Label>
-              <Select value={form.status} onValueChange={(v) => setForm((f: any) => ({ ...f, status: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{STATUS_PEKERJAAN.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Catatan</Label><Textarea value={form.deskripsi} onChange={(e) => setForm((f: any) => ({ ...f, deskripsi: e.target.value }))} rows={2} placeholder="Catatan atau keterangan..." /></div>
-            <div>
-              <Label>Upload Foto Progress (opsional)</Label>
-              <div className="flex gap-2 mt-1">
-                <Button type="button" variant="outline" size="sm" onClick={() => fotoRef.current?.click()}>
-                  <Upload className="w-3 h-3 mr-1" />{hasFoto ? "Ganti Foto" : "Pilih Foto"}
-                </Button>
-                {hasFoto && <span className="text-xs text-green-600 self-center">Foto dipilih</span>}
+          <DialogHeader><DialogTitle>Edit Item Pekerjaan</DialogTitle></DialogHeader>
+          {editItem && (
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-gray-700 truncate">{editItem.judul}</p>
+              <p className="text-xs text-gray-400">{editItem.termin_nama} • {editItem.type}</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div><Label>Tanggal Mulai</Label><Input type="date" value={form.tanggal_mulai} onChange={(e) => setForm((f: any) => ({ ...f, tanggal_mulai: e.target.value }))} /></div>
+                <div><Label>Tanggal Selesai</Label><Input type="date" value={form.tanggal_selesai} onChange={(e) => setForm((f: any) => ({ ...f, tanggal_selesai: e.target.value }))} /></div>
               </div>
-              <input ref={fotoRef} type="file" accept="image/*" className="hidden" onChange={(e) => setHasFoto(!!e.target.files?.length)} />
+              <div><Label>Status</Label>
+                <Select value={form.status} onValueChange={(v) => setForm((f: any) => ({ ...f, status: v }))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {["Belum Mulai", "Dalam Proses", "Selesai"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
+          )}
           <div className="flex justify-end gap-2 pt-2">
-            <Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button>
-            <Button disabled={isPending || !form.judul} onClick={handleSave}>{isPending ? "Menyimpan..." : "Simpan"}</Button>
+            <Button variant="outline" onClick={() => setEditItem(null)}>Batal</Button>
+            <Button disabled={isPending} onClick={() => save()}>{isPending ? "Menyimpan..." : "Simpan"}</Button>
           </div>
         </DialogContent>
       </Dialog>
-
-      <ConfirmDialog
-        open={!!confirmDel}
-        onClose={() => setConfirmDel(null)}
-        onConfirm={() => del(confirmDel?.id)}
-        title="Hapus Aktivitas"
-        description={`Hapus aktivitas "${confirmDel?.judul}"? Tindakan ini tidak dapat dibatalkan.`}
-        loading={deleting}
-      />
     </div>
   );
 }
