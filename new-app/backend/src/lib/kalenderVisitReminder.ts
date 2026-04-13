@@ -13,17 +13,43 @@ import { sendFonnte } from "./fontee";
 
 const SETTING_KEY = "kalender_visit_reminder_last_run";
 
+/**
+ * Ambil komponen tanggal (YYYY, MM, DD) berdasarkan Asia/Jakarta,
+ * terlepas dari timezone server (WIB / UTC / apa pun).
+ */
+function getJakartaDateParts(date: Date = new Date()): { year: number; month: number; day: number } {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  return {
+    year: Number(parts.find((p) => p.type === "year")!.value),
+    month: Number(parts.find((p) => p.type === "month")!.value),
+    day: Number(parts.find((p) => p.type === "day")!.value),
+  };
+}
+
 function todayISODate(): string {
-  // YYYY-MM-DD di timezone server (server diasumsikan WIB / sudah TZ-aware)
-  const d = new Date();
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  return `${yyyy}-${mm}-${dd}`;
+  // YYYY-MM-DD di Asia/Jakarta (bukan TZ server)
+  const { year, month, day } = getJakartaDateParts();
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+/**
+ * Jakarta "today" sebagai UTC midnight.
+ * Prisma @db.Date disimpan sebagai UTC date (e.g. 2026-04-10 → 2026-04-10T00:00:00Z),
+ * jadi query range harus pakai UTC midnight juga agar match.
+ */
+function todayJakartaAsUTCMidnight(): Date {
+  const { year, month, day } = getJakartaDateParts();
+  return new Date(Date.UTC(year, month - 1, day));
 }
 
 function formatTanggalID(date: Date): string {
   return new Date(date).toLocaleDateString("id-ID", {
+    timeZone: "Asia/Jakarta",
     weekday: "long",
     day: "numeric",
     month: "long",
@@ -51,11 +77,12 @@ export async function sendKalenderVisitReminders(force = false) {
     return;
   }
 
-  // Range hari ini (00:00 sampai 23:59:59) — KalenderVisit.tanggal adalah @db.Date
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
+  // Range hari ini di Jakarta (UTC midnight → UTC midnight + 1 day).
+  // KalenderVisit.tanggal adalah @db.Date — Prisma read/write dengan UTC semantic,
+  // jadi query pakai UTC midnight dari tanggal Jakarta.
+  const start = todayJakartaAsUTCMidnight();
   const end = new Date(start);
-  end.setDate(end.getDate() + 1);
+  end.setUTCDate(end.getUTCDate() + 1);
 
   const visits = await prisma.kalenderVisit.findMany({
     where: { tanggal: { gte: start, lt: end } },

@@ -1,7 +1,88 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-04-09 (Permission pic.kalender_visit auto-sync, Edit Invoice sebelum tanda tangan, Reminder WA harian Kalender Visit jam 08:00)
+> Last updated: 2026-04-13 (Form Checklist tab di Projek Sipil & Interior)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-04-13)
+
+### Form Checklist — Tab Baru di Projek Sipil & Interior
+- **Schema baru:** `ChecklistSipil` (table `checklist_sipils`), `ChecklistInterior` (table `checklist_interiors`)
+  - Fields: `id`, `proyek_id`, `nama_pekerjaan`, `gambar_path` (nullable, foto pekerjaan), `gambar_selesai_path` (nullable, foto setelah selesai), `is_checked` (boolean), `urutan`, `created_at`, `updated_at`
+  - Relasi: → `ProyekBerjalan` (sipil) / `ProyekInterior` (interior), cascade delete
+- **Backend Sipil (`sipil.ts`):**
+  - `GET /sipil/projeks/:id/checklist` — list items ordered by urutan
+  - `POST /sipil/projeks/:id/checklist` — create (multipart: `nama_pekerjaan` + optional `gambar`)
+  - `PATCH /sipil/checklist/:cid` — update nama/status/gambar/gambar_selesai (multipart fields)
+  - `DELETE /sipil/checklist/:cid` — hapus + cleanup kedua file fisik
+- **Backend Interior (`interior.ts`):**
+  - `GET /interior/projeks/:id/checklist` — list
+  - `POST /interior/projeks/:id/checklist` — create (multipart)
+  - `PATCH /interior/projeks/checklist/:cid` — update (multipart fields: `gambar`, `gambar_selesai`)
+  - `DELETE /interior/projeks/checklist/:cid` — hapus
+- **Frontend API:** `sipilApi.getChecklist/addChecklistItem/updateChecklistItem/deleteChecklistItem`, sama untuk `interiorProjekApi`
+- **Frontend UI:** Tab "Form Checklist" (icon CheckSquare) di detail projek sipil `[id]` dan interior `[id]`
+  - Tabel: No, Gambar Pekerjaan, Nama Pekerjaan, Foto Selesai, Status (checkbox + label), Aksi (hapus)
+  - Form tambah: input nama pekerjaan + pilih foto (opsional) + preview
+  - Checkbox toggle: klik → buka dialog "Tandai Pekerjaan Selesai" dengan opsi upload foto selesai (opsional)
+  - Uncheck: langsung update tanpa dialog
+  - Row yang sudah di-check mendapat highlight hijau
+  - **Download PDF:** tombol "Download PDF" di header → generate PDF dengan header company, info proyek, summary (total/selesai/belum), tabel checklist lengkap gambar
+- **PDF Component:** `checklist-pdf.tsx` — orange theme, logo, tabel No/Gambar/Nama/Foto Selesai/Status
+- **Storage:** Sipil → `storage/sipil-docs/`, Interior → `storage/interior/` (reuse multer existing)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-04-10)
+
+### Task 1: Galeri & Dokumen Folder — Tambah File ke Folder yang Sudah Ada
+- **File:** `new-app/frontend/src/app/(dashboard)/client/[id]/page.tsx`
+- **TabGaleri:** Saat masuk ke dalam folder, muncul form "Tambah Foto ke Folder Ini" (tanggal + pilih file + upload). Upload menggunakan `judul` = nama folder yang sedang dibuka, sehingga foto baru masuk ke folder yang sama. Form "Upload ke Folder Baru" hanya tampil di folder list view.
+- **TabDokumen:** Saat masuk ke dalam folder, muncul form "Tambah File ke Folder Ini" (kategori + tanggal + pilih file + upload). Upload menggunakan `folder_name` = nama folder yang sedang dibuka. Form "Upload ke Folder Baru" hanya tampil di folder list view.
+- **Backend:** Tidak ada perubahan — backend sudah support upload dengan `folder_name`/`judul` yang sama (grouping by nama).
+
+### Task 2: Invoice Assign — Merged ke Tab Pembayaran
+- **Perubahan:** Tab "Invoice Portal" yang terpisah dihapus. Fungsionalitas assign/unassign invoice dari Finance dipindah ke dalam **tab Pembayaran** (`TabPembayaran`).
+- Tombol "Tambah Invoice" di section "Invoice & Kwitansi (dari Finance)" membuka dialog daftar invoice assignable (status Terbit/Lunas).
+- Tiap baris invoice di tabel ada tombol X untuk unassign.
+- Komponen `TabInvoiceAssign` dihapus (dead code).
+- **Backend:** Tidak ada perubahan — endpoint `GET /projects/:id/assignable-invoices`, `POST assign`, `DELETE unassign` tetap sama.
+
+### Task 5: Nested Folder (Termin → Item Pekerjaan) di Galeri Portal Klien
+- **Backend (`picProject.ts`):** Mirror sekarang pakai format `judul = "${terminName} ‖ ${namaPekerjaan}"` — delimiter ` ‖ ` (U+2016) dipakai sebagai separator dua level folder. Contoh: `"Termin 1 - Pondasi ‖ Galian Tanah"`.
+- **Frontend (`rubahrumah/app/(client)/galeri/page.tsx`):** Parse `judul` dengan split ` ‖ ` → bangun 2-level hierarchy:
+  - Level 1: termin (root folder)
+  - Level 2: nama pekerjaan (sub-folder)
+  - Level 3: foto
+  - Navigasi: klik termin → grid sub-folder item pekerjaan → klik sub-folder → grid foto → klik foto → lightbox
+  - Breadcrumb: `Galeri / Termin 1 / Galian Tanah`
+  - Folder manual (tanpa delimiter, upload via client management page) tetap flat (langsung ke foto, tanpa sub-folder) — backward compat
+- **State baru:** `activeSubFolder` di komponen `GaleriPage`. Reset ke `null` saat back ke level 1 atau search.
+- **New-app client management:** TabGaleri tidak diubah — admin tetap lihat flat folder dengan nama `"Termin 1 ‖ Galian Tanah"`. Cukup untuk keperluan admin view.
+
+### Task 4: Auto-Mirror Foto PIC Dokumentasi Projek → Galeri Portal Klien
+- **Use case:** PIC upload foto dokumentasi via menu Projek → Upload Dokumentasi Projek (halaman `/pic/dokumentasi`). Sekarang foto otomatis muncul juga di tab Galeri portal klien terkait (tanpa re-upload manual).
+- **Backend — `picProject.ts`:**
+  - `POST /pic/tasks/sipil/:taskId/fotos` — setelah bikin `proyekBerjalanTaskFoto`, cari `ClientPortalProject` via chain `task.termin.proyek_berjalan.lead.client_portal_project`. Kalau ada, bikin entry `ClientPortalGaleri` untuk setiap foto dengan:
+    - `judul` = nama termin (jadi folder di galeri klien per-termin)
+    - `deskripsi` = `nama_pekerjaan — keterangan`
+    - `file_path` = path sama persis dengan foto PIC (`/storage/pic-docs/...`) — tidak copy file, cuma reuse
+    - `tanggal_foto` = now
+  - `POST /pic/tasks/interior/:taskId/fotos` — sama, via chain `task.termin.proyek_interior.lead.client_portal_project`
+  - `DELETE /pic/fotos/sipil/:fotoId` + `/interior/:fotoId` — juga `deleteMany` `ClientPortalGaleri` dengan `file_path` yang match (mirror dihapus bareng)
+- **Backend — `clientPortal.ts` GET /galeri + /dokumen:** `file_url` sekarang return `file_path` as-is kalau sudah prefix `/storage/`, jadi foto dari `pic-docs/` folder bisa di-serve. Fallback lama (rekonstruksi `/storage/client-portal/galeri/` + basename) dipertahankan untuk upload manual via client management page.
+- **Tidak ada perubahan schema:** pakai kolom existing `file_path` sebagai "link" — tidak perlu kolom source-tracking baru.
+- **Syarat:** Lead project harus punya `ClientPortalProject` (via `client_portal_project.lead_id`). Kalau belum di-setup di menu Client Management, foto tetap ter-upload tapi tidak di-mirror (silent skip).
+
+### Task 3: Fix Field Mismatch di Tabel Invoice Pembayaran + Invoice Download di Client Portal
+- **Bug fix (new-app):** Tabel "Invoice & Kwitansi (dari Finance)" di `TabPembayaran` menampilkan `Rp 0` dan nomor invoice kosong karena frontend pakai `inv.nomor_invoice` / `inv.total` / `inv.head_finance_signed_at`, sedangkan backend return `invoice_number` / `grand_total` / `head_finance_at`. Frontend disesuaikan ke nama field backend.
+- **Backend (new-app):** Endpoint baru `GET /client-portal/invoices/:id` — return detail invoice lengkap (items, lead info, bank_account, kwitansi) untuk preview/download oleh client portal. Hanya return invoice yang di-assign ke portal project milik token user (`client_portal_project_id == req.clientPortal.projectId`) dan status `Terbit`/`Lunas`.
+- **Backend (new-app):** Endpoint `GET /client-portal/invoices` — field `kwitansi` direname: `tanggal` → `tanggal_bayar`, tambah `metode_bayar` dan `nomor_kwitansi` agar sesuai dengan interface frontend portal.
+- **Client Portal (rubahrumah):** `pembayaran/page.tsx` — tambah tombol "Download" per baris invoice (desktop + mobile). Klik tombol buka modal preview invoice dalam format print-friendly (logo + company info + items table + totals + bank account + kwitansi). Tombol "Cetak / Download PDF" di modal trigger `window.print()`, user bisa save sebagai PDF via dialog print browser.
+- **CSS (rubahrumah):** `globals.css` — tambah `@media print` rule: hide semua element kecuali `#invoice-print-area`, kelas `.print:hidden` pada action bar modal agar tidak ikut ke-print. A4 page size 15mm margin.
+- **API Client (rubahrumah):** `portalApi.invoiceDetail(id)` — wrapper untuk GET `/invoices/:id`.
+- **Dependencies:** Tidak ada tambahan library — murni HTML + Tailwind + `window.print()`. Tidak perlu `@react-pdf/renderer` di rubahrumah (agar tetap lightweight).
 
 ---
 
@@ -446,6 +527,11 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | GET | `/projeks/:id/links` | List dokumen/link proyek |
 | POST | `/projeks/:id/links` | Add link (JSON) atau upload file (multipart, maks 20MB, dir: `sipil-docs/`) |
 | DELETE | `/links/:id` | Hapus (+ hapus file jika upload) |
+| **Form Checklist** | | |
+| GET | `/projeks/:id/checklist` | List checklist items |
+| POST | `/projeks/:id/checklist` | Create (multipart: `nama_pekerjaan` + optional `gambar`) |
+| PATCH | `/checklist/:cid` | Update nama/is_checked/gambar |
+| DELETE | `/checklist/:cid` | Hapus + cleanup file |
 
 ### 2.9 Projek Lain — `/api/v1/projek`
 | Method | Path | Keterangan |
@@ -476,6 +562,11 @@ Semua route memerlukan `Authorization: Bearer <token>` kecuali `/auth/*`.
 | PATCH/DELETE | `/projeks/termins/:id` | Update / hapus |
 | POST | `/projeks/termins/:id/tasks` | Add task |
 | PATCH/DELETE | `/projeks/tasks/:id` | Update / hapus |
+| **Form Checklist** | | |
+| GET | `/projeks/:id/checklist` | List checklist items |
+| POST | `/projeks/:id/checklist` | Create (multipart: `nama_pekerjaan` + optional `gambar`) |
+| PATCH | `/projeks/checklist/:cid` | Update nama/is_checked/gambar |
+| DELETE | `/projeks/checklist/:cid` | Hapus + cleanup file |
 | GET | `/termins/:id/rapp` | RAPP data |
 | POST | `/termins/:id/rapp/material-kategori` | Add kategori material |
 | PATCH/DELETE | `/rapp/material-kategori/:id` | Update / hapus |
@@ -814,6 +905,12 @@ Digunakan oleh aplikasi `rubahrumah/` (portal klien). Login menghasilkan token b
 | `StockOpnameRappItem` | `stock_opname_rapp_items` | id, termin_id, barang_id, nama_pekerjaan, qty_rapp, qty_tersisa, harga_manual, total |
 | `StockOpnameUsageItem` | `stock_opname_usage_items` | id, rapp_item_id, tanggal_pakai, qty_dipakai, catatan |
 
+### Form Checklist
+| Model | Table | Key Fields |
+|-------|-------|-----------|
+| `ChecklistSipil` | `checklist_sipils` | id, proyek_id(→ProyekBerjalan), nama_pekerjaan, gambar_path?, gambar_selesai_path?, is_checked, urutan |
+| `ChecklistInterior` | `checklist_interiors` | id, proyek_id(→ProyekInterior), nama_pekerjaan, gambar_path?, gambar_selesai_path?, is_checked, urutan |
+
 ### Docs / Link (polymorphic)
 | Model | Table | Key Fields |
 |-------|-------|-----------|
@@ -966,10 +1063,10 @@ app/
       laporan-harian/
     projek/
       sipil/                   — List proyek
-      sipil/[id]/              — Detail: tabs Daftar Termin | Gantt | Docs/Link | RAPP | Stock Opname
+      sipil/[id]/              — Detail: tabs Daftar Termin | Gantt | Docs/Link | RAPP | Stock Opname | Form Checklist
       desain/                  — DesainTimeline dengan view List/Gantt/Docs
       interior/
-      interior/[id]/
+      interior/[id]/           — Detail: tabs Daftar Termin | Gantt | RAPP | Dokumentasi | Form Checklist
     finance/
       invoice-kwitansi/        — Invoice + Kwitansi + Bank Accounts tab
       administrasi-projek/     — Tabs: Termin | PR | List Material | Surat Jalan | Dokumen | Cashflow | Tukang (5 inner tabs)
@@ -1051,6 +1148,7 @@ Dipakai oleh 8 modul: bd, content, sales_admin, telemarketing, desain, sales, fi
 | `src/components/surat-jalan-pdf.tsx` | Surat Jalan PDF |
 | `src/components/cashflow-termin-pdf.tsx` | Cashflow per termin PDF |
 | `src/components/cashflow-overview-pdf.tsx` | Cashflow overview PDF |
+| `src/components/checklist-pdf.tsx` | Form Checklist PDF (sipil & interior) |
 | `src/components/laporan-harian.tsx` | Shared laporan harian component (8 modul, tabs Detail+Docs) |
 | `src/components/layout/sidebar.tsx` | Sidebar dengan permission filtering |
 | `src/components/layout/sidebar-nav.ts` | NavGroups: permission + roles |

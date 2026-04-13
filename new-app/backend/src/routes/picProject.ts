@@ -7,6 +7,29 @@ import { config } from "../config";
 
 const router = Router();
 
+// ── Helper: parse tanggal ke UTC midnight dari calendar date yang user pilih ──
+// Frontend bisa kirim "YYYY-MM-DD", "YYYY-MM-DDTHH:mm:ss.sssZ", atau
+// "YYYY-MM-DDTHH:mm:ss+07:00". Ambil tahun/bulan/hari-nya saja di TZ Jakarta
+// dan bangun Date di UTC midnight supaya @db.Date tidak drift ±1 hari.
+function parseInputDate(input: string | Date): Date {
+  const s = typeof input === "string" ? input : input.toISOString();
+  // Match plain YYYY-MM-DD di awal string (cover "2026-04-10" dan "2026-04-10T...")
+  const plain = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (plain) {
+    return new Date(Date.UTC(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3])));
+  }
+  // Fallback: parse biasa, ambil komponen tanggalnya di Asia/Jakarta
+  const d = new Date(s);
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(d);
+  const year = Number(parts.find((p) => p.type === "year")!.value);
+  const month = Number(parts.find((p) => p.type === "month")!.value);
+  const day = Number(parts.find((p) => p.type === "day")!.value);
+  return new Date(Date.UTC(year, month - 1, day));
+}
+
 // ── Multer setup ──────────────────────────────────────────────────────────────
 const picDocsDir = path.resolve(config.storagePath, "pic-docs");
 if (!fs.existsSync(picDocsDir)) fs.mkdirSync(picDocsDir, { recursive: true });
@@ -167,7 +190,18 @@ router.get("/projeks/interior/:id/termins", async (req: Request, res: Response) 
 router.post("/tasks/sipil/:taskId/fotos", picUpload.array("fotos", 20), async (req: Request, res: Response) => {
   const taskId = BigInt(req.params.taskId);
   const user = req.user!;
-  const task = await prisma.proyekBerjalanTask.findUnique({ where: { id: taskId } });
+  const task = await prisma.proyekBerjalanTask.findUnique({
+    where: { id: taskId },
+    include: {
+      termin: {
+        include: {
+          proyek_berjalan: {
+            include: { lead: { include: { client_portal_project: true } } },
+          },
+        },
+      },
+    },
+  });
   if (!task) return res.status(404).json({ detail: "Task tidak ditemukan" });
   const files = req.files as Express.Multer.File[];
   if (!files?.length) return res.status(400).json({ detail: "Minimal 1 foto wajib diupload" });
@@ -189,6 +223,30 @@ router.post("/tasks/sipil/:taskId/fotos", picUpload.array("fotos", 20), async (r
     )
   );
 
+  // ── Mirror ke ClientPortalGaleri (tab Galeri di portal klien) ──────────────
+  // Format judul: "Termin Name ‖ Nama Pekerjaan" — delimiter " ‖ " dipakai
+  // frontend portal untuk bikin nested folder (termin → item pekerjaan).
+  const cpProject = task.termin?.proyek_berjalan?.lead?.client_portal_project;
+  if (cpProject) {
+    const terminName = task.termin?.nama || "Umum";
+    const pekerjaan = task.nama_pekerjaan || "Dokumentasi";
+    const judul = `${terminName} ‖ ${pekerjaan}`;
+    await Promise.all(
+      fotos.map((f) =>
+        prisma.clientPortalGaleri.create({
+          data: {
+            project_id: cpProject.id,
+            judul,
+            deskripsi: keterangan || null,
+            file_path: f.file_path,
+            tanggal_foto: new Date(),
+            created_by: user.id,
+          },
+        })
+      )
+    );
+  }
+
   return res.status(201).json(
     fotos.map((f) => ({
       id: String(f.id),
@@ -205,7 +263,18 @@ router.post("/tasks/sipil/:taskId/fotos", picUpload.array("fotos", 20), async (r
 router.post("/tasks/interior/:taskId/fotos", picUpload.array("fotos", 20), async (req: Request, res: Response) => {
   const taskId = BigInt(req.params.taskId);
   const user = req.user!;
-  const task = await prisma.proyekInteriorTask.findUnique({ where: { id: taskId } });
+  const task = await prisma.proyekInteriorTask.findUnique({
+    where: { id: taskId },
+    include: {
+      termin: {
+        include: {
+          proyek_interior: {
+            include: { lead: { include: { client_portal_project: true } } },
+          },
+        },
+      },
+    },
+  });
   if (!task) return res.status(404).json({ detail: "Task tidak ditemukan" });
   const files = req.files as Express.Multer.File[];
   if (!files?.length) return res.status(400).json({ detail: "Minimal 1 foto wajib diupload" });
@@ -227,6 +296,30 @@ router.post("/tasks/interior/:taskId/fotos", picUpload.array("fotos", 20), async
     )
   );
 
+  // ── Mirror ke ClientPortalGaleri (tab Galeri di portal klien) ──────────────
+  // Format judul: "Termin Name ‖ Nama Pekerjaan" — delimiter " ‖ " dipakai
+  // frontend portal untuk bikin nested folder (termin → item pekerjaan).
+  const cpProject = task.termin?.proyek_interior?.lead?.client_portal_project;
+  if (cpProject) {
+    const terminName = task.termin?.nama || "Umum";
+    const pekerjaan = task.nama_pekerjaan || "Dokumentasi";
+    const judul = `${terminName} ‖ ${pekerjaan}`;
+    await Promise.all(
+      fotos.map((f) =>
+        prisma.clientPortalGaleri.create({
+          data: {
+            project_id: cpProject.id,
+            judul,
+            deskripsi: keterangan || null,
+            file_path: f.file_path,
+            tanggal_foto: new Date(),
+            created_by: user.id,
+          },
+        })
+      )
+    );
+  }
+
   return res.status(201).json(
     fotos.map((f) => ({
       id: String(f.id),
@@ -246,6 +339,8 @@ router.delete("/fotos/sipil/:fotoId", async (req: Request, res: Response) => {
   if (!foto) return res.status(404).json({ detail: "Foto tidak ditemukan" });
   const filePath = path.resolve(config.storagePath, foto.file_path.replace(/^\/storage\//, ""));
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  // Hapus mirror di ClientPortalGaleri (match by file_path)
+  await prisma.clientPortalGaleri.deleteMany({ where: { file_path: foto.file_path } });
   await prisma.proyekBerjalanTaskFoto.delete({ where: { id: fotoId } });
   return res.json({ message: "Foto dihapus" });
 });
@@ -257,6 +352,8 @@ router.delete("/fotos/interior/:fotoId", async (req: Request, res: Response) => 
   if (!foto) return res.status(404).json({ detail: "Foto tidak ditemukan" });
   const filePath = path.resolve(config.storagePath, foto.file_path.replace(/^\/storage\//, ""));
   if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  // Hapus mirror di ClientPortalGaleri (match by file_path)
+  await prisma.clientPortalGaleri.deleteMany({ where: { file_path: foto.file_path } });
   await prisma.proyekInteriorTaskFoto.delete({ where: { id: fotoId } });
   return res.json({ message: "Foto dihapus" });
 });
@@ -380,7 +477,7 @@ router.post("/kalender-visit", async (req: Request, res: Response) => {
       nama_projek,
       projek_id: projek_id ? BigInt(projek_id) : null,
       projek_type: projek_type || null,
-      tanggal: new Date(tanggal),
+      tanggal: parseInputDate(tanggal),
       jam: jam || null,
       keterangan: keterangan || null,
       created_by: req.user!.id,
@@ -410,7 +507,7 @@ router.patch("/kalender-visit/:id", async (req: Request, res: Response) => {
   if (nama_projek !== undefined) updates.nama_projek = nama_projek;
   if (projek_id !== undefined)   updates.projek_id = projek_id ? BigInt(projek_id) : null;
   if (projek_type !== undefined) updates.projek_type = projek_type || null;
-  if (tanggal !== undefined)     updates.tanggal = new Date(tanggal);
+  if (tanggal !== undefined)     updates.tanggal = parseInputDate(tanggal);
   if (jam !== undefined)         updates.jam = jam || null;
   if (keterangan !== undefined)  updates.keterangan = keterangan || null;
   if (status !== undefined)      updates.status = status;

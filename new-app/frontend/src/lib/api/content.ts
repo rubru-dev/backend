@@ -185,6 +185,23 @@ export const sipilApi = {
     return apiClient.post(`/sipil/tasks/${taskId}/fotos`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
   deleteTaskFoto: (fotoId: string) => apiClient.delete(`/sipil/tasks/fotos/${fotoId}`).then((r) => r.data),
+  // Checklist
+  getChecklist: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/checklist`).then((r) => r.data),
+  addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; gambar?: File }) => {
+    const form = new FormData();
+    form.append("nama_pekerjaan", data.nama_pekerjaan);
+    if (data.gambar) form.append("gambar", data.gambar);
+    return apiClient.post(`/sipil/projeks/${projekId}/checklist`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
+  updateChecklistItem: (cid: string, data: { nama_pekerjaan?: string; is_checked?: boolean; gambar?: File; gambar_selesai?: File }) => {
+    const form = new FormData();
+    if (data.nama_pekerjaan !== undefined) form.append("nama_pekerjaan", data.nama_pekerjaan);
+    if (data.is_checked !== undefined) form.append("is_checked", String(data.is_checked));
+    if (data.gambar) form.append("gambar", data.gambar);
+    if (data.gambar_selesai) form.append("gambar_selesai", data.gambar_selesai);
+    return apiClient.patch(`/sipil/checklist/${cid}`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
+  deleteChecklistItem: (cid: string) => apiClient.delete(`/sipil/checklist/${cid}`).then((r) => r.data),
 };
 
 export const interiorProjekApi = {
@@ -228,6 +245,23 @@ export const interiorProjekApi = {
   deleteTaskFoto: (fotoId: string) => apiClient.delete(`/interior/projeks/tasks/fotos/${fotoId}`).then((r) => r.data),
   // Dokumentasi PIC
   getDokumentasiPic: (id: string) => apiClient.get(`/pic/projeks/interior/${id}/termins`).then((r) => r.data),
+  // Checklist
+  getChecklist: (projekId: string) => apiClient.get(`/interior/projeks/${projekId}/checklist`).then((r) => r.data),
+  addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; gambar?: File }) => {
+    const form = new FormData();
+    form.append("nama_pekerjaan", data.nama_pekerjaan);
+    if (data.gambar) form.append("gambar", data.gambar);
+    return apiClient.post(`/interior/projeks/${projekId}/checklist`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
+  updateChecklistItem: (cid: string, data: { nama_pekerjaan?: string; is_checked?: boolean; gambar?: File; gambar_selesai?: File }) => {
+    const form = new FormData();
+    if (data.nama_pekerjaan !== undefined) form.append("nama_pekerjaan", data.nama_pekerjaan);
+    if (data.is_checked !== undefined) form.append("is_checked", String(data.is_checked));
+    if (data.gambar) form.append("gambar", data.gambar);
+    if (data.gambar_selesai) form.append("gambar_selesai", data.gambar_selesai);
+    return apiClient.patch(`/interior/projeks/checklist/${cid}`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
+  deleteChecklistItem: (cid: string) => apiClient.delete(`/interior/projeks/checklist/${cid}`).then((r) => r.data),
 };
 
 export const salesApi = {

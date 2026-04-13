@@ -10,11 +10,21 @@ interface GaleriItem {
   file_url: string | null;
 }
 
-interface Folder {
-  name: string;
+interface SubFolder {
+  name: string; // nama pekerjaan
   items: GaleriItem[];
   cover: GaleriItem | null;
 }
+
+interface Folder {
+  name: string; // termin name (atau nama folder manual)
+  items: GaleriItem[]; // semua foto di bawah folder ini (semua sub-folder)
+  subFolders: SubFolder[]; // kalau kosong, folder ini flat (manual upload)
+  cover: GaleriItem | null;
+}
+
+// Delimiter dari backend mirror PIC (picProject.ts): "Termin ‖ Pekerjaan"
+const SUB_DELIMITER = " ‖ ";
 
 function fmtDate(d?: string | null) {
   if (!d) return "";
@@ -139,6 +149,7 @@ export default function GaleriPage() {
 
   // Navigation state
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
+  const [activeSubFolder, setActiveSubFolder] = useState<string | null>(null);
   const [lightboxIdx, setLightboxIdx] = useState<number | null>(null);
 
   const fetchData = useCallback((q: string) => {
@@ -155,26 +166,59 @@ export default function GaleriPage() {
     e.preventDefault();
     fetchData(search);
     setActiveFolder(null);
+    setActiveSubFolder(null);
   }
 
-  // Group items by judul → folders
+  // Group items → 2-level folders (termin → nama pekerjaan)
   const folders: Folder[] = (() => {
-    const map = new Map<string, GaleriItem[]>();
+    // Level 1 map: root folder name (termin atau nama manual) → items
+    const rootMap = new Map<string, GaleriItem[]>();
     for (const item of items) {
-      const key = item.judul || "Lainnya";
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(item);
+      const judul = item.judul || "Lainnya";
+      const [rootName] = judul.includes(SUB_DELIMITER)
+        ? judul.split(SUB_DELIMITER)
+        : [judul];
+      if (!rootMap.has(rootName)) rootMap.set(rootName, []);
+      rootMap.get(rootName)!.push(item);
     }
-    return Array.from(map.entries()).map(([name, folderItems]) => ({
-      name,
-      items: folderItems,
-      cover: folderItems.find((i) => i.file_url) ?? folderItems[0] ?? null,
-    }));
+
+    return Array.from(rootMap.entries()).map(([rootName, rootItems]) => {
+      // Build sub-folder list (only for items yang pakai delimiter)
+      const subMap = new Map<string, GaleriItem[]>();
+      for (const item of rootItems) {
+        const judul = item.judul || "";
+        if (!judul.includes(SUB_DELIMITER)) continue;
+        const subName = judul.split(SUB_DELIMITER).slice(1).join(SUB_DELIMITER) || "Lainnya";
+        if (!subMap.has(subName)) subMap.set(subName, []);
+        subMap.get(subName)!.push(item);
+      }
+      const subFolders: SubFolder[] = Array.from(subMap.entries()).map(([name, subItems]) => ({
+        name,
+        items: subItems,
+        cover: subItems.find((i) => i.file_url) ?? subItems[0] ?? null,
+      }));
+      return {
+        name: rootName,
+        items: rootItems,
+        subFolders,
+        cover: rootItems.find((i) => i.file_url) ?? rootItems[0] ?? null,
+      };
+    });
   })();
 
-  const currentFolderItems = activeFolder
-    ? (folders.find((f) => f.name === activeFolder)?.items ?? [])
-    : [];
+  const activeFolderObj = activeFolder ? folders.find((f) => f.name === activeFolder) : null;
+  // Foto yang ditampilkan di view "inside folder":
+  // - kalau ada sub-folder & belum pilih sub-folder → kosong (tampil sub-folder grid)
+  // - kalau sudah pilih sub-folder → foto dari sub-folder itu
+  // - kalau folder flat (no sub) → semua items
+  const currentFolderItems: GaleriItem[] = (() => {
+    if (!activeFolderObj) return [];
+    if (activeFolderObj.subFolders.length === 0) return activeFolderObj.items;
+    if (activeSubFolder) {
+      return activeFolderObj.subFolders.find((s) => s.name === activeSubFolder)?.items ?? [];
+    }
+    return [];
+  })();
 
   return (
     <div>
@@ -213,9 +257,9 @@ export default function GaleriPage() {
         /* ── Inside folder view ──────────────────────────────── */
         <div>
           {/* Breadcrumb */}
-          <div className="flex items-center gap-2 mb-5">
+          <div className="flex items-center gap-2 mb-5 flex-wrap">
             <button
-              onClick={() => setActiveFolder(null)}
+              onClick={() => { setActiveFolder(null); setActiveSubFolder(null); }}
               className="flex items-center gap-1.5 text-orange-500 hover:text-orange-600 text-sm font-medium"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
@@ -224,11 +268,71 @@ export default function GaleriPage() {
               Galeri
             </button>
             <span className="text-slate-300">/</span>
-            <span className="text-slate-700 text-sm font-semibold">{activeFolder}</span>
-            <span className="ml-auto text-xs text-slate-400">{currentFolderItems.length} foto</span>
+            {activeSubFolder ? (
+              <>
+                <button
+                  onClick={() => setActiveSubFolder(null)}
+                  className="text-orange-500 hover:text-orange-600 text-sm font-medium"
+                >
+                  {activeFolder}
+                </button>
+                <span className="text-slate-300">/</span>
+                <span className="text-slate-700 text-sm font-semibold">{activeSubFolder}</span>
+              </>
+            ) : (
+              <span className="text-slate-700 text-sm font-semibold">{activeFolder}</span>
+            )}
+            <span className="ml-auto text-xs text-slate-400">
+              {activeFolderObj && activeFolderObj.subFolders.length > 0 && !activeSubFolder
+                ? `${activeFolderObj.subFolders.length} item pekerjaan`
+                : `${currentFolderItems.length} foto`}
+            </span>
           </div>
 
-          {currentFolderItems.length === 0 ? (
+          {/* Sub-folder grid (level 2) — tampil kalau folder punya sub dan belum dipilih */}
+          {activeFolderObj && activeFolderObj.subFolders.length > 0 && !activeSubFolder ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
+              {activeFolderObj.subFolders.map((sub, i) => {
+                const color = COLORS[i % COLORS.length];
+                return (
+                  <div
+                    key={sub.name}
+                    onClick={() => setActiveSubFolder(sub.name)}
+                    className="rounded-2xl overflow-hidden cursor-pointer hover:shadow-md transition group"
+                  >
+                    <div className={`aspect-video bg-gradient-to-br ${color} flex items-center justify-center relative`}>
+                      {sub.cover?.file_url ? (
+                        <>
+                          <img
+                            src={`${STORAGE_BASE}${sub.cover.file_url}`}
+                            alt={sub.name}
+                            className="w-full h-full object-cover absolute inset-0 opacity-70"
+                          />
+                          <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition" />
+                        </>
+                      ) : (
+                        <FolderIcon className="opacity-40" />
+                      )}
+                      <div className="absolute top-2 right-2 bg-black/40 text-white text-xs px-2 py-0.5 rounded-full">
+                        {sub.items.length} foto
+                      </div>
+                      <div className="absolute bottom-2 left-2">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" className="text-white/80">
+                          <path d="M2 8a2 2 0 012-2h5l2 2h9a2 2 0 012 2v8a2 2 0 01-2 2H4a2 2 0 01-2-2V8z" fill="currentColor"/>
+                        </svg>
+                      </div>
+                    </div>
+                    <div className="bg-white px-3 py-2 border border-t-0 border-slate-100 rounded-b-2xl">
+                      <p className="text-xs font-semibold text-slate-700 truncate">{sub.name}</p>
+                      {sub.cover?.tanggal_foto && (
+                        <p className="text-xs text-slate-400 truncate">{fmtDate(sub.cover.tanggal_foto)}</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : currentFolderItems.length === 0 ? (
             <div className="text-center py-16 text-slate-400">Folder kosong</div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -279,7 +383,7 @@ export default function GaleriPage() {
             return (
               <div
                 key={folder.name}
-                onClick={() => setActiveFolder(folder.name)}
+                onClick={() => { setActiveFolder(folder.name); setActiveSubFolder(null); }}
                 className="rounded-2xl overflow-hidden cursor-pointer hover:shadow-md transition group"
               >
                 {/* Cover */}

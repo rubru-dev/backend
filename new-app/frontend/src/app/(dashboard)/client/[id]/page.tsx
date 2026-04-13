@@ -218,17 +218,34 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: PEMBAYARAN (Invoice dari Finance)
+// TAB: PEMBAYARAN (Invoice dari Finance + Termin Manual)
 // ─────────────────────────────────────────────────────────────────────────────
 function TabPembayaran({ pid }: { pid: number }) {
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [editing, setEditing] = useState<any>(null);
   const [form, setForm] = useState<any>({ termin_ke: "", nama_termin: "", tagihan: "", retensi: "", status: "Belum Dibayar", jatuh_tempo: "", tanggal_bayar: "", catatan: "" });
   const [confirmDel, setConfirmDel] = useState<any>(null);
 
   const { data: items = [], isLoading } = useQuery({ queryKey: ["client-payments", pid], queryFn: () => clientApi.listPayments(pid) });
   const { data: invoices = [], isLoading: loadingInv } = useQuery({ queryKey: ["client-invoices", pid], queryFn: () => clientApi.listInvoices(pid) });
+  const { data: assignableInvoices = [], isLoading: loadingAssignable } = useQuery({
+    queryKey: ["client-assignable-invoices", pid],
+    queryFn: () => clientApi.listAssignableInvoices(pid),
+  });
+
+  const { mutate: assignInv, isPending: assigning } = useMutation({
+    mutationFn: ({ invId }: { invId: number }) => clientApi.assignInvoice(pid, invId),
+    onSuccess: () => { toast.success("Invoice berhasil di-assign ke portal"); qc.invalidateQueries({ queryKey: ["client-assignable-invoices", pid] }); qc.invalidateQueries({ queryKey: ["client-invoices", pid] }); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal assign"),
+  });
+
+  const { mutate: unassignInv, isPending: unassigning } = useMutation({
+    mutationFn: ({ invId }: { invId: number }) => clientApi.unassignInvoice(pid, invId),
+    onSuccess: () => { toast.success("Invoice dicabut dari portal"); qc.invalidateQueries({ queryKey: ["client-assignable-invoices", pid] }); qc.invalidateQueries({ queryKey: ["client-invoices", pid] }); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal unassign"),
+  });
 
   function openCreate() { setEditing(null); setForm({ termin_ke: (items.length + 1).toString(), nama_termin: `Termin ${items.length + 1}`, tagihan: "", retensi: "0", status: "Belum Dibayar", jatuh_tempo: "", tanggal_bayar: "", catatan: "" }); setShowForm(true); }
   function openEdit(item: any) { setEditing(item); setForm({ termin_ke: item.termin_ke, nama_termin: item.nama_termin, tagihan: item.tagihan, retensi: item.retensi, status: item.status, jatuh_tempo: item.jatuh_tempo?.slice(0, 10) ?? "", tanggal_bayar: item.tanggal_bayar?.slice(0, 10) ?? "", catatan: item.catatan ?? "" }); setShowForm(true); }
@@ -254,10 +271,15 @@ function TabPembayaran({ pid }: { pid: number }) {
     <div className="space-y-6">
       {/* Invoice dari Finance */}
       <div>
-        <h3 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-orange-500" />
-          Invoice Resmi (dari Finance)
-        </h3>
+        <div className="flex justify-between items-center mb-3">
+          <h3 className="text-sm font-semibold text-gray-700 flex items-center gap-2">
+            <TrendingUp className="w-4 h-4 text-orange-500" />
+            Invoice &amp; Kwitansi (dari Finance)
+          </h3>
+          <Button size="sm" onClick={() => setShowAssignDialog(true)}>
+            <Plus className="w-4 h-4 mr-1" />Tambah Invoice
+          </Button>
+        </div>
         <Card>
           <CardContent className="p-0">
             <Table>
@@ -267,18 +289,27 @@ function TabPembayaran({ pid }: { pid: number }) {
                   <TableHead>Total</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Tgl Terbit</TableHead>
+                  <TableHead className="w-20"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loadingInv ? <TableRow><TableCell colSpan={4}><Skeleton className="h-16" /></TableCell></TableRow>
+                {loadingInv ? <TableRow><TableCell colSpan={5}><Skeleton className="h-16" /></TableCell></TableRow>
                   : invoices.length === 0
-                    ? <TableRow><TableCell colSpan={4} className="text-center text-gray-400 py-6 text-sm">Belum ada invoice yang ditandatangani</TableCell></TableRow>
+                    ? <TableRow><TableCell colSpan={5} className="text-center text-gray-400 py-6 text-sm">Belum ada invoice yang di-assign. Klik &quot;Tambah Invoice&quot; untuk menambahkan dari data Finance.</TableCell></TableRow>
                     : invoices.map((inv: any) => (
                       <TableRow key={inv.id}>
-                        <TableCell className="font-mono text-sm">{inv.nomor_invoice}</TableCell>
-                        <TableCell className="font-medium">{fmtRp(inv.total)}</TableCell>
+                        <TableCell className="font-mono text-sm">{inv.invoice_number}</TableCell>
+                        <TableCell className="font-medium">{fmtRp(inv.grand_total)}</TableCell>
                         <TableCell><Badge className={invStatusBg(inv.status)}>{inv.status}</Badge></TableCell>
-                        <TableCell>{fmtDate(inv.head_finance_signed_at)}</TableCell>
+                        <TableCell>{fmtDate(inv.head_finance_at)}</TableCell>
+                        <TableCell>
+                          <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500" title="Cabut dari portal"
+                            disabled={unassigning}
+                            onClick={() => unassignInv({ invId: inv.id })}
+                          >
+                            <X className="w-3 h-3" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))}
               </TableBody>
@@ -286,6 +317,57 @@ function TabPembayaran({ pid }: { pid: number }) {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog assign invoice dari Finance */}
+      <Dialog open={showAssignDialog} onOpenChange={setShowAssignDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader><DialogTitle>Tambah Invoice dari Finance</DialogTitle></DialogHeader>
+          <div className="text-xs text-gray-500 mb-3">
+            Pilih invoice yang sudah ditandatangani (Terbit/Lunas) untuk ditampilkan di portal klien.
+          </div>
+          {loadingAssignable ? <Skeleton className="h-40" /> : assignableInvoices.length === 0 ? (
+            <div className="text-center py-8 text-gray-400 text-sm">
+              Belum ada invoice Terbit/Lunas untuk proyek ini.<br />
+              <span className="text-xs">Invoice harus sudah ditandatangani oleh Head Finance dan Admin Finance.</span>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>No. Invoice</TableHead>
+                  <TableHead>Total</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Tanggal</TableHead>
+                  <TableHead className="text-right">Aksi</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {assignableInvoices.map((inv: any) => (
+                  <TableRow key={inv.id}>
+                    <TableCell className="font-medium">{inv.invoice_number ?? `INV-${inv.id}`}</TableCell>
+                    <TableCell>{fmtRp(inv.grand_total)}</TableCell>
+                    <TableCell><Badge className={invStatusBg(inv.status)}>{inv.status}</Badge></TableCell>
+                    <TableCell>{fmtDate(inv.tanggal)}</TableCell>
+                    <TableCell className="text-right">
+                      {inv.is_assigned ? (
+                        <Button size="sm" variant="outline" disabled={unassigning} onClick={() => unassignInv({ invId: inv.id })}
+                          className="text-red-600 border-red-200 hover:bg-red-50"
+                        >
+                          <X className="w-3 h-3 mr-1" />Cabut
+                        </Button>
+                      ) : (
+                        <Button size="sm" disabled={assigning} onClick={() => assignInv({ invId: inv.id })}>
+                          <Plus className="w-3 h-3 mr-1" />Assign
+                        </Button>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Termin manual (internal) */}
       <div>
@@ -390,9 +472,12 @@ function TabPembayaran({ pid }: { pid: number }) {
 function TabGaleri({ pid }: { pid: number }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const addToFolderFileRef = useRef<HTMLInputElement>(null);
   const [judul, setJudul] = useState("");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
+  const [addTanggal, setAddTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [previews, setPreviews] = useState<string[]>([]);
+  const [addPreviews, setAddPreviews] = useState<string[]>([]);
   const [openFolder, setOpenFolder] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<any>(null);
   const [confirmDel, setConfirmDel] = useState<any>(null);
@@ -406,7 +491,9 @@ function TabGaleri({ pid }: { pid: number }) {
       toast.success(res.message ?? "Foto berhasil diupload");
       qc.invalidateQueries({ queryKey: ["client-galeri", pid] });
       setJudul(""); setPreviews([]);
+      setAddPreviews([]);
       if (fileRef.current) fileRef.current.value = "";
+      if (addToFolderFileRef.current) addToFolderFileRef.current.value = "";
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal upload"),
   });
@@ -436,6 +523,11 @@ function TabGaleri({ pid }: { pid: number }) {
     setPreviews(files.map((f) => URL.createObjectURL(f)));
   }
 
+  function handleAddToFolderFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    setAddPreviews(files.map((f) => URL.createObjectURL(f)));
+  }
+
   function handleUpload() {
     const files = Array.from(fileRef.current?.files ?? []);
     if (files.length === 0) { toast.error("Pilih file terlebih dahulu"); return; }
@@ -444,6 +536,17 @@ function TabGaleri({ pid }: { pid: number }) {
     files.forEach((f) => fd.append("foto", f));
     fd.append("judul", judul.trim());
     fd.append("tanggal_foto", tanggal);
+    upload(fd);
+  }
+
+  function handleAddToFolder() {
+    const files = Array.from(addToFolderFileRef.current?.files ?? []);
+    if (files.length === 0) { toast.error("Pilih file terlebih dahulu"); return; }
+    if (!openFolder) return;
+    const fd = new FormData();
+    files.forEach((f) => fd.append("foto", f));
+    fd.append("judul", openFolder);
+    fd.append("tanggal_foto", addTanggal);
     upload(fd);
   }
 
@@ -461,36 +564,38 @@ function TabGaleri({ pid }: { pid: number }) {
 
   return (
     <div className="space-y-5">
-      {/* Upload Form */}
-      <Card>
-        <CardContent className="pt-4">
-          <h3 className="font-medium text-gray-700 mb-3">Upload Foto ke Folder Baru</h3>
-          <div className="grid grid-cols-3 gap-3 items-end">
-            <div>
-              <Label>Judul Folder *</Label>
-              <Input value={judul} onChange={(e) => setJudul(e.target.value)} placeholder="Minggu 1 — Pondasi..." />
+      {/* Upload Form — only on folder list view */}
+      {!openFolder && (
+        <Card>
+          <CardContent className="pt-4">
+            <h3 className="font-medium text-gray-700 mb-3">Upload Foto ke Folder Baru</h3>
+            <div className="grid grid-cols-3 gap-3 items-end">
+              <div>
+                <Label>Judul Folder *</Label>
+                <Input value={judul} onChange={(e) => setJudul(e.target.value)} placeholder="Minggu 1 — Pondasi..." />
+              </div>
+              <div>
+                <Label>Tanggal Foto</Label>
+                <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+              </div>
+              <div className="flex gap-2">
+                <Button variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
+                  <Upload className="w-4 h-4 mr-1" /> Pilih File
+                </Button>
+                <Button disabled={isPending} onClick={handleUpload}>{isPending ? "..." : "Upload"}</Button>
+              </div>
             </div>
-            <div>
-              <Label>Tanggal Foto</Label>
-              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
-            </div>
-            <div className="flex gap-2">
-              <Button variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}>
-                <Upload className="w-4 h-4 mr-1" /> Pilih File
-              </Button>
-              <Button disabled={isPending} onClick={handleUpload}>{isPending ? "..." : "Upload"}</Button>
-            </div>
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFile} />
-          {previews.length > 0 && (
-            <div className="flex gap-2 mt-3 flex-wrap">
-              {previews.map((p, i) => (
-                <img key={i} src={p} alt={`preview ${i + 1}`} className="h-20 w-auto rounded-lg border object-cover" />
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFile} />
+            {previews.length > 0 && (
+              <div className="flex gap-2 mt-3 flex-wrap">
+                {previews.map((p, i) => (
+                  <img key={i} src={p} alt={`preview ${i + 1}`} className="h-20 w-auto rounded-lg border object-cover" />
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? <Skeleton className="h-40" /> : (
         <>
@@ -498,7 +603,7 @@ function TabGaleri({ pid }: { pid: number }) {
           {openFolder ? (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Button variant="ghost" size="sm" onClick={() => setOpenFolder(null)}>
+                <Button variant="ghost" size="sm" onClick={() => { setOpenFolder(null); setAddPreviews([]); if (addToFolderFileRef.current) addToFolderFileRef.current.value = ""; }}>
                   <ChevronLeft className="w-4 h-4 mr-1" />Kembali
                 </Button>
                 <FolderOpen className="w-4 h-4 text-orange-500" />
@@ -511,6 +616,34 @@ function TabGaleri({ pid }: { pid: number }) {
                   <Trash2 className="w-3 h-3 mr-1" />Hapus Folder
                 </Button>
               </div>
+
+              {/* Add photos to this folder */}
+              <Card className="mb-4">
+                <CardContent className="pt-4">
+                  <h3 className="font-medium text-gray-700 mb-3">Tambah Foto ke Folder Ini</h3>
+                  <div className="grid grid-cols-3 gap-3 items-end">
+                    <div>
+                      <Label>Tanggal Foto</Label>
+                      <Input type="date" value={addTanggal} onChange={(e) => setAddTanggal(e.target.value)} />
+                    </div>
+                    <div className="flex gap-2 col-span-2">
+                      <Button variant="outline" className="flex-1" onClick={() => addToFolderFileRef.current?.click()}>
+                        <Upload className="w-4 h-4 mr-1" /> Pilih Foto
+                      </Button>
+                      <Button disabled={isPending} onClick={handleAddToFolder}>{isPending ? "..." : "Upload"}</Button>
+                    </div>
+                  </div>
+                  <input ref={addToFolderFileRef} type="file" accept="image/*" multiple className="hidden" onChange={handleAddToFolderFile} />
+                  {addPreviews.length > 0 && (
+                    <div className="flex gap-2 mt-3 flex-wrap">
+                      {addPreviews.map((p, i) => (
+                        <img key={i} src={p} alt={`preview ${i + 1}`} className="h-20 w-auto rounded-lg border object-cover" />
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                 {folderItems.map((item: any) => (
                   <div key={item.id} className="group relative rounded-xl overflow-hidden border bg-gray-50 aspect-video cursor-pointer" onClick={() => setLightbox(item)}>
@@ -614,10 +747,14 @@ function TabGaleri({ pid }: { pid: number }) {
 function TabDokumen({ pid }: { pid: number }) {
   const qc = useQueryClient();
   const fileRef = useRef<HTMLInputElement>(null);
+  const addToFolderFileRef = useRef<HTMLInputElement>(null);
   const [folderName, setFolderName] = useState("");
   const [kategori, setKategori] = useState("Umum");
+  const [addKategori, setAddKategori] = useState("Umum");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
+  const [addTanggal, setAddTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [selectedNames, setSelectedNames] = useState<string[]>([]);
+  const [addSelectedNames, setAddSelectedNames] = useState<string[]>([]);
   const [openFolder, setOpenFolder] = useState<string | null>(null);
   const [confirmDel, setConfirmDel] = useState<any>(null);
   const [confirmDelFolder, setConfirmDelFolder] = useState<string | null>(null);
@@ -629,8 +766,9 @@ function TabDokumen({ pid }: { pid: number }) {
     onSuccess: (res: any) => {
       toast.success(res.message ?? "Dokumen berhasil diupload");
       qc.invalidateQueries({ queryKey: ["client-dokumen", pid] });
-      setSelectedNames([]);
+      setSelectedNames([]); setAddSelectedNames([]);
       if (fileRef.current) fileRef.current.value = "";
+      if (addToFolderFileRef.current) addToFolderFileRef.current.value = "";
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal upload"),
   });
@@ -659,6 +797,10 @@ function TabDokumen({ pid }: { pid: number }) {
     setSelectedNames(Array.from(e.target.files ?? []).map((f) => f.name));
   }
 
+  function handleAddToFolderFile(e: React.ChangeEvent<HTMLInputElement>) {
+    setAddSelectedNames(Array.from(e.target.files ?? []).map((f) => f.name));
+  }
+
   function handleUpload() {
     const files = Array.from(fileRef.current?.files ?? []);
     if (files.length === 0) { toast.error("Pilih file terlebih dahulu"); return; }
@@ -668,6 +810,18 @@ function TabDokumen({ pid }: { pid: number }) {
     fd.append("folder_name", folderName.trim());
     fd.append("kategori", kategori);
     fd.append("tanggal_upload", tanggal);
+    upload(fd);
+  }
+
+  function handleAddToFolder() {
+    const files = Array.from(addToFolderFileRef.current?.files ?? []);
+    if (files.length === 0) { toast.error("Pilih file terlebih dahulu"); return; }
+    if (!openFolder) return;
+    const fd = new FormData();
+    files.forEach((f) => fd.append("file", f));
+    fd.append("folder_name", openFolder);
+    fd.append("kategori", addKategori);
+    fd.append("tanggal_upload", addTanggal);
     upload(fd);
   }
 
@@ -685,35 +839,37 @@ function TabDokumen({ pid }: { pid: number }) {
 
   return (
     <div className="space-y-5">
-      {/* Upload Form */}
-      <Card>
-        <CardContent className="pt-4">
-          <h3 className="font-medium text-gray-700 mb-3">Upload Dokumen ke Folder Baru</h3>
-          <div className="grid grid-cols-4 gap-3 items-end">
-            <div>
-              <Label>Judul Folder *</Label>
-              <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="Dokumen Kontrak..." />
+      {/* Upload Form — only on folder list view */}
+      {!openFolder && (
+        <Card>
+          <CardContent className="pt-4">
+            <h3 className="font-medium text-gray-700 mb-3">Upload Dokumen ke Folder Baru</h3>
+            <div className="grid grid-cols-4 gap-3 items-end">
+              <div>
+                <Label>Judul Folder *</Label>
+                <Input value={folderName} onChange={(e) => setFolderName(e.target.value)} placeholder="Dokumen Kontrak..." />
+              </div>
+              <div><Label>Kategori</Label>
+                <Select value={kategori} onValueChange={setKategori}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{KATEGORI.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
+              <div><Label>Tanggal Upload</Label><Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} /></div>
+              <div className="flex gap-2 items-end">
+                <Button variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Pilih File</Button>
+                <Button disabled={isPending} onClick={handleUpload}>{isPending ? "..." : "Upload"}</Button>
+              </div>
             </div>
-            <div><Label>Kategori</Label>
-              <Select value={kategori} onValueChange={setKategori}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>{KATEGORI.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div><Label>Tanggal Upload</Label><Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} /></div>
-            <div className="flex gap-2 items-end">
-              <Button variant="outline" className="flex-1" onClick={() => fileRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Pilih File</Button>
-              <Button disabled={isPending} onClick={handleUpload}>{isPending ? "..." : "Upload"}</Button>
-            </div>
-          </div>
-          <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFile} />
-          {selectedNames.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-1">
-              {selectedNames.map((n, i) => <span key={i} className="text-xs bg-gray-100 px-2 py-0.5 rounded">{n}</span>)}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+            <input ref={fileRef} type="file" multiple className="hidden" onChange={handleFile} />
+            {selectedNames.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1">
+                {selectedNames.map((n, i) => <span key={i} className="text-xs bg-gray-100 px-2 py-0.5 rounded">{n}</span>)}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? <Skeleton className="h-40" /> : (
         <>
@@ -721,7 +877,7 @@ function TabDokumen({ pid }: { pid: number }) {
           {openFolder ? (
             <div>
               <div className="flex items-center gap-2 mb-4">
-                <Button variant="ghost" size="sm" onClick={() => setOpenFolder(null)}>
+                <Button variant="ghost" size="sm" onClick={() => { setOpenFolder(null); setAddSelectedNames([]); if (addToFolderFileRef.current) addToFolderFileRef.current.value = ""; }}>
                   <ChevronLeft className="w-4 h-4 mr-1" />Kembali
                 </Button>
                 <FolderOpen className="w-4 h-4 text-orange-500" />
@@ -734,6 +890,33 @@ function TabDokumen({ pid }: { pid: number }) {
                   <Trash2 className="w-3 h-3 mr-1" />Hapus Folder
                 </Button>
               </div>
+
+              {/* Add files to this folder */}
+              <Card className="mb-4">
+                <CardContent className="pt-4">
+                  <h3 className="font-medium text-gray-700 mb-3">Tambah File ke Folder Ini</h3>
+                  <div className="grid grid-cols-4 gap-3 items-end">
+                    <div><Label>Kategori</Label>
+                      <Select value={addKategori} onValueChange={setAddKategori}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>{KATEGORI.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div><Label>Tanggal Upload</Label><Input type="date" value={addTanggal} onChange={(e) => setAddTanggal(e.target.value)} /></div>
+                    <div className="flex gap-2 items-end col-span-2">
+                      <Button variant="outline" className="flex-1" onClick={() => addToFolderFileRef.current?.click()}><Upload className="w-4 h-4 mr-1" />Pilih File</Button>
+                      <Button disabled={isPending} onClick={handleAddToFolder}>{isPending ? "..." : "Upload"}</Button>
+                    </div>
+                  </div>
+                  <input ref={addToFolderFileRef} type="file" multiple className="hidden" onChange={handleAddToFolderFile} />
+                  {addSelectedNames.length > 0 && (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {addSelectedNames.map((n, i) => <span key={i} className="text-xs bg-gray-100 px-2 py-0.5 rounded">{n}</span>)}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
               <Card>
                 <CardContent className="p-0">
                   <Table>
@@ -1142,101 +1325,6 @@ function TabKehadiran({ pid }: { pid: number }) {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// TAB: ASSIGN INVOICE KE PORTAL KLIEN
-// ─────────────────────────────────────────────────────────────────────────────
-function TabInvoiceAssign({ pid }: { pid: number }) {
-  const qc = useQueryClient();
-
-  const { data: invoices = [], isLoading } = useQuery({
-    queryKey: ["client-assignable-invoices", pid],
-    queryFn: () => clientApi.listAssignableInvoices(pid),
-  });
-
-  const { mutate: assign, isPending: assigning } = useMutation({
-    mutationFn: ({ invId }: { invId: number }) => clientApi.assignInvoice(pid, invId),
-    onSuccess: () => { toast.success("Invoice berhasil di-assign"); qc.invalidateQueries({ queryKey: ["client-assignable-invoices", pid] }); },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal assign"),
-  });
-
-  const { mutate: unassign, isPending: unassigning } = useMutation({
-    mutationFn: ({ invId }: { invId: number }) => clientApi.unassignInvoice(pid, invId),
-    onSuccess: () => { toast.success("Invoice berhasil di-unassign"); qc.invalidateQueries({ queryKey: ["client-assignable-invoices", pid] }); },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal unassign"),
-  });
-
-  return (
-    <div className="space-y-4">
-      <div className="bg-blue-50 border border-blue-100 text-blue-700 text-sm px-4 py-3 rounded-xl">
-        <p className="font-medium mb-1">Cara kerja Invoice Portal Klien</p>
-        <p className="text-xs text-blue-600">
-          Invoice yang sudah ditandatangani (Head Finance + Admin Finance) dapat di-assign ke portal klien.
-          Setelah di-assign, tagihan akan otomatis muncul di menu Pembayaran portal klien.
-          Saat invoice Lunas (kwitansi dibuat), status pembayaran di portal otomatis berubah menjadi &quot;Sudah Dibayar&quot;.
-        </p>
-      </div>
-
-      {isLoading ? <Skeleton className="h-40" /> : invoices.length === 0 ? (
-        <div className="text-center py-10 text-gray-400 text-sm">
-          Belum ada invoice Terbit/Lunas untuk proyek ini.<br />
-          <span className="text-xs">Invoice harus sudah ditandatangani oleh Head Finance dan Admin Finance.</span>
-        </div>
-      ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>No. Invoice</TableHead>
-              <TableHead>Total</TableHead>
-              <TableHead>Status Invoice</TableHead>
-              <TableHead>Tanggal</TableHead>
-              <TableHead>Status Portal</TableHead>
-              <TableHead className="text-right">Aksi</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {invoices.map((inv: any) => (
-              <TableRow key={inv.id}>
-                <TableCell className="font-medium">{inv.invoice_number ?? `INV-${inv.id}`}</TableCell>
-                <TableCell>{fmtRp(inv.grand_total)}</TableCell>
-                <TableCell>
-                  <Badge variant={inv.status === "Lunas" ? "default" : "outline"}>{inv.status}</Badge>
-                </TableCell>
-                <TableCell>{fmtDate(inv.tanggal)}</TableCell>
-                <TableCell>
-                  {inv.is_assigned
-                    ? <Badge className="bg-green-100 text-green-700 border-0">Ditampilkan di Portal</Badge>
-                    : <Badge variant="secondary">Belum di-assign</Badge>
-                  }
-                </TableCell>
-                <TableCell className="text-right">
-                  {inv.is_assigned ? (
-                    <Button
-                      size="sm" variant="outline"
-                      disabled={unassigning}
-                      onClick={() => unassign({ invId: inv.id })}
-                      className="text-red-600 border-red-200 hover:bg-red-50"
-                    >
-                      <X className="w-3 h-3 mr-1" />Cabut
-                    </Button>
-                  ) : (
-                    <Button
-                      size="sm"
-                      disabled={assigning}
-                      onClick={() => assign({ invId: inv.id })}
-                    >
-                      <Plus className="w-3 h-3 mr-1" />Assign ke Portal
-                    </Button>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      )}
-    </div>
-  );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
 // TAB: CCTV ONLINE SETUP
 // ─────────────────────────────────────────────────────────────────────────────
 const STREAM_TYPES = [
@@ -1522,7 +1610,7 @@ export default function ClientDetailPage() {
           <TabsTrigger value="aktivitas"><Calendar className="w-3 h-3 mr-1" />Aktivitas</TabsTrigger>
           <TabsTrigger value="kontak"><Phone className="w-3 h-3 mr-1" />Kontak</TabsTrigger>
           <TabsTrigger value="kehadiran"><Users className="w-3 h-3 mr-1" />Kehadiran</TabsTrigger>
-          <TabsTrigger value="invoice"><Receipt className="w-3 h-3 mr-1" />Invoice Portal</TabsTrigger>
+          <TabsTrigger value="pembayaran"><Receipt className="w-3 h-3 mr-1" />Pembayaran</TabsTrigger>
           <TabsTrigger value="cctv"><Video className="w-3 h-3 mr-1" />CCTV Online</TabsTrigger>
         </TabsList>
 
@@ -1533,7 +1621,7 @@ export default function ClientDetailPage() {
           <TabsContent value="aktivitas"><TabAktivitas pid={pid} /></TabsContent>
           <TabsContent value="kontak"><TabKontak pid={pid} /></TabsContent>
           <TabsContent value="kehadiran"><TabKehadiran pid={pid} /></TabsContent>
-          <TabsContent value="invoice"><TabInvoiceAssign pid={pid} /></TabsContent>
+          <TabsContent value="pembayaran"><TabPembayaran pid={pid} /></TabsContent>
           <TabsContent value="cctv"><TabCctv pid={pid} /></TabsContent>
         </div>
       </Tabs>

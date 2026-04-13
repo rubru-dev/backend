@@ -26,7 +26,9 @@ import {
   Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
   Link2, ExternalLink, X, Upload, FileText, PackageSearch, Boxes, Camera, ImageIcon,
+  CheckSquare,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // ── Types ───────────────────────────────────────────────────────────────────────
 type Task = {
@@ -81,6 +83,238 @@ const GANTT_BAR_COLOR: Record<string, string> = {
 
 const EMPTY_TERMIN = { nama: "", tanggal_mulai: "", tanggal_selesai: "" };
 const EMPTY_TASK = { nama_pekerjaan: "", tanggal_mulai: "", tanggal_selesai: "", status: "Belum Mulai", pic: "" };
+
+// ── Checklist Tab Component ─────────────────────────────────────────────────────
+type ChecklistItem = { id: string; nama_pekerjaan: string; gambar_path: string | null; gambar_selesai_path: string | null; is_checked: boolean; urutan: number };
+type ChecklistApi = { getChecklist: (id: string) => Promise<any>; addChecklistItem: (id: string, d: any) => Promise<any>; updateChecklistItem: (cid: string, d: any) => Promise<any>; deleteChecklistItem: (cid: string) => Promise<any> };
+
+async function fetchImgB64(url: string): Promise<string | null> {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    const blob = await r.blob();
+    return new Promise((resolve) => { const rd = new FileReader(); rd.onload = () => resolve(rd.result as string); rd.onerror = () => resolve(null); rd.readAsDataURL(blob); });
+  } catch { return null; }
+}
+
+function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: ChecklistApi; projekDetail?: { nama_proyek?: string | null; lead?: { nama: string } | null; lokasi?: string | null; tipe?: string } }) {
+  const qc = useQueryClient();
+  const qk = ["checklist", projekId];
+  const { data: items = [], isLoading } = useQuery<ChecklistItem[]>({ queryKey: qk, queryFn: () => api.getChecklist(projekId) });
+  const [addForm, setAddForm] = useState({ nama_pekerjaan: "", gambar: null as File | null });
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const addRef = useRef<HTMLInputElement>(null);
+
+  // Dialog for marking done
+  const [doneDialog, setDoneDialog] = useState<ChecklistItem | null>(null);
+  const [doneFile, setDoneFile] = useState<File | null>(null);
+  const [donePreview, setDonePreview] = useState<string | null>(null);
+  const doneRef = useRef<HTMLInputElement>(null);
+
+  // PDF
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
+
+  const addMut = useMutation({ mutationFn: (d: { nama_pekerjaan: string; gambar?: File }) => api.addChecklistItem(projekId, d), onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); setAddForm({ nama_pekerjaan: "", gambar: null }); setPreviewUrl(null); toast.success("Item ditambahkan"); } });
+  const updateMut = useMutation({ mutationFn: ({ id, data }: { id: string; data: any }) => api.updateChecklistItem(id, data), onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); setDoneDialog(null); setDoneFile(null); setDonePreview(null); } });
+  const delMut = useMutation({ mutationFn: (id: string) => api.deleteChecklistItem(id), onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); toast.success("Item dihapus"); } });
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+  function handleCheckToggle(item: ChecklistItem) {
+    if (!item.is_checked) {
+      // Opening dialog to mark as done
+      setDoneDialog(item);
+      setDoneFile(null);
+      setDonePreview(null);
+    } else {
+      // Uncheck — direct update
+      updateMut.mutate({ id: item.id, data: { is_checked: false } });
+    }
+  }
+
+  function handleConfirmDone() {
+    if (!doneDialog) return;
+    updateMut.mutate({ id: doneDialog.id, data: { is_checked: true, ...(doneFile ? { gambar_selesai: doneFile } : {}) } });
+    toast.success("Pekerjaan ditandai selesai");
+  }
+
+  async function handleDownloadChecklist() {
+    setDownloadingPdf(true);
+    try {
+      const { ChecklistPDF } = await import("@/components/checklist-pdf");
+      const logoUrl = await getLogoBase64();
+
+      const pdfItems = await Promise.all(items.map(async (item, idx) => ({
+        no: idx + 1,
+        nama_pekerjaan: item.nama_pekerjaan,
+        gambar_b64: item.gambar_path ? await fetchImgB64(`${baseUrl}${item.gambar_path}`) : null,
+        gambar_selesai_b64: item.gambar_selesai_path ? await fetchImgB64(`${baseUrl}${item.gambar_selesai_path}`) : null,
+        is_checked: item.is_checked,
+      })));
+
+      const blob = await pdf(
+        <ChecklistPDF data={{
+          namaProyek: projekDetail?.nama_proyek ?? "Proyek",
+          tipeProyek: projekDetail?.tipe ?? "PROYEK",
+          klien: projekDetail?.lead?.nama,
+          lokasi: projekDetail?.lokasi ?? undefined,
+          items: pdfItems,
+          logoUrl,
+        }} />
+      ).toBlob();
+      saveAs(blob, `Checklist-${projekDetail?.nama_proyek ?? "Proyek"}.pdf`);
+    } catch (e) {
+      toast.error("Gagal generate PDF");
+      console.error(e);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Header actions */}
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-semibold text-muted-foreground">{items.filter((i) => i.is_checked).length}/{items.length} pekerjaan selesai</p>
+        <Button variant="outline" size="sm" disabled={downloadingPdf || items.length === 0} onClick={handleDownloadChecklist}>
+          {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
+          Download PDF
+        </Button>
+      </div>
+
+      {/* Add form */}
+      <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
+        <p className="text-sm font-semibold">Tambah Item Checklist</p>
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+          <div>
+            <Label>Nama Pekerjaan *</Label>
+            <Input placeholder="e.g. Cat Tembok Kurang Rapih" value={addForm.nama_pekerjaan} onChange={(e) => setAddForm({ ...addForm, nama_pekerjaan: e.target.value })} />
+          </div>
+          <div>
+            <Label>Gambar (opsional)</Label>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" type="button" onClick={() => addRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5 mr-1" />Pilih Foto
+              </Button>
+              <input ref={addRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                const f = e.target.files?.[0] ?? null;
+                setAddForm({ ...addForm, gambar: f });
+                setPreviewUrl(f ? URL.createObjectURL(f) : null);
+              }} />
+              {addForm.gambar && <span className="text-xs text-muted-foreground truncate max-w-[150px]">{addForm.gambar.name}</span>}
+            </div>
+          </div>
+        </div>
+        {previewUrl && <img src={previewUrl} alt="Preview" className="h-20 w-auto rounded border object-cover" />}
+        <div className="flex justify-end">
+          <Button size="sm" disabled={!addForm.nama_pekerjaan.trim() || addMut.isPending} onClick={() => addMut.mutate({ nama_pekerjaan: addForm.nama_pekerjaan, ...(addForm.gambar ? { gambar: addForm.gambar } : {}) })}>
+            {addMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Menyimpan...</> : <><Plus className="h-3.5 w-3.5 mr-1" />Tambah</>}
+          </Button>
+        </div>
+      </div>
+
+      {/* Table */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+          <CheckSquare className="h-10 w-10 mb-3 opacity-20" />
+          <p className="text-sm">Belum ada item checklist.</p>
+        </div>
+      ) : (
+        <div className="border rounded-lg overflow-hidden overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-12 text-center">No</TableHead>
+                <TableHead className="w-36">Gambar Pekerjaan</TableHead>
+                <TableHead>Nama Pekerjaan</TableHead>
+                <TableHead className="w-36">Foto Selesai</TableHead>
+                <TableHead className="w-24 text-center">Status</TableHead>
+                <TableHead className="w-16 text-center">Aksi</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {items.map((item, idx) => (
+                <TableRow key={item.id} className={item.is_checked ? "bg-green-50/50" : ""}>
+                  <TableCell className="text-center font-medium">{idx + 1}</TableCell>
+                  <TableCell>
+                    {item.gambar_path ? (
+                      <a href={`${baseUrl}${item.gambar_path}`} target="_blank" rel="noreferrer">
+                        <img src={`${baseUrl}${item.gambar_path}`} alt="gambar" className="h-24 w-32 object-cover rounded border hover:opacity-90 transition-opacity" />
+                      </a>
+                    ) : (
+                      <div className="h-24 w-32 bg-muted rounded border flex items-center justify-center">
+                        <ImageIcon className="h-6 w-6 text-muted-foreground/30" />
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="font-medium">{item.nama_pekerjaan}</TableCell>
+                  <TableCell>
+                    {item.gambar_selesai_path ? (
+                      <a href={`${baseUrl}${item.gambar_selesai_path}`} target="_blank" rel="noreferrer">
+                        <img src={`${baseUrl}${item.gambar_selesai_path}`} alt="selesai" className="h-24 w-32 object-cover rounded border hover:opacity-90 transition-opacity" />
+                      </a>
+                    ) : (
+                      <div className="h-24 w-32 bg-muted rounded border flex items-center justify-center">
+                        <ImageIcon className="h-6 w-6 text-muted-foreground/30" />
+                      </div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <div className="flex flex-col items-center gap-1">
+                      <Checkbox checked={item.is_checked} onCheckedChange={() => handleCheckToggle(item)} />
+                      <span className={`text-xs font-medium ${item.is_checked ? "text-green-600" : "text-muted-foreground"}`}>
+                        {item.is_checked ? "Selesai" : "Belum"}
+                      </span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => delMut.mutate(item.id)}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
+
+      {/* Dialog: Tandai Selesai */}
+      <Dialog open={!!doneDialog} onOpenChange={(v) => { if (!v) { setDoneDialog(null); setDoneFile(null); setDonePreview(null); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader><DialogTitle>Tandai Pekerjaan Selesai</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-1">
+            <p className="text-sm text-muted-foreground">Tandai <b>"{doneDialog?.nama_pekerjaan}"</b> sebagai sudah dikerjakan?</p>
+            <div>
+              <Label>Foto Selesai (opsional)</Label>
+              <p className="text-xs text-muted-foreground mb-2">Upload foto hasil pekerjaan yang sudah selesai</p>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" type="button" onClick={() => doneRef.current?.click()}>
+                  <Upload className="h-3.5 w-3.5 mr-1" />Pilih Foto
+                </Button>
+                <input ref={doneRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                  const f = e.target.files?.[0] ?? null;
+                  setDoneFile(f);
+                  setDonePreview(f ? URL.createObjectURL(f) : null);
+                }} />
+                {doneFile && <span className="text-xs text-muted-foreground truncate max-w-[150px]">{doneFile.name}</span>}
+              </div>
+            </div>
+            {donePreview && <img src={donePreview} alt="Preview selesai" className="h-28 w-auto rounded border object-cover" />}
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => { setDoneDialog(null); setDoneFile(null); setDonePreview(null); }}>Batal</Button>
+              <Button disabled={updateMut.isPending} onClick={handleConfirmDone} className="bg-green-600 hover:bg-green-700">
+                {updateMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckSquare className="h-3.5 w-3.5 mr-1" />}
+                Tandai Selesai
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
 
 // ── Gantt Chart ─────────────────────────────────────────────────────────────────
 function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
@@ -270,6 +504,7 @@ export default function ProyekSipilDetailPage() {
   const canTabRapp       = sa || hasPermission("projek_sipil", "rapp");
   const canTabStockOpname= sa || hasPermission("projek_sipil", "stock_opname");
   const canTabDokumentasi= true;
+  const canTabChecklist  = true;
   const defaultTab = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabDocs ? "docs" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : "dokumentasi";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
@@ -627,6 +862,7 @@ export default function ProyekSipilDetailPage() {
           {canTabRapp        && <TabsTrigger value="rapp"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />RAPP</TabsTrigger>}
           {canTabStockOpname && <TabsTrigger value="stock-opname"><PackageSearch className="h-3.5 w-3.5 mr-1.5" />Stock Opname</TabsTrigger>}
           {canTabDokumentasi && <TabsTrigger value="dokumentasi"><Camera className="h-3.5 w-3.5 mr-1.5" />Dokumentasi</TabsTrigger>}
+          {canTabChecklist   && <TabsTrigger value="checklist"><CheckSquare className="h-3.5 w-3.5 mr-1.5" />Form Checklist</TabsTrigger>}
         </TabsList>
 
         {/* Daftar Termin */}
@@ -1044,6 +1280,11 @@ export default function ProyekSipilDetailPage() {
               );
             })
           )}
+        </TabsContent>
+
+        {/* Form Checklist */}
+        <TabsContent value="checklist" className="mt-4">
+          <ChecklistTab projekId={id} api={sipilApi} projekDetail={{ nama_proyek: detail?.nama_proyek, lead: detail?.lead, lokasi: detail?.lokasi, tipe: "PROYEK SIPIL" }} />
         </TabsContent>
       </Tabs>
 

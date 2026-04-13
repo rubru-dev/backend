@@ -822,4 +822,80 @@ router.delete("/tasks/fotos/:fotoId", async (req: Request, res: Response) => {
   return res.json({ message: "Foto dihapus" });
 });
 
+// ── Form Checklist Sipil ─────────────────────────────────────────────────────
+
+// GET /projeks/:id/checklist
+router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
+  const proyekId = BigInt(req.params.id);
+  const items = await prisma.checklistSipil.findMany({
+    where: { proyek_id: proyekId },
+    orderBy: { urutan: "asc" },
+  });
+  return res.json(items.map((i) => ({ ...i, id: String(i.id), proyek_id: String(i.proyek_id) })));
+});
+
+// POST /projeks/:id/checklist
+router.post("/projeks/:id/checklist", docsUpload.single("gambar"), async (req: Request, res: Response) => {
+  const proyekId = BigInt(req.params.id);
+  const proyek = await prisma.proyekBerjalan.findUnique({ where: { id: proyekId } });
+  if (!proyek) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
+  const { nama_pekerjaan } = req.body;
+  if (!nama_pekerjaan) return res.status(400).json({ detail: "nama_pekerjaan wajib diisi" });
+  const maxUrutan = await prisma.checklistSipil.aggregate({ where: { proyek_id: proyekId }, _max: { urutan: true } });
+  const file = req.file as Express.Multer.File | undefined;
+  const item = await prisma.checklistSipil.create({
+    data: {
+      proyek_id: proyekId,
+      nama_pekerjaan,
+      gambar_path: file ? `/storage/sipil-docs/${file.filename}` : null,
+      urutan: (maxUrutan._max.urutan ?? -1) + 1,
+    },
+  });
+  return res.status(201).json({ ...item, id: String(item.id), proyek_id: String(item.proyek_id) });
+});
+
+// PATCH /checklist/:cid
+router.patch("/checklist/:cid", docsUpload.fields([{ name: "gambar", maxCount: 1 }, { name: "gambar_selesai", maxCount: 1 }]), async (req: Request, res: Response) => {
+  const cid = BigInt(req.params.cid);
+  const existing = await prisma.checklistSipil.findUnique({ where: { id: cid } });
+  if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
+  const data: any = {};
+  if (req.body.nama_pekerjaan !== undefined) data.nama_pekerjaan = req.body.nama_pekerjaan;
+  if (req.body.is_checked !== undefined) data.is_checked = req.body.is_checked === "true" || req.body.is_checked === true;
+  const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+  const gambar = files?.gambar?.[0];
+  if (gambar) {
+    if (existing.gambar_path) {
+      const oldPath = path.resolve(config.storagePath, existing.gambar_path.replace(/^\/storage\//, ""));
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+    data.gambar_path = `/storage/sipil-docs/${gambar.filename}`;
+  }
+  const gambarSelesai = files?.gambar_selesai?.[0];
+  if (gambarSelesai) {
+    if (existing.gambar_selesai_path) {
+      const oldPath = path.resolve(config.storagePath, existing.gambar_selesai_path.replace(/^\/storage\//, ""));
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+    data.gambar_selesai_path = `/storage/sipil-docs/${gambarSelesai.filename}`;
+  }
+  const updated = await prisma.checklistSipil.update({ where: { id: cid }, data });
+  return res.json({ ...updated, id: String(updated.id), proyek_id: String(updated.proyek_id) });
+});
+
+// DELETE /checklist/:cid
+router.delete("/checklist/:cid", async (req: Request, res: Response) => {
+  const cid = BigInt(req.params.cid);
+  const existing = await prisma.checklistSipil.findUnique({ where: { id: cid } });
+  if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
+  for (const p of [existing.gambar_path, existing.gambar_selesai_path]) {
+    if (p) {
+      const filePath = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
+      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    }
+  }
+  await prisma.checklistSipil.delete({ where: { id: cid } });
+  return res.json({ message: "Checklist item dihapus" });
+});
+
 export default router;

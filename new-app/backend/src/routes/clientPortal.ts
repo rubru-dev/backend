@@ -152,7 +152,7 @@ router.get("/invoices", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const invoices = await prisma.invoice.findMany({
     where: { client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } },
-    include: { kwitansi: { select: { tanggal: true, nomor_kwitansi: true } } },
+    include: { kwitansi: { select: { tanggal: true, nomor_kwitansi: true, metode_bayar: true } } },
     orderBy: { tanggal: "asc" },
   });
   return res.json(invoices.map(inv => ({
@@ -165,8 +165,59 @@ router.get("/invoices", async (req: Request, res: Response) => {
     ppn_amount: toNum(inv.ppn_amount),
     status: inv.status,
     catatan: inv.catatan,
-    kwitansi: inv.kwitansi ? { tanggal: inv.kwitansi.tanggal, nomor: inv.kwitansi.nomor_kwitansi } : null,
+    kwitansi: inv.kwitansi ? {
+      tanggal_bayar: inv.kwitansi.tanggal,
+      metode_bayar: inv.kwitansi.metode_bayar,
+      nomor_kwitansi: inv.kwitansi.nomor_kwitansi,
+    } : null,
   })));
+});
+
+// ── GET /invoices/:id — detail invoice untuk download/cetak ──────────────────
+router.get("/invoices/:id", async (req: Request, res: Response) => {
+  const projectId = req.clientPortal!.projectId;
+  const invId = BigInt(req.params.id);
+  const inv = await prisma.invoice.findFirst({
+    where: { id: invId, client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } },
+    include: {
+      items: { orderBy: { id: "asc" } },
+      lead: { select: { nama: true, jenis: true, alamat: true, nomor_telepon: true } },
+      bank_account: { select: { bank_name: true, account_number: true, account_name: true } },
+      kwitansi: true,
+    },
+  });
+  if (!inv) { res.status(404).json({ detail: "Invoice tidak ditemukan" }); return; }
+
+  return res.json({
+    id: String(inv.id),
+    invoice_number: inv.invoice_number,
+    tanggal: inv.tanggal,
+    overdue_date: inv.overdue_date,
+    subtotal: toNum(inv.subtotal),
+    ppn_percentage: toNum(inv.ppn_percentage),
+    ppn_amount: toNum(inv.ppn_amount),
+    grand_total: toNum(inv.grand_total),
+    status: inv.status,
+    catatan: inv.catatan,
+    klien: inv.lead?.nama ?? null,
+    jenis: inv.lead?.jenis ?? null,
+    alamat: inv.lead?.alamat ?? null,
+    telepon: inv.lead?.nomor_telepon ?? null,
+    bank_account: inv.bank_account ?? null,
+    items: inv.items.map(it => ({
+      description: it.description,
+      quantity: toNum(it.quantity),
+      unit_price: toNum(it.unit_price),
+      subtotal: toNum(it.subtotal),
+    })),
+    kwitansi: inv.kwitansi ? {
+      nomor_kwitansi: inv.kwitansi.nomor_kwitansi,
+      tanggal: inv.kwitansi.tanggal,
+      jumlah_diterima: toNum(inv.kwitansi.jumlah_diterima),
+      metode_bayar: inv.kwitansi.metode_bayar,
+      detail_bayar: inv.kwitansi.detail_bayar,
+    } : null,
+  });
 });
 
 // ── GET /galeri ───────────────────────────────────────────────────────────────
@@ -185,7 +236,9 @@ router.get("/galeri", async (req: Request, res: Response) => {
     judul: g.judul,
     deskripsi: g.deskripsi,
     tanggal_foto: g.tanggal_foto,
-    file_url: g.file_path ? `/storage/client-portal/galeri/${path.basename(g.file_path)}` : null,
+    file_url: g.file_path
+      ? (g.file_path.startsWith("/storage/") ? g.file_path : `/storage/client-portal/galeri/${path.basename(g.file_path)}`)
+      : null,
   })));
 });
 
@@ -209,7 +262,9 @@ router.get("/dokumen", async (req: Request, res: Response) => {
     kategori: d.kategori,
     file_type: d.file_type,
     tanggal_upload: d.tanggal_upload,
-    file_url: d.file_path ? `/storage/client-portal/dokumen/${path.basename(d.file_path)}` : null,
+    file_url: d.file_path
+      ? (d.file_path.startsWith("/storage/") ? d.file_path : `/storage/client-portal/dokumen/${path.basename(d.file_path)}`)
+      : null,
   })));
 });
 

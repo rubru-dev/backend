@@ -1,6 +1,5 @@
 "use client";
 import { useRouter } from "next/navigation";
-import Logo from "@/components/ui/Logo";
 import { getUsername, clearAuth } from "@/lib/apiClient";
 
 interface Props {
@@ -18,7 +17,7 @@ export default function ClientHeader({ onMenuClick }: Props) {
 
   return (
     <header className="fixed top-0 left-0 lg:left-56 right-0 h-16 bg-white border-b border-slate-100 z-20 flex items-center justify-between px-4 lg:px-6">
-      {/* Left: hamburger + logo (mobile) */}
+      {/* Left: hamburger (mobile) */}
       <div className="flex items-center gap-3 lg:hidden">
         <button
           onClick={onMenuClick}
@@ -29,7 +28,6 @@ export default function ClientHeader({ onMenuClick }: Props) {
             <path d="M3 6h16M3 11h16M3 16h16" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
           </svg>
         </button>
-        <Logo size="sm" />
       </div>
 
       <div className="hidden lg:block" />
