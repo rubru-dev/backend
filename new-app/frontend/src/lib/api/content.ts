@@ -187,18 +187,20 @@ export const sipilApi = {
   deleteTaskFoto: (fotoId: string) => apiClient.delete(`/sipil/tasks/fotos/${fotoId}`).then((r) => r.data),
   // Checklist
   getChecklist: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/checklist`).then((r) => r.data),
-  addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; gambar?: File }) => {
+  addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => {
     const form = new FormData();
     form.append("nama_pekerjaan", data.nama_pekerjaan);
-    if (data.gambar) form.append("gambar", data.gambar);
+    if (data.area_pekerjaan) form.append("area_pekerjaan", data.area_pekerjaan);
+    (data.gambars ?? []).forEach((f) => form.append("gambar", f));
     return apiClient.post(`/sipil/projeks/${projekId}/checklist`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
-  updateChecklistItem: (cid: string, data: { nama_pekerjaan?: string; is_checked?: boolean; gambar?: File; gambar_selesai?: File }) => {
+  updateChecklistItem: (cid: string, data: { nama_pekerjaan?: string; area_pekerjaan?: string; is_checked?: boolean; gambars?: File[]; gambar_selesais?: File[] }) => {
     const form = new FormData();
     if (data.nama_pekerjaan !== undefined) form.append("nama_pekerjaan", data.nama_pekerjaan);
+    if (data.area_pekerjaan !== undefined) form.append("area_pekerjaan", data.area_pekerjaan);
     if (data.is_checked !== undefined) form.append("is_checked", String(data.is_checked));
-    if (data.gambar) form.append("gambar", data.gambar);
-    if (data.gambar_selesai) form.append("gambar_selesai", data.gambar_selesai);
+    (data.gambars ?? []).forEach((f) => form.append("gambar", f));
+    (data.gambar_selesais ?? []).forEach((f) => form.append("gambar_selesai", f));
     return apiClient.patch(`/sipil/checklist/${cid}`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
   deleteChecklistItem: (cid: string) => apiClient.delete(`/sipil/checklist/${cid}`).then((r) => r.data),
@@ -247,18 +249,20 @@ export const interiorProjekApi = {
   getDokumentasiPic: (id: string) => apiClient.get(`/pic/projeks/interior/${id}/termins`).then((r) => r.data),
   // Checklist
   getChecklist: (projekId: string) => apiClient.get(`/interior/projeks/${projekId}/checklist`).then((r) => r.data),
-  addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; gambar?: File }) => {
+  addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => {
     const form = new FormData();
     form.append("nama_pekerjaan", data.nama_pekerjaan);
-    if (data.gambar) form.append("gambar", data.gambar);
+    if (data.area_pekerjaan) form.append("area_pekerjaan", data.area_pekerjaan);
+    (data.gambars ?? []).forEach((f) => form.append("gambar", f));
     return apiClient.post(`/interior/projeks/${projekId}/checklist`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
-  updateChecklistItem: (cid: string, data: { nama_pekerjaan?: string; is_checked?: boolean; gambar?: File; gambar_selesai?: File }) => {
+  updateChecklistItem: (cid: string, data: { nama_pekerjaan?: string; area_pekerjaan?: string; is_checked?: boolean; gambars?: File[]; gambar_selesais?: File[] }) => {
     const form = new FormData();
     if (data.nama_pekerjaan !== undefined) form.append("nama_pekerjaan", data.nama_pekerjaan);
+    if (data.area_pekerjaan !== undefined) form.append("area_pekerjaan", data.area_pekerjaan);
     if (data.is_checked !== undefined) form.append("is_checked", String(data.is_checked));
-    if (data.gambar) form.append("gambar", data.gambar);
-    if (data.gambar_selesai) form.append("gambar_selesai", data.gambar_selesai);
+    (data.gambars ?? []).forEach((f) => form.append("gambar", f));
+    (data.gambar_selesais ?? []).forEach((f) => form.append("gambar_selesai", f));
     return apiClient.patch(`/interior/projeks/checklist/${cid}`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
   deleteChecklistItem: (cid: string) => apiClient.delete(`/interior/projeks/checklist/${cid}`).then((r) => r.data),

@@ -813,6 +813,16 @@ router.delete("/projeks/tasks/fotos/:fotoId", async (req: Request, res: Response
 
 // ── Form Checklist Interior ──────────────────────────────────────────────────
 
+function serializeChecklist(i: any) {
+  return {
+    ...i,
+    id: String(i.id),
+    proyek_id: String(i.proyek_id),
+    gambar_paths: i.gambar_paths ? JSON.parse(i.gambar_paths) : (i.gambar_path ? [i.gambar_path] : []),
+    gambar_selesai_paths: i.gambar_selesai_paths ? JSON.parse(i.gambar_selesai_paths) : (i.gambar_selesai_path ? [i.gambar_selesai_path] : []),
+  };
+}
+
 // GET /projeks/:id/checklist
 router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
@@ -820,56 +830,69 @@ router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
     where: { proyek_id: proyekId },
     orderBy: { urutan: "asc" },
   });
-  return res.json(items.map((i) => ({ ...i, id: String(i.id), proyek_id: String(i.proyek_id) })));
+  return res.json(items.map(serializeChecklist));
 });
 
 // POST /projeks/:id/checklist
-router.post("/projeks/:id/checklist", upload.single("gambar"), async (req: Request, res: Response) => {
+router.post("/projeks/:id/checklist", upload.array("gambar", 10), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
   const proyek = await prisma.proyekInterior.findUnique({ where: { id: proyekId } });
   if (!proyek) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
-  const { nama_pekerjaan } = req.body;
+  const { nama_pekerjaan, area_pekerjaan } = req.body;
   if (!nama_pekerjaan) return res.status(400).json({ detail: "nama_pekerjaan wajib diisi" });
   const maxUrutan = await prisma.checklistInterior.aggregate({ where: { proyek_id: proyekId }, _max: { urutan: true } });
-  const file = req.file as Express.Multer.File | undefined;
+  const files = (req.files as Express.Multer.File[]) ?? [];
+  const paths = files.map((f) => `/storage/interior/${f.filename}`);
   const item = await prisma.checklistInterior.create({
     data: {
       proyek_id: proyekId,
       nama_pekerjaan,
-      gambar_path: file ? `/storage/interior/${file.filename}` : null,
+      area_pekerjaan: area_pekerjaan || null,
+      gambar_path: paths[0] ?? null,
+      gambar_paths: paths.length > 0 ? JSON.stringify(paths) : null,
       urutan: (maxUrutan._max.urutan ?? -1) + 1,
     },
   });
-  return res.status(201).json({ ...item, id: String(item.id), proyek_id: String(item.proyek_id) });
+  return res.status(201).json(serializeChecklist(item));
 });
 
 // PATCH /projeks/checklist/:cid
-router.patch("/projeks/checklist/:cid", upload.fields([{ name: "gambar", maxCount: 1 }, { name: "gambar_selesai", maxCount: 1 }]), async (req: Request, res: Response) => {
+router.patch("/projeks/checklist/:cid", upload.fields([{ name: "gambar", maxCount: 10 }, { name: "gambar_selesai", maxCount: 10 }]), async (req: Request, res: Response) => {
   const cid = BigInt(req.params.cid);
   const existing = await prisma.checklistInterior.findUnique({ where: { id: cid } });
   if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
   const data: any = {};
   if (req.body.nama_pekerjaan !== undefined) data.nama_pekerjaan = req.body.nama_pekerjaan;
+  if (req.body.area_pekerjaan !== undefined) data.area_pekerjaan = req.body.area_pekerjaan || null;
   if (req.body.is_checked !== undefined) data.is_checked = req.body.is_checked === "true" || req.body.is_checked === true;
   const files = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
-  const gambar = files?.gambar?.[0];
-  if (gambar) {
-    if (existing.gambar_path) {
-      const oldPath = path.resolve(config.storagePath, existing.gambar_path.replace(/^\/storage\//, ""));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+
+  const gambarFiles = files?.gambar ?? [];
+  if (gambarFiles.length > 0) {
+    const oldPaths: string[] = existing.gambar_paths ? JSON.parse(existing.gambar_paths) : (existing.gambar_path ? [existing.gambar_path] : []);
+    for (const p of oldPaths) {
+      const fp = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
     }
-    data.gambar_path = `/storage/interior/${gambar.filename}`;
+    const newPaths = gambarFiles.map((f) => `/storage/interior/${f.filename}`);
+    data.gambar_path = newPaths[0];
+    data.gambar_paths = JSON.stringify(newPaths);
   }
-  const gambarSelesai = files?.gambar_selesai?.[0];
-  if (gambarSelesai) {
-    if (existing.gambar_selesai_path) {
-      const oldPath = path.resolve(config.storagePath, existing.gambar_selesai_path.replace(/^\/storage\//, ""));
-      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+
+  const gambarSelesaiFiles = files?.gambar_selesai ?? [];
+  if (gambarSelesaiFiles.length > 0) {
+    const oldPaths: string[] = existing.gambar_selesai_paths ? JSON.parse(existing.gambar_selesai_paths) : (existing.gambar_selesai_path ? [existing.gambar_selesai_path] : []);
+    for (const p of oldPaths) {
+      const fp = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
+      if (fs.existsSync(fp)) fs.unlinkSync(fp);
     }
-    data.gambar_selesai_path = `/storage/interior/${gambarSelesai.filename}`;
+    const newPaths = gambarSelesaiFiles.map((f) => `/storage/interior/${f.filename}`);
+    data.gambar_selesai_path = newPaths[0];
+    data.gambar_selesai_paths = JSON.stringify(newPaths);
   }
+
   const updated = await prisma.checklistInterior.update({ where: { id: cid }, data });
-  return res.json({ ...updated, id: String(updated.id), proyek_id: String(updated.proyek_id) });
+  return res.json(serializeChecklist(updated));
 });
 
 // DELETE /projeks/checklist/:cid
@@ -877,11 +900,13 @@ router.delete("/projeks/checklist/:cid", async (req: Request, res: Response) => 
   const cid = BigInt(req.params.cid);
   const existing = await prisma.checklistInterior.findUnique({ where: { id: cid } });
   if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
-  for (const p of [existing.gambar_path, existing.gambar_selesai_path]) {
-    if (p) {
-      const filePath = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
-      if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-    }
+  const allPaths: string[] = [
+    ...(existing.gambar_paths ? JSON.parse(existing.gambar_paths) : (existing.gambar_path ? [existing.gambar_path] : [])),
+    ...(existing.gambar_selesai_paths ? JSON.parse(existing.gambar_selesai_paths) : (existing.gambar_selesai_path ? [existing.gambar_selesai_path] : [])),
+  ];
+  for (const p of allPaths) {
+    const filePath = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
   await prisma.checklistInterior.delete({ where: { id: cid } });
   return res.json({ message: "Checklist item dihapus" });

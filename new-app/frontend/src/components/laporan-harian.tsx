@@ -10,11 +10,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, ClipboardList, Bold, Italic, List, Printer, Link2, Upload, FileText, ExternalLink, X, Loader2 } from "lucide-react";
+import { Plus, Trash2, ClipboardList, Bold, Italic, List, Printer, Link2, Upload, FileText, ExternalLink, X, Loader2, Download } from "lucide-react";
 
 interface LaporanHarianProps {
   modul: string;
@@ -251,6 +252,24 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
     onSuccess: () => { toast.success("Dokumen dihapus"); qc.invalidateQueries({ queryKey: ["laporan-docs", viewItem?.id] }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
+  const [confirmDeleteDocId, setConfirmDeleteDocId] = useState<string | null>(null);
+
+  async function handleDownloadFile(url: string, filename: string) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+    } catch {
+      toast.error("Gagal mengunduh file");
+    }
+  }
 
   // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -689,16 +708,26 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
                     {lapDocs.map((doc: any) => {
                       const isFile = doc.url?.startsWith("/storage/");
                       const fileUrl = isFile ? `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${doc.url}` : doc.url;
+                      const filename = doc.url?.split("/").pop() ?? doc.title;
                       return (
                         <div key={doc.id} className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-background">
                           {isFile ? <FileText className="h-4 w-4 text-primary flex-shrink-0" /> : <Link2 className="h-4 w-4 text-primary flex-shrink-0" />}
                           <div className="flex-1 min-w-0">
-                            <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline flex items-center gap-1">
-                              {doc.title} <ExternalLink className="h-3 w-3" />
-                            </a>
+                            {isFile ? (
+                              <button
+                                className="font-medium text-sm hover:underline flex items-center gap-1 text-left"
+                                onClick={() => handleDownloadFile(fileUrl, filename)}
+                              >
+                                {doc.title} <Download className="h-3 w-3" />
+                              </button>
+                            ) : (
+                              <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline flex items-center gap-1">
+                                {doc.title} <ExternalLink className="h-3 w-3" />
+                              </a>
+                            )}
                             {doc.catatan && <p className="text-xs text-muted-foreground mt-0.5">{doc.catatan}</p>}
                           </div>
-                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive flex-shrink-0" disabled={deleteDocMut.isPending} onClick={() => deleteDocMut.mutate(doc.id)}>
+                          <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive flex-shrink-0" disabled={deleteDocMut.isPending} onClick={() => setConfirmDeleteDocId(doc.id)}>
                             <X className="h-3.5 w-3.5" />
                           </Button>
                         </div>
@@ -728,6 +757,25 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Confirm delete doc ── */}
+      <AlertDialog open={!!confirmDeleteDocId} onOpenChange={(v) => { if (!v) setConfirmDeleteDocId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Dokumen?</AlertDialogTitle>
+            <AlertDialogDescription>Dokumen ini akan dihapus permanen dan tidak bisa dikembalikan.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => { if (confirmDeleteDocId) deleteDocMut.mutate(confirmDeleteDocId); setConfirmDeleteDocId(null); }}
+            >
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
     </div>
   );

@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
   Select,
   SelectContent,
@@ -708,6 +709,7 @@ export default function ProyekDesainPage() {
     onSuccess: () => { toast.success("Link dihapus"); qc.invalidateQueries({ queryKey: ["desain-links", expandedId] }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
+  const [confirmDeleteLinkId, setConfirmDeleteLinkId] = useState<string | null>(null);
 
   async function handleDownloadPDF(tl: DesainTimeline) {
     setDownloadingId(tl.id);
@@ -1283,7 +1285,7 @@ export default function ProyekDesainPage() {
                                   {link.catatan && <p className="text-xs text-muted-foreground mt-0.5">{link.catatan}</p>}
                                   <p className="text-xs text-muted-foreground truncate">{link.url}</p>
                                 </div>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive flex-shrink-0" disabled={deleteLinkMut.isPending} onClick={() => deleteLinkMut.mutate(link.id)}>
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive flex-shrink-0" disabled={deleteLinkMut.isPending} onClick={() => setConfirmDeleteLinkId(link.id)}>
                                   <X className="h-3.5 w-3.5" />
                                 </Button>
                               </div>
@@ -1743,6 +1745,22 @@ export default function ProyekDesainPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm delete link dialog */}
+      <AlertDialog open={!!confirmDeleteLinkId} onOpenChange={(v) => { if (!v) setConfirmDeleteLinkId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Link?</AlertDialogTitle>
+            <AlertDialogDescription>Link ini akan dihapus permanen dan tidak bisa dikembalikan.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => { if (confirmDeleteLinkId) deleteLinkMut.mutate(confirmDeleteLinkId); setConfirmDeleteLinkId(null); }}>
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,7 +27,7 @@ import {
   Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
   Link2, ExternalLink, X, Upload, FileText, PackageSearch, Boxes, Camera, ImageIcon,
-  CheckSquare,
+  CheckSquare, Download,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -85,8 +86,23 @@ const EMPTY_TERMIN = { nama: "", tanggal_mulai: "", tanggal_selesai: "" };
 const EMPTY_TASK = { nama_pekerjaan: "", tanggal_mulai: "", tanggal_selesai: "", status: "Belum Mulai", pic: "" };
 
 // ── Checklist Tab Component ─────────────────────────────────────────────────────
-type ChecklistItem = { id: string; nama_pekerjaan: string; gambar_path: string | null; gambar_selesai_path: string | null; is_checked: boolean; urutan: number };
-type ChecklistApi = { getChecklist: (id: string) => Promise<any>; addChecklistItem: (id: string, d: any) => Promise<any>; updateChecklistItem: (cid: string, d: any) => Promise<any>; deleteChecklistItem: (cid: string) => Promise<any> };
+type ChecklistItem = {
+  id: string;
+  nama_pekerjaan: string;
+  area_pekerjaan: string | null;
+  gambar_path: string | null;
+  gambar_paths: string[];
+  gambar_selesai_path: string | null;
+  gambar_selesai_paths: string[];
+  is_checked: boolean;
+  urutan: number;
+};
+type ChecklistApi = {
+  getChecklist: (id: string) => Promise<any>;
+  addChecklistItem: (id: string, d: any) => Promise<any>;
+  updateChecklistItem: (cid: string, d: any) => Promise<any>;
+  deleteChecklistItem: (cid: string) => Promise<any>;
+};
 
 async function fetchImgB64(url: string): Promise<string | null> {
   try {
@@ -97,44 +113,100 @@ async function fetchImgB64(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
+function MultiImagePreview({ paths, baseUrl, label }: { paths: string[]; baseUrl: string; label?: string }) {
+  if (paths.length === 0) return (
+    <div className="flex items-center justify-center h-20 w-full bg-muted rounded border">
+      <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+    </div>
+  );
+  return (
+    <div className="flex flex-wrap gap-1">
+      {paths.map((p, i) => (
+        <a key={i} href={`${baseUrl}${p}`} target="_blank" rel="noreferrer">
+          <img src={`${baseUrl}${p}`} alt={`${label ?? "gambar"} ${i + 1}`} className="h-20 w-20 object-cover rounded border hover:opacity-90 transition-opacity" />
+        </a>
+      ))}
+    </div>
+  );
+}
+
 function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: ChecklistApi; projekDetail?: { nama_proyek?: string | null; lead?: { nama: string } | null; lokasi?: string | null; tipe?: string } }) {
   const qc = useQueryClient();
   const qk = ["checklist", projekId];
   const { data: items = [], isLoading } = useQuery<ChecklistItem[]>({ queryKey: qk, queryFn: () => api.getChecklist(projekId) });
-  const [addForm, setAddForm] = useState({ nama_pekerjaan: "", gambar: null as File | null });
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  const [addForm, setAddForm] = useState({ nama_pekerjaan: "", area_pekerjaan: "", gambars: [] as File[] });
+  const [addPreviews, setAddPreviews] = useState<string[]>([]);
   const addRef = useRef<HTMLInputElement>(null);
 
   // Dialog for marking done
   const [doneDialog, setDoneDialog] = useState<ChecklistItem | null>(null);
-  const [doneFile, setDoneFile] = useState<File | null>(null);
-  const [donePreview, setDonePreview] = useState<string | null>(null);
+  const [doneFiles, setDoneFiles] = useState<File[]>([]);
+  const [donePreviews, setDonePreviews] = useState<string[]>([]);
   const doneRef = useRef<HTMLInputElement>(null);
 
   // PDF
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-
-  const addMut = useMutation({ mutationFn: (d: { nama_pekerjaan: string; gambar?: File }) => api.addChecklistItem(projekId, d), onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); setAddForm({ nama_pekerjaan: "", gambar: null }); setPreviewUrl(null); toast.success("Item ditambahkan"); } });
-  const updateMut = useMutation({ mutationFn: ({ id, data }: { id: string; data: any }) => api.updateChecklistItem(id, data), onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); setDoneDialog(null); setDoneFile(null); setDonePreview(null); } });
-  const delMut = useMutation({ mutationFn: (id: string) => api.deleteChecklistItem(id), onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); toast.success("Item dihapus"); } });
   const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+  const addMut = useMutation({
+    mutationFn: (d: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => api.addChecklistItem(projekId, d),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: qk });
+      setAddForm({ nama_pekerjaan: "", area_pekerjaan: "", gambars: [] });
+      setAddPreviews([]);
+      toast.success("Item ditambahkan");
+    },
+  });
+  const updateMut = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => api.updateChecklistItem(id, data),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); setDoneDialog(null); setDoneFiles([]); setDonePreviews([]); },
+  });
+  const delMut = useMutation({ mutationFn: (id: string) => api.deleteChecklistItem(id), onSuccess: () => { qc.invalidateQueries({ queryKey: qk }); toast.success("Item dihapus"); } });
+  const [confirmDeleteChecklistId, setConfirmDeleteChecklistId] = useState<string | null>(null);
 
   function handleCheckToggle(item: ChecklistItem) {
     if (!item.is_checked) {
-      // Opening dialog to mark as done
       setDoneDialog(item);
-      setDoneFile(null);
-      setDonePreview(null);
+      setDoneFiles([]);
+      setDonePreviews([]);
     } else {
-      // Uncheck — direct update
       updateMut.mutate({ id: item.id, data: { is_checked: false } });
     }
   }
 
   function handleConfirmDone() {
     if (!doneDialog) return;
-    updateMut.mutate({ id: doneDialog.id, data: { is_checked: true, ...(doneFile ? { gambar_selesai: doneFile } : {}) } });
+    updateMut.mutate({ id: doneDialog.id, data: { is_checked: true, ...(doneFiles.length > 0 ? { gambar_selesais: doneFiles } : {}) } });
     toast.success("Pekerjaan ditandai selesai");
+  }
+
+  function handleAddFiles(files: FileList | null) {
+    if (!files) return;
+    const arr = Array.from(files);
+    const newFiles = [...addForm.gambars, ...arr];
+    const newPreviews = [...addPreviews, ...arr.map((f) => URL.createObjectURL(f))];
+    setAddForm({ ...addForm, gambars: newFiles });
+    setAddPreviews(newPreviews);
+  }
+
+  function removeAddFile(idx: number) {
+    const newFiles = addForm.gambars.filter((_, i) => i !== idx);
+    const newPreviews = addPreviews.filter((_, i) => i !== idx);
+    setAddForm({ ...addForm, gambars: newFiles });
+    setAddPreviews(newPreviews);
+  }
+
+  function handleDoneFiles(files: FileList | null) {
+    if (!files) return;
+    const arr = Array.from(files);
+    setDoneFiles((prev) => [...prev, ...arr]);
+    setDonePreviews((prev) => [...prev, ...arr.map((f) => URL.createObjectURL(f))]);
+  }
+
+  function removeDoneFile(idx: number) {
+    setDoneFiles((prev) => prev.filter((_, i) => i !== idx));
+    setDonePreviews((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function handleDownloadChecklist() {
@@ -143,13 +215,18 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
       const { ChecklistPDF } = await import("@/components/checklist-pdf");
       const logoUrl = await getLogoBase64();
 
-      const pdfItems = await Promise.all(items.map(async (item, idx) => ({
-        no: idx + 1,
-        nama_pekerjaan: item.nama_pekerjaan,
-        gambar_b64: item.gambar_path ? await fetchImgB64(`${baseUrl}${item.gambar_path}`) : null,
-        gambar_selesai_b64: item.gambar_selesai_path ? await fetchImgB64(`${baseUrl}${item.gambar_selesai_path}`) : null,
-        is_checked: item.is_checked,
-      })));
+      const pdfItems = await Promise.all(items.map(async (item, idx) => {
+        const gambarPaths = item.gambar_paths?.length > 0 ? item.gambar_paths : (item.gambar_path ? [item.gambar_path] : []);
+        const gambarSelesaiPaths = item.gambar_selesai_paths?.length > 0 ? item.gambar_selesai_paths : (item.gambar_selesai_path ? [item.gambar_selesai_path] : []);
+        return {
+          no: idx + 1,
+          nama_pekerjaan: item.nama_pekerjaan,
+          area_pekerjaan: item.area_pekerjaan ?? undefined,
+          gambar_b64s: await Promise.all(gambarPaths.map((p) => fetchImgB64(`${baseUrl}${p}`))),
+          gambar_selesai_b64s: await Promise.all(gambarSelesaiPaths.map((p) => fetchImgB64(`${baseUrl}${p}`))),
+          is_checked: item.is_checked,
+        };
+      }));
 
       const blob = await pdf(
         <ChecklistPDF data={{
@@ -170,11 +247,24 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
     }
   }
 
+  const selesai = items.filter((i) => i.is_checked).length;
+  const pct = items.length > 0 ? Math.round((selesai / items.length) * 100) : 0;
+
   return (
     <div className="space-y-4">
-      {/* Header actions */}
-      <div className="flex items-center justify-between">
-        <p className="text-sm font-semibold text-muted-foreground">{items.filter((i) => i.is_checked).length}/{items.length} pekerjaan selesai</p>
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <p className="text-sm font-semibold text-muted-foreground">{selesai}/{items.length} selesai</p>
+          {items.length > 0 && (
+            <div className="flex items-center gap-2">
+              <div className="w-24 h-2 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-green-500 rounded-full transition-all" style={{ width: `${pct}%` }} />
+              </div>
+              <span className="text-xs text-green-600 font-semibold">{pct}%</span>
+            </div>
+          )}
+        </div>
         <Button variant="outline" size="sm" disabled={downloadingPdf || items.length === 0} onClick={handleDownloadChecklist}>
           {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
           Download PDF
@@ -184,35 +274,43 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
       {/* Add form */}
       <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
         <p className="text-sm font-semibold">Tambah Item Checklist</p>
-        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-3 items-end">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <Label>Nama Pekerjaan *</Label>
+            <Label className="text-xs">Nama Pekerjaan *</Label>
             <Input placeholder="e.g. Cat Tembok Kurang Rapih" value={addForm.nama_pekerjaan} onChange={(e) => setAddForm({ ...addForm, nama_pekerjaan: e.target.value })} />
           </div>
           <div>
-            <Label>Gambar (opsional)</Label>
-            <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" type="button" onClick={() => addRef.current?.click()}>
-                <Upload className="h-3.5 w-3.5 mr-1" />Pilih Foto
-              </Button>
-              <input ref={addRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                setAddForm({ ...addForm, gambar: f });
-                setPreviewUrl(f ? URL.createObjectURL(f) : null);
-              }} />
-              {addForm.gambar && <span className="text-xs text-muted-foreground truncate max-w-[150px]">{addForm.gambar.name}</span>}
-            </div>
+            <Label className="text-xs">Area Pekerjaan</Label>
+            <Input placeholder="e.g. Ruang Tamu, Kamar 1" value={addForm.area_pekerjaan} onChange={(e) => setAddForm({ ...addForm, area_pekerjaan: e.target.value })} />
           </div>
         </div>
-        {previewUrl && <img src={previewUrl} alt="Preview" className="h-20 w-auto rounded border object-cover" />}
+        <div>
+          <Label className="text-xs">Foto Pekerjaan (bisa lebih dari 1)</Label>
+          <div className="mt-1">
+            <Button variant="outline" size="sm" type="button" onClick={() => addRef.current?.click()}>
+              <Upload className="h-3.5 w-3.5 mr-1" />Pilih Foto
+            </Button>
+            <input ref={addRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleAddFiles(e.target.files)} />
+          </div>
+          {addPreviews.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-2">
+              {addPreviews.map((url, i) => (
+                <div key={i} className="relative">
+                  <img src={url} alt={`preview ${i + 1}`} className="h-20 w-20 object-cover rounded border" />
+                  <button onClick={() => removeAddFile(i)} className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full h-4 w-4 flex items-center justify-center text-xs leading-none">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
         <div className="flex justify-end">
-          <Button size="sm" disabled={!addForm.nama_pekerjaan.trim() || addMut.isPending} onClick={() => addMut.mutate({ nama_pekerjaan: addForm.nama_pekerjaan, ...(addForm.gambar ? { gambar: addForm.gambar } : {}) })}>
+          <Button size="sm" disabled={!addForm.nama_pekerjaan.trim() || addMut.isPending} onClick={() => addMut.mutate({ nama_pekerjaan: addForm.nama_pekerjaan, area_pekerjaan: addForm.area_pekerjaan || undefined, gambars: addForm.gambars.length > 0 ? addForm.gambars : undefined })}>
             {addMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Menyimpan...</> : <><Plus className="h-3.5 w-3.5 mr-1" />Tambah</>}
           </Button>
         </div>
       </div>
 
-      {/* Table */}
+      {/* List */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
       ) : items.length === 0 ? (
@@ -221,89 +319,89 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
           <p className="text-sm">Belum ada item checklist.</p>
         </div>
       ) : (
-        <div className="border rounded-lg overflow-hidden overflow-x-auto">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-12 text-center">No</TableHead>
-                <TableHead className="w-36">Gambar Pekerjaan</TableHead>
-                <TableHead>Nama Pekerjaan</TableHead>
-                <TableHead className="w-36">Foto Selesai</TableHead>
-                <TableHead className="w-24 text-center">Status</TableHead>
-                <TableHead className="w-16 text-center">Aksi</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {items.map((item, idx) => (
-                <TableRow key={item.id} className={item.is_checked ? "bg-green-50/50" : ""}>
-                  <TableCell className="text-center font-medium">{idx + 1}</TableCell>
-                  <TableCell>
-                    {item.gambar_path ? (
-                      <a href={`${baseUrl}${item.gambar_path}`} target="_blank" rel="noreferrer">
-                        <img src={`${baseUrl}${item.gambar_path}`} alt="gambar" className="h-24 w-32 object-cover rounded border hover:opacity-90 transition-opacity" />
-                      </a>
-                    ) : (
-                      <div className="h-24 w-32 bg-muted rounded border flex items-center justify-center">
-                        <ImageIcon className="h-6 w-6 text-muted-foreground/30" />
-                      </div>
+        <div className="space-y-3">
+          {items.map((item, idx) => {
+            const gambarPaths = item.gambar_paths?.length > 0 ? item.gambar_paths : (item.gambar_path ? [item.gambar_path] : []);
+            const gambarSelesaiPaths = item.gambar_selesai_paths?.length > 0 ? item.gambar_selesai_paths : (item.gambar_selesai_path ? [item.gambar_selesai_path] : []);
+            return (
+              <div key={item.id} className={`border rounded-lg p-3 sm:p-4 transition-colors ${item.is_checked ? "bg-green-50 border-green-200" : "bg-white"}`}>
+                {/* Top row: nomor + nama + status + hapus */}
+                <div className="flex items-start gap-3">
+                  <span className="shrink-0 mt-0.5 text-xs font-bold text-muted-foreground bg-muted rounded-full h-6 w-6 flex items-center justify-center">{idx + 1}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm leading-tight">{item.nama_pekerjaan}</p>
+                    {item.area_pekerjaan && (
+                      <p className="text-xs text-orange-600 font-medium mt-0.5">📍 {item.area_pekerjaan}</p>
                     )}
-                  </TableCell>
-                  <TableCell className="font-medium">{item.nama_pekerjaan}</TableCell>
-                  <TableCell>
-                    {item.gambar_selesai_path ? (
-                      <a href={`${baseUrl}${item.gambar_selesai_path}`} target="_blank" rel="noreferrer">
-                        <img src={`${baseUrl}${item.gambar_selesai_path}`} alt="selesai" className="h-24 w-32 object-cover rounded border hover:opacity-90 transition-opacity" />
-                      </a>
-                    ) : (
-                      <div className="h-24 w-32 bg-muted rounded border flex items-center justify-center">
-                        <ImageIcon className="h-6 w-6 text-muted-foreground/30" />
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <div className="flex flex-col items-center gap-1">
+                  </div>
+                  <div className="shrink-0 flex items-center gap-2">
+                    <div className="flex flex-col items-center gap-0.5">
                       <Checkbox checked={item.is_checked} onCheckedChange={() => handleCheckToggle(item)} />
-                      <span className={`text-xs font-medium ${item.is_checked ? "text-green-600" : "text-muted-foreground"}`}>
+                      <span className={`text-[10px] font-semibold ${item.is_checked ? "text-green-600" : "text-muted-foreground"}`}>
                         {item.is_checked ? "Selesai" : "Belum"}
                       </span>
                     </div>
-                  </TableCell>
-                  <TableCell className="text-center">
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => delMut.mutate(item.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive shrink-0" onClick={() => setConfirmDeleteChecklistId(item.id)}>
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+                  </div>
+                </div>
+                {/* Images row */}
+                {(gambarPaths.length > 0 || gambarSelesaiPaths.length > 0) && (
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground font-medium mb-1">Foto Pekerjaan</p>
+                      <MultiImagePreview paths={gambarPaths} baseUrl={baseUrl} label="gambar" />
+                    </div>
+                    {gambarSelesaiPaths.length > 0 && (
+                      <div>
+                        <p className="text-xs text-green-700 font-medium mb-1">Foto Selesai</p>
+                        <MultiImagePreview paths={gambarSelesaiPaths} baseUrl={baseUrl} label="selesai" />
+                      </div>
+                    )}
+                  </div>
+                )}
+                {/* No images placeholder for foto pekerjaan */}
+                {gambarPaths.length === 0 && (
+                  <div className="mt-2">
+                    <p className="text-xs text-muted-foreground font-medium mb-1">Foto Pekerjaan</p>
+                    <div className="flex items-center justify-center h-16 bg-muted/50 rounded border border-dashed">
+                      <ImageIcon className="h-5 w-5 text-muted-foreground/30" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 
       {/* Dialog: Tandai Selesai */}
-      <Dialog open={!!doneDialog} onOpenChange={(v) => { if (!v) { setDoneDialog(null); setDoneFile(null); setDonePreview(null); } }}>
-        <DialogContent className="max-w-sm">
+      <Dialog open={!!doneDialog} onOpenChange={(v) => { if (!v) { setDoneDialog(null); setDoneFiles([]); setDonePreviews([]); } }}>
+        <DialogContent className="max-w-sm w-[95vw]">
           <DialogHeader><DialogTitle>Tandai Pekerjaan Selesai</DialogTitle></DialogHeader>
           <div className="space-y-3 pt-1">
             <p className="text-sm text-muted-foreground">Tandai <b>"{doneDialog?.nama_pekerjaan}"</b> sebagai sudah dikerjakan?</p>
             <div>
-              <Label>Foto Selesai (opsional)</Label>
+              <Label className="text-xs">Foto Selesai (opsional, bisa lebih dari 1)</Label>
               <p className="text-xs text-muted-foreground mb-2">Upload foto hasil pekerjaan yang sudah selesai</p>
-              <div className="flex items-center gap-2">
-                <Button variant="outline" size="sm" type="button" onClick={() => doneRef.current?.click()}>
-                  <Upload className="h-3.5 w-3.5 mr-1" />Pilih Foto
-                </Button>
-                <input ref={doneRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  setDoneFile(f);
-                  setDonePreview(f ? URL.createObjectURL(f) : null);
-                }} />
-                {doneFile && <span className="text-xs text-muted-foreground truncate max-w-[150px]">{doneFile.name}</span>}
-              </div>
+              <Button variant="outline" size="sm" type="button" onClick={() => doneRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5 mr-1" />Pilih Foto
+              </Button>
+              <input ref={doneRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => handleDoneFiles(e.target.files)} />
             </div>
-            {donePreview && <img src={donePreview} alt="Preview selesai" className="h-28 w-auto rounded border object-cover" />}
+            {donePreviews.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {donePreviews.map((url, i) => (
+                  <div key={i} className="relative">
+                    <img src={url} alt={`preview selesai ${i + 1}`} className="h-20 w-20 object-cover rounded border" />
+                    <button onClick={() => removeDoneFile(i)} className="absolute -top-1.5 -right-1.5 bg-destructive text-white rounded-full h-4 w-4 flex items-center justify-center text-xs leading-none">×</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" onClick={() => { setDoneDialog(null); setDoneFile(null); setDonePreview(null); }}>Batal</Button>
+              <Button variant="outline" onClick={() => { setDoneDialog(null); setDoneFiles([]); setDonePreviews([]); }}>Batal</Button>
               <Button disabled={updateMut.isPending} onClick={handleConfirmDone} className="bg-green-600 hover:bg-green-700">
                 {updateMut.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <CheckSquare className="h-3.5 w-3.5 mr-1" />}
                 Tandai Selesai
@@ -312,6 +410,25 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Confirm delete checklist item */}
+      <AlertDialog open={!!confirmDeleteChecklistId} onOpenChange={(v) => { if (!v) setConfirmDeleteChecklistId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus Item Checklist?</AlertDialogTitle>
+            <AlertDialogDescription>Item ini akan dihapus permanen beserta foto-fotonya.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={() => { if (confirmDeleteChecklistId) delMut.mutate(confirmDeleteChecklistId); setConfirmDeleteChecklistId(null); }}
+            >
+              Hapus
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
@@ -624,6 +741,24 @@ export default function ProyekSipilDetailPage() {
     onSuccess: () => { toast.success("Dokumen dihapus"); qc.invalidateQueries({ queryKey: ["sipil-links", id] }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
+  const [confirmDeleteLinkId, setConfirmDeleteLinkId] = useState<string | null>(null);
+
+  async function handleDownloadFile(url: string, filename: string) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const objUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(objUrl);
+    } catch {
+      toast.error("Gagal mengunduh file");
+    }
+  }
 
   // Stock Opname
   const [soTab, setSoTab] = useState<"items" | "log">("items");
@@ -1057,17 +1192,27 @@ export default function ProyekSipilDetailPage() {
               {links.map((link: any) => {
                 const isFile = link.url?.startsWith("/storage/");
                 const fileUrl = isFile ? `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${link.url}` : link.url;
+                const filename = link.url?.split("/").pop() ?? link.title;
                 return (
                   <div key={link.id} className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-background">
                     {isFile ? <FileText className="h-4 w-4 text-teal-600 flex-shrink-0" /> : <Link2 className="h-4 w-4 text-teal-600 flex-shrink-0" />}
                     <div className="flex-1 min-w-0">
-                      <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline text-teal-700 flex items-center gap-1">
-                        {link.title} <ExternalLink className="h-3 w-3" />
-                      </a>
+                      {isFile ? (
+                        <button
+                          className="font-medium text-sm hover:underline text-teal-700 flex items-center gap-1 text-left"
+                          onClick={() => handleDownloadFile(fileUrl, filename)}
+                        >
+                          {link.title} <Download className="h-3 w-3" />
+                        </button>
+                      ) : (
+                        <a href={fileUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-sm hover:underline text-teal-700 flex items-center gap-1">
+                          {link.title} <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
                       {link.catatan && <p className="text-xs text-muted-foreground mt-0.5">{link.catatan}</p>}
                       {!isFile && <p className="text-xs text-muted-foreground truncate">{link.url}</p>}
                     </div>
-                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive flex-shrink-0" disabled={deleteLinkMut.isPending} onClick={() => deleteLinkMut.mutate(link.id)}>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive flex-shrink-0" disabled={deleteLinkMut.isPending} onClick={() => setConfirmDeleteLinkId(link.id)}>
                       <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
@@ -1076,6 +1221,22 @@ export default function ProyekSipilDetailPage() {
             </div>
           )}
         </TabsContent>
+
+        {/* Confirm delete link dialog */}
+        <AlertDialog open={!!confirmDeleteLinkId} onOpenChange={(v) => { if (!v) setConfirmDeleteLinkId(null); }}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Hapus Dokumen?</AlertDialogTitle>
+              <AlertDialogDescription>Dokumen ini akan dihapus permanen dan tidak bisa dikembalikan.</AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Batal</AlertDialogCancel>
+              <AlertDialogAction className="bg-destructive hover:bg-destructive/90" onClick={() => { if (confirmDeleteLinkId) deleteLinkMut.mutate(confirmDeleteLinkId); setConfirmDeleteLinkId(null); }}>
+                Hapus
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Stock Opname */}
         <TabsContent value="stock-opname" className="mt-4 space-y-4">
