@@ -195,8 +195,13 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   });
 
   const { data: picUsersData } = useQuery({
-    queryKey: ["survey-pic-users"],
-    queryFn: () => apiClient.get("/bd/survey-pic-users").then((r) => r.data),
+    queryKey: ["survey-pic-users", modul],
+    queryFn: () =>
+      apiClient
+        .get("/bd/survey-pic-users", {
+          params: modul === "golden" ? { sub_role: "Mitra" } : undefined,
+        })
+        .then((r) => r.data),
   });
   const picUserList: any[] = Array.isArray(picUsersData) ? picUsersData : [];
 

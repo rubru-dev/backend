@@ -1753,8 +1753,15 @@ router.get("/:modul/survey-kalender", async (req: Request, res: Response) => {
     tanggal_survey: { not: null },
   };
 
-  // Jika tidak show_all, filter by modul
-  if (!showAll) where.modul = modul;
+  // showAll hanya berlaku untuk sales-admin & telemarketing (gabung keduanya).
+  // Golden selalu difilter sendiri — tidak ikut campuran showAll.
+  if (modul === "golden") {
+    where.modul = "golden";
+  } else if (showAll) {
+    where.modul = { in: ["sales-admin", "telemarketing", "database-client"] };
+  } else {
+    where.modul = modul;
+  }
 
   // Filter by inputter (user_id yang membuat lead)
   if (filterUser) where.user_id = filterUser;
@@ -1802,6 +1809,9 @@ router.post("/:modul/leads/:id/approve-survey", async (req: Request, res: Respon
   const id = BigInt(req.params.id);
   const { foto_survey, luasan_tanah, catatan_survey } = req.body;
   if (!foto_survey) return res.status(400).json({ detail: "Foto survey wajib diupload untuk persetujuan" });
+  // Normalise foto_survey → always store as JSON array string
+  const fotosArr: string[] = Array.isArray(foto_survey) ? foto_survey : [foto_survey];
+  const fotoStored = JSON.stringify(fotosArr);
   const lead = await prisma.lead.findUnique({ where: { id } });
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
   await prisma.lead.update({
@@ -1810,7 +1820,7 @@ router.post("/:modul/leads/:id/approve-survey", async (req: Request, res: Respon
       survey_approval_status: "approved",
       survey_approved_by: req.user!.id,
       survey_approved_at: new Date(),
-      foto_survey,
+      foto_survey: fotoStored,
       luasan_tanah: luasan_tanah !== undefined && luasan_tanah !== "" ? parseFloat(String(luasan_tanah)) : undefined,
       catatan_survey: catatan_survey ?? undefined,
     },

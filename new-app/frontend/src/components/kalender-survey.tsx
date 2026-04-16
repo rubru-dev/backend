@@ -37,7 +37,8 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     s.isSuperAdmin() ||
     s.hasPermission("bd", "approve") ||
     s.hasPermission("sales_admin", "view") ||
-    s.hasPermission("telemarketing", "view")
+    s.hasPermission("telemarketing", "view") ||
+    s.hasPermission("golden", "edit")
   );
 
   const now = new Date();
@@ -51,12 +52,12 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const [scheduleForm, setScheduleForm] = useState({
     tanggal_survey: "", jam_survey: "", pic_survey: "",
   });
-  const [approveDialog, setApproveDialog] = useState<{ open: boolean; id: number | null; foto: string | null }>({ open: false, id: null, foto: null });
+  const [approveDialog, setApproveDialog] = useState<{ open: boolean; id: number | null; fotos: string[] }>({ open: false, id: null, fotos: [] });
   const fotoInputRef = useRef<HTMLInputElement>(null);
 
   // List detail modal
   const [listDetailItem, setListDetailItem] = useState<any | null>(null);
-  const [listDetailFoto, setListDetailFoto] = useState<string | null>(null);
+  const [listDetailFotos, setListDetailFotos] = useState<string[]>([]);
   const [listDetailLuasan, setListDetailLuasan] = useState("");
   const [listDetailCatatan, setListDetailCatatan] = useState("");
   const listFotoRef = useRef<HTMLInputElement>(null);
@@ -98,14 +99,14 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const picUserList: any[] = Array.isArray(picUsers) ? picUsers : [];
 
   const approveMut = useMutation({
-    mutationFn: ({ id, foto_survey, luasan_tanah, catatan_survey }: { id: number; foto_survey: string; luasan_tanah?: string; catatan_survey?: string }) =>
+    mutationFn: ({ id, foto_survey, luasan_tanah, catatan_survey }: { id: number; foto_survey: string[]; luasan_tanah?: string; catatan_survey?: string }) =>
       apiClient.post(`/bd/${modul}/leads/${id}/approve-survey`, { foto_survey, luasan_tanah: luasan_tanah || undefined, catatan_survey: catatan_survey || undefined }).then((r) => r.data),
     onSuccess: () => {
       toast.success("Survey disetujui");
       qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
-      setApproveDialog({ open: false, id: null, foto: null });
+      setApproveDialog({ open: false, id: null, fotos: [] });
       setListDetailItem(null);
-      setListDetailFoto(null);
+      setListDetailFotos([]);
       setListDetailLuasan("");
       setListDetailCatatan("");
     },
@@ -211,12 +212,39 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     });
   }
 
-  function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => setApproveDialog((s) => ({ ...s, foto: reader.result as string }));
-    reader.readAsDataURL(file);
+  // Parse foto_survey from DB — stored as JSON array or legacy single string
+  function parseFotos(raw: string | null | undefined): string[] {
+    if (!raw) return [];
+    try {
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed : [raw];
+    } catch {
+      return [raw];
+    }
+  }
+
+  function readFileAsDataUrl(file: File): Promise<string> {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const results = await Promise.all(files.map(readFileAsDataUrl));
+    setApproveDialog((s) => ({ ...s, fotos: [...s.fotos, ...results] }));
+    e.target.value = "";
+  }
+
+  async function handleListFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    const results = await Promise.all(files.map(readFileAsDataUrl));
+    setListDetailFotos((prev) => [...prev, ...results]);
+    e.target.value = "";
   }
 
   function formatDate(s: string) {
@@ -255,10 +283,27 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
 
     const rows = items.map((item: any, i: number) => {
       const tgl = item.tanggal_survey ? new Date(item.tanggal_survey + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+      const fotos = parseFotos(item.foto_survey);
+      const fotoHtml = fotos.length > 0
+        ? fotos.map((f: string) => `<img src="${f}" style="width:110px;height:80px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;"/>`).join(" ")
+        : "";
+      const approvalDetail = item.survey_approval_status === "approved"
+        ? `<div class="approval-box">
+            <div class="approval-title">✓ Detail Persetujuan</div>
+            ${item.luasan_tanah != null ? `<div class="approval-row"><span>Luasan Tanah</span><strong>${item.luasan_tanah} m²</strong></div>` : ""}
+            ${item.catatan_survey ? `<div class="approval-row"><span>Catatan</span><span>${String(item.catatan_survey).replace(/</g, "&lt;")}</span></div>` : ""}
+            ${fotoHtml ? `<div class="foto-grid">${fotoHtml}</div>` : ""}
+          </div>`
+        : "";
       return `
         <tr>
           <td class="num">${i + 1}</td>
-          <td><strong>${item.nama.replace(/</g, "&lt;")}</strong>${item.nomor_telepon ? `<br/><span class="sub">${item.nomor_telepon}</span>` : ""}</td>
+          <td>
+            <strong>${item.nama.replace(/</g, "&lt;")}</strong>
+            ${item.nomor_telepon ? `<br/><span class="sub">${item.nomor_telepon}</span>` : ""}
+            ${item.alamat ? `<br/><span class="sub">${String(item.alamat).replace(/</g, "&lt;")}</span>` : ""}
+            ${approvalDetail}
+          </td>
           <td>${tgl}</td>
           <td>${item.jam_survey ?? "—"}</td>
           <td>${item.pic_survey ?? "—"}</td>
@@ -294,6 +339,11 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   .s-ok { background:#dcfce7; color:#16a34a; }
   .s-pend { background:#fee2e2; color:#dc2626; }
   .s-rej { background:#f1f5f9; color:#64748b; }
+  .approval-box { margin-top:6px; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:6px 8px; }
+  .approval-title { font-size:9px; font-weight:700; color:#16a34a; text-transform:uppercase; letter-spacing:.04em; margin-bottom:4px; }
+  .approval-row { display:flex; gap:8px; font-size:10px; color:#374151; margin-bottom:2px; }
+  .approval-row span:first-child { color:#6b7280; min-width:90px; }
+  .foto-grid { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
   .footer { margin-top:24px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:10px; color:#94a3b8; display:flex; justify-content:space-between; }
   @media print { body { padding:14px 18px; } }
 </style></head><body>
@@ -437,7 +487,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                         className="flex items-start gap-3 py-3 cursor-pointer hover:bg-muted/30 rounded-lg px-2 -mx-2 transition-colors"
                         onClick={() => {
                           setListDetailItem(item);
-                          setListDetailFoto(item.foto_survey ?? null);
+                          setListDetailFotos(parseFotos(item.foto_survey));
                           setListDetailLuasan(item.luasan_tanah != null ? String(item.luasan_tanah) : "");
                           setListDetailCatatan(item.catatan_survey ?? "");
                         }}
@@ -722,7 +772,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                           className="h-7 w-7 text-green-600 hover:bg-green-100"
                           title="Setujui"
                           disabled={approveMut.isPending}
-                          onClick={() => setApproveDialog({ open: true, id: item.id, foto: null })}
+                          onClick={() => setApproveDialog({ open: true, id: item.id, fotos: [] })}
                         >
                           <CheckCircle className="h-4 w-4" />
                         </Button>
@@ -795,7 +845,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                         size="sm"
                         className="h-7 bg-green-600 hover:bg-green-700 text-white text-xs px-2"
                         disabled={approveMut.isPending}
-                        onClick={() => setApproveDialog({ open: true, id: item.id, foto: null })}
+                        onClick={() => setApproveDialog({ open: true, id: item.id, fotos: [] })}
                       >
                         <CheckCircle className="h-3 w-3 mr-1" /> Setujui
                       </Button>
@@ -1026,7 +1076,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
       </Dialog>
 
       {/* ── List Detail Modal ── */}
-      <Dialog open={!!listDetailItem} onOpenChange={(v) => { if (!v) { setListDetailItem(null); setListDetailFoto(null); setListDetailLuasan(""); setListDetailCatatan(""); } }}>
+      <Dialog open={!!listDetailItem} onOpenChange={(v) => { if (!v) { setListDetailItem(null); setListDetailFotos([]); setListDetailLuasan(""); setListDetailCatatan(""); } }}>
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1114,36 +1164,33 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
               {/* Foto Bukti Survey */}
               <div className="space-y-1.5">
                 <Label>Foto Bukti Survey {listDetailItem.survey_approval_status !== "approved" && <span className="text-destructive">*</span>}</Label>
-                {listDetailItem.survey_approval_status === "approved" && listDetailFoto ? (
-                  <img src={listDetailFoto} alt="foto survey" className="w-full max-h-52 object-contain rounded-lg border" />
-                ) : (
-                  <div
-                    className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => listFotoRef.current?.click()}
-                  >
-                    {listDetailFoto ? (
-                      <img src={listDetailFoto} alt="preview" className="max-h-40 mx-auto object-contain rounded" />
-                    ) : (
-                      <>
-                        <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                        <p className="text-sm text-muted-foreground">Klik untuk pilih foto bukti survey</p>
-                      </>
-                    )}
+                {/* Foto grid (preview + hapus) */}
+                {listDetailFotos.length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {listDetailFotos.map((f, idx) => (
+                      <div key={idx} className="relative group">
+                        <img src={f} alt={`foto ${idx + 1}`} className="w-24 h-20 object-cover rounded-lg border" />
+                        {listDetailItem.survey_approval_status !== "approved" && (
+                          <button
+                            type="button"
+                            className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                            onClick={() => setListDetailFotos((prev) => prev.filter((_, i) => i !== idx))}
+                          >×</button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
-                <input
-                  ref={listFotoRef}
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = () => setListDetailFoto(reader.result as string);
-                    reader.readAsDataURL(file);
-                  }}
-                />
+                {listDetailItem.survey_approval_status !== "approved" && (
+                  <div
+                    className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => listFotoRef.current?.click()}
+                  >
+                    <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
+                    <p className="text-xs text-muted-foreground">Klik untuk tambah foto (bisa lebih dari satu)</p>
+                  </div>
+                )}
+                <input ref={listFotoRef} type="file" accept="image/*" multiple className="hidden" onChange={handleListFotoChange} />
               </div>
 
               {/* Actions */}
@@ -1161,10 +1208,10 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                   </Button>
                   <Button
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                    disabled={!listDetailFoto || approveMut.isPending}
+                    disabled={listDetailFotos.length === 0 || approveMut.isPending}
                     onClick={() => approveMut.mutate({
                       id: listDetailItem.id,
-                      foto_survey: listDetailFoto!,
+                      foto_survey: listDetailFotos,
                       luasan_tanah: listDetailLuasan || undefined,
                       catatan_survey: listDetailCatatan || undefined,
                     })}
@@ -1192,7 +1239,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
       </Dialog>
 
       {/* ── Approve with Photo Dialog ── */}
-      <Dialog open={approveDialog.open} onOpenChange={(v) => !v && setApproveDialog({ open: false, id: null, foto: null })}>
+      <Dialog open={approveDialog.open} onOpenChange={(v) => !v && setApproveDialog({ open: false, id: null, fotos: [] })}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1200,27 +1247,35 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Upload foto bukti pelaksanaan survey untuk menyetujui.</p>
+            <p className="text-sm text-muted-foreground">Upload foto bukti pelaksanaan survey (bisa lebih dari satu).</p>
+            {approveDialog.fotos.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {approveDialog.fotos.map((f, idx) => (
+                  <div key={idx} className="relative group">
+                    <img src={f} alt={`foto ${idx + 1}`} className="w-20 h-16 object-cover rounded-lg border" />
+                    <button
+                      type="button"
+                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                      onClick={() => setApproveDialog((s) => ({ ...s, fotos: s.fotos.filter((_, i) => i !== idx) }))}
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <div
-              className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+              className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
               onClick={() => fotoInputRef.current?.click()}
             >
-              {approveDialog.foto ? (
-                <img src={approveDialog.foto} alt="preview" className="max-h-40 mx-auto object-contain rounded" />
-              ) : (
-                <>
-                  <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-sm text-muted-foreground">Klik untuk pilih foto</p>
-                </>
-              )}
+              <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
+              <p className="text-xs text-muted-foreground">Klik untuk tambah foto</p>
             </div>
-            <input ref={fotoInputRef} type="file" accept="image/*" className="hidden" onChange={handleFotoChange} />
+            <input ref={fotoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFotoChange} />
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setApproveDialog({ open: false, id: null, foto: null })}>Batal</Button>
+              <Button variant="outline" onClick={() => setApproveDialog({ open: false, id: null, fotos: [] })}>Batal</Button>
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
-                disabled={!approveDialog.foto || approveMut.isPending}
-                onClick={() => approveDialog.id && approveMut.mutate({ id: approveDialog.id, foto_survey: approveDialog.foto! })}
+                disabled={approveDialog.fotos.length === 0 || approveMut.isPending}
+                onClick={() => approveDialog.id && approveMut.mutate({ id: approveDialog.id, foto_survey: approveDialog.fotos })}
               >
                 {approveMut.isPending ? "Menyimpan..." : "Konfirmasi Setujui"}
               </Button>
