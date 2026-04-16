@@ -244,7 +244,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const MONTH_NAMES_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
   function handleDownloadPdf() {
-    const modulLabel = showAll ? "Semua Modul" : modul === "sales-admin" ? "Sales Admin" : "Telemarketing";
+    const modulLabel = showAll ? "Semua Modul" : modul === "sales-admin" ? "Sales Admin" : modul === "golden" ? "GoldenxRubahrumah" : "Telemarketing";
     const periodeLabel = `${MONTH_NAMES_ID[bulan - 1]} ${tahun}`;
     const now = new Date();
 
@@ -346,7 +346,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
             <CalendarDays className="h-6 w-6 text-amber-500" /> Kalender Survey
           </h1>
           <p className="text-muted-foreground text-sm">
-            {showAll ? "Semua Modul (Sales Admin + Telemarketing)" : modul === "sales-admin" ? "Sales Admin" : "Telemarketing"} — Jadwal survey klien
+            {showAll ? "Semua Modul (Sales Admin + Telemarketing)" : modul === "sales-admin" ? "Sales Admin" : modul === "golden" ? "GoldenxRubahrumah" : "Telemarketing"} — Jadwal survey klien
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -608,7 +608,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                               {e.nama}
                             </p>
                             {showAll && e.modul && (
-                              <p className="text-[8px] leading-tight opacity-70">{e.modul === "sales-admin" ? "SA" : "TM"}</p>
+                              <p className="text-[8px] leading-tight opacity-70">{e.modul === "sales-admin" ? "SA" : e.modul === "golden" ? "GL" : "TM"}</p>
                             )}
                             {e.alamat && (
                               <p className="text-[8px] leading-tight truncate flex items-center gap-0.5 opacity-70">
