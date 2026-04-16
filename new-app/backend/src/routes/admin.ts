@@ -5,12 +5,13 @@ import { hashPassword } from "../lib/security";
 
 const router = Router();
 
-function userDict(u: { id: bigint; name: string; email: string; whatsapp_number: string | null; created_at: Date; roles: Array<{ role: { id: bigint; name: string } }> }) {
+function userDict(u: { id: bigint; name: string; email: string; whatsapp_number: string | null; sub_role: string | null; created_at: Date; roles: Array<{ role: { id: bigint; name: string } }> }) {
   return {
     id: u.id,
     name: u.name,
     email: u.email,
     whatsapp_number: u.whatsapp_number,
+    sub_role: u.sub_role ?? "Karyawan",
     roles: u.roles.map((r) => ({ id: r.role.id, name: r.role.name })),
     created_at: u.created_at?.toISOString() ?? null,
   };
@@ -42,7 +43,7 @@ router.get("/users", requireRole("Super Admin"), async (req: Request, res: Respo
 
 // POST /users
 router.post("/users", requireRole("Super Admin"), async (req: Request, res: Response) => {
-  const { name, email, password, whatsapp_number, role_ids = [] } = req.body;
+  const { name, email, password, whatsapp_number, sub_role, role_ids = [] } = req.body;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return res.status(400).json({ detail: "Email sudah terdaftar" });
@@ -53,6 +54,7 @@ router.post("/users", requireRole("Super Admin"), async (req: Request, res: Resp
       email,
       password: hashPassword(password),
       whatsapp_number: whatsapp_number ?? null,
+      sub_role: sub_role ?? "Karyawan",
       roles: {
         create: (role_ids as (number | string)[]).map((rid) => ({ role: { connect: { id: BigInt(rid) } } })),
       },
@@ -64,7 +66,7 @@ router.post("/users", requireRole("Super Admin"), async (req: Request, res: Resp
 // PATCH /users/:id
 router.patch("/users/:id", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const userId = BigInt(req.params.id);
-  const { name, email, whatsapp_number, role_ids } = req.body;
+  const { name, email, whatsapp_number, sub_role, role_ids } = req.body;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return res.status(404).json({ detail: "User tidak ditemukan" });
@@ -72,6 +74,7 @@ router.patch("/users/:id", requireRole("Super Admin"), async (req: Request, res:
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (whatsapp_number !== undefined) updates.whatsapp_number = whatsapp_number;
+  if (sub_role !== undefined) updates.sub_role = sub_role;
   if (email !== undefined) {
     const conflict = await prisma.user.findFirst({ where: { email, id: { not: userId } } });
     if (conflict) return res.status(400).json({ detail: "Email sudah digunakan" });
@@ -211,6 +214,17 @@ router.put("/roles/:id/permissions", requireRole("Super Admin"), async (req: Req
 // Permission yang harus selalu ada (auto-sync tanpa perlu re-run seeder)
 const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }> = [
   { name: "pic.kalender_visit", module: "pic", label: "Sub-menu: Kalender Visit PIC" },
+  // RubahrumahxGolden
+  { name: "golden.view",         module: "golden", label: "Lihat menu RubahrumahxGolden" },
+  { name: "golden.create",       module: "golden", label: "Tambah data Golden" },
+  { name: "golden.edit",         module: "golden", label: "Edit data Golden" },
+  { name: "golden.delete",       module: "golden", label: "Hapus data Golden" },
+  { name: "golden.meta_ads",     module: "golden", label: "Sub-menu: Meta Ads Golden" },
+  { name: "golden.dashboard_ads",module: "golden", label: "Sub-menu: Dashboard Ads Golden" },
+  { name: "golden.follow_up",    module: "golden", label: "Sub-menu: Follow Up Leads Golden" },
+  { name: "golden.kanban_admin", module: "golden", label: "Sub-menu: Kanban Admin Golden" },
+  { name: "golden.kalender",     module: "golden", label: "Sub-menu: Kalender Survey Golden" },
+  { name: "golden.kanban_sales", module: "golden", label: "Sub-menu: Kanban Sales Golden" },
 ];
 
 // GET /permissions — list all, grouped by module

@@ -17,7 +17,8 @@ import { Plus, Pencil, Trash2, Search, PhoneCall, Printer, FileUp, FileDown, His
 import * as XLSX from "xlsx";
 
 interface FollowUpLeadsProps {
-  modul: "sales-admin" | "telemarketing" | "database-client";
+  modul: "sales-admin" | "telemarketing" | "database-client" | "golden";
+  campaignSelectUrl?: string;
 }
 
 interface FollowUpHistoryItem {
@@ -38,6 +39,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const JENIS_OPTIONS = ["Sipil", "Interior", "Desain"];
+const JENIS_OPTIONS_GOLDEN = ["Anti Rayap", "Jasa Cleaning", "Sanitasi Produk"];
 const STATUS_OPTIONS = ["Low", "Medium", "Hot", "Client", "Batal"];
 const STATIC_SUMBER_OPTIONS = ["Instagram", "TikTok", "Facebook", "Referral", "Walk-in", "Lainnya"];
 
@@ -63,8 +65,11 @@ const EMPTY = {
   projection: "",
 };
 
-export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
+export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) {
   const qc = useQueryClient();
+  const isGolden = modul === "golden";
+  const activeJenisOptions = isGolden ? JENIS_OPTIONS_GOLDEN : JENIS_OPTIONS;
+  const defaultJenis = activeJenisOptions[0];
   const endpoint = `/bd/${modul}/leads`;
   const bulkEndpoint = `/bd/${modul}/leads/bulk`;
   const excelInputRef = useRef<HTMLInputElement>(null);
@@ -81,9 +86,10 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
       apiClient.get(`/bd/${modul}/leads/follow-up-report`, { params }).then((r) => r.data),
   };
 
+  const campaignUrl = campaignSelectUrl ?? "/bd/meta-ads/campaigns-select";
   const { data: campaignsData } = useQuery({
-    queryKey: ["meta-ads-campaigns-select"],
-    queryFn: () => apiClient.get("/bd/meta-ads/campaigns-select").then((r) => r.data as { id: number; campaign_name: string; platform: string; leads_count: number }[]),
+    queryKey: ["meta-ads-campaigns-select", campaignUrl],
+    queryFn: () => apiClient.get(campaignUrl).then((r) => r.data as { id: number; campaign_name: string; platform: string; leads_count: number }[]),
     staleTime: 1000 * 60 * 5,
   });
   const campaignOptions = Array.isArray(campaignsData) ? campaignsData : [];
@@ -245,7 +251,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
     }
   }
 
-  function openCreate() { setEditItem(null); setForm(EMPTY); setOpen(true); }
+  function openCreate() { setEditItem(null); setForm({ ...EMPTY, jenis: defaultJenis }); setOpen(true); }
   function openEdit(item: any) {
     setEditItem(item);
     // Check if sumber_leads matches a campaign name — if so, reconstruct the campaign value
@@ -794,7 +800,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
             <SelectTrigger className="w-[130px]"><SelectValue placeholder="Jenis" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Jenis</SelectItem>
-              {JENIS_OPTIONS.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}
+              {activeJenisOptions.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterSurvey} onValueChange={setFilterSurvey}>
@@ -1082,7 +1088,7 @@ export function FollowUpLeads({ modul }: FollowUpLeadsProps) {
                 <Label>Jenis</Label>
                 <Select value={form.jenis} onValueChange={(v) => setForm({ ...form, jenis: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{JENIS_OPTIONS.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}</SelectContent>
+                  <SelectContent>{activeJenisOptions.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div>

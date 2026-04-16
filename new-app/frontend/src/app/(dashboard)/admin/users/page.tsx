@@ -12,17 +12,26 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, RotateCcw, Search } from "lucide-react";
+
+const SUB_ROLES = ["Karyawan", "Tukang", "Mitra"] as const;
+const SUB_ROLE_COLORS: Record<string, string> = {
+  Karyawan: "bg-blue-100 text-blue-700",
+  Tukang: "bg-orange-100 text-orange-700",
+  Mitra: "bg-purple-100 text-purple-700",
+};
 
 interface UserFormData {
   name: string;
   email: string;
   password: string;
-  whatsapp_number: string;
+  whatsapp_number: string | undefined;
+  sub_role: string;
   role_ids: number[];
 }
 
-const EMPTY_FORM: UserFormData = { name: "", email: "", password: "", whatsapp_number: "", role_ids: [] };
+const EMPTY_FORM: UserFormData = { name: "", email: "", password: "", whatsapp_number: "", sub_role: "Karyawan", role_ids: [] };
 
 export default function UsersPage() {
   const qc = useQueryClient();
@@ -70,17 +79,17 @@ export default function UsersPage() {
   const handleOpenCreate = () => { setEditUser(null); setForm(EMPTY_FORM); setOpen(true); };
   const handleOpenEdit = (u: UserListItem) => {
     setEditUser(u);
-    setForm({ name: u.name, email: u.email, password: "", whatsapp_number: u.whatsapp_number || "", role_ids: u.roles.map((r) => r.id) });
+    setForm({ name: u.name, email: u.email, password: "", whatsapp_number: u.whatsapp_number || "", sub_role: u.sub_role || "Karyawan", role_ids: u.roles.map((r) => r.id) });
     setOpen(true);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (editUser) {
-      const payload: any = { name: form.name, email: form.email, whatsapp_number: form.whatsapp_number || undefined, role_ids: form.role_ids };
+      const payload: any = { name: form.name, email: form.email, whatsapp_number: form.whatsapp_number || undefined, sub_role: form.sub_role, role_ids: form.role_ids };
       updateMutation.mutate({ id: editUser.id, data: payload });
     } else {
-      createMutation.mutate(form);
+      createMutation.mutate({ ...form, whatsapp_number: form.whatsapp_number || undefined });
     }
   };
 
@@ -131,6 +140,17 @@ export default function UsersPage() {
                 <Label>WhatsApp</Label>
                 <Input value={form.whatsapp_number} onChange={(e) => setForm({ ...form, whatsapp_number: e.target.value })} placeholder="08xx..." />
               </div>
+              <div className="space-y-1">
+                <Label>Sub Role</Label>
+                <Select value={form.sub_role} onValueChange={(v) => setForm({ ...form, sub_role: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {SUB_ROLES.map((sr) => (
+                      <SelectItem key={sr} value={sr}>{sr}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label>Role</Label>
                 <div className="flex flex-wrap gap-2">
@@ -168,6 +188,7 @@ export default function UsersPage() {
                 <TableHead>Nama</TableHead>
                 <TableHead>Email</TableHead>
                 <TableHead>WhatsApp</TableHead>
+                <TableHead>Sub Role</TableHead>
                 <TableHead>Role</TableHead>
                 <TableHead className="text-right">Aksi</TableHead>
               </TableRow>
@@ -175,13 +196,18 @@ export default function UsersPage() {
             <TableBody>
               {isLoading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}>{Array.from({ length: 5 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
+                  <TableRow key={i}>{Array.from({ length: 6 }).map((__, j) => <TableCell key={j}><Skeleton className="h-4 w-full" /></TableCell>)}</TableRow>
                 ))
               ) : data?.items.map((u) => (
                 <TableRow key={u.id}>
                   <TableCell className="font-medium">{u.name}</TableCell>
                   <TableCell className="text-muted-foreground">{u.email}</TableCell>
                   <TableCell className="text-muted-foreground">{u.whatsapp_number || "-"}</TableCell>
+                  <TableCell>
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${SUB_ROLE_COLORS[u.sub_role] || "bg-gray-100 text-gray-700"}`}>
+                      {u.sub_role || "Karyawan"}
+                    </span>
+                  </TableCell>
                   <TableCell>
                     <div className="flex flex-wrap gap-1">
                       {u.roles.map((r) => (

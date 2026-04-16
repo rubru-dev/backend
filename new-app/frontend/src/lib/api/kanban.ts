@@ -181,6 +181,7 @@ export interface AdminCardPayload {
   tanggal_survey?: string | null;
   color?: string | null;
   lead_id?: number | null;
+  projeksi_sales?: number | null;
 }
 
 export const adminKanbanApi = {
@@ -296,5 +297,123 @@ export const telemarketingKanbanApi = {
   },
   updateLead: async (leadId: number, payload: { tanggal_masuk?: string | null }): Promise<void> => {
     await apiClient.patch(`/bd/telemarketing/leads/${leadId}`, payload);
+  },
+};
+
+// ── Golden Kanban Admin types & API ───────────────────────────────────────────
+
+export interface GoldenKanbanAdminCard {
+  id: number;
+  column_id: number;
+  title: string;
+  description?: string | null;
+  deadline?: string | null;
+  tanggal_survey?: string | null;
+  color?: string | null;
+  projeksi_sales?: number | null;
+  lead?: { id: number; nama: string; created_at?: string | null; tanggal_masuk?: string | null } | null;
+}
+
+export interface GoldenKanbanAdminColumn {
+  id: number;
+  title: string;
+  color?: string | null;
+  cards: GoldenKanbanAdminCard[];
+}
+
+export const goldenKanbanAdminApi = {
+  getBoard: async (bulan: number, tahun: number): Promise<GoldenKanbanAdminColumn[]> => {
+    const { data } = await apiClient.get<GoldenKanbanAdminColumn[]>("/golden-kanban-admin/kanban", { params: { bulan, tahun } });
+    return data;
+  },
+  getLeads: async (): Promise<{ id: number; nama: string }[]> => {
+    const { data } = await apiClient.get<{ id: number; nama: string }[]>("/golden-kanban-admin/kanban/leads");
+    return data;
+  },
+  createColumn: async (payload: { title: string; bulan: number; tahun: number }): Promise<void> => {
+    await apiClient.post("/golden-kanban-admin/kanban/columns", payload);
+  },
+  updateColumn: async (id: number, payload: { title?: string; color?: string }): Promise<void> => {
+    await apiClient.patch(`/golden-kanban-admin/kanban/columns/${id}`, payload);
+  },
+  deleteColumn: async (id: number): Promise<void> => {
+    await apiClient.delete(`/golden-kanban-admin/kanban/columns/${id}`);
+  },
+  createCard: async (columnId: number, payload: { title: string; lead_id?: number | null }): Promise<void> => {
+    await apiClient.post(`/golden-kanban-admin/kanban/columns/${columnId}/cards`, payload);
+  },
+  updateCard: async (id: number, payload: Partial<AdminCardPayload>): Promise<void> => {
+    await apiClient.patch(`/golden-kanban-admin/kanban/cards/${id}`, payload);
+  },
+  deleteCard: async (id: number): Promise<void> => {
+    await apiClient.delete(`/golden-kanban-admin/kanban/cards/${id}`);
+  },
+  moveCard: async (cardId: number, targetColumnId: number, bulan: number, tahun: number): Promise<void> => {
+    await apiClient.post(`/golden-kanban-admin/kanban/cards/${cardId}/move`, { target_column_id: targetColumnId, bulan, tahun });
+  },
+  setSurveyDate: async (cardId: number, tanggal_survey: string | null): Promise<void> => {
+    await apiClient.patch(`/golden-kanban-admin/kanban/cards/${cardId}/survey`, { tanggal_survey });
+  },
+  carryover: async (payload: { from_bulan: number; from_tahun: number; to_bulan: number; to_tahun: number }): Promise<void> => {
+    await apiClient.post("/golden-kanban-admin/kanban/carryover", payload);
+  },
+  getComments: async (cardId: number): Promise<{ id: number; body: string; user: { name: string }; created_at: string }[]> => {
+    const { data } = await apiClient.get(`/golden-kanban-admin/kanban/cards/${cardId}/comments`);
+    return data;
+  },
+  addComment: async (cardId: number, body: string): Promise<void> => {
+    await apiClient.post(`/golden-kanban-admin/kanban/cards/${cardId}/comments`, { body });
+  },
+  updateLead: async (leadId: number, payload: { tanggal_masuk?: string | null }): Promise<void> => {
+    await apiClient.patch(`/bd/golden/leads/${leadId}`, payload);
+  },
+};
+
+// ── Golden Kanban Sales API ───────────────────────────────────────────────────
+
+export const goldenKanbanSalesApi = {
+  getBoard: async (): Promise<BoardResponse> => {
+    const { data } = await apiClient.get<BoardResponse>("/golden-kanban-sales/kanban");
+    return data;
+  },
+  createColumn: async (payload: ColumnPayload): Promise<{ id: number }> => {
+    const { data } = await apiClient.post("/golden-kanban-sales/kanban/columns", payload);
+    return data;
+  },
+  updateColumn: async (id: number, payload: Partial<ColumnPayload>): Promise<void> => {
+    await apiClient.patch(`/golden-kanban-sales/kanban/columns/${id}`, payload);
+  },
+  deleteColumn: async (id: number): Promise<void> => {
+    await apiClient.delete(`/golden-kanban-sales/kanban/columns/${id}`);
+  },
+  createCard: async (payload: CardPayload): Promise<{ id: number }> => {
+    const { data } = await apiClient.post("/golden-kanban-sales/kanban/cards", payload);
+    return data;
+  },
+  updateCard: async (id: number, payload: Partial<CardPayload>): Promise<void> => {
+    await apiClient.patch(`/golden-kanban-sales/kanban/cards/${id}`, payload);
+  },
+  moveCard: async (id: number, payload: MoveCardPayload): Promise<void> => {
+    await apiClient.patch(`/golden-kanban-sales/kanban/cards/${id}/move`, payload);
+  },
+  deleteCard: async (id: number): Promise<void> => {
+    await apiClient.delete(`/golden-kanban-sales/kanban/cards/${id}`);
+  },
+  addComment: async (cardId: number, payload: CommentPayload): Promise<void> => {
+    await apiClient.post(`/golden-kanban-sales/kanban/cards/${cardId}/comments`, payload);
+  },
+  deleteComment: async (commentId: number): Promise<void> => {
+    await apiClient.delete(`/golden-kanban-sales/kanban/comments/${commentId}`);
+  },
+  carryover: async (payload: { month: number; year: number }): Promise<{ copied: number }> => {
+    const { data } = await apiClient.post<{ copied: number }>("/golden-kanban-sales/kanban/carryover", payload);
+    return data;
+  },
+  getLeads: async (): Promise<{ id: number; nama: string }[]> => {
+    const { data } = await apiClient.get<{ id: number; nama: string }[]>("/golden-kanban-sales/kanban/leads");
+    return data;
+  },
+  reorderColumns: async (column_ids: number[]): Promise<void> => {
+    await apiClient.post("/golden-kanban-sales/kanban/columns/reorder", { column_ids });
   },
 };

@@ -16,10 +16,14 @@ function leadDict(l: {
   week: number | null; status: string | null; tipe: string | null; bulan: number | null;
   tahun: number | null; rencana_survey: string | null; tanggal_survey: Date | null;
   jam_survey: string | null; pic_survey: string | null; modul: string | null;
-  survey_approval_status: string | null; user?: { id: bigint; name: string } | null;
+  survey_approval_status: string | null;
+  foto_survey?: string | null;
+  luasan_tanah?: any;
+  catatan_survey?: string | null;
+  user?: { id: bigint; name: string } | null;
   created_at: Date | null;
   _count?: { follow_ups: number };
-  follow_ups?: { id: bigint; tanggal: Date; catatan: string | null; user: { name: string } | null }[];
+  follow_ups?: { id: bigint; tanggal: Date | null; catatan: string | null; user?: { name: string } | null }[];
 }) {
   return {
     id: l.id, nama: l.nama, nomor_telepon: l.nomor_telepon, alamat: l.alamat,
@@ -31,6 +35,9 @@ function leadDict(l: {
     rencana_survey: l.rencana_survey, tanggal_survey: l.tanggal_survey,
     jam_survey: l.jam_survey, pic_survey: l.pic_survey, modul: l.modul,
     survey_approval_status: l.survey_approval_status?.toLowerCase() ?? null,
+    foto_survey: l.foto_survey ?? null,
+    luasan_tanah: l.luasan_tanah != null ? parseFloat(String(l.luasan_tanah)) : null,
+    catatan_survey: l.catatan_survey ?? null,
     user: l.user ? { id: l.user.id, name: l.user.name } : null,
     created_at: l.created_at,
     follow_up_count: l._count?.follow_ups ?? undefined,
@@ -794,8 +801,8 @@ router.get("/meta-ads/dashboard", async (req: Request, res: Response) => {
         const spend = parseFloat(row?.spend ?? "0");
         const impressions = parseInt(row?.impressions ?? "0");
         const reach = parseInt(row?.reach ?? "0");        // accurate unique reach
-        const clicks = parseInt(row?.inline_link_clicks ?? "0");
-        const cpr = parseCPR(row?.cost_per_result);
+        const clicks = parseInt((row as any)?.inline_link_clicks ?? "0");
+        const cpr = parseCPR(row?.cost_per_result as any);
         const result = getResult(row?.actions, spend, cpr); // WA clicks first, fallback cpr
         return {
           id: Number(c.id), campaign_name: c.campaign_name, platform: c.platform, status: c.status,
@@ -982,7 +989,7 @@ router.get("/ads/accounts/test-meta", async (_req: Request, res: Response) => {
   const resp = await fetch(url.toString());
   const data = await resp.json() as { id?: string; name?: string; currency?: string; account_status?: number; error?: { message: string; code: number } };
   if (data.error) return res.json({ ok: false, error: data.error.message, code: data.error.code });
-  return res.json({ ok: true, account_id: data.id, account_name: data.name, currency: data.currency, token_preview: account.access_token.slice(0, 20) + "..." });
+  return res.json({ ok: true, account_id: data.id, account_name: data.name, currency: data.currency });
 });
 
 // ── REFRESH META TOKEN ────────────────────────────────────────────────────────
@@ -1104,10 +1111,10 @@ router.post("/ads/accounts/:id/sync", async (req: Request, res: Response) => {
         spend: parseFloat(row.spend ?? "0"),
         impressions: BigInt(row.impressions ?? "0"),
         reach: BigInt(row.reach ?? "0"),
-        clicks: parseInt(row.inline_link_clicks ?? "0"),
-        ctr: parseFloat(row.inline_link_click_ctr ?? "0"),
+        clicks: parseInt((row as any).inline_link_clicks ?? "0"),
+        ctr: parseFloat((row as any).inline_link_click_ctr ?? "0"),
         frequency: parseFloat(row.frequency ?? "0"),
-        cost_per_result: parseCPR(row?.cost_per_result),
+        cost_per_result: parseCPR(row?.cost_per_result as any),
         conversions,
         data_source: "api",
       };
@@ -1418,7 +1425,7 @@ router.post("/kanban/labels", async (_req: Request, res: Response) => {
 
 // ── MODULAR LEADS (sales-admin / telemarketing) ───────────────────────────────
 
-const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client"]);
+const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client", "golden"]);
 
 function validateModul(modul: string, res: Response): boolean {
   if (!VALID_MODUL.has(modul)) {
@@ -1752,6 +1759,11 @@ router.get("/:modul/survey-kalender", async (req: Request, res: Response) => {
   // Filter by inputter (user_id yang membuat lead)
   if (filterUser) where.user_id = filterUser;
 
+  // Mitra: hanya bisa lihat survey yang di-assign ke nama mereka
+  if (req.user?.sub_role === "Mitra") {
+    where.pic_survey = req.user.name;
+  }
+
   if (bulan && tahun) {
     const startOfMonth = new Date(tahun, bulan - 1, 1);
     const endOfMonth = new Date(tahun, bulan, 0, 23, 59, 59);
@@ -1788,13 +1800,20 @@ router.post("/:modul/leads/:id/approve-survey", async (req: Request, res: Respon
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
-  const { foto_survey } = req.body;
+  const { foto_survey, luasan_tanah, catatan_survey } = req.body;
   if (!foto_survey) return res.status(400).json({ detail: "Foto survey wajib diupload untuk persetujuan" });
   const lead = await prisma.lead.findUnique({ where: { id } });
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
   await prisma.lead.update({
     where: { id },
-    data: { survey_approval_status: "approved", survey_approved_by: req.user!.id, survey_approved_at: new Date(), foto_survey },
+    data: {
+      survey_approval_status: "approved",
+      survey_approved_by: req.user!.id,
+      survey_approved_at: new Date(),
+      foto_survey,
+      luasan_tanah: luasan_tanah !== undefined && luasan_tanah !== "" ? parseFloat(String(luasan_tanah)) : undefined,
+      catatan_survey: catatan_survey ?? undefined,
+    },
   });
   return res.json({ message: "Survey disetujui" });
 });
@@ -1848,9 +1867,13 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
 });
 
 // GET /bd/survey-pic-users — list users for PIC dropdown
-router.get("/survey-pic-users", async (_req: Request, res: Response) => {
+router.get("/survey-pic-users", async (req: Request, res: Response) => {
+  const subRole = req.query.sub_role as string | undefined;
+  const where: Record<string, unknown> = {};
+  if (subRole) where.sub_role = subRole;
   const users = await prisma.user.findMany({
-    select: { id: true, name: true },
+    where,
+    select: { id: true, name: true, sub_role: true },
     orderBy: { name: "asc" },
   });
   return res.json(users);

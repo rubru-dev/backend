@@ -33,6 +33,9 @@ import notificationsRouter from "./routes/notifications";
 import publicRbRouter from "./routes/publicRb";
 import websiteAdminRouter from "./routes/websiteAdmin";
 import absenKaryawanRouter from "./routes/absenKaryawan";
+import goldenRouter from "./routes/golden";
+import goldenKanbanAdminRouter from "./routes/goldenKanbanAdmin";
+import goldenKanbanSalesRouter from "./routes/goldenKanbanSales";
 
 // BigInt serialization fix
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -81,10 +84,7 @@ app.get("/health", (_req, res) => {
   res.json({
     status: "ok",
     version: "1.0.0",
-    storagePath: config.storagePath,
-    storageExists: require("fs").existsSync(config.storagePath),
-    cwd: process.cwd(),
-    dirname: __dirname,
+    timestamp: new Date().toISOString(),
   });
 });
 
@@ -124,6 +124,9 @@ app.use("/api/v1/website", authenticate, websiteAdminRouter);
 
 // Absen Karyawan
 app.use("/api/v1/absen-karyawan", authenticate, absenKaryawanRouter);
+app.use("/api/v1/golden", authenticate, goldenRouter);
+app.use("/api/v1/golden-kanban-admin", authenticate, goldenKanbanAdminRouter);
+app.use("/api/v1/golden-kanban-sales", authenticate, goldenKanbanSalesRouter);
 
 // Global error handler
 app.use(

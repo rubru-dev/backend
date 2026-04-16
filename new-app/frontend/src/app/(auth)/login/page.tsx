@@ -15,6 +15,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAuthStore } from "@/store/authStore";
 import { login as apiLogin } from "@/lib/api/auth";
+import { NAV_GROUPS } from "@/components/layout/sidebar-nav";
+import type { User } from "@/types";
 
 // ── Validation schema ──────────────────────────────────────────────────────────
 const loginSchema = z.object({
@@ -40,6 +42,20 @@ export default function LoginPage() {
     defaultValues: { email: "", password: "" },
   });
 
+  function getFirstMenuHref(user: User): string {
+    const isSuperAdmin = user.roles.some((r) => r.name === "Super Admin");
+    const perms = new Set(user.permissions ?? []);
+    for (const group of NAV_GROUPS) {
+      const groupVisible = isSuperAdmin || (group.alwaysShow ?? false) || perms.has(group.permission) || user.roles.some((r) => group.roles.includes(r.name));
+      if (!groupVisible) continue;
+      for (const item of group.items) {
+        const itemVisible = isSuperAdmin || !item.permission || perms.has(item.permission);
+        if (itemVisible) return item.href;
+      }
+    }
+    return "/dashboard";
+  }
+
   async function onSubmit(values: LoginForm) {
     setIsLoading(true);
     try {
@@ -55,7 +71,13 @@ export default function LoginPage() {
       document.cookie = "is_authed=1; path=/; max-age=2592000; SameSite=Lax";
 
       toast.success(`Selamat datang, ${data.user.name}!`);
-      router.push("/dashboard");
+
+      const subRole = data.user.sub_role ?? "Karyawan";
+      if (subRole === "Tukang" || subRole === "Mitra") {
+        router.push(getFirstMenuHref(data.user));
+      } else {
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
       const msg =
         (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail ??

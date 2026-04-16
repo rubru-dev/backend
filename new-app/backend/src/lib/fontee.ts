@@ -18,7 +18,7 @@ export async function sendFonnte(target: string, message: string) {
 export async function sendFonntToRoles(roleNames: string[], message: string) {
   const users = await prisma.user.findMany({
     where: {
-      role: { name: { in: roleNames } },
+      roles: { some: { role: { name: { in: roleNames } } } },
       whatsapp_number: { not: null },
     },
     select: { whatsapp_number: true, name: true },

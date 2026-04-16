@@ -3,11 +3,11 @@
 // Konfigurasi koneksi ke database MySQL
 // ============================================
 
-// Setting koneksi - sesuaikan kalau beda
-define('DB_HOST', 'localhost');
-define('DB_USER', 'root');
-define('DB_PASS', '');
-define('DB_NAME', 'rental_db');
+// Setting koneksi - pakai env variable kalau ada, fallback ke default lokal
+define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
+define('DB_USER', getenv('DB_USER') ?: 'root');
+define('DB_PASS', getenv('DB_PASS') ?: '');
+define('DB_NAME', getenv('DB_NAME') ?: 'rental_db');
 
 // Buat koneksi ke database MySQL
 $conn = new mysqli(DB_HOST, DB_USER, DB_PASS, DB_NAME);

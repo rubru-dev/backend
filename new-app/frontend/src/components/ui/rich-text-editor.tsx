@@ -49,7 +49,8 @@ export function RichTextEditor({ value, onChange, uploadImageFn }: Props) {
   // Sync external value changes (e.g. when editing loads)
   useEffect(() => {
     if (editor && value !== editor.getHTML()) {
-      editor.commands.setContent(value, false);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (editor.commands as any).setContent(value, false);
     }
   }, [value]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -71,7 +72,7 @@ export function RichTextEditor({ value, onChange, uploadImageFn }: Props) {
     if (!file || !uploadImageFn) return;
     try {
       const url = await uploadImageFn(file);
-      editor.chain().focus().setImage({ src: url }).run();
+      editor!.chain().focus().setImage({ src: url }).run();
     } catch {
       alert("Gagal upload gambar");
     }
@@ -80,7 +81,7 @@ export function RichTextEditor({ value, onChange, uploadImageFn }: Props) {
 
   function insertYoutube() {
     if (!ytUrl) return;
-    editor.chain().focus().setYoutubeVideo({ src: ytUrl }).run();
+    editor!.chain().focus().setYoutubeVideo({ src: ytUrl }).run();
     setYtUrl("");
     setShowYt(false);
   }

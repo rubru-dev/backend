@@ -15,11 +15,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   CalendarDays, CheckCircle, XCircle, Clock,
-  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown,
+  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List,
 } from "lucide-react";
 
 interface KalenderSurveyProps {
-  modul: "sales-admin" | "telemarketing";
+  modul: "sales-admin" | "telemarketing" | "golden";
   showAll?: boolean;
 }
 
@@ -31,6 +31,7 @@ const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
 export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const qc = useQueryClient();
+  const [view, setView] = useState<"calendar" | "list">("calendar");
   const [filterUserId, setFilterUserId] = useState<string>("_all");
   const canApproveSurvey = useAuthStore((s) =>
     s.isSuperAdmin() ||
@@ -52,6 +53,13 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   });
   const [approveDialog, setApproveDialog] = useState<{ open: boolean; id: number | null; foto: string | null }>({ open: false, id: null, foto: null });
   const fotoInputRef = useRef<HTMLInputElement>(null);
+
+  // List detail modal
+  const [listDetailItem, setListDetailItem] = useState<any | null>(null);
+  const [listDetailFoto, setListDetailFoto] = useState<string | null>(null);
+  const [listDetailLuasan, setListDetailLuasan] = useState("");
+  const [listDetailCatatan, setListDetailCatatan] = useState("");
+  const listFotoRef = useRef<HTMLInputElement>(null);
 
   // ── API ─────────────────────────────────────────────────────────────────────
 
@@ -79,18 +87,27 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const surveyUserList: any[] = Array.isArray(surveyUsers) ? surveyUsers : [];
 
   const { data: picUsers } = useQuery({
-    queryKey: ["survey-pic-users"],
-    queryFn: () => apiClient.get("/bd/survey-pic-users").then((r) => r.data),
+    queryKey: ["survey-pic-users", modul],
+    queryFn: () =>
+      apiClient
+        .get("/bd/survey-pic-users", {
+          params: modul === "golden" ? { sub_role: "Mitra" } : undefined,
+        })
+        .then((r) => r.data),
   });
   const picUserList: any[] = Array.isArray(picUsers) ? picUsers : [];
 
   const approveMut = useMutation({
-    mutationFn: ({ id, foto_survey }: { id: number; foto_survey: string }) =>
-      apiClient.post(`/bd/${modul}/leads/${id}/approve-survey`, { foto_survey }).then((r) => r.data),
+    mutationFn: ({ id, foto_survey, luasan_tanah, catatan_survey }: { id: number; foto_survey: string; luasan_tanah?: string; catatan_survey?: string }) =>
+      apiClient.post(`/bd/${modul}/leads/${id}/approve-survey`, { foto_survey, luasan_tanah: luasan_tanah || undefined, catatan_survey: catatan_survey || undefined }).then((r) => r.data),
     onSuccess: () => {
       toast.success("Survey disetujui");
       qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
       setApproveDialog({ open: false, id: null, foto: null });
+      setListDetailItem(null);
+      setListDetailFoto(null);
+      setListDetailLuasan("");
+      setListDetailCatatan("");
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyetujui"),
   });
@@ -105,6 +122,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
       qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
       setRejectId(null);
       setRejectAlasan("");
+      setListDetailItem(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menolak"),
   });
@@ -345,6 +363,20 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
               </SelectContent>
             </Select>
           )}
+          <div className="flex rounded-md border overflow-hidden">
+            <button
+              onClick={() => setView("calendar")}
+              className={`px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors ${view === "calendar" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+            >
+              <CalendarDays className="h-3.5 w-3.5" /> Kalender
+            </button>
+            <button
+              onClick={() => setView("list")}
+              className={`px-3 py-1.5 text-sm flex items-center gap-1.5 transition-colors border-l ${view === "list" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+            >
+              <List className="h-3.5 w-3.5" /> List Survey
+            </button>
+          </div>
           <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={isLoading || items.length === 0}>
             <FileDown className="h-4 w-4 mr-1.5" /> Download PDF
           </Button>
@@ -375,8 +407,99 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
         ))}
       </div>
 
+      {/* ── List Survey View ── */}
+      {view === "list" && (
+        <Card>
+          <CardContent className="pt-4">
+            {isLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+              </div>
+            ) : items.length === 0 ? (
+              <p className="text-sm text-center text-muted-foreground py-8">
+                Tidak ada jadwal survey bulan ini.
+              </p>
+            ) : (
+              <div className="divide-y">
+                {[...items]
+                  .sort((a: any, b: any) => {
+                    const da = a.tanggal_survey ?? "";
+                    const db = b.tanggal_survey ?? "";
+                    return da.localeCompare(db);
+                  })
+                  .map((item: any, i: number) => {
+                    const tgl = item.tanggal_survey
+                      ? new Date(String(item.tanggal_survey).split("T")[0] + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+                      : "—";
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-start gap-3 py-3 cursor-pointer hover:bg-muted/30 rounded-lg px-2 -mx-2 transition-colors"
+                        onClick={() => {
+                          setListDetailItem(item);
+                          setListDetailFoto(item.foto_survey ?? null);
+                          setListDetailLuasan(item.luasan_tanah != null ? String(item.luasan_tanah) : "");
+                          setListDetailCatatan(item.catatan_survey ?? "");
+                        }}
+                      >
+                        <div className="text-xs text-muted-foreground w-6 shrink-0 mt-1 font-mono">{i + 1}</div>
+                        <div
+                          className={`w-1 self-stretch rounded-full shrink-0 ${
+                            item.survey_approval_status === "approved" ? "bg-green-500"
+                              : item.survey_approval_status === "rejected" ? "bg-gray-300"
+                              : "bg-red-500"
+                          }`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm">{item.nama}</span>
+                            {statusBadge(item.survey_approval_status)}
+                            {showAll && item.modul && (
+                              <Badge variant="outline" className="text-[10px] px-1.5">
+                                {item.modul === "sales-admin" ? "Sales Admin" : item.modul === "golden" ? "Golden" : "Telemarketing"}
+                              </Badge>
+                            )}
+                          </div>
+                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1 font-medium text-amber-700">
+                              <CalendarDays className="h-3 w-3" /> {tgl}
+                            </span>
+                            {item.jam_survey && (
+                              <span className="flex items-center gap-1">
+                                <Clock className="h-3 w-3" /> {item.jam_survey}
+                              </span>
+                            )}
+                            {item.pic_survey && (
+                              <span className="flex items-center gap-1">
+                                <User className="h-3 w-3" /> {item.pic_survey}
+                              </span>
+                            )}
+                            {item.nomor_telepon && (
+                              <span className="flex items-center gap-1">
+                                <Phone className="h-3 w-3" /> {item.nomor_telepon}
+                              </span>
+                            )}
+                            {item.alamat && (
+                              <span className="flex items-center gap-1 truncate max-w-xs">
+                                <MapPin className="h-3 w-3 shrink-0" /> {item.alamat}
+                              </span>
+                            )}
+                            {item.jenis && (
+                              <Badge variant="outline" className="text-[10px]">{item.jenis}</Badge>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* ── Calendar ── */}
-      <Card>
+      {view === "calendar" && (<><Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
             <Button variant="ghost" size="icon" onClick={prevMonth}>
@@ -792,6 +915,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
         )}
 
       </div>
+      </>)}
 
       {/* ── Reject Dialog ── */}
       <Dialog
@@ -898,6 +1022,172 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── List Detail Modal ── */}
+      <Dialog open={!!listDetailItem} onOpenChange={(v) => { if (!v) { setListDetailItem(null); setListDetailFoto(null); setListDetailLuasan(""); setListDetailCatatan(""); } }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarDays className="h-5 w-5 text-amber-500" />
+              Detail Survey — {listDetailItem?.nama}
+            </DialogTitle>
+          </DialogHeader>
+          {listDetailItem && (
+            <div className="space-y-4">
+              {/* Lead Info */}
+              <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Status</span>
+                  <span>{statusBadge(listDetailItem.survey_approval_status)}</span>
+                </div>
+                {listDetailItem.tanggal_survey && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Tanggal Survey</span>
+                    <span className="font-medium">{formatDate(String(listDetailItem.tanggal_survey).split("T")[0])}</span>
+                  </div>
+                )}
+                {listDetailItem.jam_survey && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Jam</span>
+                    <span className="font-medium">{listDetailItem.jam_survey}</span>
+                  </div>
+                )}
+                {listDetailItem.pic_survey && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">PIC</span>
+                    <span className="font-medium">{listDetailItem.pic_survey}</span>
+                  </div>
+                )}
+                {listDetailItem.nomor_telepon && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">No. Telepon</span>
+                    <span className="font-medium">{listDetailItem.nomor_telepon}</span>
+                  </div>
+                )}
+                {listDetailItem.alamat && (
+                  <div className="flex items-start justify-between gap-4">
+                    <span className="text-muted-foreground shrink-0">Alamat</span>
+                    <span className="font-medium text-right">{listDetailItem.alamat}</span>
+                  </div>
+                )}
+                {listDetailItem.jenis && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Jenis</span>
+                    <Badge variant="outline" className="text-xs">{listDetailItem.jenis}</Badge>
+                  </div>
+                )}
+                {listDetailItem.status && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Status Lead</span>
+                    <span className="font-medium">{listDetailItem.status}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Luasan Tanah */}
+              <div className="space-y-1.5">
+                <Label>Luasan Tanah (m²)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={listDetailLuasan}
+                  onChange={(e) => setListDetailLuasan(e.target.value)}
+                  placeholder="Contoh: 120.5"
+                  disabled={listDetailItem.survey_approval_status === "approved"}
+                />
+              </div>
+
+              {/* Catatan */}
+              <div className="space-y-1.5">
+                <Label>Catatan Survey</Label>
+                <Input
+                  value={listDetailCatatan}
+                  onChange={(e) => setListDetailCatatan(e.target.value)}
+                  placeholder="Catatan hasil survey..."
+                  disabled={listDetailItem.survey_approval_status === "approved"}
+                />
+              </div>
+
+              {/* Foto Bukti Survey */}
+              <div className="space-y-1.5">
+                <Label>Foto Bukti Survey {listDetailItem.survey_approval_status !== "approved" && <span className="text-destructive">*</span>}</Label>
+                {listDetailItem.survey_approval_status === "approved" && listDetailFoto ? (
+                  <img src={listDetailFoto} alt="foto survey" className="w-full max-h-52 object-contain rounded-lg border" />
+                ) : (
+                  <div
+                    className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                    onClick={() => listFotoRef.current?.click()}
+                  >
+                    {listDetailFoto ? (
+                      <img src={listDetailFoto} alt="preview" className="max-h-40 mx-auto object-contain rounded" />
+                    ) : (
+                      <>
+                        <Upload className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+                        <p className="text-sm text-muted-foreground">Klik untuk pilih foto bukti survey</p>
+                      </>
+                    )}
+                  </div>
+                )}
+                <input
+                  ref={listFotoRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = () => setListDetailFoto(reader.result as string);
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </div>
+
+              {/* Actions */}
+              {listDetailItem.survey_approval_status !== "approved" && canApproveSurvey && (
+                <div className="flex gap-2 pt-1">
+                  <Button
+                    variant="outline"
+                    className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                    disabled={rejectMut.isPending || approveMut.isPending}
+                    onClick={() => {
+                      setRejectId(listDetailItem.id);
+                    }}
+                  >
+                    <XCircle className="h-4 w-4 mr-1.5" /> Tolak Survey
+                  </Button>
+                  <Button
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                    disabled={!listDetailFoto || approveMut.isPending}
+                    onClick={() => approveMut.mutate({
+                      id: listDetailItem.id,
+                      foto_survey: listDetailFoto!,
+                      luasan_tanah: listDetailLuasan || undefined,
+                      catatan_survey: listDetailCatatan || undefined,
+                    })}
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1.5" />
+                    {approveMut.isPending ? "Menyimpan..." : "Setujui Survey"}
+                  </Button>
+                </div>
+              )}
+              {listDetailItem.survey_approval_status === "rejected" && (
+                <Button
+                  variant="outline"
+                  className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                  onClick={() => {
+                    openReschedule(listDetailItem);
+                    setListDetailItem(null);
+                  }}
+                >
+                  <RefreshCw className="h-4 w-4 mr-1.5" /> Jadwal Ulang
+                </Button>
+              )}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

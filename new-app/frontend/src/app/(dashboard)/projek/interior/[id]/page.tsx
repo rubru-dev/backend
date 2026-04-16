@@ -26,7 +26,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, Pencil, Trash2, Home, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
-  Camera, Upload, X, ImageIcon, CheckSquare, FileDown,
+  Camera, Upload, X, ImageIcon, CheckSquare,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 

@@ -17,7 +17,7 @@ import { NextRequest, NextResponse } from "next/server";
  */
 
 // Routes that require authentication
-const PROTECTED_PREFIXES = ["/dashboard", "/bd", "/content", "/leads", "/telemarketing", "/desain", "/sales", "/projek", "/finance", "/pic", "/admin", "/absen", "/karyawan"];
+const PROTECTED_PREFIXES = ["/dashboard", "/bd", "/content", "/leads", "/telemarketing", "/desain", "/sales", "/projek", "/finance", "/pic", "/admin", "/absen", "/karyawan", "/golden", "/sales-admin", "/database-client", "/website", "/client", "/tutorial"];
 
 // Routes accessible only when NOT authenticated
 const AUTH_ROUTES = ["/login"];

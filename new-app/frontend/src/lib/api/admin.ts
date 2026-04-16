@@ -5,6 +5,7 @@ export interface UserListItem {
   name: string;
   email: string;
   whatsapp_number: string | null;
+  sub_role: string;
   roles: { id: number; name: string }[];
   created_at: string;
 }
@@ -32,9 +33,9 @@ export interface RoleWithPermissions {
 export const adminApi = {
   listUsers: (params?: { page?: number; per_page?: number; search?: string }) =>
     apiClient.get<{ items: UserListItem[]; total: number; page: number; per_page: number }>("/admin/users", { params }).then((r) => r.data),
-  createUser: (data: { name: string; email: string; password: string; whatsapp_number?: string; role_ids: number[] }) =>
+  createUser: (data: { name: string; email: string; password: string; whatsapp_number?: string; sub_role?: string; role_ids: number[] }) =>
     apiClient.post("/admin/users", data).then((r) => r.data),
-  updateUser: (id: number, data: { name?: string; email?: string; whatsapp_number?: string; role_ids?: number[] }) =>
+  updateUser: (id: number, data: { name?: string; email?: string; whatsapp_number?: string; sub_role?: string; role_ids?: number[] }) =>
     apiClient.patch(`/admin/users/${id}`, data).then((r) => r.data),
   deleteUser: (id: number) => apiClient.delete(`/admin/users/${id}`).then((r) => r.data),
   resetPassword: (id: number, data?: { new_password?: string }) =>

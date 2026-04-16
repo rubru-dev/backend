@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
+import { NAV_GROUPS } from "@/components/layout/sidebar-nav";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -396,6 +397,7 @@ export function DashboardHome() {
   const { user, isSuperAdmin, hasAnyRole, hasPermission, _hasHydrated } = useAuthStore();
   const router = useRouter();
   const [stats, setStats] = useState<Stats>({ leadsSalesAdmin: null, leadsTelemarketing: null, leadsDataKlien: null });
+  const [redirecting, setRedirecting] = useState(false);
 
   // ── Notification panel ─────────────────────────────────────────────────────
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -447,6 +449,27 @@ export function DashboardHome() {
 
   const showAll = isSuperAdmin() || hasAnyRole("Head Finance");
 
+  // Redirect Tukang/Mitra away from dashboard
+  useEffect(() => {
+    if (!_hasHydrated || !user) return;
+    const subRole = user.sub_role ?? "Karyawan";
+    if (subRole !== "Tukang" && subRole !== "Mitra") return;
+    const isSA = isSuperAdmin();
+    const perms = new Set(user.permissions ?? []);
+    let firstHref = "";
+    for (const group of NAV_GROUPS) {
+      const groupVisible = isSA || (group.alwaysShow ?? false) || perms.has(group.permission) || user.roles.some((r) => group.roles.includes(r.name));
+      if (!groupVisible) continue;
+      for (const item of group.items) {
+        const itemVisible = isSA || !item.permission || perms.has(item.permission);
+        if (itemVisible) { firstHref = item.href; break; }
+      }
+      if (firstHref) break;
+    }
+    if (firstHref) { setRedirecting(true); router.replace(firstHref); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [_hasHydrated, user?.id]);
+
   useEffect(() => {
     if (!_hasHydrated || !user) return;
     loadNotifHistory();
@@ -481,7 +504,7 @@ export function DashboardHome() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_hasHydrated, user?.id]);
 
-  if (!_hasHydrated || !user) return null;
+  if (!_hasHydrated || !user || redirecting) return null;
 
   // Tukang: tampilkan dashboard sederhana dengan tombol ke halaman absen
   if (hasAnyRole("Tukang")) {
@@ -571,7 +594,7 @@ export function DashboardHome() {
       </div>
 
       {/* ── Absen Harian (semua karyawan kecuali Tukang) ──────────────────── */}
-      {!hasAnyRole(["Tukang"]) && (
+      {!hasAnyRole("Tukang") && (
         <AbsenWidget userName={user.name} />
       )}
 

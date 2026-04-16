@@ -7,6 +7,7 @@ export interface AuthUser {
   name: string;
   email: string;
   whatsapp_number: string | null;
+  sub_role: string | null;
   created_at: Date;
   roles: Array<{ role: { id: bigint; name: string } }>;
 }

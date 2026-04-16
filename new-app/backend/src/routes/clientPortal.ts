@@ -23,10 +23,11 @@ router.post("/login", async (req: Request, res: Response) => {
     include: { lead: { include: { client_portal_project: true } } },
   });
 
-  if (!account) { res.status(401).json({ detail: "Username atau password salah" }); return; }
-  if (!account.is_active) { res.status(403).json({ detail: "Akun tidak aktif" }); return; }
+  // Gunakan pesan yang sama untuk semua kasus gagal — mencegah user enumeration
+  const INVALID_MSG = "Username atau password salah";
+  if (!account || !account.is_active) { res.status(401).json({ detail: INVALID_MSG }); return; }
   if (!verifyPassword(password, account.password)) {
-    res.status(401).json({ detail: "Username atau password salah" }); return;
+    res.status(401).json({ detail: INVALID_MSG }); return;
   }
   const project = account.lead?.client_portal_project;
   if (!project) {

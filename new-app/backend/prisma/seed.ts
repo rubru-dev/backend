@@ -176,6 +176,17 @@ async function main() {
     { name: "tutorial.tutorial_aplikasi", module: "tutorial", label: "Sub-menu: Tutorial Aplikasi" },
     { name: "tutorial.api_eksternal",     module: "tutorial", label: "Sub-menu: Tutorial API Eksternal" },
     { name: "tutorial.deployment",        module: "tutorial", label: "Sub-menu: Tutorial Deployment" },
+    // Golden (RubahrumahxGolden)
+    { name: "golden.view",          module: "golden", label: "Lihat RubahrumahxGolden" },
+    { name: "golden.create",        module: "golden", label: "Buat RubahrumahxGolden" },
+    { name: "golden.edit",          module: "golden", label: "Edit RubahrumahxGolden" },
+    { name: "golden.delete",        module: "golden", label: "Hapus RubahrumahxGolden" },
+    { name: "golden.dashboard_ads", module: "golden", label: "Sub-menu: Dashboard Ads Golden" },
+    { name: "golden.meta_ads",      module: "golden", label: "Sub-menu: Meta Ads Golden" },
+    { name: "golden.follow_up",     module: "golden", label: "Sub-menu: Follow Up Leads Golden" },
+    { name: "golden.kanban_admin",  module: "golden", label: "Sub-menu: Kanban Admin Golden" },
+    { name: "golden.kalender",      module: "golden", label: "Sub-menu: Kalender Survey Golden" },
+    { name: "golden.kanban_sales",  module: "golden", label: "Sub-menu: Kanban Sales Golden" },
   ];
 
   const permMap: Record<string, bigint> = {};
@@ -195,6 +206,7 @@ async function main() {
     "Content Creator", "Desain", "PIC Project",
     "Telemarketing", "Sales Admin",
     "Head Finance", "Admin Finance",
+    "Tukang",
   ];
 
   const roleMap: Record<string, bigint> = {};
@@ -277,6 +289,7 @@ async function main() {
     "Tukang":        ["tukang.absen_submit"],
   };
 
+
   let subMenuAdded = 0;
   for (const [roleName, permNames] of Object.entries(subMenuRolePerms)) {
     const roleId = roleMap[roleName];
@@ -293,13 +306,17 @@ async function main() {
 
   // ── 2. Users ──────────────────────────────────────────────────────────────────
   const usersData = [
-    { name: "Admin Test",       email: "admin@test.com",   roles: ["Super Admin"] },
-    { name: "BD User",          email: "bd@test.com",      roles: ["BD"] },
-    { name: "Sales User",       email: "sales@test.com",   roles: ["Sales"] },
-    { name: "Finance User",     email: "finance@test.com", roles: ["Finance"] },
-    { name: "Content Creator",  email: "content@test.com", roles: ["Content Creator"] },
-    { name: "Desain User",      email: "desain@test.com",  roles: ["Desain"] },
-    { name: "PIC Project User", email: "pic@test.com",     roles: ["PIC Project"] },
+    { name: "Admin Test",       email: "admin@test.com",       roles: ["Super Admin"],  sub_role: "Karyawan" },
+    { name: "BD User",          email: "bd@test.com",          roles: ["BD"],           sub_role: "Karyawan" },
+    { name: "Sales User",       email: "sales@test.com",       roles: ["Sales"],        sub_role: "Karyawan" },
+    { name: "Finance User",     email: "finance@test.com",     roles: ["Finance"],      sub_role: "Karyawan" },
+    { name: "Content Creator",  email: "content@test.com",     roles: ["Content Creator"], sub_role: "Karyawan" },
+    { name: "Desain User",      email: "desain@test.com",      roles: ["Desain"],       sub_role: "Karyawan" },
+    { name: "PIC Project User", email: "pic@test.com",         roles: ["PIC Project"],  sub_role: "Karyawan" },
+    { name: "Tukang Test",      email: "tukang@test.com",      roles: ["Tukang"],       sub_role: "Tukang"   },
+    { name: "Mitra Test",       email: "mitra@test.com",       roles: ["BD"],           sub_role: "Mitra"    },
+    { name: "TM User",          email: "telemarketing@test.com", roles: ["Telemarketing"], sub_role: "Karyawan" },
+    { name: "Sales Admin User", email: "salesadmin@test.com",  roles: ["Sales Admin"],  sub_role: "Karyawan" },
   ];
 
   const userMap: Record<string, bigint> = {};
@@ -314,6 +331,7 @@ async function main() {
           name: u.name,
           email: u.email,
           password: hash("password123"),
+          sub_role: u.sub_role as any,
           roles: {
             create: u.roles.map((rname) => ({
               role: { connect: { id: roleMap[rname] } },
@@ -325,6 +343,9 @@ async function main() {
       console.log(`  ✓ created user: ${u.email}`);
     }
   }
+
+  // Note: Golden permissions (golden.view dll) sudah di-upsert di permMap.
+  // Assign ke role via Admin panel UI, atau Super Admin langsung bypass semua permission.
 
   const adminId  = userMap["admin@test.com"];
   const bdId     = userMap["bd@test.com"];
@@ -925,15 +946,19 @@ async function main() {
 
   console.log("\n✅  Seed selesai!\n");
   console.log("  Login credentials (password: password123):");
-  console.log("  ┌────────────────────────────────────────────────────────────┐");
-  console.log("  │ admin@test.com    – Super Admin                            │");
-  console.log("  │ bd@test.com       – BD                                     │");
-  console.log("  │ sales@test.com    – Sales                                  │");
-  console.log("  │ finance@test.com  – Finance                                │");
-  console.log("  │ content@test.com  – Content Creator                        │");
-  console.log("  │ desain@test.com   – Desain                                 │");
-  console.log("  │ pic@test.com      – PIC Project                            │");
-  console.log("  └────────────────────────────────────────────────────────────┘");
+  console.log("  ┌──────────────────────────────────────────────────────────────────┐");
+  console.log("  │ admin@test.com          – Super Admin (akses semua fitur)        │");
+  console.log("  │ bd@test.com             – BD                                     │");
+  console.log("  │ sales@test.com          – Sales                                  │");
+  console.log("  │ finance@test.com        – Finance                                │");
+  console.log("  │ content@test.com        – Content Creator                        │");
+  console.log("  │ desain@test.com         – Desain                                 │");
+  console.log("  │ pic@test.com            – PIC Project                            │");
+  console.log("  │ telemarketing@test.com  – Telemarketing                          │");
+  console.log("  │ salesadmin@test.com     – Sales Admin                            │");
+  console.log("  │ tukang@test.com         – Tukang (sub_role: Tukang)              │");
+  console.log("  │ mitra@test.com          – BD Mitra (sub_role: Mitra, Golden)     │");
+  console.log("  └──────────────────────────────────────────────────────────────────┘");
 }
 
 main()

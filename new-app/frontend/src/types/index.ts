@@ -35,6 +35,7 @@ export interface User {
   name: string;
   email: string;
   whatsapp_number: string | null;
+  sub_role?: string;       // "Karyawan" | "Tukang" | "Mitra"
   email_verified_at: string | null;
   roles: Role[];
   permissions: string[];   // flat array e.g. ["bd.view", "finance.sign_head"]
@@ -170,6 +171,7 @@ export interface AdPlatformAccount {
   advertiser_id: string | null;
   is_active: boolean;
   last_synced_at: string | null;
+  token_refreshed_at: string | null;
   created_at: string;
 }
 
