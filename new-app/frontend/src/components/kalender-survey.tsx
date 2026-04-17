@@ -13,10 +13,41 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   CalendarDays, CheckCircle, XCircle, Clock,
-  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List,
+  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2,
 } from "lucide-react";
+
+/** Tambah timestamp di sudut kanan bawah foto via Canvas */
+async function addTimestamp(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+      const now = new Date();
+      const ts = now.toLocaleString("id-ID", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+      });
+      const fontSize = Math.max(14, Math.round(img.width * 0.028));
+      ctx.font = `bold ${fontSize}px monospace`;
+      const textWidth = ctx.measureText(ts).width;
+      const pad = Math.round(fontSize * 0.5);
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(img.width - textWidth - pad * 2 - 6, img.height - fontSize - pad * 2 - 6, textWidth + pad * 2, fontSize + pad + 4);
+      ctx.fillStyle = "#FFE600";
+      ctx.fillText(ts, img.width - textWidth - pad - 6, img.height - pad - 8);
+      resolve(canvas.toDataURL("image/jpeg", 0.88));
+    };
+    img.src = dataUrl;
+  });
+}
 
 interface KalenderSurveyProps {
   modul: "sales-admin" | "telemarketing" | "golden";
@@ -33,6 +64,12 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const qc = useQueryClient();
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [filterUserId, setFilterUserId] = useState<string>("_all");
+
+  // PDF options dialog
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfDari, setPdfDari] = useState("");
+  const [pdfSampai, setPdfSampai] = useState("");
+  const [pdfPics, setPdfPics] = useState<string[]>([]);
   const canApproveSurvey = useAuthStore((s) =>
     s.isSuperAdmin() ||
     s.hasPermission("bd", "approve") ||
@@ -52,8 +89,10 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const [scheduleForm, setScheduleForm] = useState({
     tanggal_survey: "", jam_survey: "", pic_survey: "",
   });
-  const [approveDialog, setApproveDialog] = useState<{ open: boolean; id: number | null; fotos: string[] }>({ open: false, id: null, fotos: [] });
+  const [approveDialog, setApproveDialog] = useState<{ open: boolean; id: number | null; fotos: string[]; luasan: string; catatan: string }>({ open: false, id: null, fotos: [], luasan: "", catatan: "" });
+  const [approveProcessing, setApproveProcessing] = useState(false);
   const fotoInputRef = useRef<HTMLInputElement>(null);
+  const [listFotoProcessing, setListFotoProcessing] = useState(false);
 
   // List detail modal
   const [listDetailItem, setListDetailItem] = useState<any | null>(null);
@@ -104,7 +143,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     onSuccess: () => {
       toast.success("Survey disetujui");
       qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
-      setApproveDialog({ open: false, id: null, fotos: [] });
+      setApproveDialog({ open: false, id: null, fotos: [], luasan: "", catatan: "" });
       setListDetailItem(null);
       setListDetailFotos([]);
       setListDetailLuasan("");
@@ -234,16 +273,22 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    const results = await Promise.all(files.map(readFileAsDataUrl));
-    setApproveDialog((s) => ({ ...s, fotos: [...s.fotos, ...results] }));
+    setApproveProcessing(true);
+    const raws = await Promise.all(files.map(readFileAsDataUrl));
+    const stamped = await Promise.all(raws.map(addTimestamp));
+    setApproveDialog((s) => ({ ...s, fotos: [...s.fotos, ...stamped] }));
+    setApproveProcessing(false);
     e.target.value = "";
   }
 
   async function handleListFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    const results = await Promise.all(files.map(readFileAsDataUrl));
-    setListDetailFotos((prev) => [...prev, ...results]);
+    setListFotoProcessing(true);
+    const raws = await Promise.all(files.map(readFileAsDataUrl));
+    const stamped = await Promise.all(raws.map(addTimestamp));
+    setListDetailFotos((prev) => [...prev, ...stamped]);
+    setListFotoProcessing(false);
     e.target.value = "";
   }
 
@@ -271,9 +316,34 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
 
   const MONTH_NAMES_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 
-  function handleDownloadPdf() {
+  // Unique PIC names from current items
+  const uniquePics: string[] = Array.from(new Set(items.map((i: any) => i.pic_survey).filter(Boolean)));
+
+  function openPdfDialog() {
+    // Pre-fill dengan bulan aktif
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const lastDay = new Date(tahun, bulan, 0).getDate();
+    setPdfDari(`${tahun}-${pad(bulan)}-01`);
+    setPdfSampai(`${tahun}-${pad(bulan)}-${pad(lastDay)}`);
+    setPdfPics([]);
+    setPdfOpen(true);
+  }
+
+  function handleDownloadPdf(dari?: string, sampai?: string, pics?: string[]) {
+    // Filter items berdasarkan range tanggal & PIC
+    const filtered = items.filter((item: any) => {
+      const tgl = item.tanggal_survey ? String(item.tanggal_survey).split("T")[0] : null;
+      if (dari && tgl && tgl < dari) return false;
+      if (sampai && tgl && tgl > sampai) return false;
+      if (pics?.length && !pics.includes(item.pic_survey)) return false;
+      return true;
+    });
+
     const modulLabel = showAll ? "Semua Modul" : modul === "sales-admin" ? "Sales Admin" : modul === "golden" ? "GoldenxRubahrumah" : "Telemarketing";
-    const periodeLabel = `${MONTH_NAMES_ID[bulan - 1]} ${tahun}`;
+    const periodeLabel = dari && sampai
+      ? `${dari} s/d ${sampai}`
+      : `${MONTH_NAMES_ID[bulan - 1]} ${tahun}`;
+    const picLabel = pics?.length ? ` — PIC: ${pics.join(", ")}` : "";
     const now = new Date();
 
     const statusBadgeText = (s: string | null) =>
@@ -281,7 +351,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     const statusClass = (s: string | null) =>
       s === "approved" ? "s-ok" : s === "rejected" ? "s-rej" : "s-pend";
 
-    const rows = items.map((item: any, i: number) => {
+    const rows = filtered.map((item: any, i: number) => {
       const tgl = item.tanggal_survey ? new Date(item.tanggal_survey + "T00:00:00").toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
       const fotos = parseFotos(item.foto_survey);
       const fotoHtml = fotos.length > 0
@@ -312,7 +382,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     }).join("");
 
     const html = `<!DOCTYPE html>
-<html lang="id"><head><meta charset="UTF-8"/><title>Kalender Survey — ${periodeLabel}</title>
+<html lang="id"><head><meta charset="UTF-8"/><title>Kalender Survey — ${periodeLabel}${picLabel}</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
   body { font-family:'Segoe UI',Arial,sans-serif; font-size:12px; color:#1a1a1a; background:#fff; padding:26px 34px; }
@@ -359,10 +429,10 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   <h1>Kalender Survey — ${modulLabel}</h1>
   <div class="meta">Periode: ${periodeLabel} &nbsp;|&nbsp; Dicetak: ${now.toLocaleDateString("id-ID", { weekday:"long", year:"numeric", month:"long", day:"numeric" })} ${now.toLocaleTimeString("id-ID", { hour:"2-digit", minute:"2-digit" })}</div>
   <div class="summary">
-    <div class="scard"><div class="scard-label">Total Survey</div><div class="scard-value">${items.length}</div></div>
-    <div class="scard scard-ok"><div class="scard-label">Disetujui</div><div class="scard-value">${approvedItems.length}</div></div>
-    <div class="scard scard-pend"><div class="scard-label">Menunggu</div><div class="scard-value">${pendingItems.length}</div></div>
-    <div class="scard scard-rej"><div class="scard-label">Ditolak</div><div class="scard-value">${rejectedItems.length}</div></div>
+    <div class="scard"><div class="scard-label">Total Survey</div><div class="scard-value">${filtered.length}</div></div>
+    <div class="scard scard-ok"><div class="scard-label">Disetujui</div><div class="scard-value">${filtered.filter((i: any) => i.survey_approval_status === "approved").length}</div></div>
+    <div class="scard scard-pend"><div class="scard-label">Menunggu</div><div class="scard-value">${filtered.filter((i: any) => !i.survey_approval_status || i.survey_approval_status === "pending").length}</div></div>
+    <div class="scard scard-rej"><div class="scard-label">Ditolak</div><div class="scard-value">${filtered.filter((i: any) => i.survey_approval_status === "rejected").length}</div></div>
   </div>
   <table>
     <thead><tr>
@@ -427,7 +497,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
               <List className="h-3.5 w-3.5" /> List Survey
             </button>
           </div>
-          <Button variant="outline" size="sm" onClick={handleDownloadPdf} disabled={isLoading || items.length === 0}>
+          <Button variant="outline" size="sm" onClick={openPdfDialog} disabled={isLoading || items.length === 0}>
             <FileDown className="h-4 w-4 mr-1.5" /> Download PDF
           </Button>
         </div>
@@ -772,7 +842,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                           className="h-7 w-7 text-green-600 hover:bg-green-100"
                           title="Setujui"
                           disabled={approveMut.isPending}
-                          onClick={() => setApproveDialog({ open: true, id: item.id, fotos: [] })}
+                          onClick={() => setApproveDialog({ open: true, id: item.id, fotos: [], luasan: "", catatan: "" })}
                         >
                           <CheckCircle className="h-4 w-4" />
                         </Button>
@@ -845,7 +915,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                         size="sm"
                         className="h-7 bg-green-600 hover:bg-green-700 text-white text-xs px-2"
                         disabled={approveMut.isPending}
-                        onClick={() => setApproveDialog({ open: true, id: item.id, fotos: [] })}
+                        onClick={() => setApproveDialog({ open: true, id: item.id, fotos: [], luasan: "", catatan: "" })}
                       >
                         <CheckCircle className="h-3 w-3 mr-1" /> Setujui
                       </Button>
@@ -1181,13 +1251,18 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                     ))}
                   </div>
                 )}
+                {listFotoProcessing && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-1">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...
+                  </div>
+                )}
                 {listDetailItem.survey_approval_status !== "approved" && (
                   <div
                     className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
                     onClick={() => listFotoRef.current?.click()}
                   >
                     <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
-                    <p className="text-xs text-muted-foreground">Klik untuk tambah foto (bisa lebih dari satu)</p>
+                    <p className="text-xs text-muted-foreground">Klik untuk tambah foto (timestamp otomatis, bisa lebih dari satu)</p>
                   </div>
                 )}
                 <input ref={listFotoRef} type="file" accept="image/*" multiple className="hidden" onChange={handleListFotoChange} />
@@ -1208,7 +1283,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                   </Button>
                   <Button
                     className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                    disabled={listDetailFotos.length === 0 || approveMut.isPending}
+                    disabled={listDetailFotos.length === 0 || approveMut.isPending || listFotoProcessing}
                     onClick={() => approveMut.mutate({
                       id: listDetailItem.id,
                       foto_survey: listDetailFotos,
@@ -1239,45 +1314,150 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
       </Dialog>
 
       {/* ── Approve with Photo Dialog ── */}
-      <Dialog open={approveDialog.open} onOpenChange={(v) => !v && setApproveDialog({ open: false, id: null, fotos: [] })}>
-        <DialogContent className="max-w-sm">
+      <Dialog open={approveDialog.open} onOpenChange={(v) => !v && setApproveDialog({ open: false, id: null, fotos: [], luasan: "", catatan: "" })}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-green-600" /> Setujui Survey
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">Upload foto bukti pelaksanaan survey (bisa lebih dari satu).</p>
-            {approveDialog.fotos.length > 0 && (
-              <div className="flex flex-wrap gap-2">
-                {approveDialog.fotos.map((f, idx) => (
-                  <div key={idx} className="relative group">
-                    <img src={f} alt={`foto ${idx + 1}`} className="w-20 h-16 object-cover rounded-lg border" />
-                    <button
-                      type="button"
-                      className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                      onClick={() => setApproveDialog((s) => ({ ...s, fotos: s.fotos.filter((_, i) => i !== idx) }))}
-                    >×</button>
-                  </div>
-                ))}
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Luasan Tanah (m²)</Label>
+                <Input
+                  type="number" min={0} step="0.01" placeholder="120.5"
+                  className="h-8 text-sm"
+                  value={approveDialog.luasan}
+                  onChange={(e) => setApproveDialog((s) => ({ ...s, luasan: e.target.value }))}
+                />
               </div>
-            )}
-            <div
-              className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
-              onClick={() => fotoInputRef.current?.click()}
-            >
-              <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
-              <p className="text-xs text-muted-foreground">Klik untuk tambah foto</p>
+              <div className="space-y-1">
+                <Label className="text-xs">Catatan Survey</Label>
+                <Input
+                  placeholder="Catatan..."
+                  className="h-8 text-sm"
+                  value={approveDialog.catatan}
+                  onChange={(e) => setApproveDialog((s) => ({ ...s, catatan: e.target.value }))}
+                />
+              </div>
             </div>
-            <input ref={fotoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFotoChange} />
+            <div className="space-y-1">
+              <Label className="text-xs">Foto Bukti Survey <span className="text-destructive">*</span> <span className="text-muted-foreground font-normal">(timestamp otomatis)</span></Label>
+              {approveDialog.fotos.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {approveDialog.fotos.map((f, idx) => (
+                    <div key={idx} className="relative group">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={f} alt={`foto ${idx + 1}`} className="w-20 h-16 object-cover rounded-lg border" />
+                      <button
+                        type="button"
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => setApproveDialog((s) => ({ ...s, fotos: s.fotos.filter((_, i) => i !== idx) }))}
+                      >×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {approveProcessing && (
+                <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-1">
+                  <Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...
+                </div>
+              )}
+              <div
+                className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                onClick={() => fotoInputRef.current?.click()}
+              >
+                <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
+                <p className="text-xs text-muted-foreground">Klik untuk tambah foto (bisa lebih dari satu)</p>
+              </div>
+              <input ref={fotoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFotoChange} />
+            </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setApproveDialog({ open: false, id: null, fotos: [] })}>Batal</Button>
+              <Button variant="outline" onClick={() => setApproveDialog({ open: false, id: null, fotos: [], luasan: "", catatan: "" })}>Batal</Button>
               <Button
                 className="bg-green-600 hover:bg-green-700 text-white"
-                disabled={approveDialog.fotos.length === 0 || approveMut.isPending}
-                onClick={() => approveDialog.id && approveMut.mutate({ id: approveDialog.id, foto_survey: approveDialog.fotos })}
+                disabled={approveDialog.fotos.length === 0 || approveMut.isPending || approveProcessing}
+                onClick={() => approveDialog.id && approveMut.mutate({
+                  id: approveDialog.id,
+                  foto_survey: approveDialog.fotos,
+                  luasan_tanah: approveDialog.luasan || undefined,
+                  catatan_survey: approveDialog.catatan || undefined,
+                })}
               >
                 {approveMut.isPending ? "Menyimpan..." : "Konfirmasi Setujui"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── PDF Options Dialog ── */}
+      <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileDown className="h-5 w-5 text-amber-500" /> Download PDF Kalender Survey
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Dari Tanggal</Label>
+                <Input type="date" value={pdfDari} onChange={(e) => setPdfDari(e.target.value)} className="h-8 text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Sampai Tanggal</Label>
+                <Input type="date" value={pdfSampai} onChange={(e) => setPdfSampai(e.target.value)} className="h-8 text-sm" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Filter PIC <span className="text-muted-foreground font-normal">(opsional, bisa lebih dari satu)</span></Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full h-8 text-sm justify-between font-normal">
+                    {pdfPics.length === 0
+                      ? <span className="text-muted-foreground">— Semua PIC —</span>
+                      : <span className="truncate">{pdfPics.join(", ")}</span>}
+                    <ChevronRight className="h-3.5 w-3.5 rotate-90 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-64 p-2" align="start">
+                  {uniquePics.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-2">Tidak ada PIC pada periode ini</p>
+                  ) : (
+                    <div className="space-y-1 max-h-48 overflow-y-auto">
+                      {uniquePics.map((pic) => (
+                        <label key={pic} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer">
+                          <Checkbox
+                            checked={pdfPics.includes(pic)}
+                            onCheckedChange={(checked) =>
+                              setPdfPics((prev) => checked ? [...prev, pic] : prev.filter((p) => p !== pic))
+                            }
+                          />
+                          <span className="text-sm truncate">{pic}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {pdfPics.length > 0 && (
+                    <button
+                      className="mt-1 w-full text-xs text-center text-muted-foreground hover:text-foreground py-1"
+                      onClick={() => setPdfPics([])}
+                    >
+                      Reset pilihan
+                    </button>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setPdfOpen(false)}>Batal</Button>
+              <Button
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+                onClick={() => { setPdfOpen(false); handleDownloadPdf(pdfDari || undefined, pdfSampai || undefined, pdfPics.length ? pdfPics : undefined); }}
+              >
+                <FileDown className="h-4 w-4 mr-1.5" /> Download PDF
               </Button>
             </div>
           </div>

@@ -11,14 +11,15 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Camera, CheckCircle, Clock, XCircle, ChevronLeft, Upload, ChevronRight,
-  Images, Plus, Trash2, FolderOpen, AlertTriangle, X, Loader2, ImageIcon,
-  Building2, Users, ChevronDown,
+  Plus, X, Loader2, ImageIcon, Building2, Users, ChevronDown,
 } from "lucide-react";
 import { useAuthStore } from "@/store/authStore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+const MAX_FILE_MB = 30;
+const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
 
 const api = {
   getProjects: () => apiClient.get("/finance/tukang-absen/projects").then((r) => r.data),
@@ -27,13 +28,8 @@ const api = {
   submitAbsen: (pid: number, data: { foto: string; tanggal: string }) =>
     apiClient.post(`/finance/tukang-absen/${pid}/submit`, data).then((r) => r.data),
   getMyBon: (pid: number) => apiClient.get(`/finance/tukang-absen/${pid}/my-bon`).then((r) => r.data),
-  submitBon: (pid: number, data: any) => apiClient.post(`/finance/tukang-absen/${pid}/submit-bon`, data).then((r) => r.data),
-  getTermins: (type: string, proyekBerjalanId: string) =>
-    apiClient.get(`/pic/projeks/${type}/${proyekBerjalanId}/termins`).then((r) => r.data),
-  uploadFotos: (type: string, taskId: string, formData: FormData) =>
-    apiClient.post(`/pic/tasks/${type}/${taskId}/fotos`, formData, {
-      headers: { "Content-Type": "multipart/form-data" },
-    }).then((r) => r.data),
+  submitBon: (pid: number, data: any) =>
+    apiClient.post(`/finance/tukang-absen/${pid}/submit-bon`, data).then((r) => r.data),
 };
 
 type Project = {
@@ -41,12 +37,7 @@ type Project = {
   nama_proyek: string;
   klien?: string;
   lokasi?: string;
-  proyek_berjalan_id?: string | null;
-  jenis?: string | null;
 };
-type Foto = { id: string; file_path: string; keterangan?: string; kendala?: string; uploader?: string; created_at: string };
-type Task = { id: string; nama_pekerjaan: string; status: string; fotos: Foto[] };
-type Termin = { id: string; nama: string; urutan: number; tasks: Task[] };
 
 const STATUS_MAP: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   Pending:   { label: "Menunggu",  color: "secondary",   icon: <Clock className="h-3 w-3" /> },
@@ -54,19 +45,57 @@ const STATUS_MAP: Record<string, { label: string; color: string; icon: React.Rea
   Ditolak:   { label: "Ditolak",   color: "destructive", icon: <XCircle className="h-3 w-3" /> },
 };
 
-const STATUS_TASK: Record<string, string> = {
-  "Selesai":     "bg-green-100 text-green-700",
-  "Proses":      "bg-blue-100 text-blue-700",
-  "Belum Mulai": "bg-gray-100 text-gray-600",
-};
-
 function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
-function getPicType(jenis?: string | null) {
-  if (!jenis) return null;
-  return jenis.toLowerCase() === "interior" ? "interior" : "sipil";
+/** Gambar timestamp di sudut kanan bawah foto menggunakan Canvas */
+async function addTimestamp(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.width;
+      canvas.height = img.height;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+
+      const now = new Date();
+      const ts = now.toLocaleString("id-ID", {
+        day: "2-digit", month: "2-digit", year: "numeric",
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
+      });
+
+      const fontSize = Math.max(14, Math.round(img.width * 0.028));
+      ctx.font = `bold ${fontSize}px monospace`;
+      const textWidth = ctx.measureText(ts).width;
+      const pad = Math.round(fontSize * 0.5);
+
+      // Background semi-transparan
+      ctx.fillStyle = "rgba(0,0,0,0.55)";
+      ctx.fillRect(
+        img.width - textWidth - pad * 2 - 6,
+        img.height - fontSize - pad * 2 - 6,
+        textWidth + pad * 2,
+        fontSize + pad + 4,
+      );
+
+      // Teks kuning
+      ctx.fillStyle = "#FFE600";
+      ctx.fillText(ts, img.width - textWidth - pad - 6, img.height - pad - 8);
+
+      resolve(canvas.toDataURL("image/jpeg", 0.88));
+    };
+    img.src = dataUrl;
+  });
+}
+
+function validateFile(file: File): boolean {
+  if (file.size > MAX_FILE_BYTES) {
+    toast.error(`File terlalu besar. Maksimal ${MAX_FILE_MB}MB`);
+    return false;
+  }
+  return true;
 }
 
 // ── Admin Overview Component ──────────────────────────────────────────────────
@@ -217,27 +246,17 @@ function AbsenTukangPageInner() {
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [openUpload, setOpenUpload] = useState(false);
   const [fotoPreview, setFotoPreview] = useState<string | null>(null);
+  const [fotoProcessing, setFotoProcessing] = useState(false);
   const [viewFoto, setViewFoto] = useState<string | null>(null);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().slice(0, 10));
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Bon Material state
+  // Bon Material state (foto saja, multiple)
   const [showBonForm, setShowBonForm] = useState(false);
-  const [bonForm, setBonForm] = useState({ tanggal: new Date().toISOString().slice(0, 10), keterangan: "", total_harga: "", catatan: "" });
-  const [bonFoto, setBonFoto] = useState<string | null>(null);
+  const [bonFotos, setBonFotos] = useState<string[]>([]);
+  const [bonProcessing, setBonProcessing] = useState(false);
   const bonFotoRef = useRef<HTMLInputElement>(null);
   const [viewBonFoto, setViewBonFoto] = useState<string | null>(null);
-
-  // Dokumentasi state
-  const [dokStep, setDokStep] = useState<"termin" | "task" | "upload">("termin");
-  const [dokTermin, setDokTermin] = useState<Termin | null>(null);
-  const [dokTask, setDokTask] = useState<Task | null>(null);
-  const [dokFiles, setDokFiles] = useState<File[]>([]);
-  const [dokPreviews, setDokPreviews] = useState<string[]>([]);
-  const [dokKeterangan, setDokKeterangan] = useState("");
-  const [dokKendala, setDokKendala] = useState("");
-  const [showDok, setShowDok] = useState(false);
-  const dokInputRef = useRef<HTMLInputElement>(null);
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -269,30 +288,19 @@ function AbsenTukangPageInner() {
   const myBons: any[] = Array.isArray(myBonData) ? myBonData : [];
 
   const submitBonMut = useMutation({
-    mutationFn: (data: any) => api.submitBon(selectedProject!.id, data),
+    mutationFn: async (fotos: string[]) => {
+      for (const foto of fotos) {
+        await api.submitBon(selectedProject!.id, { foto_bon: foto });
+      }
+    },
     onSuccess: () => {
-      toast.success("Bon material berhasil dikirim");
+      toast.success("Foto bon berhasil dikirim");
       qc.invalidateQueries({ queryKey: ["my-bon", selectedProject?.id] });
       setShowBonForm(false);
-      setBonForm({ tanggal: new Date().toISOString().slice(0, 10), keterangan: "", total_harga: "", catatan: "" });
-      setBonFoto(null);
+      setBonFotos([]);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal mengirim bon"),
   });
-
-  const picType = getPicType(selectedProject?.jenis);
-  const proyekBerjalanId = selectedProject?.proyek_berjalan_id;
-
-  const { data: terminData, isLoading: loadingTermins } = useQuery({
-    queryKey: ["tukang-dok-termins", proyekBerjalanId, picType],
-    queryFn: () => api.getTermins(picType!, String(proyekBerjalanId!)),
-    enabled: !!picType && !!proyekBerjalanId && showDok,
-    retry: false,
-  });
-  const termins: Termin[] = terminData?.termins ?? [];
-
-  // Fresh task data after upload
-  const freshTask = termins.flatMap((t) => t.tasks).find((tk) => tk.id === dokTask?.id) ?? dokTask;
 
   const submitMut = useMutation({
     mutationFn: ({ foto }: { foto: string }) =>
@@ -306,68 +314,50 @@ function AbsenTukangPageInner() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal mengirim absensi"),
   });
 
-  const uploadDokMut = useMutation({
-    mutationFn: ({ type, taskId, fd }: { type: string; taskId: string; fd: FormData }) =>
-      api.uploadFotos(type, taskId, fd),
-    onSuccess: () => {
-      toast.success(`${dokFiles.length} foto berhasil diupload`);
-      qc.invalidateQueries({ queryKey: ["tukang-dok-termins", proyekBerjalanId, picType] });
-      setDokFiles([]);
-      setDokPreviews([]);
-      setDokKeterangan("");
-      setDokKendala("");
-      if (dokInputRef.current) dokInputRef.current.value = "";
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal upload foto"),
-  });
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // Absen foto: validasi ukuran + tambah timestamp
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!validateFile(file)) { e.target.value = ""; return; }
+    setFotoProcessing(true);
     const reader = new FileReader();
-    reader.onload = () => setFotoPreview(reader.result as string);
+    reader.onload = async () => {
+      const stamped = await addTimestamp(reader.result as string);
+      setFotoPreview(stamped);
+      setFotoProcessing(false);
+    };
     reader.readAsDataURL(file);
   }
 
-  function handleDokFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+  // Bon foto: validasi + timestamp, append ke array
+  async function handleBonFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    setDokFiles((prev) => [...prev, ...files]);
-    files.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = () => setDokPreviews((prev) => [...prev, reader.result as string]);
-      reader.readAsDataURL(file);
+    const valid = files.filter((f) => {
+      if (!validateFile(f)) return false;
+      return true;
     });
+    if (!valid.length) { e.target.value = ""; return; }
+    setBonProcessing(true);
+    const results: string[] = [];
+    for (const file of valid) {
+      await new Promise<void>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = async () => {
+          const stamped = await addTimestamp(reader.result as string);
+          results.push(stamped);
+          resolve();
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+    setBonFotos((prev) => [...prev, ...results]);
+    setBonProcessing(false);
     e.target.value = "";
   }
 
-  function removeDokFile(idx: number) {
-    setDokFiles((prev) => prev.filter((_, i) => i !== idx));
-    setDokPreviews((prev) => prev.filter((_, i) => i !== idx));
-  }
-
-  function handleUploadDok() {
-    if (!dokFiles.length || !dokTask || !picType) return;
-    const fd = new FormData();
-    dokFiles.forEach((f) => fd.append("fotos", f));
-    if (dokKeterangan) fd.append("keterangan", dokKeterangan);
-    if (dokKendala) fd.append("kendala", dokKendala);
-    uploadDokMut.mutate({ type: picType, taskId: dokTask.id, fd });
-  }
-
-  function resetDok() {
-    setDokStep("termin");
-    setDokTermin(null);
-    setDokTask(null);
-    setDokFiles([]);
-    setDokPreviews([]);
-    setDokKeterangan("");
-    setDokKendala("");
-  }
-
-  function openDok() {
-    resetDok();
-    setShowDok(true);
+  function removeBonFoto(idx: number) {
+    setBonFotos((prev) => prev.filter((_, i) => i !== idx));
   }
 
   function handleSubmit() {
@@ -389,7 +379,7 @@ function AbsenTukangPageInner() {
       {/* Header */}
       <div className="flex items-center gap-3 pt-2">
         {selectedProject && (
-          <Button variant="ghost" size="icon" onClick={() => { setSelectedProject(null); setShowDok(false); resetDok(); }}>
+          <Button variant="ghost" size="icon" onClick={() => setSelectedProject(null)}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
         )}
@@ -412,7 +402,7 @@ function AbsenTukangPageInner() {
                   <button
                     key={p.id}
                     className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/50 transition-colors text-left"
-                    onClick={() => { setSelectedProject(p); setShowDok(false); resetDok(); }}
+                    onClick={() => setSelectedProject(p)}
                   >
                     <div>
                       <p className="font-medium text-sm">{p.nama_proyek || "-"}</p>
@@ -517,205 +507,7 @@ function AbsenTukangPageInner() {
                 </CardContent>
               </Card>
 
-              {/* Foto Dokumentasi — termin/task flow */}
-              <Card>
-                <CardHeader className="pb-2">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Images className="h-4 w-4 text-blue-500" /> Foto Dokumentasi
-                    </CardTitle>
-                    {!showDok && picType && proyekBerjalanId && (
-                      <Button size="sm" variant="outline" onClick={openDok}>
-                        <Plus className="h-3 w-3 mr-1" /> Tambah
-                      </Button>
-                    )}
-                    {showDok && (
-                      <Button size="sm" variant="ghost" onClick={() => { setShowDok(false); resetDok(); }}>
-                        <X className="h-3.5 w-3.5 mr-1" /> Tutup
-                      </Button>
-                    )}
-                  </div>
-                </CardHeader>
-
-                {!picType || !proyekBerjalanId ? (
-                  <CardContent className="pt-0 pb-4">
-                    <p className="text-xs text-muted-foreground text-center py-2">
-                      Dokumentasi termin belum tersedia — proyek belum terhubung ke projek Sipil/Interior.
-                    </p>
-                  </CardContent>
-                ) : showDok ? (
-                  <CardContent className="pt-0 space-y-4">
-
-                    {/* Breadcrumb mini */}
-                    {(dokTermin || dokTask) && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground flex-wrap">
-                        <button onClick={() => { setDokStep("termin"); setDokTermin(null); setDokTask(null); setDokFiles([]); setDokPreviews([]); }}
-                          className="text-blue-500 hover:underline">Termin</button>
-                        {dokTermin && (
-                          <>
-                            <ChevronRight className="h-3 w-3" />
-                            <button onClick={() => { setDokStep("task"); setDokTask(null); setDokFiles([]); setDokPreviews([]); }}
-                              className="text-blue-500 hover:underline">{dokTermin.nama ?? `Termin ${dokTermin.urutan}`}</button>
-                          </>
-                        )}
-                        {dokTask && (
-                          <>
-                            <ChevronRight className="h-3 w-3" />
-                            <span className="font-medium text-foreground truncate max-w-[160px]">{dokTask.nama_pekerjaan}</span>
-                          </>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Step: Pilih Termin */}
-                    {dokStep === "termin" && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground">Pilih Termin</p>
-                        {loadingTermins ? (
-                          <div className="space-y-2">{[...Array(3)].map((_, i) => <Skeleton key={i} className="h-12" />)}</div>
-                        ) : termins.length === 0 ? (
-                          <p className="text-xs text-muted-foreground text-center py-4">Belum ada termin</p>
-                        ) : (
-                          termins.map((t) => (
-                            <button key={t.id}
-                              onClick={() => { setDokTermin(t); setDokStep("task"); }}
-                              className="w-full text-left p-3 rounded-lg border hover:border-blue-400 hover:bg-blue-50 transition-all flex items-center justify-between group">
-                              <div className="flex items-center gap-2">
-                                <FolderOpen className="h-4 w-4 text-muted-foreground group-hover:text-blue-500" />
-                                <div>
-                                  <p className="text-sm font-medium group-hover:text-blue-600">{t.nama ?? `Termin ${t.urutan}`}</p>
-                                  <p className="text-xs text-muted-foreground">{t.tasks.length} item pekerjaan</p>
-                                </div>
-                              </div>
-                              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-blue-500" />
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    )}
-
-                    {/* Step: Pilih Task */}
-                    {dokStep === "task" && dokTermin && (
-                      <div className="space-y-2">
-                        <p className="text-xs font-semibold text-muted-foreground">Pilih Item Pekerjaan</p>
-                        {dokTermin.tasks.length === 0 ? (
-                          <p className="text-xs text-muted-foreground text-center py-4">Belum ada item pekerjaan</p>
-                        ) : (
-                          dokTermin.tasks.map((tk) => {
-                            const fresh = termins.flatMap((t) => t.tasks).find((t) => t.id === tk.id) ?? tk;
-                            return (
-                              <button key={tk.id}
-                                onClick={() => { setDokTask(fresh); setDokStep("upload"); setDokFiles([]); setDokPreviews([]); }}
-                                className="w-full text-left p-3 rounded-lg border hover:border-blue-400 hover:bg-blue-50 transition-all flex items-center justify-between group">
-                                <div className="flex items-center gap-2">
-                                  <CheckCircle className="h-4 w-4 text-muted-foreground group-hover:text-blue-500 flex-shrink-0" />
-                                  <div>
-                                    <p className="text-sm font-medium group-hover:text-blue-600">{fresh.nama_pekerjaan}</p>
-                                    <div className="flex items-center gap-2 mt-0.5">
-                                      <span className={`text-xs px-1.5 py-0.5 rounded font-medium ${STATUS_TASK[fresh.status] ?? "bg-gray-100 text-gray-600"}`}>
-                                        {fresh.status}
-                                      </span>
-                                      <span className="text-xs text-muted-foreground">{fresh.fotos.length} foto</span>
-                                    </div>
-                                  </div>
-                                </div>
-                                <ChevronRight className="h-3.5 w-3.5 text-muted-foreground group-hover:text-blue-500" />
-                              </button>
-                            );
-                          })
-                        )}
-                      </div>
-                    )}
-
-                    {/* Step: Upload */}
-                    {dokStep === "upload" && dokTask && (
-                      <div className="space-y-3">
-                        {/* Drop zone */}
-                        <div
-                          className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
-                          onClick={() => dokInputRef.current?.click()}
-                        >
-                          <ImageIcon className="h-7 w-7 text-gray-300 mx-auto mb-1" />
-                          <p className="text-xs text-gray-400">Klik untuk pilih foto (bisa lebih dari satu)</p>
-                          <p className="text-xs text-gray-300 mt-0.5">JPG, PNG — maks 20MB/foto</p>
-                        </div>
-                        <input ref={dokInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleDokFileChange} />
-
-                        {/* Preview grid */}
-                        {dokPreviews.length > 0 && (
-                          <div className="grid grid-cols-3 gap-2">
-                            {dokPreviews.map((src, idx) => (
-                              <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border">
-                                <img src={src} alt={`preview-${idx}`} className="w-full h-full object-cover" />
-                                <button type="button" onClick={() => removeDokFile(idx)}
-                                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <X className="h-3 w-3" />
-                                </button>
-                              </div>
-                            ))}
-                            <button type="button" onClick={() => dokInputRef.current?.click()}
-                              className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 transition-colors">
-                              <Plus className="h-4 w-4" />
-                              <span className="text-xs">Tambah</span>
-                            </button>
-                          </div>
-                        )}
-                        {dokPreviews.length > 0 && (
-                          <p className="text-xs text-muted-foreground">{dokPreviews.length} foto dipilih</p>
-                        )}
-
-                        <div className="space-y-1">
-                          <Label className="text-xs font-semibold">
-                            Keterangan <span className="font-normal text-muted-foreground">(opsional)</span>
-                          </Label>
-                          <Textarea rows={2} placeholder="Deskripsi progress..."
-                            value={dokKeterangan} onChange={(e) => setDokKeterangan(e.target.value)}
-                            className="text-sm resize-none" />
-                        </div>
-
-                        <div className="space-y-1">
-                          <Label className="text-xs font-semibold flex items-center gap-1">
-                            <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
-                            Kendala <span className="font-normal text-muted-foreground">(opsional)</span>
-                          </Label>
-                          <Textarea rows={2} placeholder="Kendala di lapangan..."
-                            value={dokKendala} onChange={(e) => setDokKendala(e.target.value)}
-                            className="text-sm resize-none border-amber-200" />
-                        </div>
-
-                        <Button className="w-full" disabled={!dokFiles.length || uploadDokMut.isPending} onClick={handleUploadDok}>
-                          {uploadDokMut.isPending
-                            ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Mengupload...</>
-                            : <><Upload className="h-4 w-4 mr-1.5" />{dokFiles.length > 0 ? `Upload ${dokFiles.length} Foto` : "Pilih foto dahulu"}</>}
-                        </Button>
-
-                        {/* Existing fotos for this task */}
-                        {(freshTask?.fotos?.length ?? 0) > 0 && (
-                          <div className="pt-2 border-t space-y-2">
-                            <p className="text-xs font-semibold text-muted-foreground">Foto Tersimpan ({freshTask!.fotos.length})</p>
-                            <div className="grid grid-cols-3 gap-2">
-                              {freshTask!.fotos.map((f) => {
-                                const url = `${process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000"}${f.file_path}`;
-                                return (
-                                  <div key={f.id} className="aspect-square rounded-lg overflow-hidden border cursor-pointer" onClick={() => setViewFoto(url)}>
-                                    <img src={url} alt="dok" className="w-full h-full object-cover hover:opacity-90 transition-opacity" />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                ) : (
-                  <CardContent className="pt-0 pb-4">
-                    <p className="text-xs text-muted-foreground">Tekan "Tambah" untuk upload foto dokumentasi per item pekerjaan.</p>
-                  </CardContent>
-                )}
-              </Card>
-
-              {/* Bon / Struk Material */}
+              {/* Bon / Struk Material — foto saja, multiple */}
               <Card>
                 <CardHeader className="pb-3 pt-4 px-4">
                   <div className="flex items-center justify-between">
@@ -727,75 +519,103 @@ function AbsenTukangPageInner() {
                     </Button>
                   </div>
                 </CardHeader>
+
                 {showBonForm && (
                   <CardContent className="pt-0 pb-4 space-y-3">
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">Tanggal</Label>
-                        <Input type="date" className="h-8 text-xs" value={bonForm.tanggal} onChange={(e) => setBonForm((f) => ({ ...f, tanggal: e.target.value }))} />
+                    {/* Drop zone foto bon */}
+                    <div
+                      className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center cursor-pointer hover:border-orange-400 transition-colors"
+                      onClick={() => bonFotoRef.current?.click()}
+                    >
+                      <ImageIcon className="h-7 w-7 text-gray-300 mx-auto mb-1" />
+                      <p className="text-xs text-gray-400">Klik untuk foto bon/struk (bisa lebih dari satu)</p>
+                      <p className="text-xs text-gray-300 mt-0.5">JPG, PNG — maks {MAX_FILE_MB}MB/foto</p>
+                    </div>
+                    <input
+                      ref={bonFotoRef}
+                      type="file"
+                      accept="image/*"
+                      capture="environment"
+                      multiple
+                      className="hidden"
+                      onChange={handleBonFotoChange}
+                    />
+
+                    {bonProcessing && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...
                       </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Total Harga (Rp)</Label>
-                        <Input type="number" className="h-8 text-xs" placeholder="0" value={bonForm.total_harga} onChange={(e) => setBonForm((f) => ({ ...f, total_harga: e.target.value }))} />
-                      </div>
-                      <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Keterangan Material</Label>
-                        <Input className="h-8 text-xs" placeholder="cat tembok, pasir, semen, dll" value={bonForm.keterangan} onChange={(e) => setBonForm((f) => ({ ...f, keterangan: e.target.value }))} />
-                      </div>
-                      <div className="col-span-2 space-y-1">
-                        <Label className="text-xs">Foto Bon/Struk</Label>
-                        <input ref={bonFotoRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (!file) return;
-                          const reader = new FileReader();
-                          reader.onload = () => setBonFoto(reader.result as string);
-                          reader.readAsDataURL(file);
-                        }} />
-                        {bonFoto ? (
-                          <div className="relative w-28">
+                    )}
+
+                    {/* Preview grid */}
+                    {bonFotos.length > 0 && (
+                      <div className="grid grid-cols-3 gap-2">
+                        {bonFotos.map((src, idx) => (
+                          <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border">
                             {/* eslint-disable-next-line @next/next/no-img-element */}
-                            <img src={bonFoto} alt="bon" className="w-28 h-20 object-cover rounded border" />
-                            <button className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-0.5" onClick={() => { setBonFoto(null); if (bonFotoRef.current) bonFotoRef.current.value = ""; }}>
+                            <img src={src} alt={`bon-${idx}`} className="w-full h-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => removeBonFoto(idx)}
+                              className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
                               <X className="h-3 w-3" />
                             </button>
                           </div>
-                        ) : (
-                          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => bonFotoRef.current?.click()}>
-                            <Camera className="h-3.5 w-3.5 mr-1" /> Foto Bon
-                          </Button>
-                        )}
+                        ))}
+                        <button
+                          type="button"
+                          onClick={() => bonFotoRef.current?.click()}
+                          className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-orange-400 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-orange-500 transition-colors"
+                        >
+                          <Plus className="h-4 w-4" />
+                          <span className="text-xs">Tambah</span>
+                        </button>
                       </div>
-                    </div>
+                    )}
+                    {bonFotos.length > 0 && (
+                      <p className="text-xs text-muted-foreground">{bonFotos.length} foto dipilih</p>
+                    )}
+
                     <div className="flex gap-2">
-                      <Button size="sm" className="h-8 text-xs" disabled={submitBonMut.isPending} onClick={() => submitBonMut.mutate({ tanggal: bonForm.tanggal, keterangan: bonForm.keterangan || undefined, total_harga: parseFloat(bonForm.total_harga) || 0, foto_bon: bonFoto ?? undefined, catatan: bonForm.catatan || undefined })}>
-                        {submitBonMut.isPending ? "Mengirim..." : "Kirim Bon"}
+                      <Button
+                        size="sm"
+                        className="h-8 text-xs"
+                        disabled={!bonFotos.length || submitBonMut.isPending || bonProcessing}
+                        onClick={() => submitBonMut.mutate(bonFotos)}
+                      >
+                        {submitBonMut.isPending
+                          ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Mengirim...</>
+                          : `Kirim ${bonFotos.length > 0 ? bonFotos.length + " Foto" : "Bon"}`}
                       </Button>
-                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setShowBonForm(false); setBonFoto(null); }}>Batal</Button>
+                      <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => { setShowBonForm(false); setBonFotos([]); }}>
+                        Batal
+                      </Button>
                     </div>
                   </CardContent>
                 )}
+
                 <CardContent className="pt-0 pb-4">
                   {myBons.length === 0 ? (
                     <p className="text-xs text-muted-foreground text-center py-3">Belum ada bon material</p>
                   ) : (
-                    <div className="space-y-2">
-                      {myBons.map((b: any) => (
-                        <div key={b.id} className="flex items-center gap-3 border rounded-lg p-2.5 bg-slate-50">
-                          {b.foto_bon ? (
-                            <button onClick={() => setViewBonFoto(b.foto_bon)}>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={b.foto_bon} alt="bon" className="w-12 h-12 object-cover rounded border flex-shrink-0" />
-                            </button>
-                          ) : (
-                            <div className="w-12 h-12 rounded border bg-white flex items-center justify-center flex-shrink-0 text-slate-300 text-lg">🧾</div>
-                          )}
-                          <div className="flex-1 min-w-0">
-                            <p className="text-xs font-medium truncate">{b.keterangan ?? "-"}</p>
-                            <p className="text-[10px] text-muted-foreground">{b.tanggal ? new Date(b.tanggal).toLocaleDateString("id-ID") : ""}</p>
+                    <div className="grid grid-cols-3 gap-2">
+                      {myBons.map((b: any) =>
+                        b.foto_bon ? (
+                          <button
+                            key={b.id}
+                            onClick={() => setViewBonFoto(b.foto_bon)}
+                            className="aspect-square rounded-lg overflow-hidden border hover:opacity-90 transition-opacity"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img src={b.foto_bon} alt="bon" className="w-full h-full object-cover" />
+                          </button>
+                        ) : (
+                          <div key={b.id} className="aspect-square rounded-lg border bg-slate-50 flex items-center justify-center text-slate-300 text-2xl">
+                            🧾
                           </div>
-                          <p className="text-xs font-semibold text-slate-700 flex-shrink-0">Rp {(b.total_harga ?? 0).toLocaleString("id-ID")}</p>
-                        </div>
-                      ))}
+                        )
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -836,13 +656,19 @@ function AbsenTukangPageInner() {
               className="block border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-primary/50 transition-colors"
               onClick={() => fileInputRef.current?.click()}
             >
-              {fotoPreview ? (
+              {fotoProcessing ? (
+                <div className="flex flex-col items-center gap-2 py-4">
+                  <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Menambahkan timestamp...</p>
+                </div>
+              ) : fotoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
                 <img src={fotoPreview} alt="preview" className="max-h-48 mx-auto object-contain rounded" />
               ) : (
                 <>
                   <Upload className="mx-auto h-10 w-10 text-muted-foreground mb-2" />
                   <p className="text-sm text-muted-foreground">Klik untuk memilih foto</p>
-                  <p className="text-xs text-muted-foreground mt-1">JPG / PNG, maks 5MB</p>
+                  <p className="text-xs text-muted-foreground mt-1">JPG / PNG, maks {MAX_FILE_MB}MB</p>
                 </>
               )}
             </label>
@@ -854,14 +680,14 @@ function AbsenTukangPageInner() {
               className="hidden"
               onChange={handleFileChange}
             />
-            {fotoPreview && (
+            {fotoPreview && !fotoProcessing && (
               <Button variant="outline" size="sm" onClick={() => { setFotoPreview(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}>
                 Ganti Foto
               </Button>
             )}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setOpenUpload(false); setFotoPreview(null); }}>Batal</Button>
-              <Button disabled={!fotoPreview || submitMut.isPending} onClick={handleSubmit}>
+              <Button disabled={!fotoPreview || fotoProcessing || submitMut.isPending} onClick={handleSubmit}>
                 {submitMut.isPending ? "Mengirim..." : "Kirim Absensi"}
               </Button>
             </div>
@@ -873,6 +699,7 @@ function AbsenTukangPageInner() {
       <Dialog open={!!viewFoto} onOpenChange={() => setViewFoto(null)}>
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Foto</DialogTitle></DialogHeader>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
           {viewFoto && <img src={viewFoto} alt="foto" className="w-full rounded-lg object-contain max-h-96" />}
         </DialogContent>
       </Dialog>

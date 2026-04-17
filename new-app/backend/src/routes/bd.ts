@@ -1889,6 +1889,79 @@ router.get("/survey-pic-users", async (req: Request, res: Response) => {
   return res.json(users);
 });
 
+// ── Kalender After Pengerjaan ─────────────────────────────────────────────────
+
+// GET /bd/:modul/pengerjaan-kalender — leads approved survey, for pengerjaan calendar
+router.get("/:modul/pengerjaan-kalender", async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+  const bulan = req.query.bulan ? parseInt(String(req.query.bulan)) : undefined;
+  const tahun = req.query.tahun ? parseInt(String(req.query.tahun)) : undefined;
+  const where: Record<string, unknown> = {
+    modul,
+    survey_approval_status: "approved",
+  };
+  // If bulan/tahun given, filter by pengerjaan date in that month (OR include unscheduled)
+  // We return ALL approved leads; frontend handles filtering display
+  const leads = await prisma.lead.findMany({
+    where,
+    select: {
+      id: true, nama: true, nomor_telepon: true, alamat: true, jenis: true, status: true,
+      tanggal_survey: true, pic_survey: true, luasan_tanah: true, catatan_survey: true,
+      tanggal_pengerjaan: true, pengerjaan_approval_status: true,
+      foto_pengerjaan: true, pengerjaan_approved_at: true,
+      survey_approved_at: true,
+    },
+    orderBy: { survey_approved_at: "desc" },
+  });
+  return res.json(leads.map((l) => ({
+    ...l,
+    luasan_tanah: l.luasan_tanah != null ? parseFloat(String(l.luasan_tanah)) : null,
+  })));
+});
+
+// PATCH /bd/:modul/leads/:id/pengerjaan-schedule — set tanggal pengerjaan
+router.patch("/:modul/leads/:id/pengerjaan-schedule", async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+  const id = BigInt(req.params.id);
+  const { tanggal_pengerjaan } = req.body;
+  if (!tanggal_pengerjaan) return res.status(400).json({ detail: "tanggal_pengerjaan wajib diisi" });
+  const lead = await prisma.lead.findUnique({ where: { id } });
+  if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
+  if (lead.survey_approval_status !== "approved")
+    return res.status(400).json({ detail: "Survey belum disetujui" });
+  await prisma.lead.update({
+    where: { id },
+    data: { tanggal_pengerjaan: new Date(tanggal_pengerjaan) },
+  });
+  return res.json({ message: "Tanggal pengerjaan berhasil diset" });
+});
+
+// POST /bd/:modul/leads/:id/approve-pengerjaan — approve pengerjaan with photos
+router.post("/:modul/leads/:id/approve-pengerjaan", async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+  const id = BigInt(req.params.id);
+  const { foto_pengerjaan } = req.body;
+  if (!foto_pengerjaan) return res.status(400).json({ detail: "Foto pengerjaan wajib diupload" });
+  const fotosArr: string[] = Array.isArray(foto_pengerjaan) ? foto_pengerjaan : [foto_pengerjaan];
+  const lead = await prisma.lead.findUnique({ where: { id } });
+  if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
+  if (lead.survey_approval_status !== "approved")
+    return res.status(400).json({ detail: "Survey belum disetujui" });
+  await prisma.lead.update({
+    where: { id },
+    data: {
+      pengerjaan_approval_status: "approved",
+      pengerjaan_approved_by: req.user!.id,
+      pengerjaan_approved_at: new Date(),
+      foto_pengerjaan: JSON.stringify(fotosArr),
+    },
+  });
+  return res.json({ message: "Pengerjaan disetujui" });
+});
+
 // POST /bd/:modul/leads/bulk — import leads from Excel
 router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
   const { modul } = req.params;

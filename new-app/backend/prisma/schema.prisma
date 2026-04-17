@@ -891,6 +891,11 @@ model Lead {
   foto_survey                           String?                 @db.Text
   luasan_tanah                          Decimal?                @db.Decimal(10,2)
   catatan_survey                        String?
+  tanggal_pengerjaan                    DateTime?               @db.Date
+  pengerjaan_approval_status            String?                 @db.VarChar(50)
+  foto_pengerjaan                       String?                 @db.Text
+  pengerjaan_approved_by                BigInt?
+  pengerjaan_approved_at                DateTime?               @db.Timestamptz(6)
   created_at                            DateTime                @default(now()) @db.Timestamptz(6)
   updated_at                            DateTime                @default(now()) @db.Timestamptz(6)
   jam_survey                            String?                 @db.VarChar(10)

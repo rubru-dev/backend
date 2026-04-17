@@ -72,9 +72,9 @@ const loginLimiter = rateLimit({
   skip: () => config.corsAllowAll,
 });
 
-// Body parsing
-app.use(express.json({ limit: "2mb" }));
-app.use(express.urlencoded({ extended: true, limit: "2mb" }));
+// Body parsing — limit 50mb karena foto absen/bon dikirim sebagai base64 (30MB file → ~40MB base64)
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Static files (uploaded storage)
 app.use("/storage", express.static(path.resolve(config.storagePath)));
