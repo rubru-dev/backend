@@ -1,7 +1,40 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-04-13 (Form Checklist tab di Projek Sipil & Interior)
+> Last updated: 2026-04-20 (RubahrumahxGolden full docs + responsive + GPS timestamp + Mitra sub_role + kalender_after permission)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-04-20)
+
+### RubahrumahxGolden — Dokumentasi Lengkap + Responsive + GPS Timestamp
+
+#### 1. GPS Lokasi di Timestamp Foto (Kalender Survey & After Pengerjaan)
+- **File:** `components/kalender-survey.tsx`, `components/kalender-pengerjaan.tsx`
+- Fungsi `addTimestamp(dataUrl, coords?)` sekarang menerima koordinat GPS opsional
+- Helper `getLocation()` → Geolocation API, timeout 6 detik, fallback `null` (jika user tolak izin)
+- Saat upload foto survey/pengerjaan: GPS diambil terlebih dahulu, lalu di-overlay ke foto via Canvas
+- Overlay: waktu (dd/mm/yyyy, HH:MM:SS) + koordinat GPS (lat 5 desimal, lng 5 desimal) — teks kuning di atas background gelap semi-transparan di sudut kanan bawah
+- Lokasi otomatis terlihat dalam PDF saat download (karena sudah tertanam di dalam gambar)
+- Graceful fallback: jika GPS tidak tersedia, hanya tampil timestamp tanpa koordinat
+
+#### 2. Sub Role Mitra — Tanpa Dashboard
+- **File:** `components/layout/sidebar.tsx` — Dashboard link disembunyikan untuk `user.sub_role === "Mitra"` (sebelumnya hanya Tukang)
+- **File:** `hooks/useAuth.ts` — Setelah login, Mitra redirect ke `/golden/kanban-sales` (bukan `/dashboard`)
+- Sidebar Mitra hanya menampilkan menu sesuai permission yang di-assign admin via `/admin/roles`
+
+#### 3. Permission Kalender After Pengerjaan Golden
+- **File:** `backend/src/routes/admin.ts` — Tambah `golden.kalender_after` ke `ENSURED_PERMISSIONS` (auto-muncul di matrix roles tanpa seeder)
+- **File:** `components/layout/sidebar-nav.ts` — Item baru "Kalender After Pengerjaan" (icon Hammer) → `/golden/kalender-after`, permission `golden.kalender_after`
+- **File:** `app/(dashboard)/golden/kalender-survey/page.tsx` — Sekarang hanya KalenderSurvey
+- **File baru:** `app/(dashboard)/golden/kalender-after/page.tsx` — Halaman khusus KalenderAfterPengerjaan
+- `components/layout/sidebar.tsx` — Tambah `Hammer` ke ICON_MAP
+
+#### 4. Responsive Fixes — Semua Layar termasuk Mobile
+- `kalender-survey.tsx` stats grid: `grid-cols-4` → `grid-cols-2 sm:grid-cols-4`
+- `kalender-pengerjaan.tsx` stats grid: `grid-cols-3` → `grid-cols-1 sm:grid-cols-3`
+- `kalender-survey.tsx` header buttons: tambah `flex-wrap justify-end`
+- `follow-up-leads.tsx` header: `flex items-center justify-between` → `flex flex-col sm:flex-row`, buttons abbreviated di mobile (PDF/Excel label singkat via `hidden sm:inline`)
 
 ---
 
@@ -343,6 +376,351 @@
 - UI Reminder Rules di `/admin/settings` tab "Reminder Rules" menampilkan input jam kirim di samping "hari sebelum".
 - Backend: `PUT /admin/settings/reminder-rules/:id` sekarang terima `send_time`.
 - Reminder baru ditambahkan ke seeder: `item_pekerjaan_sipil`, `item_pekerjaan_desain`, `item_pekerjaan_interior`.
+
+---
+
+## 0.X RubahrumahxGolden — Dokumentasi Lengkap
+
+### Struktur Menu & Permissions
+
+| Label Sidebar | URL | Permission | Ikon |
+|---------------|-----|------------|------|
+| Dashboard Ads | `/golden/dashboard-ads` | `golden.dashboard_ads` | BarChart2 |
+| Meta Ads | `/golden/meta-ads` | `golden.meta_ads` | TrendingUp |
+| Follow Up Leads | `/golden/follow-up` | `golden.follow_up` | PhoneCall |
+| Kanban Admin | `/golden/kanban-admin` | `golden.kanban_admin` | Kanban |
+| Kalender Survey | `/golden/kalender-survey` | `golden.kalender` | CalendarDays |
+| Kalender After Pengerjaan | `/golden/kalender-after` | `golden.kalender_after` | Hammer |
+| Kanban Sales | `/golden/kanban-sales` | `golden.kanban_sales` | LayoutDashboard |
+
+- **Group permission:** `golden.view` → tampilkan grup "RubahrumahxGolden" di sidebar
+- **Sub role Mitra:** setelah login redirect ke `/golden/kanban-sales`; menu Dashboard disembunyikan
+- Sidebar group di `components/layout/sidebar-nav.ts`, warna `#f59e0b`
+
+### Permissions ENSURED di Admin
+
+Semua permission golden di-ensure di `backend/src/routes/admin.ts` → `ENSURED_PERMISSIONS`:
+```
+golden.view, golden.create, golden.edit, golden.delete,
+golden.meta_ads, golden.dashboard_ads, golden.follow_up,
+golden.kanban_admin, golden.kalender, golden.kalender_after, golden.kanban_sales
+```
+Auto-upsert setiap kali `GET /admin/permissions` dipanggil → muncul di matrix roles tanpa perlu seeder.
+
+---
+
+### Menu 1: Dashboard Ads (`/golden/dashboard-ads`)
+
+**File:** `app/(dashboard)/golden/dashboard-ads/page.tsx`
+
+**Fungsi:** Dashboard ringkasan performa semua kampanye iklan (Meta/TikTok) dalam satu tampilan.
+
+**Fitur UI:**
+- Filter: Platform (All/Meta/TikTok), Bulan, Tahun, Kampanye tertentu
+- 11 stat cards: Spend, Impressions, Reach, Clicks, CTR, Chats Received, Chats Responded, Conversions, Response Rate, Conversion Rate, Frequency — responsive `grid-cols-2 sm:grid-cols-4 xl:grid-cols-6`
+- Line chart: Tren Harian (Recharts ResponsiveContainer)
+- Bar chart: Perbandingan Per Kampanye
+- Campaign detail cards: info per kampanye aktif
+
+**Backend API:**
+```
+GET /api/v1/golden/meta-ads/dashboard
+  params: platform?, campaign_id?, bulan?, tahun?, start_date?, end_date?
+  response: { summary, campaigns[], daily_series[] }
+```
+
+---
+
+### Menu 2: Meta Ads (`/golden/meta-ads`)
+
+**File:** `app/(dashboard)/golden/meta-ads/page.tsx`
+
+**Fungsi:** Setup kampanye iklan, manajemen koneksi Meta Insights API, target bulanan, dan input metrik manual.
+
+**Tiga Tab:**
+
+#### Tab 1 — Setup Platform
+- List semua kampanye dengan status kredensial (app_id, ad_account_id, pixel_id, access_token)
+- Tombol Sync: tarik data dari Meta Insights API
+- Tombol Refresh Token: perbarui access token
+- Create kampanye baru (form dialog): nama, platform, meta_campaign_id, credentials, budget, tanggal
+
+**Backend API — Kampanye:**
+```
+GET    /golden/meta-ads/campaigns         – list semua kampanye
+POST   /golden/meta-ads/campaigns         – buat kampanye baru
+PATCH  /golden/meta-ads/campaigns/:id     – edit kampanye
+DELETE /golden/meta-ads/campaigns/:id     – hapus
+PATCH  /golden/meta-ads/campaigns/:id/toggle-hidden   – sembunyikan/tampilkan
+GET    /golden/meta-ads/campaigns-select  – dropdown minimal (id + campaign_name)
+POST   /golden/meta-ads/campaigns/:id/sync            – sync dari Meta Insights API
+POST   /golden/meta-ads/campaigns/:id/refresh-token   – refresh access token
+```
+
+#### Tab 2 — Target Bulanan
+- Input target per platform per bulan/tahun: Spend, Impressions, Clicks, Conversions, CTR, ROAS
+- Grid `sm:grid-cols-2`
+
+**Backend API — Target:**
+```
+GET    /golden/ads/targets     params: platform?, bulan?, tahun?
+POST   /golden/ads/targets     upsert target bulanan
+DELETE /golden/ads/targets/:id
+```
+
+#### Tab 3 — Kelola Kampanye
+- Toggle visibility per kampanye (hidden/visible di dashboard)
+- Input metrik konten manual (AdContentMetric) dan chat WA (WhatsappChatMetric)
+
+**Backend API — Metrik:**
+```
+GET    /golden/meta-ads/campaigns/:id/content-metrics
+POST   /golden/meta-ads/campaigns/:id/content-metrics
+PATCH  /golden/meta-ads/content-metrics/:id
+DELETE /golden/meta-ads/content-metrics/:id
+
+GET    /golden/meta-ads/campaigns/:id/chat-metrics
+POST   /golden/meta-ads/campaigns/:id/chat-metrics
+PATCH  /golden/meta-ads/chat-metrics/:id
+DELETE /golden/meta-ads/chat-metrics/:id
+```
+
+**Model Prisma — `GoldenMetaAdsCampaign`:**
+- `id, campaign_name, meta_campaign_id, platform (Meta/TikTok), status`
+- `daily_budget, total_budget, start_date, end_date`
+- `app_id, ad_account_id, pixel_id, app_secret (hashed), access_token (hashed)`
+- `is_hidden, last_synced_at, token_refreshed_at`
+
+**Model Prisma — `GoldenAdContentMetric`:**
+- `meta_ads_campaign_id, date, spend, impressions, reach, clicks, ctr, frequency`
+- `conversions, cost_per_result, likes, comments, shares, video_views`
+
+**Model Prisma — `GoldenWhatsappChatMetric`:**
+- `meta_ads_campaign_id, date, chats_received, chats_responded, response_rate`
+- `avg_response_time, total_conversions, conversion_rate`
+
+**Model Prisma — `GoldenAdMonthlyTarget`:**
+- `platform, bulan, tahun`
+- `target_spend, target_impressions, target_clicks, target_conversions, target_ctr, target_roas`
+
+---
+
+### Menu 3: Follow Up Leads (`/golden/follow-up`)
+
+**File:** `app/(dashboard)/golden/follow-up/page.tsx`
+**Komponen:** `components/follow-up-leads.tsx` (shared dengan sales-admin, telemarketing)
+
+**Fungsi:** Daftar leads Golden dengan riwayat follow up, filter, tambah lead, import Excel, export PDF/Excel.
+
+**Fitur:**
+- Tabel expandable leads + riwayat follow-up inline
+- Filter: search, status, jenis, survey, sumber (kampanye)
+- Tambah/edit lead via dialog
+- Inline add follow-up
+- Export: PDF Ringkasan, Excel Ringkasan, PDF+Catatan, Excel+Catatan
+- Import bulk via Excel
+
+**Backend API:**
+```
+GET  /golden/leads        params: search, status, jenis, rencana_survey, sumber_kampanye_id, page, limit
+POST /golden/leads        buat lead baru
+GET  /golden/leads/:id    detail lead
+PATCH /golden/leads/:id   update lead
+DELETE /golden/leads/:id  hapus lead
+POST /golden/leads/:id/follow-ups  tambah follow up
+PATCH /golden/follow-ups/:id       update follow up
+DELETE /golden/follow-ups/:id      hapus follow up
+```
+
+**Catatan:**
+- Lead `modul = "golden"` di model `Lead`
+- Kalau lead punya `rencana_survey = "Ya"` → muncul di Kalender Survey
+- Kalau lead `survey_approval_status = "approved"` → muncul di Kalender After Pengerjaan
+
+---
+
+### Menu 4: Kanban Admin (`/golden/kanban-admin`)
+
+**File:** `app/(dashboard)/golden/kanban-admin/page.tsx`, `kanban-board.tsx`
+
+**Fungsi:** Kanban board untuk tracking leads Golden oleh tim Admin. 6 kolom permanen per bulan.
+
+**6 Kolom Permanen:** W1, W2, W3, W4, Closing Survey, Move To Telemarketing
+
+**Fitur:**
+- Drag & drop kartu antar kolom (react-beautiful-dnd)
+- Filter bulan/tahun — data per bulan
+- Carryover: pindah kartu dari bulan sebelumnya ke bulan ini
+- Custom warna per kolom dan per kartu (color picker)
+- Pagination per kolom (10 kartu per halaman)
+- Dialog detail kartu: edit judul, deskripsi, deadline, tanggal survey, proyeksi sales, assign user, label, komentar
+- PDF download rekap semua kolom
+
+**Backend API:**
+```
+GET  /golden-kanban-admin/kanban              params: bulan, tahun
+GET  /golden-kanban-admin/kanban/leads        dropdown leads golden
+POST /golden-kanban-admin/kanban/columns      buat kolom
+PATCH /golden-kanban-admin/kanban/columns/:id edit kolom (title, color)
+DELETE /golden-kanban-admin/kanban/columns/:id hapus (blocked jika is_permanent)
+POST /golden-kanban-admin/kanban/columns/:id/cards   buat kartu
+PATCH /golden-kanban-admin/kanban/cards/:id          update kartu
+DELETE /golden-kanban-admin/kanban/cards/:id         hapus kartu
+POST /golden-kanban-admin/kanban/cards/:id/move      pindah kolom
+PATCH /golden-kanban-admin/kanban/cards/:id/survey   update tanggal survey lead
+POST /golden-kanban-admin/kanban/carryover           carryover kartu bulan lalu
+GET  /golden-kanban-admin/kanban/cards/:id/comments  list komentar
+POST /golden-kanban-admin/kanban/cards/:id/comments  tambah komentar
+```
+
+**Model Prisma:** `GoldenKanbanAdminColumn`, `GoldenKanbanAdminCard`
+- Card fields: `title, description, color, urutan, deadline, tanggal_survey, projeksi_sales`
+- Relations: → Lead (optional), → GoldenKanbanAdminColumn, → User (assignee), labels, comments
+
+**Mobile:** Horizontal scroll via DualScrollContainer (kolom w-72 fixed, scrollable)
+
+---
+
+### Menu 5: Kalender Survey (`/golden/kalender-survey`)
+
+**File:** `app/(dashboard)/golden/kalender-survey/page.tsx`
+**Komponen:** `components/kalender-survey.tsx` (shared dengan sales-admin, telemarketing)
+
+**Fungsi:** Kalender visual jadwal survey leads Golden. Approve/reject survey dengan upload foto bukti.
+
+**Fitur:**
+- Kalender bulanan (tampilan grid 7 hari)
+- List view alternatif
+- Klik tanggal → panel detail leads di hari itu
+- Approve survey: upload foto (timestamp + GPS otomatis), input luasan tanah & catatan
+- Reject survey: input alasan
+- Edit/reschedule jadwal (tanggal, jam, PIC)
+- Filter inputter (dropdown — saat showAll=true)
+- Download PDF: filter periode + PIC, include foto di PDF
+- 4 stat cards: Total Survey, Disetujui, Menunggu, Ditolak
+
+**Timestamp Foto:**
+- Saat upload foto → browser minta izin GPS (Geolocation API)
+- Canvas overlay: tanggal (dd/mm/yyyy), jam (HH:MM:SS), koordinat GPS (lat, lng 5 desimal)
+- Teks kuning, background gelap semi-transparan, sudut kanan bawah
+- Foto dengan timestamp tersimpan ke `foto_survey` (base64 JSON array di Lead)
+
+**Backend API:**
+```
+GET  /bd/golden/survey-kalender         params: bulan, tahun, show_all?, user_id?
+GET  /bd/survey-pic-users               params: sub_role=Mitra → filter Mitra saja
+POST /bd/golden/leads/:id/approve-survey    body: { foto_survey[], luasan_tanah?, catatan_survey? }
+POST /bd/golden/leads/:id/reject-survey     body: { alasan? }
+PATCH /bd/golden/leads/:id/survey           body: { tanggal_survey, jam_survey, pic_survey }
+```
+
+**Lead Fields Terkait:**
+- `tanggal_survey, jam_survey, pic_survey` — jadwal survey
+- `survey_approval_status` — null/"pending"/"approved"/"rejected"
+- `foto_survey` — JSON array base64 (include timestamp + GPS)
+- `luasan_tanah, catatan_survey` — diisi saat approve
+
+**Responsive:** `grid-cols-2 sm:grid-cols-4` untuk stat cards
+
+---
+
+### Menu 6: Kalender After Pengerjaan (`/golden/kalender-after`)
+
+**File:** `app/(dashboard)/golden/kalender-after/page.tsx`
+**Komponen:** `components/kalender-pengerjaan.tsx`
+
+**Fungsi:** Tracking pengerjaan setelah survey disetujui. Set jadwal pengerjaan dan konfirmasi selesai dengan foto bukti.
+
+**Alur:**
+1. Lead survey disetujui (`survey_approval_status = "approved"`) → muncul di sini
+2. Admin set `tanggal_pengerjaan` → status "Terjadwal"
+3. Upload foto bukti pengerjaan (timestamp + GPS) → status "Selesai"
+
+**Fitur:**
+- 3 panel: Belum Dijadwalkan, Terjadwal, Selesai
+- Kalender visual (biru = selesai, amber = terjadwal)
+- List view alternatif
+- Dialog "Set Jadwal": input tanggal pengerjaan
+- Dialog "Konfirmasi Selesai": upload foto bukti (timestamp + GPS otomatis)
+- Lightbox preview foto
+- Download PDF: filter periode + PIC
+
+**Timestamp Foto:**
+- Identik dengan Kalender Survey: GPS + waktu di-overlay ke foto via Canvas
+- Tersimpan ke `foto_pengerjaan` (base64 JSON array di Lead)
+
+**Backend API:**
+```
+GET  /bd/golden/pengerjaan-kalender                          – list leads approved survey
+PATCH /bd/golden/leads/:id/pengerjaan-schedule  body: { tanggal_pengerjaan }
+POST /bd/golden/leads/:id/approve-pengerjaan    body: { foto_pengerjaan[] }
+```
+
+**Lead Fields Terkait:**
+- `tanggal_pengerjaan` — jadwal pengerjaan
+- `pengerjaan_approval_status` — null/"approved"
+- `foto_pengerjaan` — JSON array base64 (include timestamp + GPS)
+
+**Responsive:** `grid-cols-1 sm:grid-cols-3` untuk stat cards
+
+---
+
+### Menu 7: Kanban Sales (`/golden/kanban-sales`)
+
+**File:** `app/(dashboard)/golden/kanban-sales/page.tsx`, `kanban-page.tsx`, `kanban-board.tsx`
+
+**Fungsi:** Kanban board pipeline sales untuk tim Sales/Mitra. Kolom bisa ditambah & diurutkan ulang.
+
+**Default Kolom:** W1, W2, W3, W4, Closing, Lost
+
+**Fitur:**
+- Drag & drop kartu antar kolom (react-beautiful-dnd)
+- Drag & drop kolom untuk reorder
+- Filter bulan/tahun — carryover dari bulan sebelumnya
+- Custom warna kolom & kartu (color picker)
+- Dialog detail kartu: judul, deskripsi, deadline, tipe pekerjaan, proyeksi sales, assign user, label, komentar
+- Stat cards: Total Proyeksi Closing (akumulasi), Closing bulan ini, Total Lost
+- "Closing per Bulan" breakdown + "Jumlah per Kolom" summary
+- Deduplication proyeksi sales (lead yang sama di beberapa bulan dihitung sekali)
+- PDF download rekap semua kolom
+
+**Backend API:**
+```
+GET  /golden-kanban-sales/kanban              – board + columns + cards
+GET  /golden-kanban-sales/kanban/leads        – dropdown leads
+POST /golden-kanban-sales/kanban/columns      – buat kolom baru
+PATCH /golden-kanban-sales/kanban/columns/:id – edit kolom
+DELETE /golden-kanban-sales/kanban/columns/:id
+POST /golden-kanban-sales/kanban/columns/reorder   body: { column_ids[] }
+POST /golden-kanban-sales/kanban/carryover    params: month, year
+POST /golden-kanban-sales/kanban/cards        – buat kartu
+PATCH /golden-kanban-sales/kanban/cards/:id   – update kartu
+DELETE /golden-kanban-sales/kanban/cards/:id
+GET  /golden-kanban-sales/kanban/cards/:id/comments
+POST /golden-kanban-sales/kanban/cards/:id/comments
+```
+
+**Model Prisma:** `GoldenKanbanSalesColumn`, `GoldenKanbanSalesCard`
+- Card fields: `title, description, color, urutan, deadline, tipe_pekerjaan, projeksi_sales`
+- Relations: → Lead (optional), → GoldenKanbanSalesColumn, → User (assignee), labels, comments
+
+**Mobile:** Horizontal scroll via DualScrollContainer. Stat cards `grid-cols-1 sm:grid-cols-3`.
+**Default landing page untuk Mitra** (redirect setelah login).
+
+---
+
+### Ringkasan Responsive Mobile (Golden)
+
+| Komponen | Issue Lama | Fix |
+|----------|-----------|-----|
+| `kalender-survey.tsx` stats | `grid-cols-4` (overflow di HP) | `grid-cols-2 sm:grid-cols-4` |
+| `kalender-pengerjaan.tsx` stats | `grid-cols-3` (kecil di HP) | `grid-cols-1 sm:grid-cols-3` |
+| `kalender-survey.tsx` header buttons | Overflow kanan | `flex-wrap justify-end` |
+| `follow-up-leads.tsx` header | 6 tombol penuh di satu baris | `flex-col sm:flex-row` + label singkat mobile |
+| Kanban boards (admin & sales) | Kolom w-72 | DualScrollContainer (horizontal scroll) — OK |
+| `dashboard-ads/page.tsx` | — | Sudah responsive (`sm:grid-cols-4`) |
+| `meta-ads/page.tsx` | — | Sudah responsive (`sm:grid-cols-2`) |
+| `kanban-sales/kanban-page.tsx` | — | Sudah responsive (`grid-cols-1 sm:grid-cols-3`) |
 
 ---
 

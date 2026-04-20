@@ -755,7 +755,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <PhoneCall className="h-6 w-6 text-amber-500" /> Follow Up Leads
@@ -764,21 +764,21 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
             {modul === "sales-admin" ? "Sales Admin" : modul === "telemarketing" ? "Telemarketing" : "Database Client"} — Data leads dan follow up
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button variant="outline" size="sm" onClick={handlePrint} disabled={isLoading || items.length === 0}>
-            <Printer className="h-4 w-4 mr-1.5" /> PDF Ringkasan
+            <Printer className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">PDF Ringkasan</span><span className="sm:hidden">PDF</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={isLoading || items.length === 0}>
-            <FileDown className="h-4 w-4 mr-1.5" /> Excel Ringkasan
+            <FileDown className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Excel Ringkasan</span><span className="sm:hidden">Excel</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handlePrintBulkPdf} disabled={isLoading || items.length === 0}>
-            <Printer className="h-4 w-4 mr-1.5" /> PDF + Catatan
+            <Printer className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">PDF + Catatan</span><span className="sm:hidden">PDF+</span>
           </Button>
           <Button variant="outline" size="sm" onClick={handleExportBulkExcel} disabled={isLoading || items.length === 0}>
-            <FileDown className="h-4 w-4 mr-1.5" /> Excel + Catatan
+            <FileDown className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Excel + Catatan</span><span className="sm:hidden">Excel+</span>
           </Button>
           <Button variant="outline" size="sm" disabled={bulkImportMut.isPending} onClick={() => excelInputRef.current?.click()}>
-            <FileUp className="h-4 w-4 mr-1.5" /> {bulkImportMut.isPending ? "Mengimport..." : "Upload Excel"}
+            <FileUp className="h-4 w-4 mr-1.5" /> {bulkImportMut.isPending ? "Mengimport..." : <><span className="hidden sm:inline">Upload Excel</span><span className="sm:hidden">Upload</span></>}
           </Button>
           <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
           <Button onClick={openCreate}>

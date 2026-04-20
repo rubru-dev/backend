@@ -223,8 +223,9 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "golden.dashboard_ads",module: "golden", label: "Sub-menu: Dashboard Ads Golden" },
   { name: "golden.follow_up",    module: "golden", label: "Sub-menu: Follow Up Leads Golden" },
   { name: "golden.kanban_admin", module: "golden", label: "Sub-menu: Kanban Admin Golden" },
-  { name: "golden.kalender",     module: "golden", label: "Sub-menu: Kalender Survey Golden" },
-  { name: "golden.kanban_sales", module: "golden", label: "Sub-menu: Kanban Sales Golden" },
+  { name: "golden.kalender",       module: "golden", label: "Sub-menu: Kalender Survey Golden" },
+  { name: "golden.kalender_after", module: "golden", label: "Sub-menu: Kalender After Pengerjaan Golden" },
+  { name: "golden.kanban_sales",   module: "golden", label: "Sub-menu: Kanban Sales Golden" },
 ];
 
 // GET /permissions — list all, grouped by module

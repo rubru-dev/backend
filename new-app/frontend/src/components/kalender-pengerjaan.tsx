@@ -29,8 +29,20 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
-/** Gambar timestamp di sudut kanan bawah via Canvas */
-async function addTimestamp(dataUrl: string): Promise<string> {
+/** Ambil koordinat GPS (timeout 6 detik, fallback null) */
+async function getLocation(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 6000, maximumAge: 60000 },
+    );
+  });
+}
+
+/** Gambar timestamp + lokasi GPS di sudut kanan bawah via Canvas */
+async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number } | null): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -44,14 +56,24 @@ async function addTimestamp(dataUrl: string): Promise<string> {
         day: "2-digit", month: "2-digit", year: "numeric",
         hour: "2-digit", minute: "2-digit", second: "2-digit",
       });
+      const locStr = coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : null;
+      const lines = [ts, ...(locStr ? [locStr] : [])];
+
       const fontSize = Math.max(14, Math.round(img.width * 0.028));
       ctx.font = `bold ${fontSize}px monospace`;
-      const textWidth = ctx.measureText(ts).width;
+      const lineH = fontSize + Math.round(fontSize * 0.35);
       const pad = Math.round(fontSize * 0.5);
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(img.width - textWidth - pad * 2 - 6, img.height - fontSize - pad * 2 - 6, textWidth + pad * 2, fontSize + pad + 4);
+      const maxLineW = Math.max(...lines.map((l) => ctx.measureText(l).width));
+      const boxH = lineH * lines.length + pad * 0.5;
+      const boxX = img.width - maxLineW - pad * 2 - 6;
+      const boxY = img.height - boxH - 6;
+
+      ctx.fillStyle = "rgba(0,0,0,0.60)";
+      ctx.fillRect(boxX, boxY, maxLineW + pad * 2, boxH);
       ctx.fillStyle = "#FFE600";
-      ctx.fillText(ts, img.width - textWidth - pad - 6, img.height - pad - 8);
+      lines.forEach((line, i) => {
+        ctx.fillText(line, boxX + pad, boxY + lineH * (i + 1) - Math.round(fontSize * 0.1));
+      });
       resolve(canvas.toDataURL("image/jpeg", 0.88));
     };
     img.src = dataUrl;
@@ -151,6 +173,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setApproveProcessing(true);
+    const coords = await getLocation();
     const results: string[] = [];
     for (const file of files) {
       const raw = await new Promise<string>((res) => {
@@ -158,7 +181,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
         reader.onload = () => res(reader.result as string);
         reader.readAsDataURL(file);
       });
-      results.push(await addTimestamp(raw));
+      results.push(await addTimestamp(raw, coords));
     }
     setApproveFotos((prev) => [...prev, ...results]);
     setApproveProcessing(false);
@@ -395,7 +418,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: "Belum Dijadwalkan", value: unscheduled.length, color: "text-gray-500", bg: "bg-gray-50" },
           { label: "Terjadwal", value: scheduled.length, color: "text-amber-600", bg: "bg-amber-50" },

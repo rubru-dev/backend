@@ -10,7 +10,7 @@ import {
   Banknote, Folder, Truck, Home, UserCog, ShieldCheck, Settings,
   ChevronDown, ChevronRight, BarChart2, BookOpen, Globe, Server,
   Building2, Camera, UserCheck, Wallet, CheckCircle,
-  Images, Briefcase, HardHat,
+  Images, Briefcase, HardHat, Hammer,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Warehouse, Package, ArrowLeftRight, FileText, Receipt, Calculator,
   Banknote, Folder, Truck, Home, UserCog, ShieldCheck, Settings, BarChart2,
   BookOpen, Globe, Server, Building2, Camera, UserCheck, Wallet, CheckCircle,
-  Images, Briefcase, HardHat,
+  Images, Briefcase, HardHat, Hammer,
 };
 
 function NavIcon({ name, className }: { name: string; className?: string }) {
@@ -141,9 +141,9 @@ export function Sidebar({ className }: { className?: string }) {
 
       {/* Nav */}
       <ScrollArea className="flex-1 py-4">
-        {!hasAnyRole("Tukang") && (
+        {!hasAnyRole("Tukang") && user?.sub_role !== "Mitra" && (
           <div className="px-2 space-y-0.5">
-            {/* Dashboard shortcut — disembunyikan untuk role Tukang */}
+            {/* Dashboard shortcut — disembunyikan untuk role Tukang dan sub_role Mitra */}
             <SidebarItem
               item={{ label: "Dashboard", href: "/dashboard", icon: "LayoutDashboard" }}
             />

@@ -19,9 +19,10 @@ export function useAuth() {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
     });
-    // Tukang langsung ke halaman absen, bukan dashboard
+    // Tukang → /absen, Mitra sub_role → /golden/kanban-sales, lainnya → /dashboard
     const isTukang = data.user.roles?.some((r: { name: string }) => r.name === "Tukang");
-    router.push(isTukang ? "/absen" : "/dashboard");
+    const isMitra = data.user.sub_role === "Mitra";
+    router.push(isTukang ? "/absen" : isMitra ? "/golden/kanban-sales" : "/dashboard");
   }
 
   async function logout() {

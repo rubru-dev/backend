@@ -20,8 +20,20 @@ import {
   MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2,
 } from "lucide-react";
 
-/** Tambah timestamp di sudut kanan bawah foto via Canvas */
-async function addTimestamp(dataUrl: string): Promise<string> {
+/** Ambil koordinat GPS (timeout 6 detik, fallback null) */
+async function getLocation(): Promise<{ lat: number; lng: number } | null> {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => resolve(null),
+      { timeout: 6000, maximumAge: 60000 },
+    );
+  });
+}
+
+/** Tambah timestamp + lokasi GPS di sudut kanan bawah foto via Canvas */
+async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number } | null): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -35,14 +47,24 @@ async function addTimestamp(dataUrl: string): Promise<string> {
         day: "2-digit", month: "2-digit", year: "numeric",
         hour: "2-digit", minute: "2-digit", second: "2-digit",
       });
+      const locStr = coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : null;
+      const lines = [ts, ...(locStr ? [locStr] : [])];
+
       const fontSize = Math.max(14, Math.round(img.width * 0.028));
       ctx.font = `bold ${fontSize}px monospace`;
-      const textWidth = ctx.measureText(ts).width;
+      const lineH = fontSize + Math.round(fontSize * 0.35);
       const pad = Math.round(fontSize * 0.5);
-      ctx.fillStyle = "rgba(0,0,0,0.55)";
-      ctx.fillRect(img.width - textWidth - pad * 2 - 6, img.height - fontSize - pad * 2 - 6, textWidth + pad * 2, fontSize + pad + 4);
+      const maxLineW = Math.max(...lines.map((l) => ctx.measureText(l).width));
+      const boxH = lineH * lines.length + pad * 0.5;
+      const boxX = img.width - maxLineW - pad * 2 - 6;
+      const boxY = img.height - boxH - 6;
+
+      ctx.fillStyle = "rgba(0,0,0,0.60)";
+      ctx.fillRect(boxX, boxY, maxLineW + pad * 2, boxH);
       ctx.fillStyle = "#FFE600";
-      ctx.fillText(ts, img.width - textWidth - pad - 6, img.height - pad - 8);
+      lines.forEach((line, i) => {
+        ctx.fillText(line, boxX + pad, boxY + lineH * (i + 1) - Math.round(fontSize * 0.1));
+      });
       resolve(canvas.toDataURL("image/jpeg", 0.88));
     };
     img.src = dataUrl;
@@ -274,8 +296,9 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setApproveProcessing(true);
+    const coords = await getLocation();
     const raws = await Promise.all(files.map(readFileAsDataUrl));
-    const stamped = await Promise.all(raws.map(addTimestamp));
+    const stamped = await Promise.all(raws.map((r) => addTimestamp(r, coords)));
     setApproveDialog((s) => ({ ...s, fotos: [...s.fotos, ...stamped] }));
     setApproveProcessing(false);
     e.target.value = "";
@@ -285,8 +308,9 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setListFotoProcessing(true);
+    const coords = await getLocation();
     const raws = await Promise.all(files.map(readFileAsDataUrl));
-    const stamped = await Promise.all(raws.map(addTimestamp));
+    const stamped = await Promise.all(raws.map((r) => addTimestamp(r, coords)));
     setListDetailFotos((prev) => [...prev, ...stamped]);
     setListFotoProcessing(false);
     e.target.value = "";
@@ -469,7 +493,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
             {showAll ? "Semua Modul (Sales Admin + Telemarketing)" : modul === "sales-admin" ? "Sales Admin" : modul === "golden" ? "GoldenxRubahrumah" : "Telemarketing"} — Jadwal survey klien
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap justify-end">
           {showAll && surveyUserList.length > 0 && (
             <Select value={filterUserId} onValueChange={setFilterUserId}>
               <SelectTrigger className="w-44 h-9 text-sm">
@@ -504,7 +528,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
       </div>
 
       {/* ── Stats ── */}
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         {[
           { label: "Total Survey", value: items.length, icon: CalendarDays, color: "text-amber-500", bg: "bg-amber-50" },
           { label: "Disetujui", value: approvedItems.length, icon: CheckCircle, color: "text-green-600", bg: "bg-green-50" },
