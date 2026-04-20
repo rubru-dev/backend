@@ -106,7 +106,7 @@ const MONTH_NAMES_ID = ["Januari","Februari","Maret","April","Mei","Juni","Juli"
 export function KalenderAfterPengerjaan({ modul }: Props) {
   const qc = useQueryClient();
   const canApprove = useAuthStore((s) =>
-    s.isSuperAdmin() || s.hasPermission("bd", "approve") || s.hasPermission("golden", "edit")
+    s.isSuperAdmin() || s.hasAnyRole("Head Golden")
   );
 
   const now = new Date();
@@ -125,11 +125,17 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   const [scheduleItem, setScheduleItem] = useState<any | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
 
-  // Dialog: approve pengerjaan (upload foto)
+  // Dialog: approve pengerjaan (upload foto) — only canApprove
   const [approveItem, setApproveItem] = useState<any | null>(null);
   const [approveFotos, setApproveFotos] = useState<string[]>([]);
   const [approveProcessing, setApproveProcessing] = useState(false);
   const fotoInputRef = useRef<HTMLInputElement>(null);
+
+  // Dialog: upload bukti foto saja (tanpa approve) — semua user
+  const [buktiFotoItem, setBuktiFotoItem] = useState<any | null>(null);
+  const [buktiFotos, setBuktiFotos] = useState<string[]>([]);
+  const [buktiProcessing, setBuktiProcessing] = useState(false);
+  const buktiFotoRef = useRef<HTMLInputElement>(null);
 
   // Lightbox
   const [viewFoto, setViewFoto] = useState<string | null>(null);
@@ -167,6 +173,18 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal approve pengerjaan"),
   });
 
+  const buktimut = useMutation({
+    mutationFn: ({ id, fotos }: { id: number; fotos: string[] }) =>
+      apiClient.patch(`/bd/${modul}/leads/${id}/bukti-pengerjaan`, { foto_pengerjaan: fotos }).then((r) => r.data),
+    onSuccess: () => {
+      toast.success("Foto pengerjaan disimpan");
+      qc.invalidateQueries({ queryKey: ["pengerjaan-kalender", modul] });
+      setBuktiFotoItem(null);
+      setBuktiFotos([]);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan foto"),
+  });
+
   // ── foto handler ─────────────────────────────────────────────────────────────
 
   async function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -185,6 +203,25 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     }
     setApproveFotos((prev) => [...prev, ...results]);
     setApproveProcessing(false);
+    e.target.value = "";
+  }
+
+  async function handleBuktiFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setBuktiProcessing(true);
+    const coords = await getLocation();
+    const results: string[] = [];
+    for (const file of files) {
+      const raw = await new Promise<string>((res) => {
+        const reader = new FileReader();
+        reader.onload = () => res(reader.result as string);
+        reader.readAsDataURL(file);
+      });
+      results.push(await addTimestamp(raw, coords));
+    }
+    setBuktiFotos((prev) => [...prev, ...results]);
+    setBuktiProcessing(false);
     e.target.value = "";
   }
 
@@ -525,25 +562,35 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                             </div>
                           )}
                         </div>
-                        {canApprove && !isSelesai && (
+                        {!isSelesai && (
                           <div className="flex flex-col gap-1 shrink-0">
-                            {item.tanggal_pengerjaan ? (
+                            {canApprove ? (
+                              item.tanggal_pengerjaan ? (
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                                  onClick={() => { setApproveItem(item); setApproveFotos([]); }}
+                                >
+                                  <CheckCircle className="h-3 w-3 mr-1" /> Selesai
+                                </Button>
+                              ) : (
+                                <Button
+                                  size="sm"
+                                  className="h-7 text-xs px-2 bg-amber-500 hover:bg-amber-600 text-white"
+                                  onClick={() => { setScheduleItem(item); setScheduleDate(""); }}
+                                >
+                                  <CalendarDays className="h-3 w-3 mr-1" /> Set Jadwal
+                                </Button>
+                              )
+                            ) : item.tanggal_pengerjaan ? (
                               <Button
-                                size="sm"
-                                className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
-                                onClick={() => { setApproveItem(item); setApproveFotos([]); }}
+                                size="sm" variant="outline"
+                                className="h-7 text-xs px-2"
+                                onClick={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
                               >
-                                <CheckCircle className="h-3 w-3 mr-1" /> Selesai
+                                <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
                               </Button>
-                            ) : (
-                              <Button
-                                size="sm"
-                                className="h-7 text-xs px-2 bg-amber-500 hover:bg-amber-600 text-white"
-                                onClick={() => { setScheduleItem(item); setScheduleDate(""); }}
-                              >
-                                <CalendarDays className="h-3 w-3 mr-1" /> Set Jadwal
-                              </Button>
-                            )}
+                            ) : null}
                           </div>
                         )}
                       </div>
@@ -643,6 +690,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 canApprove={canApprove}
                 onSchedule={() => { setScheduleItem(item); setScheduleDate(item.tanggal_pengerjaan ? String(item.tanggal_pengerjaan).split("T")[0] : ""); }}
                 onApprove={() => { setApproveItem(item); setApproveFotos([]); }}
+                onUploadBukti={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
                 onViewFoto={setViewFoto}
               />
             ))}
@@ -713,7 +761,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                     {item.luasan_tanah && <span className="text-blue-700 font-medium">{item.luasan_tanah} m²</span>}
                   </div>
                 </div>
-                {canApprove && (
+                {canApprove ? (
                   <div className="flex flex-col gap-1 shrink-0">
                     <Button
                       size="sm"
@@ -730,6 +778,14 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                       Ubah tanggal
                     </Button>
                   </div>
+                ) : (
+                  <Button
+                    size="sm" variant="outline"
+                    className="h-7 text-xs px-2 shrink-0"
+                    onClick={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
+                  >
+                    <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
+                  </Button>
                 )}
               </div>
             ))}
@@ -983,6 +1039,86 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
         </DialogContent>
       </Dialog>
 
+      {/* ── Dialog: Upload Foto Bukti (tanpa approve) ── */}
+      <Dialog open={!!buktiFotoItem} onOpenChange={(v) => { if (!v) { setBuktiFotoItem(null); setBuktiFotos([]); } }}>
+        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5 text-amber-600" /> Upload Foto Pengerjaan
+            </DialogTitle>
+          </DialogHeader>
+          {buktiFotoItem && (
+            <div className="space-y-4">
+              <div className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
+                <p className="font-semibold">{buktiFotoItem.nama}</p>
+                {buktiFotoItem.tanggal_pengerjaan && (
+                  <p className="text-xs text-amber-700 font-medium mt-0.5">
+                    <Hammer className="h-3 w-3 inline mr-1" />{fmtDate(buktiFotoItem.tanggal_pengerjaan)}
+                  </p>
+                )}
+              </div>
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-1">
+                  Foto Bukti Pengerjaan <span className="text-destructive">*</span>
+                  <span className="text-muted-foreground font-normal text-xs">(timestamp otomatis)</span>
+                </Label>
+                {buktiFotos.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2">
+                    {buktiFotos.map((f, idx) => (
+                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border">
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={f} alt={`foto-${idx}`} className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => setBuktiFotos((prev) => prev.filter((_, i) => i !== idx))}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      onClick={() => buktiFotoRef.current?.click()}
+                      className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-amber-400 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-amber-500 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span className="text-xs">Tambah</span>
+                    </button>
+                  </div>
+                )}
+                {buktiProcessing && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...
+                  </div>
+                )}
+                {buktiFotos.length === 0 && (
+                  <div
+                    className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-amber-400 transition-colors"
+                    onClick={() => buktiFotoRef.current?.click()}
+                  >
+                    <ImageIcon className="h-7 w-7 text-gray-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-400">Klik untuk tambah foto (bisa lebih dari satu)</p>
+                  </div>
+                )}
+                <input ref={buktiFotoRef} type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={handleBuktiFotoChange} />
+                {buktiFotos.length > 0 && <p className="text-xs text-muted-foreground">{buktiFotos.length} foto dipilih</p>}
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { setBuktiFotoItem(null); setBuktiFotos([]); }}>Batal</Button>
+                <Button
+                  className="bg-amber-500 hover:bg-amber-600 text-white"
+                  disabled={buktiFotos.length === 0 || buktimut.isPending || buktiProcessing}
+                  onClick={() => buktimut.mutate({ id: buktiFotoItem.id, fotos: buktiFotos })}
+                >
+                  {buktimut.isPending ? "Menyimpan..." : "Simpan Foto"}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       {/* Lightbox */}
       {viewFoto && (
         <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setViewFoto(null)}>
@@ -995,11 +1131,12 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 }
 
 // ── ItemCard helper ───────────────────────────────────────────────────────────
-function ItemCard({ item, canApprove, onSchedule, onApprove, onViewFoto }: {
+function ItemCard({ item, canApprove, onSchedule, onApprove, onUploadBukti, onViewFoto }: {
   item: any;
   canApprove: boolean;
   onSchedule: () => void;
   onApprove: () => void;
+  onUploadBukti: () => void;
   onViewFoto: (f: string) => void;
 }) {
   const isSelesai = item.pengerjaan_approval_status === "approved";
@@ -1031,14 +1168,22 @@ function ItemCard({ item, canApprove, onSchedule, onApprove, onViewFoto }: {
           </div>
         )}
       </div>
-      {canApprove && !isSelesai && (
+      {!isSelesai && (
         <div className="flex flex-col gap-1 shrink-0">
-          <Button size="sm" className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={onApprove}>
-            <CheckCircle className="h-3 w-3 mr-1" /> Selesai
-          </Button>
-          <Button size="sm" variant="ghost" className="h-6 text-xs px-2 text-amber-700" onClick={onSchedule}>
-            Ubah tanggal
-          </Button>
+          {canApprove ? (
+            <>
+              <Button size="sm" className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={onApprove}>
+                <CheckCircle className="h-3 w-3 mr-1" /> Selesai
+              </Button>
+              <Button size="sm" variant="ghost" className="h-6 text-xs px-2 text-amber-700" onClick={onSchedule}>
+                Ubah tanggal
+              </Button>
+            </>
+          ) : (
+            <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={onUploadBukti}>
+              <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
+            </Button>
+          )}
         </div>
       )}
     </div>

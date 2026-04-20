@@ -1828,6 +1828,25 @@ router.post("/:modul/leads/:id/approve-survey", async (req: Request, res: Respon
   return res.json({ message: "Survey disetujui" });
 });
 
+// PATCH /bd/:modul/leads/:id/bukti-survey — simpan bukti tanpa mengubah status approval
+router.patch("/:modul/leads/:id/bukti-survey", async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+  const id = BigInt(req.params.id);
+  const { foto_survey, luasan_tanah, catatan_survey } = req.body;
+  const lead = await prisma.lead.findUnique({ where: { id } });
+  if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
+  const updates: Record<string, unknown> = {};
+  if (foto_survey) {
+    const fotosArr: string[] = Array.isArray(foto_survey) ? foto_survey : [foto_survey];
+    updates.foto_survey = JSON.stringify(fotosArr);
+  }
+  if (luasan_tanah !== undefined && luasan_tanah !== "") updates.luasan_tanah = parseFloat(String(luasan_tanah));
+  if (catatan_survey !== undefined) updates.catatan_survey = catatan_survey;
+  await prisma.lead.update({ where: { id }, data: updates });
+  return res.json({ message: "Bukti survey disimpan" });
+});
+
 router.post("/:modul/leads/:id/reject-survey", async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
@@ -1936,6 +1955,20 @@ router.patch("/:modul/leads/:id/pengerjaan-schedule", async (req: Request, res: 
     data: { tanggal_pengerjaan: new Date(tanggal_pengerjaan) },
   });
   return res.json({ message: "Tanggal pengerjaan berhasil diset" });
+});
+
+// PATCH /bd/:modul/leads/:id/bukti-pengerjaan — simpan foto pengerjaan tanpa approve
+router.patch("/:modul/leads/:id/bukti-pengerjaan", async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+  const id = BigInt(req.params.id);
+  const { foto_pengerjaan } = req.body;
+  const lead = await prisma.lead.findUnique({ where: { id } });
+  if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
+  if (!foto_pengerjaan) return res.status(400).json({ detail: "Foto wajib diisi" });
+  const fotosArr: string[] = Array.isArray(foto_pengerjaan) ? foto_pengerjaan : [foto_pengerjaan];
+  await prisma.lead.update({ where: { id }, data: { foto_pengerjaan: JSON.stringify(fotosArr) } });
+  return res.json({ message: "Foto pengerjaan disimpan" });
 });
 
 // POST /bd/:modul/leads/:id/approve-pengerjaan — approve pengerjaan with photos

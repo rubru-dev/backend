@@ -92,12 +92,8 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const [pdfDari, setPdfDari] = useState("");
   const [pdfSampai, setPdfSampai] = useState("");
   const [pdfPics, setPdfPics] = useState<string[]>([]);
-  const canApproveSurvey = useAuthStore((s) =>
-    s.isSuperAdmin() ||
-    s.hasPermission("bd", "approve") ||
-    s.hasPermission("sales_admin", "view") ||
-    s.hasPermission("telemarketing", "view") ||
-    s.hasPermission("golden", "edit")
+  const canApprove = useAuthStore((s) =>
+    s.isSuperAdmin() || s.hasAnyRole("Head Golden")
   );
 
   const now = new Date();
@@ -198,6 +194,20 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
       setScheduleId(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal update jadwal"),
+  });
+
+  const buktimut = useMutation({
+    mutationFn: ({ id, foto_survey, luasan_tanah, catatan_survey }: { id: number; foto_survey: string[]; luasan_tanah?: string; catatan_survey?: string }) =>
+      apiClient.patch(`/bd/${modul}/leads/${id}/bukti-survey`, { foto_survey, luasan_tanah: luasan_tanah || undefined, catatan_survey: catatan_survey || undefined }).then((r) => r.data),
+    onSuccess: () => {
+      toast.success("Bukti survey disimpan");
+      qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
+      setListDetailItem(null);
+      setListDetailFotos([]);
+      setListDetailLuasan("");
+      setListDetailCatatan("");
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan bukti"),
   });
 
   // ── Derived data ─────────────────────────────────────────────────────────────
@@ -859,7 +869,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                         Edit jadwal
                       </Button>
                     )}
-                    {canApproveSurvey && (!item.survey_approval_status || item.survey_approval_status === "pending") && (
+                    {canApprove && (!item.survey_approval_status || item.survey_approval_status === "pending") && (
                       <div className="flex gap-1">
                         <Button
                           variant="ghost" size="icon"
@@ -933,7 +943,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                       )}
                     </div>
                   </div>
-                  {canApproveSurvey && (
+                  {canApprove && (
                     <div className="flex gap-1 shrink-0">
                       <Button
                         size="sm"
@@ -1293,31 +1303,47 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
               </div>
 
               {/* Actions */}
-              {listDetailItem.survey_approval_status !== "approved" && canApproveSurvey && (
+              {listDetailItem.survey_approval_status !== "approved" && (
                 <div className="flex gap-2 pt-1">
-                  <Button
-                    variant="outline"
-                    className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
-                    disabled={rejectMut.isPending || approveMut.isPending}
-                    onClick={() => {
-                      setRejectId(listDetailItem.id);
-                    }}
-                  >
-                    <XCircle className="h-4 w-4 mr-1.5" /> Tolak Survey
-                  </Button>
-                  <Button
-                    className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                    disabled={listDetailFotos.length === 0 || approveMut.isPending || listFotoProcessing}
-                    onClick={() => approveMut.mutate({
-                      id: listDetailItem.id,
-                      foto_survey: listDetailFotos,
-                      luasan_tanah: listDetailLuasan || undefined,
-                      catatan_survey: listDetailCatatan || undefined,
-                    })}
-                  >
-                    <CheckCircle className="h-4 w-4 mr-1.5" />
-                    {approveMut.isPending ? "Menyimpan..." : "Setujui Survey"}
-                  </Button>
+                  {canApprove ? (
+                    <>
+                      <Button
+                        variant="outline"
+                        className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                        disabled={rejectMut.isPending || approveMut.isPending}
+                        onClick={() => setRejectId(listDetailItem.id)}
+                      >
+                        <XCircle className="h-4 w-4 mr-1.5" /> Tolak Survey
+                      </Button>
+                      <Button
+                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                        disabled={listDetailFotos.length === 0 || approveMut.isPending || listFotoProcessing}
+                        onClick={() => approveMut.mutate({
+                          id: listDetailItem.id,
+                          foto_survey: listDetailFotos,
+                          luasan_tanah: listDetailLuasan || undefined,
+                          catatan_survey: listDetailCatatan || undefined,
+                        })}
+                      >
+                        <CheckCircle className="h-4 w-4 mr-1.5" />
+                        {approveMut.isPending ? "Menyimpan..." : "Setujui Survey"}
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      className="w-full"
+                      disabled={listDetailFotos.length === 0 || buktimut.isPending || listFotoProcessing}
+                      onClick={() => buktimut.mutate({
+                        id: listDetailItem.id,
+                        foto_survey: listDetailFotos,
+                        luasan_tanah: listDetailLuasan || undefined,
+                        catatan_survey: listDetailCatatan || undefined,
+                      })}
+                    >
+                      <Upload className="h-4 w-4 mr-1.5" />
+                      {buktimut.isPending ? "Menyimpan..." : "Simpan Bukti Survey"}
+                    </Button>
+                  )}
                 </div>
               )}
               {listDetailItem.survey_approval_status === "rejected" && (
