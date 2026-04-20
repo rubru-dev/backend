@@ -1931,7 +1931,10 @@ router.get("/:modul/pengerjaan-kalender", async (req: Request, res: Response) =>
     modul,
     survey_approval_status: "approved",
   };
-  // If bulan/tahun given, filter by pengerjaan date in that month (OR include unscheduled)
+  // Mitra: hanya bisa lihat pengerjaan yang di-assign ke nama mereka
+  if (req.user?.sub_role === "Mitra") {
+    where.pic_survey = req.user.name;
+  }
   // We return ALL approved leads; frontend handles filtering display
   const leads = await prisma.lead.findMany({
     where,
