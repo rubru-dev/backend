@@ -131,6 +131,9 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   const canApprove = useAuthStore((s) =>
     s.isSuperAdmin() || s.hasAnyRole("Head Golden")
   );
+  const canSchedule = useAuthStore((s) =>
+    s.isSuperAdmin() || s.hasAnyRole("Head Golden", "Sales Admin Golden")
+  );
 
   const now = new Date();
   const [view, setView] = useState<"calendar" | "list">("calendar");
@@ -595,31 +598,34 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                         </div>
                         {!isSelesai && (
                           <div className="flex flex-col gap-1 shrink-0">
-                            {canApprove ? (
-                              item.tanggal_pengerjaan ? (
-                                <Button
-                                  size="sm"
-                                  className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
-                                  onClick={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
-                                >
-                                  <CheckCircle className="h-3 w-3 mr-1" /> Selesai
-                                </Button>
-                              ) : (
-                                <Button
-                                  size="sm"
-                                  className="h-7 text-xs px-2 bg-amber-500 hover:bg-amber-600 text-white"
-                                  onClick={() => { setScheduleItem(item); setScheduleDate(""); }}
-                                >
-                                  <CalendarDays className="h-3 w-3 mr-1" /> Set Jadwal
-                                </Button>
-                              )
-                            ) : item.tanggal_pengerjaan ? (
+                            {item.tanggal_pengerjaan ? (
+                              <>
+                                {canApprove && (
+                                  <Button
+                                    size="sm"
+                                    className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                                    onClick={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
+                                  >
+                                    <CheckCircle className="h-3 w-3 mr-1" /> Selesai
+                                  </Button>
+                                )}
+                                {!canApprove && (
+                                  <Button
+                                    size="sm" variant="outline"
+                                    className="h-7 text-xs px-2"
+                                    onClick={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
+                                  >
+                                    <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
+                                  </Button>
+                                )}
+                              </>
+                            ) : canSchedule ? (
                               <Button
-                                size="sm" variant="outline"
-                                className="h-7 text-xs px-2"
-                                onClick={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
+                                size="sm"
+                                className="h-7 text-xs px-2 bg-amber-500 hover:bg-amber-600 text-white"
+                                onClick={() => { setScheduleItem(item); setScheduleDate(""); }}
                               >
-                                <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
+                                <CalendarDays className="h-3 w-3 mr-1" /> Set Jadwal
                               </Button>
                             ) : null}
                           </div>
@@ -719,6 +725,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 key={item.id}
                 item={item}
                 canApprove={canApprove}
+                canSchedule={canSchedule}
                 onSchedule={() => { setScheduleItem(item); setScheduleDate(item.tanggal_pengerjaan ? String(item.tanggal_pengerjaan).split("T")[0] : ""); }}
                 onApprove={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
                 onUploadBukti={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
@@ -754,7 +761,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                     {item.luasan_tanah && <span className="text-blue-700 font-medium">{item.luasan_tanah} m²</span>}
                   </div>
                 </div>
-                {canApprove && (
+                {canSchedule && (
                   <Button
                     size="sm"
                     className="h-7 text-xs px-2 bg-amber-500 hover:bg-amber-600 text-white shrink-0"
@@ -792,22 +799,26 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                     {item.luasan_tanah && <span className="text-blue-700 font-medium">{item.luasan_tanah} m²</span>}
                   </div>
                 </div>
-                {canApprove ? (
+                {canApprove || canSchedule ? (
                   <div className="flex flex-col gap-1 shrink-0">
-                    <Button
-                      size="sm"
-                      className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
-                    >
-                      <CheckCircle className="h-3 w-3 mr-1" /> Selesai
-                    </Button>
-                    <Button
-                      size="sm" variant="ghost"
-                      className="h-6 text-xs px-2 text-amber-700"
-                      onClick={() => { setScheduleItem(item); setScheduleDate(String(item.tanggal_pengerjaan).split("T")[0]); }}
-                    >
-                      Ubah tanggal
-                    </Button>
+                    {canApprove && (
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
+                        onClick={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" /> Selesai
+                      </Button>
+                    )}
+                    {canSchedule && (
+                      <Button
+                        size="sm" variant="ghost"
+                        className="h-6 text-xs px-2 text-amber-700"
+                        onClick={() => { setScheduleItem(item); setScheduleDate(String(item.tanggal_pengerjaan).split("T")[0]); }}
+                      >
+                        Ubah tanggal
+                      </Button>
+                    )}
                   </div>
                 ) : (
                   <Button
@@ -1143,9 +1154,10 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 }
 
 // ── ItemCard helper ───────────────────────────────────────────────────────────
-function ItemCard({ item, canApprove, onSchedule, onApprove, onUploadBukti, onViewFoto }: {
+function ItemCard({ item, canApprove, canSchedule, onSchedule, onApprove, onUploadBukti, onViewFoto }: {
   item: any;
   canApprove: boolean;
+  canSchedule: boolean;
   onSchedule: () => void;
   onApprove: () => void;
   onUploadBukti: () => void;
@@ -1182,16 +1194,17 @@ function ItemCard({ item, canApprove, onSchedule, onApprove, onUploadBukti, onVi
       </div>
       {!isSelesai && (
         <div className="flex flex-col gap-1 shrink-0">
-          {canApprove ? (
-            <>
-              <Button size="sm" className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={onApprove}>
-                <CheckCircle className="h-3 w-3 mr-1" /> Selesai
-              </Button>
-              <Button size="sm" variant="ghost" className="h-6 text-xs px-2 text-amber-700" onClick={onSchedule}>
-                Ubah tanggal
-              </Button>
-            </>
-          ) : (
+          {canApprove && (
+            <Button size="sm" className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white" onClick={onApprove}>
+              <CheckCircle className="h-3 w-3 mr-1" /> Selesai
+            </Button>
+          )}
+          {canSchedule && (
+            <Button size="sm" variant="ghost" className="h-6 text-xs px-2 text-amber-700" onClick={onSchedule}>
+              Ubah tanggal
+            </Button>
+          )}
+          {!canApprove && !canSchedule && (
             <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={onUploadBukti}>
               <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
             </Button>

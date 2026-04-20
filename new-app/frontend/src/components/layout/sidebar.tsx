@@ -36,13 +36,18 @@ function NavIcon({ name, className }: { name: string; className?: string }) {
 // ── Single nav item ───────────────────────────────────────────────────────────
 function SidebarItem({ item }: { item: NavItem }) {
   const pathname = usePathname();
-  const { hasPermission, isSuperAdmin } = useAuthStore();
+  const { hasPermission, isSuperAdmin, hasAnyRole } = useAuthStore();
   const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 
   // Item-level permission check (opsional — jika tidak diset, item selalu tampil)
   if (item.permission && !isSuperAdmin()) {
     const [mod, act] = item.permission.split(".");
-    if (!hasPermission(mod, act)) return null;
+    // Head Golden: full access to all golden.* items
+    if (hasAnyRole("Head Golden") && mod === "golden") {
+      // allow through
+    } else if (!hasPermission(mod, act)) {
+      return null;
+    }
   }
 
   return (
@@ -116,6 +121,8 @@ export function Sidebar({ className }: { className?: string }) {
     // Permission-based check (new system)
     if (group.permission) {
       const [mod, act] = group.permission.split(".");
+      // Head Golden: full access to all golden group items
+      if (hasAnyRole("Head Golden") && mod === "golden") return true;
       if (hasPermission(mod, act)) return true;
     }
     // Fallback: role-based (for users without permissions loaded yet)

@@ -1777,7 +1777,10 @@ router.get("/:modul/survey-kalender", async (req: Request, res: Response) => {
   if (filterUser) where.user_id = filterUser;
 
   // Mitra: hanya bisa lihat survey yang di-assign ke nama mereka
-  if (req.user?.sub_role === "Mitra") {
+  // Head Golden & Super Admin: lihat semua data
+  const userRoleNames = req.user?.roles.map((r) => r.role.name) ?? [];
+  const isHeadOrAdmin = userRoleNames.includes("Super Admin") || userRoleNames.includes("Head Golden");
+  if (!isHeadOrAdmin && req.user?.sub_role === "Mitra") {
     where.pic_survey = req.user.name;
   }
 
@@ -1932,7 +1935,10 @@ router.get("/:modul/pengerjaan-kalender", async (req: Request, res: Response) =>
     survey_approval_status: "approved",
   };
   // Mitra: hanya bisa lihat pengerjaan yang di-assign ke nama mereka
-  if (req.user?.sub_role === "Mitra") {
+  // Head Golden & Super Admin: lihat semua data
+  const userRoleNamesPengerjaan = req.user?.roles.map((r) => r.role.name) ?? [];
+  const isHeadOrAdminPengerjaan = userRoleNamesPengerjaan.includes("Super Admin") || userRoleNamesPengerjaan.includes("Head Golden");
+  if (!isHeadOrAdminPengerjaan && req.user?.sub_role === "Mitra") {
     where.pic_survey = req.user.name;
   }
   // We return ALL approved leads; frontend handles filtering display
