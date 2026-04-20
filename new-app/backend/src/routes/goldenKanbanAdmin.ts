@@ -160,6 +160,18 @@ router.patch("/kanban/cards/:id", async (req: Request, res: Response) => {
   if (assigned_user_id !== undefined) data.assigned_user_id = assigned_user_id ? BigInt(assigned_user_id) : null;
   if (projeksi_sales !== undefined) data.projeksi_sales = projeksi_sales !== null ? parseFloat(String(projeksi_sales)) : null;
   const card = await prisma.goldenKanbanAdminCard.update({ where: { id }, data });
+
+  // Sync tanggal_survey ke lead agar muncul di Kalender Survey
+  if (tanggal_survey !== undefined && card.lead_id) {
+    await prisma.lead.update({
+      where: { id: card.lead_id },
+      data: {
+        tanggal_survey: tanggal_survey ? new Date(tanggal_survey) : null,
+        ...(tanggal_survey ? { rencana_survey: "Ya" } : {}),
+      },
+    });
+  }
+
   return res.json(card);
 });
 
@@ -198,7 +210,7 @@ router.post("/kanban/cards/:id/move", async (req: Request, res: Response) => {
   if (targetCol.title === "Closing Survey" && source.lead_id && source.tanggal_survey) {
     await prisma.lead.update({
       where: { id: source.lead_id },
-      data: { tanggal_survey: source.tanggal_survey },
+      data: { tanggal_survey: source.tanggal_survey, rencana_survey: "Ya" },
     });
   }
 

@@ -17,7 +17,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   CalendarDays, CheckCircle, XCircle, Clock,
-  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2,
+  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X,
 } from "lucide-react";
 
 /** Ambil koordinat GPS + nama lokasi via Nominatim reverse geocoding */
@@ -141,6 +141,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const [listDetailLuasan, setListDetailLuasan] = useState("");
   const [listDetailCatatan, setListDetailCatatan] = useState("");
   const listFotoRef = useRef<HTMLInputElement>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   // ── API ─────────────────────────────────────────────────────────────────────
 
@@ -1298,37 +1299,50 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
 
               {/* Foto Bukti Survey */}
               <div className="space-y-1.5">
-                <Label>Foto Bukti Survey {listDetailItem.survey_approval_status !== "approved" && <span className="text-destructive">*</span>}</Label>
-                {/* Foto grid (preview + hapus) */}
+                <Label>Foto Bukti Survey {!canApprove && listDetailItem.survey_approval_status !== "approved" && <span className="text-destructive">*</span>}</Label>
+
+                {/* Foto grid — klik untuk perbesar */}
                 {listDetailFotos.length > 0 && (
                   <div className="flex flex-wrap gap-2">
                     {listDetailFotos.map((f, idx) => (
-                      <div key={idx} className="relative group">
+                      <div
+                        key={idx}
+                        className="relative group cursor-pointer"
+                        onClick={() => setLightboxSrc(f)}
+                      >
                         <img src={f} alt={`foto ${idx + 1}`} className="w-24 h-20 object-cover rounded-lg border" />
-                        {listDetailItem.survey_approval_status !== "approved" && (
+                        <div className="absolute inset-0 bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <ZoomIn className="h-5 w-5 text-white" />
+                        </div>
+                        {/* Tombol hapus hanya untuk PIC (non-approver) sebelum diapprove */}
+                        {!canApprove && listDetailItem.survey_approval_status !== "approved" && (
                           <button
                             type="button"
                             className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                            onClick={() => setListDetailFotos((prev) => prev.filter((_, i) => i !== idx))}
+                            onClick={(e) => { e.stopPropagation(); setListDetailFotos((prev) => prev.filter((_, i) => i !== idx)); }}
                           >×</button>
                         )}
                       </div>
                     ))}
                   </div>
                 )}
-                {listFotoProcessing && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-1">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...
-                  </div>
-                )}
-                {listDetailItem.survey_approval_status !== "approved" && (
-                  <div
-                    className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
-                    onClick={() => listFotoRef.current?.click()}
-                  >
-                    <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
-                    <p className="text-xs text-muted-foreground">Klik untuk tambah foto (timestamp otomatis, bisa lebih dari satu)</p>
-                  </div>
+
+                {/* Upload area — hanya untuk PIC (non-approver) */}
+                {!canApprove && listDetailItem.survey_approval_status !== "approved" && (
+                  <>
+                    {listFotoProcessing && (
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-1">
+                        <Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...
+                      </div>
+                    )}
+                    <div
+                      className="border-2 border-dashed rounded-lg p-3 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                      onClick={() => listFotoRef.current?.click()}
+                    >
+                      <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
+                      <p className="text-xs text-muted-foreground">Klik untuk tambah foto (timestamp otomatis, bisa lebih dari satu)</p>
+                    </div>
+                  </>
                 )}
                 <input ref={listFotoRef} type="file" accept="image/*" multiple className="hidden" onChange={handleListFotoChange} />
               </div>
@@ -1337,29 +1351,36 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
               {listDetailItem.survey_approval_status !== "approved" && (
                 <div className="flex gap-2 pt-1">
                   {canApprove ? (
-                    <>
-                      <Button
-                        variant="outline"
-                        className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
-                        disabled={rejectMut.isPending || approveMut.isPending}
-                        onClick={() => setRejectId(listDetailItem.id)}
-                      >
-                        <XCircle className="h-4 w-4 mr-1.5" /> Tolak Survey
-                      </Button>
-                      <Button
-                        className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                        disabled={listDetailFotos.length === 0 || approveMut.isPending || listFotoProcessing}
-                        onClick={() => approveMut.mutate({
-                          id: listDetailItem.id,
-                          foto_survey: listDetailFotos,
-                          luasan_tanah: listDetailLuasan || undefined,
-                          catatan_survey: listDetailCatatan || undefined,
-                        })}
-                      >
-                        <CheckCircle className="h-4 w-4 mr-1.5" />
-                        {approveMut.isPending ? "Menyimpan..." : "Setujui Survey"}
-                      </Button>
-                    </>
+                    listDetailFotos.length > 0 ? (
+                      <>
+                        <Button
+                          variant="outline"
+                          className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
+                          disabled={rejectMut.isPending || approveMut.isPending}
+                          onClick={() => setRejectId(listDetailItem.id)}
+                        >
+                          <XCircle className="h-4 w-4 mr-1.5" /> Tolak Survey
+                        </Button>
+                        <Button
+                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
+                          disabled={approveMut.isPending}
+                          onClick={() => approveMut.mutate({
+                            id: listDetailItem.id,
+                            foto_survey: listDetailFotos,
+                            luasan_tanah: listDetailLuasan || undefined,
+                            catatan_survey: listDetailCatatan || undefined,
+                          })}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1.5" />
+                          {approveMut.isPending ? "Menyimpan..." : "Setujui Survey"}
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="w-full text-center py-3 text-sm text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
+                        <Clock className="h-5 w-5 mx-auto mb-1.5 text-amber-500" />
+                        Menunggu PIC upload bukti foto survey
+                      </div>
+                    )
                   ) : (
                     <Button
                       className="w-full"
@@ -1544,6 +1565,28 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* ── Lightbox ── */}
+      {lightboxSrc && (
+        <div
+          className="fixed inset-0 z-[100] bg-black/90 flex items-center justify-center p-4"
+          onClick={() => setLightboxSrc(null)}
+        >
+          <button
+            className="absolute top-4 right-4 text-white bg-black/40 rounded-full p-1.5 hover:bg-black/70 transition-colors"
+            onClick={() => setLightboxSrc(null)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={lightboxSrc}
+            alt="Foto Survey"
+            className="max-w-full max-h-[90vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
 
     </div>
   );

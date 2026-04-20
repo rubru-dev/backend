@@ -16,7 +16,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Hammer, CheckCircle, Clock, MapPin, Phone, ChevronLeft, ChevronRight,
-  CalendarDays, Loader2, X, ImageIcon, Plus, FileDown, List, User,
+  CalendarDays, Loader2, X, ImageIcon, Plus, FileDown, List, User, ZoomIn,
 } from "lucide-react";
 
 interface Props {
@@ -600,7 +600,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                                 <Button
                                   size="sm"
                                   className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
-                                  onClick={() => { setApproveItem(item); setApproveFotos([]); }}
+                                  onClick={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
                                 >
                                   <CheckCircle className="h-3 w-3 mr-1" /> Selesai
                                 </Button>
@@ -720,7 +720,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 item={item}
                 canApprove={canApprove}
                 onSchedule={() => { setScheduleItem(item); setScheduleDate(item.tanggal_pengerjaan ? String(item.tanggal_pengerjaan).split("T")[0] : ""); }}
-                onApprove={() => { setApproveItem(item); setApproveFotos([]); }}
+                onApprove={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
                 onUploadBukti={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
                 onViewFoto={setViewFoto}
               />
@@ -797,7 +797,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                     <Button
                       size="sm"
                       className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
-                      onClick={() => { setApproveItem(item); setApproveFotos([]); }}
+                      onClick={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
                     >
                       <CheckCircle className="h-3 w-3 mr-1" /> Selesai
                     </Button>
@@ -934,64 +934,45 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
-                  Foto Bukti Pengerjaan <span className="text-destructive">*</span>
-                  <span className="text-muted-foreground font-normal text-xs">(timestamp otomatis)</span>
+                  Foto Bukti Pengerjaan dari PIC
                 </Label>
 
-                {approveFotos.length > 0 && (
+                {approveFotos.length > 0 ? (
                   <div className="grid grid-cols-3 gap-2">
                     {approveFotos.map((f, idx) => (
-                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border">
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setViewFoto(f)}
+                        className="relative group aspect-square rounded-lg overflow-hidden border hover:opacity-90 transition-opacity"
+                      >
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={f} alt={`foto-${idx}`} className="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          onClick={() => setApproveFotos((prev) => prev.filter((_, i) => i !== idx))}
-                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </div>
+                        <div className="absolute inset-0 bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                          <ZoomIn className="h-5 w-5 text-white" />
+                        </div>
+                      </button>
                     ))}
-                    <button
-                      type="button"
-                      onClick={() => fotoInputRef.current?.click()}
-                      className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 transition-colors"
-                    >
-                      <Plus className="h-4 w-4" />
-                      <span className="text-xs">Tambah</span>
-                    </button>
+                  </div>
+                ) : (
+                  <div className="border-2 border-dashed rounded-lg p-4 text-center bg-muted/30">
+                    <Clock className="h-7 w-7 text-gray-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-400">Menunggu PIC upload bukti foto pengerjaan</p>
                   </div>
                 )}
-
-                {approveProcessing && (
-                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                    <Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...
-                  </div>
-                )}
-
-                {approveFotos.length === 0 && (
-                  <div
-                    className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
-                    onClick={() => fotoInputRef.current?.click()}
-                  >
-                    <ImageIcon className="h-7 w-7 text-gray-300 mx-auto mb-1" />
-                    <p className="text-xs text-gray-400">Klik untuk tambah foto (bisa lebih dari satu)</p>
-                  </div>
-                )}
-                <input ref={fotoInputRef} type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={handleFotoChange} />
-                {approveFotos.length > 0 && <p className="text-xs text-muted-foreground">{approveFotos.length} foto dipilih</p>}
               </div>
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => { setApproveItem(null); setApproveFotos([]); }}>Batal</Button>
-                <Button
-                  className="bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={approveFotos.length === 0 || approveMut.isPending || approveProcessing}
-                  onClick={() => approveMut.mutate({ id: approveItem.id, fotos: approveFotos })}
-                >
-                  {approveMut.isPending ? "Menyimpan..." : "Konfirmasi Selesai"}
-                </Button>
+                {approveFotos.length > 0 && (
+                  <Button
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
+                    disabled={approveMut.isPending}
+                    onClick={() => approveMut.mutate({ id: approveItem.id, fotos: approveFotos })}
+                  >
+                    {approveMut.isPending ? "Menyimpan..." : "Konfirmasi Selesai"}
+                  </Button>
+                )}
               </div>
             </div>
           )}

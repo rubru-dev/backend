@@ -1881,6 +1881,7 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
   const updates: Record<string, unknown> = {};
   if (tanggal_survey !== undefined) {
     updates.tanggal_survey = tanggal_survey ? new Date(tanggal_survey) : null;
+    if (tanggal_survey) updates.rencana_survey = "Ya";
     // Reset approval when rescheduling
     updates.survey_approval_status = null;
     updates.survey_approved_by = null;
