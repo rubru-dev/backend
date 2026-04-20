@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/select";
 import { goldenKanbanSalesApi } from "@/lib/api/kanban";
 import type { KanbanColumn, KanbanCard } from "@/types";
+import { useAuthStore } from "@/store/authStore";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing", "Lost"];
@@ -79,13 +80,14 @@ function formatRupiah(value: number): string {
 
 // ── Card Detail Modal ─────────────────────────────────────────────────────────
 function CardDetailModal({
-  card, open, onClose, onSave, onDelete,
+  card, open, onClose, onSave, onDelete, canDelete,
 }: {
   card: KanbanCard;
   open: boolean;
   onClose: () => void;
   onSave: (id: number, data: Partial<KanbanCard>) => Promise<void>;
   onDelete: (id: number) => void;
+  canDelete?: boolean;
 }) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? "");
@@ -156,12 +158,15 @@ function CardDetailModal({
             />
           </div>
           <div className="flex justify-between pt-2">
-            <Button
-              variant="destructive" size="sm"
-              onClick={() => { onDelete(card.id); onClose(); }}
-            >
-              <Trash2 className="h-4 w-4 mr-1" /> Hapus
-            </Button>
+            {canDelete && (
+              <Button
+                variant="destructive" size="sm"
+                onClick={() => { onDelete(card.id); onClose(); }}
+              >
+                <Trash2 className="h-4 w-4 mr-1" /> Hapus
+              </Button>
+            )}
+            {!canDelete && <div />}
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={onClose}>Batal</Button>
               <Button size="sm" onClick={handleSave} disabled={saving || !title.trim()}>
@@ -177,13 +182,14 @@ function CardDetailModal({
 
 // ── Card item ─────────────────────────────────────────────────────────────────
 function KanbanCardItem({
-  card, index, onDelete, onUpdate, onColorChange,
+  card, index, onDelete, onUpdate, onColorChange, canDelete,
 }: {
   card: KanbanCard;
   index: number;
   onDelete: (id: number) => void;
   onUpdate: (id: number, data: Partial<KanbanCard>) => Promise<void>;
   onColorChange: (id: number, color: string | null) => void;
+  canDelete?: boolean;
 }) {
   const [detailOpen, setDetailOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
@@ -289,6 +295,7 @@ function KanbanCardItem({
           card={card} open={detailOpen}
           onClose={() => setDetailOpen(false)}
           onSave={onUpdate} onDelete={onDelete}
+          canDelete={canDelete}
         />
       )}
     </>
@@ -297,7 +304,7 @@ function KanbanCardItem({
 
 // ── Column ────────────────────────────────────────────────────────────────────
 function KanbanColumnComp({
-  column, leads, onAddCard, onDeleteCard, onUpdateCard, onColorChangeCard, onUpdateColumn, onDeleteColumn, isPermanent = false, dragHandleProps,
+  column, leads, onAddCard, onDeleteCard, onUpdateCard, onColorChangeCard, onUpdateColumn, onDeleteColumn, isPermanent = false, dragHandleProps, canDelete,
 }: {
   column: KanbanColumn;
   leads: { id: number; nama: string }[];
@@ -309,6 +316,7 @@ function KanbanColumnComp({
   onDeleteColumn: (id: number) => void;
   isPermanent?: boolean;
   dragHandleProps?: React.HTMLAttributes<HTMLDivElement> | null;
+  canDelete?: boolean;
 }) {
   const [addingCard, setAddingCard] = useState(false);
   const [selectedLeadId, setSelectedLeadId] = useState("");
@@ -413,7 +421,7 @@ function KanbanColumnComp({
             <Button variant="ghost" size="icon" className="h-7 w-7 hover:bg-black/10" onClick={() => setAddingCard(true)}>
               <Plus className="h-3.5 w-3.5" />
             </Button>
-            {!isPermanent && (
+            {!isPermanent && canDelete && (
               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:bg-destructive/10"
                 onClick={() => { if (confirm(`Hapus kolom "${column.title}" beserta semua kartunya?`)) onDeleteColumn(column.id); }}>
                 <Trash2 className="h-3.5 w-3.5" />
@@ -435,6 +443,7 @@ function KanbanColumnComp({
                 onDelete={onDeleteCard}
                 onUpdate={onUpdateCard}
                 onColorChange={onColorChangeCard}
+                canDelete={canDelete}
               />
             ))}
             {provided.placeholder}
@@ -527,6 +536,7 @@ export interface GoldenSalesKanbanBoardProps {
 }
 
 export function GoldenSalesKanbanBoard({ initialColumns, isLoading = false, onRefresh }: GoldenSalesKanbanBoardProps) {
+  const canDelete = useAuthStore((s) => s.isSuperAdmin() || s.hasAnyRole("Head Golden"));
   const [columns, setColumns] = useState<KanbanColumn[]>(initialColumns);
   const isDraggingRef = useRef(false);
 
@@ -821,6 +831,7 @@ export function GoldenSalesKanbanBoard({ initialColumns, isLoading = false, onRe
                           onDeleteColumn={handleDeleteColumn}
                           isPermanent={PERMANENT_COLUMNS.includes(column.title)}
                           dragHandleProps={colProvided.dragHandleProps}
+                          canDelete={canDelete}
                         />
                       </div>
                     )}

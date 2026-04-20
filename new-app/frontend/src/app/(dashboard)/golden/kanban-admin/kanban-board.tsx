@@ -33,6 +33,7 @@ import {
   type GoldenKanbanAdminColumn,
   type GoldenKanbanAdminCard,
 } from "@/lib/api/kanban";
+import { useAuthStore } from "@/store/authStore";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing Survey", "Move To Telemarketing"];
@@ -74,6 +75,7 @@ function CardDetailModal({
   onSave,
   onDelete,
   isClosingSurvey,
+  canDelete,
 }: {
   card: GoldenKanbanAdminCard;
   open: boolean;
@@ -81,6 +83,7 @@ function CardDetailModal({
   onSave: (id: number, data: Partial<GoldenKanbanAdminCard & { tanggal_survey?: string | null }>, leadTanggalMasuk?: string | null) => Promise<void>;
   onDelete: (id: number) => void;
   isClosingSurvey: boolean;
+  canDelete?: boolean;
 }) {
   const [title, setTitle] = useState(card.title);
   const [description, setDescription] = useState(card.description ?? "");
@@ -184,14 +187,16 @@ function CardDetailModal({
             </p>
           )}
           <div className="flex gap-2 justify-between pt-2">
-            <Button
-              variant="destructive"
-              size="sm"
-              onClick={() => { onDelete(card.id); onClose(); }}
-            >
-              <Trash2 className="h-3 w-3 mr-1" />
-              Hapus
-            </Button>
+            {canDelete ? (
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => { onDelete(card.id); onClose(); }}
+              >
+                <Trash2 className="h-3 w-3 mr-1" />
+                Hapus
+              </Button>
+            ) : <div />}
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={onClose}>Batal</Button>
               <Button size="sm" onClick={handleSave} disabled={saving || !title.trim()}>
@@ -291,6 +296,7 @@ function KanbanColumnComp({
   onCardCreate,
   onColumnUpdate,
   onColumnDelete,
+  canDelete,
 }: {
   column: GoldenKanbanAdminColumn;
   leads: { id: number; nama: string }[];
@@ -300,6 +306,7 @@ function KanbanColumnComp({
   onCardCreate: (columnId: number, data: { title: string; lead_id?: number | null }) => Promise<void>;
   onColumnUpdate: (id: number, data: { title?: string; color?: string }) => Promise<void>;
   onColumnDelete: (id: number) => Promise<void>;
+  canDelete?: boolean;
 }) {
   const isPermanent = PERMANENT_COLUMNS.includes(column.title);
   const [addingCard, setAddingCard] = useState(false);
@@ -379,9 +386,11 @@ function KanbanColumnComp({
             <button onClick={() => setEditingTitle(true)}>
               <Pencil className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
             </button>
-            <button onClick={() => onColumnDelete(column.id)}>
-              <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
-            </button>
+            {canDelete && (
+              <button onClick={() => onColumnDelete(column.id)}>
+                <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -498,6 +507,7 @@ function KanbanColumnComp({
 
 // ── Main Board ────────────────────────────────────────────────────────────────
 export function GoldenAdminKanbanBoard() {
+  const canDelete = useAuthStore((s) => s.isSuperAdmin() || s.hasAnyRole("Head Golden"));
   const now = new Date();
   const [bulan, setBulan] = useState(now.getMonth() + 1);
   const [tahun, setTahun] = useState(now.getFullYear());
@@ -784,6 +794,7 @@ export function GoldenAdminKanbanBoard() {
                   onCardCreate={handleCardCreate}
                   onColumnUpdate={handleColumnUpdate}
                   onColumnDelete={handleColumnDelete}
+                  canDelete={canDelete}
                 />
               ))}
 
@@ -829,6 +840,7 @@ export function GoldenAdminKanbanBoard() {
           onClose={() => setSelectedCard(null)}
           onSave={handleCardSave}
           onDelete={handleCardDelete}
+          canDelete={canDelete}
           isClosingSurvey={columns.find((c) => c.id === selectedCard.column_id)?.title === "Closing Survey"}
         />
       )}

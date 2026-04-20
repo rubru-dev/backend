@@ -4,6 +4,7 @@ import { useState, useRef, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -68,6 +69,9 @@ const EMPTY = {
 export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) {
   const qc = useQueryClient();
   const isGolden = modul === "golden";
+  const canDelete = useAuthStore((s) =>
+    !isGolden || s.isSuperAdmin() || s.hasAnyRole("Head Golden")
+  );
   const activeJenisOptions = isGolden ? JENIS_OPTIONS_GOLDEN : JENIS_OPTIONS;
   const defaultJenis = activeJenisOptions[0];
   const endpoint = `/bd/${modul}/leads`;
@@ -944,7 +948,9 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                           <TableCell onClick={(e) => e.stopPropagation()}>
                             <div className="flex gap-1 justify-end">
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(item)}><Pencil className="h-3.5 w-3.5" /></Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setConfirmDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                              {canDelete && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setConfirmDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                              )}
                             </div>
                           </TableCell>
                         </TableRow>

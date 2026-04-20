@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { requireRole } from "../middleware/requireRole";
 
 const router = Router();
 
@@ -76,7 +77,7 @@ router.patch("/kanban/columns/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /kanban/columns/:id
-router.delete("/kanban/columns/:id", async (req: Request, res: Response) => {
+router.delete("/kanban/columns/:id", requireRole("Head Golden"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const col = await prisma.goldenKanbanSalesColumn.findUnique({ where: { id } });
   if (!col) return res.status(404).json({ detail: "Kolom tidak ditemukan" });
@@ -187,7 +188,7 @@ router.patch("/kanban/cards/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /kanban/cards/:id
-router.delete("/kanban/cards/:id", async (req: Request, res: Response) => {
+router.delete("/kanban/cards/:id", requireRole("Head Golden"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const card = await prisma.goldenKanbanSalesCard.findUnique({ where: { id } });
   if (!card) return res.status(404).json({ detail: "Card tidak ditemukan" });

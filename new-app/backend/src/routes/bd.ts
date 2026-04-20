@@ -268,8 +268,13 @@ router.post("/follow-up", async (req: Request, res: Response) => {
 
 router.delete("/follow-up/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const fu = await prisma.followUpClient.findUnique({ where: { id } });
+  const fu = await prisma.followUpClient.findUnique({ where: { id }, include: { lead: { select: { modul: true } } } });
   if (!fu) return res.status(404).json({ detail: "Follow up tidak ditemukan" });
+  if (fu.lead?.modul === "golden") {
+    const roles = req.user!.roles.map((r) => r.role.name);
+    if (!roles.includes("Super Admin") && !roles.includes("Head Golden"))
+      return res.status(403).json({ detail: "Hanya Head Golden atau Super Admin yang dapat menghapus data Golden" });
+  }
   await prisma.followUpClient.delete({ where: { id } });
   return res.json({ message: "Follow up dihapus" });
 });
@@ -1695,6 +1700,11 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
 router.delete("/:modul/leads/:id", async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
+  if (modul === "golden") {
+    const roles = req.user!.roles.map((r) => r.role.name);
+    if (!roles.includes("Super Admin") && !roles.includes("Head Golden"))
+      return res.status(403).json({ detail: "Hanya Head Golden atau Super Admin yang dapat menghapus data Golden" });
+  }
   const id = BigInt(req.params.id);
   const lead = await prisma.lead.findFirst({ where: { id, modul } });
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
