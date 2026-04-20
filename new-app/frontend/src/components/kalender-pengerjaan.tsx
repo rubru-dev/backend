@@ -29,20 +29,37 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
-/** Ambil koordinat GPS (timeout 6 detik, fallback null) */
-async function getLocation(): Promise<{ lat: number; lng: number } | null> {
+/** Ambil koordinat GPS + nama lokasi via Nominatim reverse geocoding */
+async function getLocation(): Promise<{ lat: number; lng: number; name: string } | null> {
   return new Promise((resolve) => {
     if (!navigator.geolocation) { resolve(null); return; }
     navigator.geolocation.getCurrentPosition(
-      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      async (pos) => {
+        const lat = pos.coords.latitude;
+        const lng = pos.coords.longitude;
+        try {
+          const r = await fetch(
+            `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=id`,
+            { headers: { "User-Agent": "RubahRumahApp/1.0" } },
+          );
+          const d = await r.json();
+          const a = d.address ?? {};
+          const parts = [a.road, a.suburb ?? a.neighbourhood, a.city ?? a.town ?? a.county]
+            .filter(Boolean);
+          const name = parts.length ? parts.join(", ") : `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
+          resolve({ lat, lng, name });
+        } catch {
+          resolve({ lat, lng, name: `${lat.toFixed(5)}, ${lng.toFixed(5)}` });
+        }
+      },
       () => resolve(null),
-      { timeout: 6000, maximumAge: 60000 },
+      { timeout: 8000, maximumAge: 60000 },
     );
   });
 }
 
-/** Gambar timestamp + lokasi GPS di sudut kanan bawah via Canvas */
-async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number } | null): Promise<string> {
+/** Gambar timestamp + nama lokasi di sudut kanan bawah via Canvas */
+async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number; name: string } | null): Promise<string> {
   return new Promise((resolve) => {
     const img = new Image();
     img.onload = () => {
@@ -56,11 +73,17 @@ async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number
         day: "2-digit", month: "2-digit", year: "numeric",
         hour: "2-digit", minute: "2-digit", second: "2-digit",
       });
-      const locStr = coords ? `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}` : null;
-      const lines = [ts, ...(locStr ? [locStr] : [])];
-
       const fontSize = Math.max(14, Math.round(img.width * 0.028));
       ctx.font = `bold ${fontSize}px monospace`;
+      const maxW = img.width * 0.85;
+      function truncate(text: string) {
+        if (ctx.measureText(text).width <= maxW) return text;
+        while (text.length > 5 && ctx.measureText(text + "…").width > maxW) text = text.slice(0, -1);
+        return text + "…";
+      }
+      const locStr = coords ? truncate(coords.name) : null;
+      const lines = [ts, ...(locStr ? [locStr] : [])];
+
       const lineH = fontSize + Math.round(fontSize * 0.35);
       const pad = Math.round(fontSize * 0.5);
       const maxLineW = Math.max(...lines.map((l) => ctx.measureText(l).width));
@@ -68,7 +91,7 @@ async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number
       const boxX = img.width - maxLineW - pad * 2 - 6;
       const boxY = img.height - boxH - 6;
 
-      ctx.fillStyle = "rgba(0,0,0,0.60)";
+      ctx.fillStyle = "rgba(0,0,0,0.65)";
       ctx.fillRect(boxX, boxY, maxLineW + pad * 2, boxH);
       ctx.fillStyle = "#FFE600";
       lines.forEach((line, i) => {
@@ -323,7 +346,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
         : "—";
       const fotos = parseFotos(item.foto_pengerjaan);
       const fotoHtml = fotos.length > 0
-        ? `<div class="foto-grid">${fotos.map((f: string) => `<img src="${f}" style="width:100px;height:75px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;"/>`).join(" ")}</div>`
+        ? `<div class="foto-grid">${fotos.map((f: string) => `<img src="${f}" style="width:180px;height:135px;object-fit:cover;border-radius:4px;border:1px solid #e2e8f0;"/>`).join(" ")}</div>`
         : "";
       return `
         <tr>
@@ -409,7 +432,15 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     <span>PT. Rubah Rumah Inovasi Pemuda — Kalender After Pengerjaan</span>
     <span>Dibuat otomatis oleh sistem</span>
   </div>
-  <script>window.onload = function() { window.print(); }</script>
+  <script>
+    window.onload = function() {
+      var imgs = document.querySelectorAll('img');
+      if (!imgs.length) { setTimeout(window.print, 300); return; }
+      var n = 0, total = imgs.length;
+      function done() { n++; if (n >= total) setTimeout(window.print, 300); }
+      imgs.forEach(function(img) { if (img.complete) done(); else { img.onload = done; img.onerror = done; } });
+    };
+  </script>
 </body></html>`;
 
     const w = window.open("", "_blank", "width=900,height=700");
