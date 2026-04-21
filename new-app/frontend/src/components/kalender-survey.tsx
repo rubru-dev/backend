@@ -118,6 +118,10 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
   const canApprove = useAuthStore((s) =>
     s.isSuperAdmin() || s.hasAnyRole("Head Golden")
   );
+  const canSchedule = useAuthStore((s) =>
+    s.isSuperAdmin() || s.hasAnyRole("Head Golden", "Sales Admin Golden")
+  );
+  const currentUserName = useAuthStore((s) => s.user?.name ?? "");
 
   const now = new Date();
   const [bulan, setBulan] = useState(now.getMonth() + 1);
@@ -884,22 +888,24 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                     </div>
                   </div>
                   <div className="flex flex-col gap-1 shrink-0 items-end">
-                    {item.survey_approval_status === "rejected" ? (
-                      <Button
-                        variant="outline" size="sm"
-                        className="h-7 text-xs px-2 text-amber-700 border-amber-300 hover:bg-amber-50"
-                        onClick={() => openReschedule(item)}
-                      >
-                        <RefreshCw className="h-3 w-3 mr-1" /> Jadwal Ulang
-                      </Button>
-                    ) : (
-                      <Button
-                        variant="ghost" size="sm"
-                        className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
-                        onClick={() => openEditSchedule(item)}
-                      >
-                        Edit jadwal
-                      </Button>
+                    {canSchedule && (
+                      item.survey_approval_status === "rejected" ? (
+                        <Button
+                          variant="outline" size="sm"
+                          className="h-7 text-xs px-2 text-amber-700 border-amber-300 hover:bg-amber-50"
+                          onClick={() => openReschedule(item)}
+                        >
+                          <RefreshCw className="h-3 w-3 mr-1" /> Jadwal Ulang
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="ghost" size="sm"
+                          className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
+                          onClick={() => openEditSchedule(item)}
+                        >
+                          Edit jadwal
+                        </Button>
+                      )
                     )}
                     {canApprove && (!item.survey_approval_status || item.survey_approval_status === "pending") && (
                       <Button
@@ -1065,13 +1071,13 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                       )}
                     </div>
                   </div>
-                  <Button
+                  {canSchedule && <Button
                     variant="outline" size="sm"
                     className="h-7 text-xs shrink-0 border-amber-300 text-amber-700 hover:bg-amber-50"
                     onClick={() => openReschedule(item)}
                   >
                     <RefreshCw className="h-3 w-3 mr-1" /> Jadwal Ulang
-                  </Button>
+                  </Button>}
                 </div>
               ))}
             </CardContent>
@@ -1292,8 +1298,8 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                         <div className="absolute inset-0 bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                           <ZoomIn className="h-5 w-5 text-white" />
                         </div>
-                        {/* Tombol hapus hanya untuk PIC (non-approver) sebelum diapprove */}
-                        {!canApprove && listDetailItem.survey_approval_status !== "approved" && (
+                        {/* Tombol hapus hanya untuk PIC assigned dan sebelum diapprove */}
+                        {currentUserName === listDetailItem.pic_survey && listDetailItem.survey_approval_status !== "approved" && (
                           <button
                             type="button"
                             className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1305,8 +1311,8 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                   </div>
                 )}
 
-                {/* Upload area — hanya untuk PIC (non-approver) */}
-                {!canApprove && listDetailItem.survey_approval_status !== "approved" && (
+                {/* Upload area — hanya untuk PIC assigned */}
+                {currentUserName === listDetailItem.pic_survey && listDetailItem.survey_approval_status !== "approved" && (
                   <>
                     {listFotoProcessing && (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-1">
@@ -1359,7 +1365,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                         Menunggu PIC upload bukti foto survey
                       </div>
                     )
-                  ) : (
+                  ) : currentUserName === listDetailItem.pic_survey ? (
                     <Button
                       className="w-full"
                       disabled={listDetailFotos.length === 0 || buktimut.isPending || listFotoProcessing}
@@ -1373,10 +1379,10 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                       <Upload className="h-4 w-4 mr-1.5" />
                       {buktimut.isPending ? "Menyimpan..." : "Simpan Bukti Survey"}
                     </Button>
-                  )}
+                  ) : null}
                 </div>
               )}
-              {listDetailItem.survey_approval_status === "rejected" && (
+              {listDetailItem.survey_approval_status === "rejected" && canSchedule && (
                 <Button
                   variant="outline"
                   className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"

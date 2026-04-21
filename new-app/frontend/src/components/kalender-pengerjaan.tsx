@@ -134,6 +134,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   const canSchedule = useAuthStore((s) =>
     s.isSuperAdmin() || s.hasAnyRole("Head Golden", "Sales Admin Golden")
   );
+  const currentUserName = useAuthStore((s) => s.user?.name ?? "");
 
   const now = new Date();
   const [view, setView] = useState<"calendar" | "list">("calendar");
@@ -609,7 +610,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                                     <CheckCircle className="h-3 w-3 mr-1" /> Selesai
                                   </Button>
                                 )}
-                                {!canApprove && (
+                                {!canApprove && currentUserName === item.pic_survey && (
                                   <Button
                                     size="sm" variant="outline"
                                     className="h-7 text-xs px-2"
@@ -726,6 +727,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 item={item}
                 canApprove={canApprove}
                 canSchedule={canSchedule}
+                currentUserName={currentUserName}
                 onSchedule={() => { setScheduleItem(item); setScheduleDate(item.tanggal_pengerjaan ? String(item.tanggal_pengerjaan).split("T")[0] : ""); }}
                 onApprove={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
                 onUploadBukti={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
@@ -820,7 +822,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                       </Button>
                     )}
                   </div>
-                ) : (
+                ) : currentUserName === item.pic_survey ? (
                   <Button
                     size="sm" variant="outline"
                     className="h-7 text-xs px-2 shrink-0"
@@ -828,7 +830,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                   >
                     <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
                   </Button>
-                )}
+                ) : null}
               </div>
             ))}
           </CardContent>
@@ -1154,10 +1156,11 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 }
 
 // ── ItemCard helper ───────────────────────────────────────────────────────────
-function ItemCard({ item, canApprove, canSchedule, onSchedule, onApprove, onUploadBukti, onViewFoto }: {
+function ItemCard({ item, canApprove, canSchedule, currentUserName, onSchedule, onApprove, onUploadBukti, onViewFoto }: {
   item: any;
   canApprove: boolean;
   canSchedule: boolean;
+  currentUserName: string;
   onSchedule: () => void;
   onApprove: () => void;
   onUploadBukti: () => void;
@@ -1204,7 +1207,7 @@ function ItemCard({ item, canApprove, canSchedule, onSchedule, onApprove, onUplo
               Ubah tanggal
             </Button>
           )}
-          {!canApprove && !canSchedule && (
+          {!canApprove && !canSchedule && currentUserName === item.pic_survey && (
             <Button size="sm" variant="outline" className="h-7 text-xs px-2" onClick={onUploadBukti}>
               <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
             </Button>
