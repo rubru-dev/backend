@@ -902,25 +902,13 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                       </Button>
                     )}
                     {canApprove && (!item.survey_approval_status || item.survey_approval_status === "pending") && (
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-green-600 hover:bg-green-100"
-                          title="Setujui"
-                          disabled={approveMut.isPending}
-                          onClick={() => setApproveDialog({ open: true, id: item.id, fotos: [], luasan: "", catatan: "" })}
-                        >
-                          <CheckCircle className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-red-600 hover:bg-red-100"
-                          title="Tolak"
-                          onClick={() => setRejectId(item.id)}
-                        >
-                          <XCircle className="h-4 w-4" />
-                        </Button>
-                      </div>
+                      <Button
+                        variant="ghost" size="sm"
+                        className="h-7 text-xs px-2 text-blue-600 hover:bg-blue-50"
+                        onClick={() => { setListDetailItem(item); setListDetailFotos(parseFotos(item.foto_survey)); setListDetailLuasan(item.luasan_tanah != null ? String(item.luasan_tanah) : ""); setListDetailCatatan(item.catatan_survey ?? ""); }}
+                      >
+                        <CheckCircle className="h-3 w-3 mr-1" /> Review
+                      </Button>
                     )}
                   </div>
                 </div>
@@ -976,23 +964,13 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                     </div>
                   </div>
                   {canApprove && (
-                    <div className="flex gap-1 shrink-0">
-                      <Button
-                        size="sm"
-                        className="h-7 bg-green-600 hover:bg-green-700 text-white text-xs px-2"
-                        disabled={approveMut.isPending}
-                        onClick={() => setApproveDialog({ open: true, id: item.id, fotos: [], luasan: "", catatan: "" })}
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" /> Setujui
-                      </Button>
-                      <Button
-                        variant="outline" size="sm"
-                        className="h-7 border-red-300 text-red-600 hover:bg-red-50 text-xs px-2"
-                        onClick={() => setRejectId(item.id)}
-                      >
-                        <XCircle className="h-3 w-3" />
-                      </Button>
-                    </div>
+                    <Button
+                      size="sm" variant="outline"
+                      className="h-7 text-xs px-2 shrink-0"
+                      onClick={() => { setListDetailItem(item); setListDetailFotos(parseFotos(item.foto_survey)); setListDetailLuasan(item.luasan_tanah != null ? String(item.luasan_tanah) : ""); setListDetailCatatan(item.catatan_survey ?? ""); }}
+                    >
+                      <CheckCircle className="h-3 w-3 mr-1" /> Review
+                    </Button>
                   )}
                 </div>
               ))
@@ -1344,7 +1322,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                     </div>
                   </>
                 )}
-                <input ref={listFotoRef} type="file" accept="image/*" multiple className="hidden" onChange={handleListFotoChange} />
+                <input ref={listFotoRef} type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={handleListFotoChange} />
               </div>
 
               {/* Actions */}
@@ -1473,7 +1451,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                 <Upload className="mx-auto h-6 w-6 text-muted-foreground mb-1" />
                 <p className="text-xs text-muted-foreground">Klik untuk tambah foto (bisa lebih dari satu)</p>
               </div>
-              <input ref={fotoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={handleFotoChange} />
+              <input ref={fotoInputRef} type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={handleFotoChange} />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setApproveDialog({ open: false, id: null, fotos: [], luasan: "", catatan: "" })}>Batal</Button>

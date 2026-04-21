@@ -151,6 +151,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     onSuccess: () => {
       toast.success("Lead ditambahkan");
       qc.invalidateQueries({ queryKey: ["follow-up-leads", modul] });
+      qc.invalidateQueries({ queryKey: ["survey-kalender"] });
       setOpen(false);
       setForm(EMPTY);
     },
@@ -162,6 +163,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     onSuccess: () => {
       toast.success("Lead diupdate");
       qc.invalidateQueries({ queryKey: ["follow-up-leads", modul] });
+      qc.invalidateQueries({ queryKey: ["survey-kalender"] });
       setOpen(false);
       setEditItem(null);
     },

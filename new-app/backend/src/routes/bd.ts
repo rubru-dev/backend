@@ -1776,12 +1776,15 @@ router.get("/:modul/survey-kalender", async (req: Request, res: Response) => {
   // Filter by inputter (user_id yang membuat lead)
   if (filterUser) where.user_id = filterUser;
 
-  // Mitra: hanya bisa lihat survey yang di-assign ke nama mereka
-  // Head Golden & Super Admin: lihat semua data
+  // Ops Golden & Mitra: hanya lihat yang di-assign ke mereka
+  // Admin Golden, Head Golden, Super Admin: lihat semua data
   const userRoleNames = req.user?.roles.map((r) => r.role.name) ?? [];
-  const isHeadOrAdmin = userRoleNames.includes("Super Admin") || userRoleNames.includes("Head Golden");
-  if (!isHeadOrAdmin && req.user?.sub_role === "Mitra") {
-    where.pic_survey = req.user.name;
+  const isFullAccess = userRoleNames.includes("Super Admin") ||
+    userRoleNames.includes("Head Golden") ||
+    userRoleNames.includes("Sales Admin Golden");
+  const restrictedSubRole = req.user?.sub_role === "Mitra" || req.user?.sub_role === "Ops Golden";
+  if (!isFullAccess && restrictedSubRole) {
+    where.pic_survey = req.user!.name;
   }
 
   if (bulan && tahun) {
@@ -1816,7 +1819,7 @@ router.get("/survey-kalender/users", async (_req: Request, res: Response) => {
   return res.json(users.map((u) => ({ id: String(u.id), nama: u.name })));
 });
 
-router.post("/:modul/leads/:id/approve-survey", async (req: Request, res: Response) => {
+router.post("/:modul/leads/:id/approve-survey", requireRole("Head Golden"), async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
@@ -1860,7 +1863,7 @@ router.patch("/:modul/leads/:id/bukti-survey", async (req: Request, res: Respons
   return res.json({ message: "Bukti survey disimpan" });
 });
 
-router.post("/:modul/leads/:id/reject-survey", async (req: Request, res: Response) => {
+router.post("/:modul/leads/:id/reject-survey", requireRole("Head Golden"), async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
@@ -1934,12 +1937,15 @@ router.get("/:modul/pengerjaan-kalender", async (req: Request, res: Response) =>
     modul,
     survey_approval_status: "approved",
   };
-  // Mitra: hanya bisa lihat pengerjaan yang di-assign ke nama mereka
-  // Head Golden & Super Admin: lihat semua data
+  // Ops Golden & Mitra: hanya lihat yang di-assign ke mereka
+  // Admin Golden, Head Golden, Super Admin: lihat semua data
   const userRoleNamesPengerjaan = req.user?.roles.map((r) => r.role.name) ?? [];
-  const isHeadOrAdminPengerjaan = userRoleNamesPengerjaan.includes("Super Admin") || userRoleNamesPengerjaan.includes("Head Golden");
-  if (!isHeadOrAdminPengerjaan && req.user?.sub_role === "Mitra") {
-    where.pic_survey = req.user.name;
+  const isFullAccessPengerjaan = userRoleNamesPengerjaan.includes("Super Admin") ||
+    userRoleNamesPengerjaan.includes("Head Golden") ||
+    userRoleNamesPengerjaan.includes("Sales Admin Golden");
+  const restrictedSubRolePengerjaan = req.user?.sub_role === "Mitra" || req.user?.sub_role === "Ops Golden";
+  if (!isFullAccessPengerjaan && restrictedSubRolePengerjaan) {
+    where.pic_survey = req.user!.name;
   }
   // We return ALL approved leads; frontend handles filtering display
   const leads = await prisma.lead.findMany({
@@ -1960,7 +1966,7 @@ router.get("/:modul/pengerjaan-kalender", async (req: Request, res: Response) =>
 });
 
 // PATCH /bd/:modul/leads/:id/pengerjaan-schedule — set tanggal pengerjaan
-router.patch("/:modul/leads/:id/pengerjaan-schedule", async (req: Request, res: Response) => {
+router.patch("/:modul/leads/:id/pengerjaan-schedule", requireRole("Head Golden", "Sales Admin Golden"), async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
@@ -1992,7 +1998,7 @@ router.patch("/:modul/leads/:id/bukti-pengerjaan", async (req: Request, res: Res
 });
 
 // POST /bd/:modul/leads/:id/approve-pengerjaan — approve pengerjaan with photos
-router.post("/:modul/leads/:id/approve-pengerjaan", async (req: Request, res: Response) => {
+router.post("/:modul/leads/:id/approve-pengerjaan", requireRole("Head Golden"), async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
