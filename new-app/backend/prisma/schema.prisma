@@ -631,6 +631,7 @@ model Invoice {
   ppn_amount                        Decimal         @default(0) @db.Decimal(15, 2)
   grand_total                       Decimal         @default(0) @db.Decimal(15, 2)
   status                            String          @default("draft") @db.VarChar(50)
+  kategori                          String?         @db.VarChar(100)
   approved_by                       BigInt?
   approved_at                       DateTime?       @db.Timestamptz(6)
   signature_path                    String?         @db.VarChar(500)

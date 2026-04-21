@@ -947,45 +947,63 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
-                  Foto Bukti Pengerjaan dari PIC
+                  Foto Bukti Pengerjaan
                 </Label>
 
-                {approveFotos.length > 0 ? (
+                {approveFotos.length > 0 && (
                   <div className="grid grid-cols-3 gap-2">
                     {approveFotos.map((f, idx) => (
-                      <button
-                        key={idx}
-                        type="button"
-                        onClick={() => setViewFoto(f)}
-                        className="relative group aspect-square rounded-lg overflow-hidden border hover:opacity-90 transition-opacity"
-                      >
+                      <div key={idx} className="relative group aspect-square rounded-lg overflow-hidden border">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={f} alt={`foto-${idx}`} className="w-full h-full object-cover" />
-                        <div className="absolute inset-0 bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+                        <img src={f} alt={`foto-${idx}`} className="w-full h-full object-cover" onClick={() => setViewFoto(f)} />
+                        <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity pointer-events-none">
                           <ZoomIn className="h-5 w-5 text-white" />
                         </div>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setApproveFotos((prev) => prev.filter((_, i) => i !== idx))}
+                          className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
                     ))}
-                  </div>
-                ) : (
-                  <div className="border-2 border-dashed rounded-lg p-4 text-center bg-muted/30">
-                    <Clock className="h-7 w-7 text-gray-300 mx-auto mb-1" />
-                    <p className="text-xs text-gray-400">Menunggu PIC upload bukti foto pengerjaan</p>
+                    <button
+                      type="button"
+                      onClick={() => fotoInputRef.current?.click()}
+                      className="aspect-square rounded-lg border-2 border-dashed border-gray-300 hover:border-blue-400 flex flex-col items-center justify-center gap-1 text-gray-400 hover:text-blue-500 transition-colors"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span className="text-xs">Tambah</span>
+                    </button>
                   </div>
                 )}
+                {approveProcessing && (
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...
+                  </div>
+                )}
+                {approveFotos.length === 0 && (
+                  <div
+                    className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-blue-400 transition-colors"
+                    onClick={() => fotoInputRef.current?.click()}
+                  >
+                    <ImageIcon className="h-7 w-7 text-gray-300 mx-auto mb-1" />
+                    <p className="text-xs text-gray-400">Klik untuk upload foto bukti pengerjaan</p>
+                  </div>
+                )}
+                <input ref={fotoInputRef} type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={handleFotoChange} />
               </div>
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => { setApproveItem(null); setApproveFotos([]); }}>Batal</Button>
-                {approveFotos.length > 0 && (
-                  <Button
-                    className="bg-blue-600 hover:bg-blue-700 text-white"
-                    disabled={approveMut.isPending}
-                    onClick={() => approveMut.mutate({ id: approveItem.id, fotos: approveFotos })}
-                  >
-                    {approveMut.isPending ? "Menyimpan..." : "Konfirmasi Selesai"}
-                  </Button>
-                )}
+                <Button
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                  disabled={approveFotos.length === 0 || approveMut.isPending || approveProcessing}
+                  onClick={() => approveMut.mutate({ id: approveItem.id, fotos: approveFotos })}
+                >
+                  {approveMut.isPending ? "Menyimpan..." : "Konfirmasi Selesai"}
+                </Button>
               </div>
             </div>
           )}

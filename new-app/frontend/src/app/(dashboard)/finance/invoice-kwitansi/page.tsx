@@ -81,6 +81,7 @@ const EMPTY_FORM = {
   tanggal: today,
   ppn_percentage: 0,
   catatan: "",
+  kategori: "",
   items: [{ keterangan: "", jumlah: 1, harga_satuan: 0 }],
   bank_account_id: "",
   overdue_date: "",
@@ -249,8 +250,9 @@ function BankAccountTab({ accounts, onAdd, onEdit, onDelete, onToggle, canDelete
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function InvoiceKwitansiPage() {
   const qc = useQueryClient();
-  const { isSuperAdmin, hasPermission } = useAuthStore();
+  const { isSuperAdmin, hasPermission, hasAnyRole } = useAuthStore();
   const canDelete = isSuperAdmin() || hasPermission("finance", "delete");
+  const canSeeProyek = isSuperAdmin() || hasAnyRole("Admin Finance", "Head Finance");
 
   // Form state
   const [open, setOpen] = useState(false);
@@ -558,6 +560,7 @@ export default function InvoiceKwitansiPage() {
                     <TableHead>No. Invoice</TableHead>
                     <TableHead>Klien</TableHead>
                     <TableHead>Jenis</TableHead>
+                    <TableHead>Kategori</TableHead>
                     <TableHead>Tanggal</TableHead>
                     <TableHead className="text-right">Total</TableHead>
                     <TableHead>Status</TableHead>
@@ -569,7 +572,7 @@ export default function InvoiceKwitansiPage() {
                   {isLoading
                     ? Array.from({ length: 4 }).map((_, i) => (
                         <TableRow key={i}>
-                          {Array.from({ length: 9 }).map((__, j) => (
+                          {Array.from({ length: 10 }).map((__, j) => (
                             <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
                           ))}
                         </TableRow>
@@ -588,6 +591,7 @@ export default function InvoiceKwitansiPage() {
                             <TableCell className="font-mono font-medium">{inv.nomor_invoice}</TableCell>
                             <TableCell>{inv.klien || "—"}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">{inv.lead?.jenis || "—"}</TableCell>
+                            <TableCell className="text-sm text-muted-foreground">{inv.kategori || "—"}</TableCell>
                             <TableCell className="whitespace-nowrap">
                               {inv.tanggal ? new Date(inv.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                             </TableCell>
@@ -669,6 +673,7 @@ export default function InvoiceKwitansiPage() {
                                           : [{ keterangan: "", jumlah: 1, harga_satuan: 0 }],
                                         bank_account_id: inv.bank_account?.id ? String(inv.bank_account.id) : "",
                                         overdue_date: inv.overdue_date ? new Date(inv.overdue_date).toISOString().split("T")[0] : "",
+                                        kategori: inv.kategori || "",
                                         _nomorManual: true,
                                       });
                                       setLeadSearch(inv.lead?.nama || "");
@@ -875,6 +880,18 @@ export default function InvoiceKwitansiPage() {
             </div>
 
             <div>
+              <Label>Kategori</Label>
+              <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                value={form.kategori}
+                onChange={e => setForm({ ...form, kategori: e.target.value })}>
+                <option value="">— Pilih kategori —</option>
+                <option value="Payment Desain">Payment Desain</option>
+                <option value="Payment Survey">Payment Survey</option>
+                {canSeeProyek && <option value="Payment Projek">Payment Projek</option>}
+              </select>
+            </div>
+
+            <div>
               <Label>Catatan</Label>
               <textarea
                 className="w-full border rounded-md px-3 py-2 text-sm min-h-[60px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
@@ -902,6 +919,7 @@ export default function InvoiceKwitansiPage() {
                     ppn_percentage: form.ppn_percentage,
                     bank_account_id: form.bank_account_id || undefined,
                     catatan: form.catatan,
+                    kategori: form.kategori || undefined,
                     items: form.items,
                   };
                   if (editId) updateMut.mutate({ id: editId, data: payload });

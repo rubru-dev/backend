@@ -1298,8 +1298,8 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                         <div className="absolute inset-0 bg-black/30 rounded-lg opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
                           <ZoomIn className="h-5 w-5 text-white" />
                         </div>
-                        {/* Tombol hapus hanya untuk PIC assigned dan sebelum diapprove */}
-                        {currentUserName === listDetailItem.pic_survey && listDetailItem.survey_approval_status !== "approved" && (
+                        {/* Tombol hapus: Head Golden (full access) atau PIC assigned */}
+                        {(canApprove || currentUserName === listDetailItem.pic_survey) && listDetailItem.survey_approval_status !== "approved" && (
                           <button
                             type="button"
                             className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -1311,8 +1311,8 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
                   </div>
                 )}
 
-                {/* Upload area — hanya untuk PIC assigned */}
-                {currentUserName === listDetailItem.pic_survey && listDetailItem.survey_approval_status !== "approved" && (
+                {/* Upload area — Head Golden (full access) atau PIC assigned */}
+                {(canApprove || currentUserName === listDetailItem.pic_survey) && listDetailItem.survey_approval_status !== "approved" && (
                   <>
                     {listFotoProcessing && (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-1">

@@ -77,6 +77,7 @@ function invoiceDictFrontend(inv: any) {
     admin_finance: inv.admin_finance ? { id: inv.admin_finance.id, name: inv.admin_finance.name } : null,
     admin_finance_at: inv.admin_finance_at,
     admin_finance_signature: inv.admin_finance_signature || null,
+    kategori: inv.kategori || null,
     items: (inv.items || []).map((item: any) => ({
       id: item.id,
       keterangan: item.description || "",
@@ -822,7 +823,7 @@ router.get("/invoices", requirePermission("finance", "view"), async (req: Reques
 });
 
 router.post("/invoices", requirePermission("finance", "view"), async (req: Request, res: Response) => {
-  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, items = [] } = req.body;
+  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, items = [] } = req.body;
   const tgl = tanggal ? new Date(tanggal) : new Date();
   // Determine invoice number: manual input or auto-generate from lead jenis
   let invoiceNumber = nomor_invoice || "";
@@ -852,6 +853,7 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
       catatan: catatan || null,
       ppn_percentage: ppnPct, subtotal, ppn_amount: ppnAmt, grand_total: subtotal + ppnAmt,
       status: "draft",
+      kategori: kategori || null,
       created_by: req.user!.id,
       items: { create: itemsData },
     },
@@ -872,7 +874,7 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   if (inv.head_finance_id || inv.admin_finance_id) {
     return res.status(400).json({ detail: "Invoice yang sudah ditandatangani tidak bisa diubah" });
   }
-  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, items } = req.body;
+  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, items } = req.body;
   const updates: Record<string, unknown> = {};
   if (nomor_invoice !== undefined) updates.invoice_number = nomor_invoice;
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
@@ -880,6 +882,7 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   if (overdue_date !== undefined) updates.overdue_date = overdue_date ? new Date(overdue_date) : null;
   if (catatan !== undefined) updates.catatan = catatan;
   if (bank_account_id !== undefined) updates.bank_account_id = bank_account_id ? BigInt(bank_account_id) : null;
+  if (kategori !== undefined) updates.kategori = kategori || null;
 
   // Recalculate subtotal/ppn/grand_total bila items atau ppn_percentage berubah
   let newSubtotal: number | null = null;
