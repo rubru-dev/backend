@@ -220,6 +220,24 @@ router.post("/leads/:id/approve-survey", requirePermission("bd", "approve"), asy
     where: { id },
     data: { survey_approval_status: "approved", survey_approved_by: req.user!.id, survey_approved_at: new Date() },
   });
+
+  // Auto-track ke Desain Kanban kolom "Kirim Layout Eksisting dan Perubahan"
+  const TARGET_COL = "Kirim Layout Eksisting dan Perubahan";
+  let desainCol = await prisma.desainKanbanColumn.findFirst({ where: { title: TARGET_COL } });
+  if (!desainCol) {
+    const lastCol = await prisma.desainKanbanColumn.findFirst({ orderBy: { urutan: "desc" } });
+    desainCol = await prisma.desainKanbanColumn.create({
+      data: { title: TARGET_COL, color: "#818cf8", urutan: (lastCol?.urutan ?? 0) + 1, is_permanent: true },
+    });
+  }
+  const existingCard = await prisma.desainKanbanCard.findFirst({ where: { lead_id: id } });
+  if (!existingCard) {
+    const maxCard = await prisma.desainKanbanCard.findFirst({ where: { column_id: desainCol.id }, orderBy: { urutan: "desc" } });
+    await prisma.desainKanbanCard.create({
+      data: { column_id: desainCol.id, lead_id: id, urutan: (maxCard?.urutan ?? 0) + 1 },
+    });
+  }
+
   return res.json({ message: "Survey disetujui" });
 });
 

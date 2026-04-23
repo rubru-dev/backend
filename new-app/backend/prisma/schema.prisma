@@ -834,6 +834,7 @@ model Kwitansi {
   keterangan      String?
   metode_bayar    String?   @db.VarChar(100)
   detail_bayar    String?   @db.VarChar(255)
+  bukti_bayar     String?   @db.Text
   created_at      DateTime  @default(now()) @db.Timestamptz(6)
   updated_at      DateTime  @default(now()) @db.Timestamptz(6)
   invoice        Invoice? @relation(fields: [invoice_id], references: [id], onDelete: Cascade, onUpdate: NoAction)

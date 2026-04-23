@@ -141,7 +141,7 @@ function SignBadge({ signed, name, at }: { signed: boolean; name?: string; at?: 
 }
 
 // ── Kwitansi Detail ───────────────────────────────────────────────────────────
-function KwitansiSection({ inv, onRequestDownload }: { inv: any; onRequestDownload: (kwitansi: any, inv: any) => void }) {
+function KwitansiSection({ inv, onRequestDownload }: { inv: any; onRequestDownload: (kwitansi: any, inv: any, existingBukti?: string | null) => void }) {
   const { data: kwitansi, isLoading } = useQuery({
     queryKey: ["kwitansi", inv.id],
     queryFn: () => api.getKwitansi(inv.id),
@@ -174,7 +174,7 @@ function KwitansiSection({ inv, onRequestDownload }: { inv: any; onRequestDownlo
         <span>{metodeLabel || "—"}</span>
       </div>
       <Button variant="outline" size="sm" className="border-orange-300 text-orange-700 hover:bg-orange-100"
-        onClick={() => onRequestDownload(kwitansi, inv)}>
+        onClick={() => onRequestDownload(kwitansi, inv, kwitansi.bukti_bayar ?? null)}>
         <Download className="h-3.5 w-3.5 mr-1" /> Cetak Kwitansi PDF
       </Button>
     </div>
@@ -286,6 +286,9 @@ export default function InvoiceKwitansiPage() {
   const [buktiBayarTarget, setBuktiBayarTarget] = useState<{ kwitansi: any; inv: any } | null>(null);
   const [buktiBayarBase64, setBuktiBayarBase64] = useState<string | null>(null);
 
+  // Bukti bayar saat mark-paid
+  const [markPaidBukti, setMarkPaidBukti] = useState<string | null>(null);
+
   // Leads for dropdown
   const { data: leadsData } = useQuery({
     queryKey: ["leads-dropdown", leadSearch],
@@ -368,14 +371,15 @@ export default function InvoiceKwitansiPage() {
   });
 
   const markPaidMut = useMutation({
-    mutationFn: ({ id, metode_bayar, detail_bayar }: any) =>
-      api.markPaid(id, { metode_bayar, detail_bayar }),
+    mutationFn: ({ id, metode_bayar, detail_bayar, bukti_bayar }: any) =>
+      api.markPaid(id, { metode_bayar, detail_bayar, bukti_bayar: bukti_bayar || undefined }),
     onSuccess: () => {
       toast.success("Invoice ditandai Lunas — kwitansi diterbitkan");
       qc.invalidateQueries({ queryKey: ["invoices"] });
       qc.invalidateQueries({ queryKey: ["kwitansi", markPaidId] });
       setMarkPaidId(null);
       setDetailBayar("");
+      setMarkPaidBukti(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal update status"),
   });
@@ -756,9 +760,14 @@ export default function InvoiceKwitansiPage() {
                                     <h4 className="font-semibold text-sm flex items-center gap-1">
                                       <Receipt className="h-4 w-4" /> Kwitansi
                                     </h4>
-                                    <KwitansiSection inv={inv} onRequestDownload={(kwitansi, inv) => {
-                                      setBuktiBayarBase64(null);
-                                      setBuktiBayarTarget({ kwitansi, inv });
+                                    <KwitansiSection inv={inv} onRequestDownload={(kwitansi, inv, existingBukti) => {
+                                      if (existingBukti) {
+                                        // Langsung download dengan bukti yang sudah tersimpan
+                                        handleDownloadKwitansi(kwitansi, inv, existingBukti);
+                                      } else {
+                                        setBuktiBayarBase64(null);
+                                        setBuktiBayarTarget({ kwitansi, inv });
+                                      }
                                     }} />
                                   </div>
                                 </div>
@@ -888,6 +897,7 @@ export default function InvoiceKwitansiPage() {
                 <option value="Payment Desain">Payment Desain</option>
                 <option value="Payment Survey">Payment Survey</option>
                 {canSeeProyek && <option value="Payment Projek">Payment Projek</option>}
+                <option value="Payment Golden">Payment Golden</option>
               </select>
             </div>
 
@@ -1008,7 +1018,7 @@ export default function InvoiceKwitansiPage() {
       </AlertDialog>
 
       {/* Mark Paid Dialog */}
-      <Dialog open={!!markPaidId} onOpenChange={v => { if (!v) { setMarkPaidId(null); setDetailBayar(""); } }}>
+      <Dialog open={!!markPaidId} onOpenChange={v => { if (!v) { setMarkPaidId(null); setDetailBayar(""); setMarkPaidBukti(null); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1038,8 +1048,37 @@ export default function InvoiceKwitansiPage() {
                 />
               </div>
             )}
+            <div>
+              <Label>Bukti Pembayaran <span className="text-muted-foreground font-normal text-xs">(opsional, otomatis dilampirkan di kwitansi)</span></Label>
+              {markPaidBukti ? (
+                <div className="relative mt-1 border rounded-md p-2 bg-muted/30">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={markPaidBukti} alt="bukti bayar" className="max-h-32 mx-auto object-contain rounded" />
+                  <button
+                    type="button"
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5"
+                    onClick={() => setMarkPaidBukti(null)}
+                  >
+                    <span className="text-xs px-0.5">×</span>
+                  </button>
+                </div>
+              ) : (
+                <label className="mt-1 flex flex-col items-center border-2 border-dashed rounded-md p-3 cursor-pointer hover:border-green-400 transition-colors">
+                  <Upload className="h-5 w-5 text-muted-foreground mb-1" />
+                  <span className="text-xs text-muted-foreground">Klik untuk upload bukti transfer / struk</span>
+                  <input type="file" accept="image/png,image/jpeg,image/jpg" className="hidden"
+                    onChange={e => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => setMarkPaidBukti(reader.result as string);
+                      reader.readAsDataURL(file);
+                    }} />
+                </label>
+              )}
+            </div>
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={() => { setMarkPaidId(null); setDetailBayar(""); }}>Batal</Button>
+              <Button variant="outline" onClick={() => { setMarkPaidId(null); setDetailBayar(""); setMarkPaidBukti(null); }}>Batal</Button>
               <Button
                 className="bg-green-600 hover:bg-green-700"
                 disabled={markPaidMut.isPending || (needsDetailBayar && !detailBayar)}
@@ -1047,6 +1086,7 @@ export default function InvoiceKwitansiPage() {
                   id: markPaidId,
                   metode_bayar: metode,
                   detail_bayar: detailBayar || undefined,
+                  bukti_bayar: markPaidBukti || undefined,
                 })}
               >
                 {markPaidMut.isPending ? "Memproses..." : "Konfirmasi Lunas"}

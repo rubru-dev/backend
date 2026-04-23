@@ -973,7 +973,7 @@ router.post("/invoices/:id/mark-paid", async (req: Request, res: Response) => {
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
   if (inv.status === "Lunas") return res.status(400).json({ detail: "Invoice sudah Lunas" });
   if (inv.status !== "Terbit") return res.status(400).json({ detail: "Invoice harus berstatus Terbit (sudah ditandatangani) sebelum ditandai lunas" });
-  const { metode_bayar, detail_bayar } = req.body;
+  const { metode_bayar, detail_bayar, bukti_bayar } = req.body;
   const nomorKwitansi = `KWT-${new Date().toISOString().slice(0, 7).replace("-", "")}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
   await prisma.invoice.update({ where: { id }, data: { status: "Lunas" } });
   let kwitansi = inv.kwitansi;
@@ -986,10 +986,47 @@ router.post("/invoices/:id/mark-paid", async (req: Request, res: Response) => {
         jumlah_diterima: inv.grand_total,
         metode_bayar: metode_bayar || "Transfer Bank",
         detail_bayar: detail_bayar || null,
+        bukti_bayar: bukti_bayar || null,
         keterangan: [metode_bayar, detail_bayar].filter(Boolean).join(" - "),
       },
     });
+  } else if (bukti_bayar) {
+    await prisma.kwitansi.update({ where: { id: kwitansi.id }, data: { bukti_bayar } });
   }
+
+  // Auto-track ke Kanban Sales Golden jika kategori = "Payment Golden"
+  if (inv.kategori === "Payment Golden" && inv.lead_id) {
+    // Pastikan kolom Closing ada
+    let closingCol = await prisma.goldenKanbanSalesColumn.findFirst({ where: { title: "Closing" } });
+    if (!closingCol) {
+      const maxCol = await prisma.goldenKanbanSalesColumn.findFirst({ orderBy: { urutan: "desc" } });
+      closingCol = await prisma.goldenKanbanSalesColumn.create({
+        data: { title: "Closing", urutan: (maxCol?.urutan ?? 0) + 1, color: "#d1fae5" },
+      });
+    }
+    // Cek apakah card dengan lead ini sudah ada di kanban
+    const existingCard = await prisma.goldenKanbanSalesCard.findFirst({ where: { lead_id: inv.lead_id } });
+    if (existingCard) {
+      // Pindahkan ke Closing
+      await prisma.goldenKanbanSalesCard.update({
+        where: { id: existingCard.id },
+        data: { column_id: closingCol.id },
+      });
+    } else {
+      // Buat card baru di Closing
+      const lead = await prisma.lead.findUnique({ where: { id: inv.lead_id }, select: { nama: true } });
+      const maxCard = await prisma.goldenKanbanSalesCard.findFirst({ where: { column_id: closingCol.id }, orderBy: { urutan: "desc" } });
+      await prisma.goldenKanbanSalesCard.create({
+        data: {
+          column_id: closingCol.id,
+          title: lead?.nama ?? "—",
+          lead_id: inv.lead_id,
+          urutan: (maxCard?.urutan ?? 0) + 1,
+        },
+      });
+    }
+  }
+
   return res.json({ message: "Invoice ditandai Lunas — kwitansi dibuat otomatis", kwitansi_id: kwitansi.id });
 });
 
@@ -1010,6 +1047,7 @@ router.get("/invoices/:id/kwitansi", async (req: Request, res: Response) => {
     jumlah: parseFloat(String(kwitansi.jumlah_diterima ?? 0)),
     metode_bayar: kwitansi.metode_bayar || "Transfer Bank",
     detail_bayar: kwitansi.detail_bayar || null,
+    bukti_bayar: kwitansi.bukti_bayar || null,
     penerima: kwitansi.penerima,
     alamat_klien: inv?.lead?.alamat || null,
     telepon_klien: inv?.lead?.nomor_telepon || null,
