@@ -2949,4 +2949,90 @@ router.get("/tukang-absen/:pid/my-bon", async (req: Request, res: Response) => {
   })));
 });
 
+// GET /finance/ar-outstanding — Tagihan outstanding per proyek
+router.get("/ar-outstanding", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
+  const DESAIN_PRICING: Record<string, number> = {
+    Basic: 2_500_000,
+    Standart: 6_800_000,
+    Premium: 8_500_000,
+    Deluxe: 15_800_000,
+  };
+
+  const [sipilList, interiorList, desainList] = await Promise.all([
+    prisma.proyekBerjalan.findMany({
+      select: { id: true, lead_id: true, nama_proyek: true, nilai_rab: true, lead: { select: { nama: true } } },
+    }),
+    prisma.proyekInterior.findMany({
+      select: { id: true, lead_id: true, nama_proyek: true, budget: true, lead: { select: { nama: true } } },
+    }),
+    prisma.desainTimeline.findMany({
+      select: { id: true, lead_id: true, jenis_desain: true, lead: { select: { nama: true } } },
+    }),
+  ]);
+
+  const allLeadIds = new Set<bigint>();
+  for (const p of sipilList) if (p.lead_id) allLeadIds.add(p.lead_id);
+  for (const p of interiorList) if (p.lead_id) allLeadIds.add(p.lead_id);
+  for (const p of desainList) if (p.lead_id) allLeadIds.add(p.lead_id);
+
+  const paymentMap = new Map<bigint, number>();
+  if (allLeadIds.size > 0) {
+    const paidInvoices = await prisma.invoice.findMany({
+      where: { lead_id: { in: Array.from(allLeadIds) }, status: "Lunas" },
+      select: { lead_id: true, kwitansi: { select: { jumlah_diterima: true } } },
+    });
+    for (const inv of paidInvoices) {
+      if (!inv.lead_id) continue;
+      const amt = parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0));
+      paymentMap.set(inv.lead_id, (paymentMap.get(inv.lead_id) ?? 0) + amt);
+    }
+  }
+
+  const rows: object[] = [];
+
+  for (const p of sipilList) {
+    const totalTagihan = parseFloat(String(p.nilai_rab ?? 0));
+    const totalTerbayar = p.lead_id ? (paymentMap.get(p.lead_id) ?? 0) : 0;
+    rows.push({
+      id: Number(p.id), tipe: "Sipil",
+      nama_proyek: p.nama_proyek ?? "-",
+      nama_client: p.lead?.nama ?? "-",
+      lead_id: p.lead_id ? Number(p.lead_id) : null,
+      total_tagihan: totalTagihan,
+      total_terbayar: totalTerbayar,
+      outstanding: Math.max(0, totalTagihan - totalTerbayar),
+    });
+  }
+
+  for (const p of interiorList) {
+    const totalTagihan = parseFloat(String(p.budget ?? 0));
+    const totalTerbayar = p.lead_id ? (paymentMap.get(p.lead_id) ?? 0) : 0;
+    rows.push({
+      id: Number(p.id), tipe: "Interior",
+      nama_proyek: p.nama_proyek ?? "-",
+      nama_client: p.lead?.nama ?? "-",
+      lead_id: p.lead_id ? Number(p.lead_id) : null,
+      total_tagihan: totalTagihan,
+      total_terbayar: totalTerbayar,
+      outstanding: Math.max(0, totalTagihan - totalTerbayar),
+    });
+  }
+
+  for (const p of desainList) {
+    const totalTagihan = p.jenis_desain ? (DESAIN_PRICING[p.jenis_desain] ?? 0) : 0;
+    const totalTerbayar = p.lead_id ? (paymentMap.get(p.lead_id) ?? 0) : 0;
+    rows.push({
+      id: Number(p.id), tipe: "Desain",
+      nama_proyek: p.jenis_desain ? `Desain ${p.jenis_desain}` : "Desain",
+      nama_client: p.lead?.nama ?? "-",
+      lead_id: p.lead_id ? Number(p.lead_id) : null,
+      total_tagihan: totalTagihan,
+      total_terbayar: totalTerbayar,
+      outstanding: Math.max(0, totalTagihan - totalTerbayar),
+    });
+  }
+
+  return res.json(rows);
+});
+
 export default router;

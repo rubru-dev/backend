@@ -54,4 +54,7 @@ export const financeApi = {
   createGaji: (data: any) => apiClient.post("/finance/tukang/gaji", data).then((r) => r.data),
   getGaji: (id: number) => apiClient.get(`/finance/tukang/gaji/${id}`).then((r) => r.data),
   deleteGaji: (id: number) => apiClient.delete(`/finance/tukang/gaji/${id}`).then((r) => r.data),
+
+  // AR Outstanding
+  getArOutstanding: () => apiClient.get("/finance/ar-outstanding").then((r) => r.data),
 };

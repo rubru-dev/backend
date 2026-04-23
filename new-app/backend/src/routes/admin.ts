@@ -226,6 +226,7 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "golden.kalender",       module: "golden", label: "Sub-menu: Kalender Survey Golden" },
   { name: "golden.kalender_after", module: "golden", label: "Sub-menu: Kalender After Pengerjaan Golden" },
   { name: "golden.kanban_sales",   module: "golden", label: "Sub-menu: Kanban Sales Golden" },
+  { name: "finance.ar",            module: "finance", label: "Sub-menu: AR Tagihan Outstanding" },
 ];
 
 // GET /permissions — list all, grouped by module
