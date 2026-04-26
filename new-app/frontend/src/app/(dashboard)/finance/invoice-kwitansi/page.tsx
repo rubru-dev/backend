@@ -275,6 +275,7 @@ export default function InvoiceKwitansiPage() {
   // Table state
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
+  const [page, setPage] = useState(1);
 
   // Signature dialog state
   const [signTarget, setSignTarget] = useState<{ id: number; type: "head" | "admin" } | null>(null);
@@ -328,6 +329,9 @@ export default function InvoiceKwitansiPage() {
     retry: false,
   });
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
+  const PAGE_SIZE = 15;
+  const totalPages = Math.ceil(items.length / PAGE_SIZE);
+  const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Bank accounts
   const { data: bankAccountsData } = useQuery({
@@ -578,7 +582,7 @@ export default function InvoiceKwitansiPage() {
           {/* Filter & Add Invoice button */}
           <div className="flex justify-end gap-2 items-center">
             <select className="border rounded-md px-3 py-2 text-sm" value={filterStatus}
-              onChange={e => setFilterStatus(e.target.value)}>
+              onChange={e => { setFilterStatus(e.target.value); setPage(1); }}>
               <option value="">Semua Status</option>
               <option value="Draft">Draft</option>
               <option value="Terbit">Terbit</option>
@@ -617,7 +621,7 @@ export default function InvoiceKwitansiPage() {
                           ))}
                         </TableRow>
                       ))
-                    : items.map((inv: any) => (
+                    : pagedItems.map((inv: any) => (
                         <React.Fragment key={inv.id}>
                           <TableRow
                             className="cursor-pointer hover:bg-muted/30"
@@ -735,12 +739,6 @@ export default function InvoiceKwitansiPage() {
                                     <Pencil className="h-3 w-3 mr-1" /> Edit
                                   </Button>
                                 )}
-                                {canDelete && inv.status === "Draft" && (
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
-                                    onClick={() => setConfirmDeleteId(inv.id)}>
-                                    <Trash2 className="h-3 w-3 mr-1" /> Hapus
-                                  </Button>
-                                )}
                               </div>
                             </TableCell>
                           </TableRow>
@@ -837,6 +835,22 @@ export default function InvoiceKwitansiPage() {
                   )}
                 </TableBody>
               </Table>
+              {items.length > PAGE_SIZE && (
+                <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
+                  <span>
+                    Menampilkan {(page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, items.length)} dari {items.length} invoice
+                  </span>
+                  <div className="flex items-center gap-1">
+                    <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>
+                      Sebelumnya
+                    </Button>
+                    <span className="px-3 py-1 border rounded-md text-xs">{page} / {totalPages}</span>
+                    <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={page >= totalPages}>
+                      Berikutnya
+                    </Button>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
