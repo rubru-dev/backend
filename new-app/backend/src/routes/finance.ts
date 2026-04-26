@@ -870,6 +870,24 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
   return res.status(201).json(invoiceDictFrontend(inv));
 });
 
+// PATCH /finance/invoices/:id/set-kategori — update kategori saja, tanpa cek status
+router.patch("/invoices/:id/set-kategori", requirePermission("finance", "view"), async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const inv = await prisma.invoice.findUnique({ where: { id } });
+  if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
+  const { kategori, paket_desain, rab_item_id } = req.body;
+  const updated = await prisma.invoice.update({
+    where: { id },
+    data: {
+      kategori: kategori || null,
+      paket_desain: kategori === "Payment Desain" ? (paket_desain || null) : null,
+      rab_item_id: kategori === "Payment Projek" ? (rab_item_id ? BigInt(rab_item_id) : null) : null,
+    },
+    include: { items: true, lead: true, head_finance: true, admin_finance: true, bank_account: true },
+  });
+  return res.json(invoiceDictFrontend(updated));
+});
+
 router.patch("/invoices/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id } });

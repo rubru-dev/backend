@@ -284,6 +284,19 @@ export default function InvoiceKwitansiPage() {
   const [metode, setMetode] = useState("Transfer Bank");
   const [detailBayar, setDetailBayar] = useState("");
 
+  // Set Kategori dialog state
+  const [kategoriTarget, setKategoriTarget] = useState<{ id: number; lead_id: string } | null>(null);
+  const [kategoriForm, setKategoriForm] = useState({ kategori: "", paket_desain: "", rab_item_id: "" });
+  const [kategoriRabItems, setKategoriRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string }[]>([]);
+
+  useEffect(() => {
+    if (kategoriTarget && kategoriForm.kategori === "Payment Projek" && kategoriTarget.lead_id) {
+      apiClient.get(`/finance/leads/${kategoriTarget.lead_id}/rab-items`).then((r) => setKategoriRabItems(r.data)).catch(() => setKategoriRabItems([]));
+    } else {
+      setKategoriRabItems([]);
+    }
+  }, [kategoriTarget, kategoriForm.kategori]);
+
   // Delete state
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
 
@@ -357,6 +370,18 @@ export default function InvoiceKwitansiPage() {
       setForm(EMPTY_FORM);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui invoice"),
+  });
+
+  const setKategoriMut = useMutation({
+    mutationFn: ({ id, data }: { id: number; data: any }) =>
+      apiClient.patch(`/finance/invoices/${id}/set-kategori`, data).then((r) => r.data),
+    onSuccess: () => {
+      toast.success("Kategori berhasil diperbarui");
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setKategoriTarget(null);
+      setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui kategori"),
   });
 
   const signMut = useMutation({
@@ -669,6 +694,17 @@ export default function InvoiceKwitansiPage() {
                                     <Download className="h-3 w-3 mr-1" /> PDF Invoice
                                   </Button>
                                 )}
+                                <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                                  onClick={() => {
+                                    setKategoriTarget({ id: inv.id, lead_id: inv.lead?.id ? String(inv.lead.id) : "" });
+                                    setKategoriForm({
+                                      kategori: inv.kategori || "",
+                                      paket_desain: inv.paket_desain || "",
+                                      rab_item_id: inv.rab_item_id ? String(inv.rab_item_id) : "",
+                                    });
+                                  }}>
+                                  <Pencil className="h-3 w-3" /> Kategori
+                                </Button>
                                 {inv.status === "Draft" && !inv.head_finance && !inv.admin_finance && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs"
                                     onClick={() => {
@@ -1043,6 +1079,93 @@ export default function InvoiceKwitansiPage() {
                 disabled={!buktiBayarBase64}
                 onClick={confirmDownloadKwitansi}>
                 <Download className="h-4 w-4 mr-1" /> Download Kwitansi PDF
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Set Kategori Dialog */}
+      <Dialog open={!!kategoriTarget} onOpenChange={(v) => { if (!v) { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" }); } }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-4 w-4" /> Set Kategori Invoice
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">Dapat diubah meskipun invoice sudah Lunas. Hanya memperbarui kategori, paket, dan termin.</p>
+          <div className="space-y-3 pt-1">
+            <div>
+              <Label>Kategori</Label>
+              <select
+                className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                value={kategoriForm.kategori}
+                onChange={(e) => setKategoriForm({ kategori: e.target.value, paket_desain: "", rab_item_id: "" })}
+              >
+                <option value="">— Pilih kategori —</option>
+                <option value="Payment Desain">Payment Desain</option>
+                <option value="Payment Survey">Payment Survey</option>
+                <option value="Payment Projek">Payment Projek</option>
+                <option value="Payment Golden">Payment Golden</option>
+              </select>
+            </div>
+            {kategoriForm.kategori === "Payment Desain" && (
+              <div>
+                <Label>Paket Desain</Label>
+                <select
+                  className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                  value={kategoriForm.paket_desain}
+                  onChange={(e) => setKategoriForm((f) => ({ ...f, paket_desain: e.target.value }))}
+                >
+                  <option value="">— Pilih paket —</option>
+                  <option value="Basic">Basic — Rp 2.500.000</option>
+                  <option value="Standart">Standart — Rp 6.800.000</option>
+                  <option value="Premium">Premium — Rp 8.500.000</option>
+                  <option value="Deluxe">Deluxe — Rp 15.800.000</option>
+                </select>
+              </div>
+            )}
+            {kategoriForm.kategori === "Payment Projek" && (
+              <div>
+                <Label>Termin / Item RAB</Label>
+                {!kategoriTarget?.lead_id ? (
+                  <p className="text-xs text-muted-foreground mt-1">Invoice ini tidak terhubung ke klien, tidak bisa memilih termin.</p>
+                ) : kategoriRabItems.length === 0 ? (
+                  <p className="text-xs text-muted-foreground mt-1">Tidak ada RAB item untuk klien ini.</p>
+                ) : (
+                  <select
+                    className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                    value={kategoriForm.rab_item_id}
+                    onChange={(e) => setKategoriForm((f) => ({ ...f, rab_item_id: e.target.value }))}
+                  >
+                    <option value="">— Pilih termin —</option>
+                    {kategoriRabItems.map((ri) => (
+                      <option key={ri.id} value={ri.id}>
+                        {ri.label}{ri.nilai > 0 ? ` — ${formatRp(ri.nilai)}` : ""}
+                        {ri.tipe === "penambahan" ? " (Penambahan)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" }); }}>Batal</Button>
+              <Button
+                disabled={!kategoriForm.kategori || setKategoriMut.isPending}
+                onClick={() => {
+                  if (!kategoriTarget) return;
+                  setKategoriMut.mutate({
+                    id: kategoriTarget.id,
+                    data: {
+                      kategori: kategoriForm.kategori,
+                      paket_desain: kategoriForm.kategori === "Payment Desain" ? kategoriForm.paket_desain : undefined,
+                      rab_item_id: kategoriForm.kategori === "Payment Projek" ? (kategoriForm.rab_item_id || undefined) : undefined,
+                    },
+                  });
+                }}
+              >
+                {setKategoriMut.isPending ? "Menyimpan..." : "Simpan"}
               </Button>
             </div>
           </div>
