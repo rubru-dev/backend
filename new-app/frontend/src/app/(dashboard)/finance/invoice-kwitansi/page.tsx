@@ -735,7 +735,7 @@ export default function InvoiceKwitansiPage() {
                                     <Pencil className="h-3 w-3 mr-1" /> Edit
                                   </Button>
                                 )}
-                                {canDelete && (inv.status !== "Lunas" || isSuperAdmin()) && (
+                                {canDelete && inv.status === "Draft" && (
                                   <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
                                     onClick={() => setConfirmDeleteId(inv.id)}>
                                     <Trash2 className="h-3 w-3 mr-1" /> Hapus
