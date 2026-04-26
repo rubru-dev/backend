@@ -807,7 +807,7 @@ router.delete("/bank-accounts/:id", requirePermission("finance", "delete"), asyn
 // ── /invoices – frontend-compatible alias ─────────────────────────────────────
 router.get("/invoices", requirePermission("finance", "view"), async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
-  const perPage = Math.min(parseInt(req.query.per_page as string) || 20, 100);
+  const perPage = Math.min(parseInt(req.query.per_page as string) || 20, 1000);
   const feStatus = req.query.status as string | undefined;
   const search = req.query.search as string | undefined;
   const where: Record<string, unknown> = {};

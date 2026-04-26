@@ -325,7 +325,7 @@ export default function InvoiceKwitansiPage() {
   // Invoice list
   const { data, isLoading } = useQuery({
     queryKey: ["invoices", filterStatus],
-    queryFn: () => api.list(filterStatus ? { status: filterStatus } : {}),
+    queryFn: () => api.list({ per_page: 1000, ...(filterStatus ? { status: filterStatus } : {}) }),
     retry: false,
   });
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
