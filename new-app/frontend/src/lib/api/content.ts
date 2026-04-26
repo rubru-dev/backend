@@ -185,6 +185,11 @@ export const sipilApi = {
     return apiClient.post(`/sipil/tasks/${taskId}/fotos`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
   deleteTaskFoto: (fotoId: string) => apiClient.delete(`/sipil/tasks/fotos/${fotoId}`).then((r) => r.data),
+  // RAB Termin
+  getRab: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/rab`).then((r) => r.data),
+  addRabItem: (projekId: string, data: { label: string; nilai: number; tipe: string }) => apiClient.post(`/sipil/projeks/${projekId}/rab`, data).then((r) => r.data),
+  updateRabItem: (itemId: string, data: { label?: string; nilai?: number }) => apiClient.patch(`/sipil/rab/${itemId}`, data).then((r) => r.data),
+  deleteRabItem: (itemId: string) => apiClient.delete(`/sipil/rab/${itemId}`).then((r) => r.data),
   // Checklist
   getChecklist: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/checklist`).then((r) => r.data),
   addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => {

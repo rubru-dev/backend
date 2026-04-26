@@ -632,6 +632,8 @@ model Invoice {
   grand_total                       Decimal         @default(0) @db.Decimal(15, 2)
   status                            String          @default("draft") @db.VarChar(50)
   kategori                          String?         @db.VarChar(100)
+  paket_desain                      String?         @db.VarChar(50)
+  rab_item_id                       BigInt?
   approved_by                       BigInt?
   approved_at                       DateTime?       @db.Timestamptz(6)
   signature_path                    String?         @db.VarChar(500)
@@ -655,6 +657,7 @@ model Invoice {
   bank_account  BankAccount? @relation(fields: [bank_account_id], references: [id], onUpdate: NoAction)
   kwitansi                         Kwitansi?
   client_portal_project            ClientPortalProject? @relation(fields: [client_portal_project_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  rab_item                          SipilRabItem?  @relation(fields: [rab_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   @@map("invoices")
 }
 
@@ -1213,10 +1216,25 @@ model ProyekBerjalan {
   termins ProyekBerjalanTermin[]
   sipil_usage_logs SipilUsageLog[]
   checklists        ChecklistSipil[]
+  rab_items         SipilRabItem[]
   pic                   User?                    @relation("ProyekBerjalanPIC", fields: [created_by], references: [id], onUpdate: NoAction)
   ro                    User?                    @relation("ProyekBerjalanRO", fields: [ro_id], references: [id], onUpdate: NoAction)
   lead                   Lead?                    @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
   @@map("proyek_berjalans")
+}
+
+model SipilRabItem {
+  id         BigInt         @id @default(autoincrement())
+  proyek_id  BigInt
+  label      String         @db.VarChar(100)
+  nilai      Decimal        @default(0) @db.Decimal(15, 2)
+  tipe       String         @default("main") @db.VarChar(20)
+  urutan     Int            @default(0)
+  created_at DateTime       @default(now()) @db.Timestamptz(6)
+  updated_at DateTime       @default(now()) @db.Timestamptz(6)
+  proyek     ProyekBerjalan @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  invoices   Invoice[]
+  @@map("sipil_rab_items")
 }
 
 model ProyekInteriorTask {

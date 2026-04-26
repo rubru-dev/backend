@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { sendFonnte, FRONTEND_URL } from "../lib/fontee";
+import { sendFonnte, sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
 
 const router = Router();
 
@@ -237,6 +237,15 @@ router.post("/leads/:id/approve-survey", requirePermission("bd", "approve"), asy
       data: { column_id: desainCol.id, lead_id: id, urutan: (maxCard?.urutan ?? 0) + 1 },
     });
   }
+
+  // Notifikasi WA ke Sales Admin: tagihan survey Rp 300.000
+  const surveyMsg =
+    `✅ *Survey Disetujui*\n` +
+    `Client: *${lead.nama}*\n` +
+    `Tagihan survey: *Rp 300.000*\n` +
+    `Harap buat invoice Payment Survey atas nama client tersebut.\n` +
+    `${FRONTEND_URL}/finance/invoice-kwitansi`;
+  sendFonntToRoles(["Sales Admin", "Admin Finance"], surveyMsg).catch(() => {});
 
   return res.json({ message: "Survey disetujui" });
 });

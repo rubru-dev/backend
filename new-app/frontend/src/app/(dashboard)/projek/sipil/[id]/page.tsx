@@ -27,7 +27,7 @@ import {
   Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
   Link2, ExternalLink, X, Upload, FileText, PackageSearch, Boxes, Camera, ImageIcon,
-  CheckSquare, Download,
+  CheckSquare, Download, DollarSign,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -608,6 +608,172 @@ function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
   );
 }
 
+// ── RAB Termin Tab ────────────────────────────────────────────────────────────────
+const IDR = (n: number) =>
+  new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
+
+type RabItem = { id: number; label: string; nilai: number; tipe: string };
+type EditVals = Record<number, { label: string; nilai: string }>;
+
+function RabRow({
+  item,
+  editVals,
+  setEditVals,
+  onSave,
+  onDelete,
+  onStartEdit,
+}: {
+  item: RabItem;
+  editVals: EditVals;
+  setEditVals: React.Dispatch<React.SetStateAction<EditVals>>;
+  onSave: (item: RabItem) => void;
+  onDelete: (id: number) => void;
+  onStartEdit: (item: RabItem) => void;
+}) {
+  const editing = !!editVals[item.id];
+  const v = editVals[item.id];
+  const canDelete = item.tipe === "penambahan" || (item.tipe === "main" && !["Booking Fee", "Retensi"].includes(item.label));
+  return (
+    <div className="flex items-center gap-3 py-2 border-b last:border-0">
+      {editing ? (
+        <>
+          <Input className="flex-1 h-8 text-sm" value={v.label}
+            onChange={(e) => setEditVals((p) => ({ ...p, [item.id]: { ...p[item.id], label: e.target.value } }))} />
+          <div className="flex flex-col items-end w-40">
+            <Input
+              className="h-8 text-sm text-right w-full"
+              type="text"
+              inputMode="numeric"
+              value={v.nilai}
+              onChange={(e) => {
+                const raw = e.target.value.replace(/[^\d]/g, "");
+                setEditVals((p) => ({ ...p, [item.id]: { ...p[item.id], nilai: raw } }));
+              }}
+            />
+            <span className="text-xs text-muted-foreground mt-0.5">{IDR(Number(v.nilai) || 0)}</span>
+          </div>
+          <Button size="sm" className="h-8 px-3" onClick={() => onSave(item)}>Simpan</Button>
+          <Button size="sm" variant="outline" className="h-8 px-3"
+            onClick={() => setEditVals((p) => { const n = { ...p }; delete n[item.id]; return n; })}>Batal</Button>
+        </>
+      ) : (
+        <>
+          <span className="flex-1 text-sm font-medium text-gray-700">{item.label}</span>
+          <span className="text-sm text-gray-900 font-semibold tabular-nums">{IDR(item.nilai)}</span>
+          <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => onStartEdit(item)}><Pencil className="h-3.5 w-3.5" /></Button>
+          {canDelete && (
+            <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => onDelete(item.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function RabTerminTab({ projekId }: { projekId: string }) {
+  const qc = useQueryClient();
+  const QK = ["sipil-rab", projekId];
+
+  const { data, isLoading } = useQuery<{
+    items: { id: number; label: string; nilai: number; tipe: string; urutan: number }[];
+    total_rab: number;
+    total_penambahan: number;
+    total_rab_penambahan: number;
+  }>({ queryKey: QK, queryFn: () => sipilApi.getRab(projekId), enabled: !!projekId });
+
+  const [editVals, setEditVals] = useState<EditVals>({});
+
+  const updateMut = useMutation({
+    mutationFn: ({ id, label, nilai }: { id: number; label: string; nilai: number }) =>
+      sipilApi.updateRabItem(String(id), { label, nilai }),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK }); toast.success("Disimpan"); },
+    onError: () => toast.error("Gagal menyimpan"),
+  });
+
+  const deleteMut = useMutation({
+    mutationFn: (id: number) => sipilApi.deleteRabItem(String(id)),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK }); toast.success("Dihapus"); },
+  });
+
+  const addMut = useMutation({
+    mutationFn: (payload: { label: string; nilai: number; tipe: string }) =>
+      sipilApi.addRabItem(projekId, payload),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: QK }); toast.success("Item ditambahkan"); },
+  });
+
+  function startEdit(item: RabItem) {
+    setEditVals((prev) => ({ ...prev, [item.id]: { label: item.label, nilai: String(item.nilai) } }));
+  }
+
+  function saveEdit(item: RabItem) {
+    const v = editVals[item.id];
+    if (!v) return;
+    updateMut.mutate({ id: item.id, label: v.label, nilai: parseFloat(v.nilai) || 0 });
+    setEditVals((prev) => { const n = { ...prev }; delete n[item.id]; return n; });
+  }
+
+  const mainItems = data?.items.filter((i) => i.tipe === "main") ?? [];
+  const penambahanItems = data?.items.filter((i) => i.tipe === "penambahan") ?? [];
+
+  if (isLoading) return <div className="py-8 text-center text-muted-foreground text-sm">Memuat data RAB...</div>;
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      {/* Summary cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div className="bg-teal-50 border border-teal-200 rounded-xl p-4">
+          <p className="text-xs text-teal-600 uppercase tracking-wide font-medium">Total RAB</p>
+          <p className="text-2xl font-bold text-teal-700 mt-1">{IDR(data?.total_rab ?? 0)}</p>
+          <p className="text-xs text-teal-500 mt-1">Booking Fee + Termin + Retensi</p>
+        </div>
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
+          <p className="text-xs text-orange-600 uppercase tracking-wide font-medium">Total RAB + Penambahan</p>
+          <p className="text-2xl font-bold text-orange-700 mt-1">{IDR(data?.total_rab_penambahan ?? 0)}</p>
+          <p className="text-xs text-orange-500 mt-1">Penambahan: {IDR(data?.total_penambahan ?? 0)}</p>
+        </div>
+      </div>
+
+      {/* Main items (Booking Fee, Termin 1,2,3, Retensi) */}
+      <div className="bg-white rounded-xl border p-4 space-y-1">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-800 text-sm">Rincian RAB</h3>
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+            onClick={() => {
+              const lastTermin = mainItems.filter((i) => i.label.startsWith("Termin")).length;
+              addMut.mutate({ label: `Termin ${lastTermin + 1}`, nilai: 0, tipe: "main" });
+            }}>
+            <Plus className="h-3.5 w-3.5" /> Tambah Termin
+          </Button>
+        </div>
+        {mainItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">Belum ada item.</p>
+        ) : (
+          mainItems.map((item) => <RabRow key={item.id} item={item} editVals={editVals} setEditVals={setEditVals} onSave={saveEdit} onDelete={(id) => deleteMut.mutate(id)} onStartEdit={startEdit} />)
+        )}
+      </div>
+
+      {/* Penambahan */}
+      <div className="bg-white rounded-xl border p-4 space-y-1">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-gray-800 text-sm">Penambahan</h3>
+          <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+            onClick={() => {
+              const n = penambahanItems.length + 1;
+              addMut.mutate({ label: `Penambahan ${n}`, nilai: 0, tipe: "penambahan" });
+            }}>
+            <Plus className="h-3.5 w-3.5" /> Tambah
+          </Button>
+        </div>
+        {penambahanItems.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-2">Belum ada penambahan.</p>
+        ) : (
+          penambahanItems.map((item) => <RabRow key={item.id} item={item} editVals={editVals} setEditVals={setEditVals} onSave={saveEdit} onDelete={(id) => deleteMut.mutate(id)} onStartEdit={startEdit} />)
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Main Detail Page ─────────────────────────────────────────────────────────────
 export default function ProyekSipilDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -970,7 +1136,6 @@ export default function ProyekSipilDetailPage() {
           </div>
           <div className="flex items-center gap-4 mt-1 flex-wrap text-sm text-muted-foreground">
             {detail.lokasi && <span>📍 {detail.lokasi}</span>}
-            {detail.nilai_rab > 0 && <span className="text-teal-600 font-medium">Rp {detail.nilai_rab.toLocaleString("id-ID")}</span>}
             {(detail.tanggal_mulai || detail.tanggal_selesai) && (
               <Badge variant="outline" className="text-xs flex items-center gap-1">
                 <CalendarRange className="h-3 w-3" />
@@ -998,6 +1163,7 @@ export default function ProyekSipilDetailPage() {
           {canTabStockOpname && <TabsTrigger value="stock-opname"><PackageSearch className="h-3.5 w-3.5 mr-1.5" />Stock Opname</TabsTrigger>}
           {canTabDokumentasi && <TabsTrigger value="dokumentasi"><Camera className="h-3.5 w-3.5 mr-1.5" />Dokumentasi</TabsTrigger>}
           {canTabChecklist   && <TabsTrigger value="checklist"><CheckSquare className="h-3.5 w-3.5 mr-1.5" />Form Checklist</TabsTrigger>}
+          {sa                && <TabsTrigger value="rab-termin"><DollarSign className="h-3.5 w-3.5 mr-1.5" />Termin</TabsTrigger>}
         </TabsList>
 
         {/* Daftar Termin */}
@@ -1447,6 +1613,13 @@ export default function ProyekSipilDetailPage() {
         <TabsContent value="checklist" className="mt-4">
           <ChecklistTab projekId={id} api={sipilApi} projekDetail={{ nama_proyek: detail?.nama_proyek, lead: detail?.lead, lokasi: detail?.lokasi, tipe: "PROYEK SIPIL" }} />
         </TabsContent>
+
+        {/* Termin RAB — Super Admin only */}
+        {sa && (
+          <TabsContent value="rab-termin" className="mt-4">
+            <RabTerminTab projekId={id} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Dialog Termin */}

@@ -55,6 +55,10 @@ export const financeApi = {
   getGaji: (id: number) => apiClient.get(`/finance/tukang/gaji/${id}`).then((r) => r.data),
   deleteGaji: (id: number) => apiClient.delete(`/finance/tukang/gaji/${id}`).then((r) => r.data),
 
-  // AR Outstanding
+  // AR
   getArOutstanding: () => apiClient.get("/finance/ar-outstanding").then((r) => r.data),
+  getArTagihanSurvey: () => apiClient.get("/finance/ar-tagihan-survey").then((r) => r.data),
+  getArTagihanDesain: () => apiClient.get("/finance/ar-tagihan-desain").then((r) => r.data),
+  getArTagihanProjek: () => apiClient.get("/finance/ar-tagihan-projek").then((r) => r.data),
+  getRabItemsByLead: (leadId: string | number) => apiClient.get(`/finance/leads/${leadId}/rab-items`).then((r) => r.data),
 };

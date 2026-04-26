@@ -100,7 +100,6 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["Desain"],
     items: [
       { label: "Follow Up After Survey", href: "/desain/follow-up-survey",         icon: "Kanban",          permission: "desain.follow_up" },
-      { label: "Progress Desain",        href: "/desain/kanban-paket-desain",       icon: "LayoutDashboard", permission: "desain.kanban_paket" },
       { label: "Projek Desain",          href: "/projek/desain",                    icon: "Palette",         permission: "projek_desain.view" },
       { label: "Laporan Harian",         href: "/desain/laporan-harian",            icon: "ClipboardList",   permission: "desain.laporan_harian" },
     ],

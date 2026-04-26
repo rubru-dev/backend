@@ -4,25 +4,26 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { config } from "../config";
+import { sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
 
 const router = Router();
 
 const DEFAULT_PEKERJAAN = [
   "Pembuatan Layout Eksisting & Perubahan",
   "Pembuatan Fasad 3D",
+  "Shop Drawing",
   "Pembuatan 3D Interior",
   "Pembuatan RAB",
   "Presentasi RAB",
-  "Shop Drawing",
 ];
 
 const KANBAN_PAKET_STAGES = [
   "Pembuatan Layout Eksisting & Perubahan",
   "Pembuatan Fasad 3D",
+  "Shop Drawing",
   "Pembuatan 3D Interior",
   "Pembuatan RAB",
   "Presentasi RAB",
-  "Shop Drawing",
 ];
 
 const BULAN_NAMES = [
@@ -380,6 +381,26 @@ router.patch("/timeline/items/:id", async (req: Request, res: Response) => {
   if (pic !== undefined) updates.pic = pic ? BigInt(pic) : null;
 
   await prisma.desainTimelineItem.update({ where: { id }, data: updates });
+
+  // When Shop Drawing is marked Selesai → notify Sales Admin + Admin Finance for sisa 50% invoice
+  if (status === "Selesai" && item.item_pekerjaan === "Shop Drawing" && tl.lead_id) {
+    const PRICING: Record<string, number> = {
+      Basic: 2_500_000, Standart: 6_800_000, Premium: 8_500_000, Deluxe: 15_800_000,
+    };
+    const lead = await prisma.lead.findUnique({ where: { id: tl.lead_id }, select: { nama: true } });
+    const harga = tl.jenis_desain ? (PRICING[tl.jenis_desain] ?? 0) : 0;
+    const sisa = harga * 0.5;
+    const sisaFmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(sisa);
+    const msg =
+      `🎨 *Shop Drawing Selesai*\n` +
+      `Client: *${lead?.nama ?? "-"}*\n` +
+      `Paket Desain: *${tl.jenis_desain ?? "-"}*\n` +
+      `Tagihan sisa 50%: *${sisaFmt}*\n` +
+      `Harap buat invoice Payment Desain atas nama client tersebut.\n` +
+      `${FRONTEND_URL}/finance/invoice-kwitansi`;
+    sendFonntToRoles(["Sales Admin", "Admin Finance"], msg).catch(() => {});
+  }
+
   return res.json({ message: "Item diupdate" });
 });
 

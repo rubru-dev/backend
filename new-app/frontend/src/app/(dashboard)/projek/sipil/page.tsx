@@ -31,7 +31,7 @@ type Projek = {
   progress: number;
 };
 
-const EMPTY_FORM = { nama_proyek: "", lead_id: "", ro_id: "", lokasi: "", nilai_rab: "", tanggal_mulai: "", tanggal_selesai: "" };
+const EMPTY_FORM = { nama_proyek: "", lead_id: "", ro_id: "", lokasi: "", tanggal_mulai: "", tanggal_selesai: "" };
 
 export default function ProyekSipilListPage() {
   const router = useRouter();
@@ -108,7 +108,6 @@ export default function ProyekSipilListPage() {
       lead_id: p.lead?.id ?? "",
       ro_id: p.ro?.id ?? "",
       lokasi: p.lokasi ?? "",
-      nilai_rab: p.nilai_rab?.toString() ?? "",
       tanggal_mulai: p.tanggal_mulai ?? "",
       tanggal_selesai: p.tanggal_selesai ?? "",
     });
@@ -120,7 +119,6 @@ export default function ProyekSipilListPage() {
       ...form,
       lead_id: form.lead_id || null,
       ro_id: form.ro_id || null,
-      nilai_rab: form.nilai_rab ? Number(form.nilai_rab) : 0,
       tanggal_mulai: form.tanggal_mulai || null,
       tanggal_selesai: form.tanggal_selesai || null,
     };
@@ -149,7 +147,6 @@ export default function ProyekSipilListPage() {
             <TableHead>Klien</TableHead>
             <TableHead>RO</TableHead>
             <TableHead>Lokasi</TableHead>
-            <TableHead className="text-right">Nilai RAB</TableHead>
             <TableHead>Periode</TableHead>
             <TableHead>Termin</TableHead>
             <TableHead>Progress</TableHead>
@@ -159,7 +156,7 @@ export default function ProyekSipilListPage() {
         <TableBody>
           {isLoading && Array.from({ length: 4 }).map((_, i) => (
             <TableRow key={i}>
-              {Array.from({ length: 9 }).map((__, j) => (
+              {Array.from({ length: 8 }).map((__, j) => (
                 <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
               ))}
             </TableRow>
@@ -180,9 +177,6 @@ export default function ProyekSipilListPage() {
               <TableCell className="text-sm text-muted-foreground">{p.lead?.nama ?? "—"}</TableCell>
               <TableCell className="text-sm text-muted-foreground">{p.ro?.nama ?? "—"}</TableCell>
               <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{p.lokasi ?? "—"}</TableCell>
-              <TableCell className="text-right text-sm">
-                {p.nilai_rab > 0 ? "Rp " + p.nilai_rab.toLocaleString("id-ID") : "—"}
-              </TableCell>
               <TableCell>
                 {(p.tanggal_mulai || p.tanggal_selesai) ? (
                   <Badge variant="outline" className="text-xs flex items-center gap-1 whitespace-nowrap">
@@ -218,7 +212,7 @@ export default function ProyekSipilListPage() {
           ))}
           {!isLoading && projeks.length === 0 && (
             <TableRow>
-              <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
+              <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
                 <Building2 className="mx-auto h-10 w-10 opacity-20 mb-3" />
                 <p className="font-medium">Belum ada Projek Sipil</p>
                 <p className="text-sm mt-1">Klik &quot;Tambah Proyek&quot; untuk membuat yang pertama</p>
@@ -251,7 +245,7 @@ export default function ProyekSipilListPage() {
               </Select>
             </div>
             <div>
-              <Label>RO (Research Officer)</Label>
+              <Label>RO (Relationship Officer)</Label>
               <Select value={form.ro_id || "__none__"} onValueChange={(v) => setForm({ ...form, ro_id: v === "__none__" ? "" : v })}>
                 <SelectTrigger><SelectValue placeholder="Pilih RO (opsional)" /></SelectTrigger>
                 <SelectContent>
@@ -261,7 +255,6 @@ export default function ProyekSipilListPage() {
               </Select>
             </div>
             <div><Label>Lokasi</Label><Input placeholder="Alamat atau lokasi proyek" value={form.lokasi} onChange={(e) => setForm({ ...form, lokasi: e.target.value })} /></div>
-            <div><Label>Nilai RAB (Rp)</Label><Input type="number" value={form.nilai_rab} onChange={(e) => setForm({ ...form, nilai_rab: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label>Tgl Mulai Proyek</Label>

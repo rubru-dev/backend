@@ -924,4 +924,82 @@ router.delete("/checklist/:cid", async (req: Request, res: Response) => {
   return res.json({ message: "Checklist item dihapus" });
 });
 
+// ── RAB Termin ────────────────────────────────────────────────────────────────
+
+const DEFAULT_RAB_ITEMS = [
+  { label: "Booking Fee", tipe: "main", urutan: 0 },
+  { label: "Termin 1",    tipe: "main", urutan: 1 },
+  { label: "Termin 2",    tipe: "main", urutan: 2 },
+  { label: "Termin 3",    tipe: "main", urutan: 3 },
+  { label: "Retensi",     tipe: "main", urutan: 4 },
+];
+
+function mapRabItem(i: { id: bigint; label: string; nilai: unknown; tipe: string; urutan: number }) {
+  return { id: Number(i.id), label: i.label, nilai: parseFloat(String(i.nilai ?? 0)), tipe: i.tipe, urutan: i.urutan };
+}
+
+// GET /sipil/projeks/:id/rab
+router.get("/projeks/:id/rab", async (req: Request, res: Response) => {
+  const proyekId = BigInt(req.params.id);
+  let items = await prisma.sipilRabItem.findMany({
+    where: { proyek_id: proyekId },
+    orderBy: [{ tipe: "asc" }, { urutan: "asc" }],
+  });
+
+  // Auto-initialize default items on first access
+  if (items.length === 0) {
+    await prisma.sipilRabItem.createMany({
+      data: DEFAULT_RAB_ITEMS.map((d) => ({ proyek_id: proyekId, ...d, nilai: 0 })),
+    });
+    items = await prisma.sipilRabItem.findMany({
+      where: { proyek_id: proyekId },
+      orderBy: [{ tipe: "asc" }, { urutan: "asc" }],
+    });
+  }
+
+  const main = items.filter((i) => i.tipe === "main");
+  const penambahan = items.filter((i) => i.tipe === "penambahan");
+  const totalRab = main.reduce((s, i) => s + parseFloat(String(i.nilai ?? 0)), 0);
+  const totalPenambahan = penambahan.reduce((s, i) => s + parseFloat(String(i.nilai ?? 0)), 0);
+
+  return res.json({
+    items: items.map(mapRabItem),
+    total_rab: totalRab,
+    total_penambahan: totalPenambahan,
+    total_rab_penambahan: totalRab + totalPenambahan,
+  });
+});
+
+// POST /sipil/projeks/:id/rab — tambah item (termin baru atau penambahan)
+router.post("/projeks/:id/rab", async (req: Request, res: Response) => {
+  const proyekId = BigInt(req.params.id);
+  const { label, nilai, tipe = "main" } = req.body;
+  const last = await prisma.sipilRabItem.findFirst({
+    where: { proyek_id: proyekId, tipe },
+    orderBy: { urutan: "desc" },
+  });
+  const item = await prisma.sipilRabItem.create({
+    data: { proyek_id: proyekId, label: label ?? "Termin", nilai: nilai ?? 0, tipe, urutan: (last?.urutan ?? -1) + 1 },
+  });
+  return res.status(201).json(mapRabItem(item));
+});
+
+// PATCH /sipil/rab/:itemId — update label atau nilai
+router.patch("/rab/:itemId", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.itemId);
+  const { label, nilai } = req.body;
+  const updates: Record<string, unknown> = { updated_at: new Date() };
+  if (label !== undefined) updates.label = label;
+  if (nilai !== undefined) updates.nilai = nilai;
+  const item = await prisma.sipilRabItem.update({ where: { id }, data: updates });
+  return res.json(mapRabItem(item));
+});
+
+// DELETE /sipil/rab/:itemId
+router.delete("/rab/:itemId", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.itemId);
+  await prisma.sipilRabItem.delete({ where: { id } });
+  return res.json({ message: "Item dihapus" });
+});
+
 export default router;

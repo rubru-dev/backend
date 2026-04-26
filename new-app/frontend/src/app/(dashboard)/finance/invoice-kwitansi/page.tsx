@@ -82,6 +82,8 @@ const EMPTY_FORM = {
   ppn_percentage: 0,
   catatan: "",
   kategori: "",
+  paket_desain: "",
+  rab_item_id: "",
   items: [{ keterangan: "", jumlah: 1, harga_satuan: 0 }],
   bank_account_id: "",
   overdue_date: "",
@@ -260,6 +262,15 @@ export default function InvoiceKwitansiPage() {
   const [form, setForm] = useState<any>(EMPTY_FORM);
   const [leadSearch, setLeadSearch] = useState("");
   const [showLeadDropdown, setShowLeadDropdown] = useState(false);
+  const [rabItems, setRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string }[]>([]);
+
+  useEffect(() => {
+    if (form.kategori === "Payment Projek" && form.lead_id) {
+      apiClient.get(`/finance/leads/${form.lead_id}/rab-items`).then((r) => setRabItems(r.data)).catch(() => setRabItems([]));
+    } else {
+      setRabItems([]);
+    }
+  }, [form.kategori, form.lead_id]);
 
   // Table state
   const [expandedId, setExpandedId] = useState<number | null>(null);
@@ -678,6 +689,8 @@ export default function InvoiceKwitansiPage() {
                                         bank_account_id: inv.bank_account?.id ? String(inv.bank_account.id) : "",
                                         overdue_date: inv.overdue_date ? new Date(inv.overdue_date).toISOString().split("T")[0] : "",
                                         kategori: inv.kategori || "",
+                                        paket_desain: inv.paket_desain || "",
+                                        rab_item_id: inv.rab_item_id ? String(inv.rab_item_id) : "",
                                         _nomorManual: true,
                                       });
                                       setLeadSearch(inv.lead?.nama || "");
@@ -892,7 +905,7 @@ export default function InvoiceKwitansiPage() {
               <Label>Kategori</Label>
               <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
                 value={form.kategori}
-                onChange={e => setForm({ ...form, kategori: e.target.value })}>
+                onChange={e => setForm({ ...form, kategori: e.target.value, paket_desain: "", rab_item_id: "" })}>
                 <option value="">— Pilih kategori —</option>
                 <option value="Payment Desain">Payment Desain</option>
                 <option value="Payment Survey">Payment Survey</option>
@@ -900,6 +913,44 @@ export default function InvoiceKwitansiPage() {
                 <option value="Payment Golden">Payment Golden</option>
               </select>
             </div>
+
+            {form.kategori === "Payment Desain" && (
+              <div>
+                <Label>Paket Desain</Label>
+                <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                  value={form.paket_desain}
+                  onChange={e => setForm({ ...form, paket_desain: e.target.value })}>
+                  <option value="">— Pilih paket —</option>
+                  <option value="Basic">Basic — Rp 2.500.000</option>
+                  <option value="Standart">Standart — Rp 6.800.000</option>
+                  <option value="Premium">Premium — Rp 8.500.000</option>
+                  <option value="Deluxe">Deluxe — Rp 15.800.000</option>
+                </select>
+              </div>
+            )}
+
+            {form.kategori === "Payment Projek" && (
+              <div>
+                <Label>Termin / Item RAB</Label>
+                {!form.lead_id ? (
+                  <p className="text-xs text-muted-foreground mt-1">Pilih klien terlebih dahulu untuk melihat daftar termin.</p>
+                ) : rabItems.length === 0 ? (
+                  <p className="text-xs text-muted-foreground mt-1">Tidak ada RAB item untuk klien ini. Buat termin di tab Termin pada halaman Projek Sipil.</p>
+                ) : (
+                  <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                    value={form.rab_item_id}
+                    onChange={e => setForm({ ...form, rab_item_id: e.target.value })}>
+                    <option value="">— Pilih termin —</option>
+                    {rabItems.map((ri) => (
+                      <option key={ri.id} value={ri.id}>
+                        {ri.label}{ri.nilai > 0 ? ` — ${formatRp(ri.nilai)}` : ""}
+                        {ri.tipe === "penambahan" ? " (Penambahan)" : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
+            )}
 
             <div>
               <Label>Catatan</Label>
@@ -930,6 +981,8 @@ export default function InvoiceKwitansiPage() {
                     bank_account_id: form.bank_account_id || undefined,
                     catatan: form.catatan,
                     kategori: form.kategori || undefined,
+                    paket_desain: form.kategori === "Payment Desain" ? (form.paket_desain || undefined) : undefined,
+                    rab_item_id: form.kategori === "Payment Projek" ? (form.rab_item_id || undefined) : undefined,
                     items: form.items,
                   };
                   if (editId) updateMut.mutate({ id: editId, data: payload });

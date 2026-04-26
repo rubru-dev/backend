@@ -78,6 +78,8 @@ function invoiceDictFrontend(inv: any) {
     admin_finance_at: inv.admin_finance_at,
     admin_finance_signature: inv.admin_finance_signature || null,
     kategori: inv.kategori || null,
+    paket_desain: inv.paket_desain || null,
+    rab_item_id: inv.rab_item_id ? Number(inv.rab_item_id) : null,
     items: (inv.items || []).map((item: any) => ({
       id: item.id,
       keterangan: item.description || "",
@@ -823,7 +825,7 @@ router.get("/invoices", requirePermission("finance", "view"), async (req: Reques
 });
 
 router.post("/invoices", requirePermission("finance", "view"), async (req: Request, res: Response) => {
-  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, items = [] } = req.body;
+  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, items = [] } = req.body;
   const tgl = tanggal ? new Date(tanggal) : new Date();
   // Determine invoice number: manual input or auto-generate from lead jenis
   let invoiceNumber = nomor_invoice || "";
@@ -854,6 +856,8 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
       ppn_percentage: ppnPct, subtotal, ppn_amount: ppnAmt, grand_total: subtotal + ppnAmt,
       status: "draft",
       kategori: kategori || null,
+      paket_desain: paket_desain || null,
+      rab_item_id: rab_item_id ? BigInt(rab_item_id) : null,
       created_by: req.user!.id,
       items: { create: itemsData },
     },
@@ -874,7 +878,7 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   if (inv.head_finance_id || inv.admin_finance_id) {
     return res.status(400).json({ detail: "Invoice yang sudah ditandatangani tidak bisa diubah" });
   }
-  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, items } = req.body;
+  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, items } = req.body;
   const updates: Record<string, unknown> = {};
   if (nomor_invoice !== undefined) updates.invoice_number = nomor_invoice;
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
@@ -883,6 +887,8 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   if (catatan !== undefined) updates.catatan = catatan;
   if (bank_account_id !== undefined) updates.bank_account_id = bank_account_id ? BigInt(bank_account_id) : null;
   if (kategori !== undefined) updates.kategori = kategori || null;
+  if (paket_desain !== undefined) updates.paket_desain = paket_desain || null;
+  if (rab_item_id !== undefined) updates.rab_item_id = rab_item_id ? BigInt(rab_item_id) : null;
 
   // Recalculate subtotal/ppn/grand_total bila items atau ppn_percentage berubah
   let newSubtotal: number | null = null;
@@ -2947,6 +2953,203 @@ router.get("/tukang-absen/:pid/my-bon", async (req: Request, res: Response) => {
     catatan: b.catatan,
     created_at: b.created_at,
   })));
+});
+
+// GET /finance/ar-tagihan-survey — Tagihan survey 300rb per approved lead
+router.get("/ar-tagihan-survey", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
+  const SURVEY_FEE = 300_000;
+
+  // Approved surveys from non-golden leads
+  const leads = await prisma.lead.findMany({
+    where: {
+      survey_approval_status: "approved",
+      OR: [{ modul: null }, { modul: { notIn: ["golden"] } }],
+    },
+    select: {
+      id: true,
+      nama: true,
+      pic_survey: true,
+      tanggal_survey: true,
+      survey_approved_at: true,
+    },
+    orderBy: { survey_approved_at: "desc" },
+  });
+
+  const leadIds = leads.map((l) => l.id);
+  const paymentMap = new Map<bigint, number>();
+  if (leadIds.length > 0) {
+    const paidInvoices = await prisma.invoice.findMany({
+      where: { lead_id: { in: leadIds }, kategori: "Payment Survey", status: "Lunas" },
+      select: { lead_id: true, kwitansi: { select: { jumlah_diterima: true } } },
+    });
+    for (const inv of paidInvoices) {
+      if (!inv.lead_id) continue;
+      const amt = parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0));
+      paymentMap.set(inv.lead_id, (paymentMap.get(inv.lead_id) ?? 0) + amt);
+    }
+  }
+
+  const rows = leads.map((l) => {
+    const totalTerbayar = paymentMap.get(l.id) ?? 0;
+    return {
+      lead_id: Number(l.id),
+      nama_client: l.nama,
+      pic_survey: l.pic_survey ?? "-",
+      tanggal_survey: l.tanggal_survey,
+      survey_approved_at: l.survey_approved_at,
+      tagihan: SURVEY_FEE,
+      total_terbayar: totalTerbayar,
+      outstanding: Math.max(0, SURVEY_FEE - totalTerbayar),
+    };
+  });
+
+  return res.json(rows);
+});
+
+// GET /finance/ar-tagihan-desain — Tagihan desain berdasarkan invoice kategori "Payment Desain"
+router.get("/ar-tagihan-desain", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
+  const PRICING: Record<string, number> = {
+    Basic: 2_500_000, Standart: 6_800_000, Premium: 8_500_000, Deluxe: 15_800_000,
+  };
+
+  // Semua invoice Payment Desain, urut terlama dulu agar paket_desain dari invoice pertama diambil
+  const invoices = await prisma.invoice.findMany({
+    where: { kategori: "Payment Desain", lead_id: { not: null } },
+    select: {
+      id: true, lead_id: true, paket_desain: true, status: true, tanggal: true,
+      lead: { select: { nama: true } },
+      kwitansi: { select: { jumlah_diterima: true } },
+    },
+    orderBy: { created_at: "asc" },
+  });
+
+  // Group by lead_id
+  type Group = { nama_client: string; paket: string; lead_id: bigint; invoices: typeof invoices };
+  const groupMap = new Map<bigint, Group>();
+  for (const inv of invoices) {
+    if (!inv.lead_id) continue;
+    const key = inv.lead_id;
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        lead_id: key,
+        nama_client: inv.lead?.nama ?? "-",
+        paket: inv.paket_desain ?? "-",
+        invoices: [],
+      });
+    }
+    groupMap.get(key)!.invoices.push(inv);
+  }
+
+  const rows = Array.from(groupMap.values()).map((g) => {
+    const harga = PRICING[g.paket] ?? 0;
+    const terbayar = g.invoices
+      .filter((i) => i.status === "Lunas")
+      .reduce((sum, i) => sum + parseFloat(String(i.kwitansi?.jumlah_diterima ?? 0)), 0);
+    const firstDate = g.invoices[0]?.tanggal;
+    return {
+      lead_id: Number(g.lead_id),
+      nama_client: g.nama_client,
+      paket: g.paket,
+      harga_total: harga,
+      total_terbayar: terbayar,
+      outstanding: Math.max(0, harga - terbayar),
+      invoice_count: g.invoices.length,
+      tanggal_pertama: firstDate ? new Date(firstDate).toISOString().split("T")[0] : null,
+    };
+  });
+
+  return res.json(rows);
+});
+
+// GET /finance/leads/:leadId/rab-items — RAB items for a lead's sipil project (for invoice dropdown)
+router.get("/leads/:leadId/rab-items", requirePermission("finance", "view"), async (req: Request, res: Response) => {
+  const { leadId } = req.params;
+  const proyek = await prisma.proyekBerjalan.findFirst({
+    where: { lead_id: BigInt(leadId) },
+    select: { id: true, nama_proyek: true, rab_items: { orderBy: { urutan: "asc" } } },
+  });
+  if (!proyek) return res.json([]);
+  return res.json(proyek.rab_items.map((ri) => ({
+    id: Number(ri.id),
+    label: ri.label,
+    nilai: parseFloat(String(ri.nilai)),
+    tipe: ri.tipe,
+  })));
+});
+
+// GET /finance/ar-tagihan-projek — Tagihan projek sipil berdasarkan invoice Payment Projek
+router.get("/ar-tagihan-projek", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
+  const invoices = await prisma.invoice.findMany({
+    where: { kategori: "Payment Projek", lead_id: { not: null } },
+    select: {
+      id: true, lead_id: true, rab_item_id: true, status: true, tanggal: true,
+      lead: { select: { nama: true } },
+      kwitansi: { select: { jumlah_diterima: true } },
+    },
+    orderBy: { created_at: "asc" },
+  });
+
+  if (invoices.length === 0) return res.json([]);
+
+  const leadIds = [...new Set(invoices.map((i) => i.lead_id!))];
+
+  const projeksList = await prisma.proyekBerjalan.findMany({
+    where: { lead_id: { in: leadIds } },
+    select: {
+      id: true, lead_id: true, nama_proyek: true,
+      rab_items: { orderBy: { urutan: "asc" } },
+    },
+  });
+
+  const projekByLead = new Map(projeksList.map((p) => [String(p.lead_id), p]));
+
+  const invByRabItem = new Map<string, typeof invoices[0]>();
+  for (const inv of invoices) {
+    if (inv.rab_item_id) invByRabItem.set(String(inv.rab_item_id), inv);
+  }
+
+  const rows = leadIds.map((leadId) => {
+    const leadInvs = invoices.filter((i) => String(i.lead_id) === String(leadId));
+    const proyek = projekByLead.get(String(leadId));
+    const nama_client = leadInvs[0]?.lead?.nama ?? "-";
+    const rabItems = proyek?.rab_items ?? [];
+
+    const itemsData = rabItems.map((ri) => {
+      const inv = invByRabItem.get(String(ri.id));
+      const terbayar = inv?.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
+      return {
+        rab_item_id: Number(ri.id),
+        label: ri.label,
+        nilai: parseFloat(String(ri.nilai)),
+        tipe: ri.tipe,
+        invoice_id: inv ? Number(inv.id) : null,
+        invoice_status: inv?.status ?? null,
+        terbayar,
+      };
+    });
+
+    const mainItems = itemsData.filter((i) => i.tipe === "main");
+    const penambahanItems = itemsData.filter((i) => i.tipe === "penambahan");
+    const total_rab = mainItems.reduce((s, i) => s + i.nilai, 0);
+    const total_penambahan = penambahanItems.reduce((s, i) => s + i.nilai, 0);
+    const total_terbayar = itemsData.reduce((s, i) => s + i.terbayar, 0);
+    const outstanding = Math.max(0, total_rab + total_penambahan - total_terbayar);
+
+    const firstDate = leadInvs[0]?.tanggal;
+    return {
+      lead_id: Number(leadId),
+      nama_client,
+      nama_proyek: proyek?.nama_proyek ?? null,
+      items: itemsData,
+      total_rab,
+      total_penambahan,
+      total_terbayar,
+      outstanding,
+      tanggal_pertama: firstDate ? new Date(firstDate).toISOString().split("T")[0] : null,
+    };
+  });
+
+  return res.json(rows);
 });
 
 // GET /finance/ar-outstanding — Tagihan outstanding per proyek
