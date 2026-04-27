@@ -5,7 +5,7 @@ import { financeApi } from "@/lib/api/finance";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Download, Pencil, Lock } from "lucide-react";
+import { ChevronDown, Download, Pencil } from "lucide-react";
 import { Document, Page, Text, View, StyleSheet, pdf as toPdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { useAuthStore } from "@/store/authStore";
@@ -265,6 +265,7 @@ interface SurveyRow {
   tagihan: number;
   total_terbayar: number;
   outstanding: number;
+  deadline: string | null;
   has_override: boolean;
 }
 
@@ -277,6 +278,7 @@ interface DesainRow {
   outstanding: number;
   invoice_count: number;
   tanggal_pertama: string | null;
+  deadline: string | null;
   has_override: boolean;
 }
 
@@ -299,18 +301,19 @@ interface ProjekRow {
   total_terbayar: number;
   outstanding: number;
   tanggal_pertama: string | null;
+  deadline: string | null;
   has_override: boolean;
 }
 
 // ── Override Dialog ────────────────────────────────────────────────────────────
-interface OverrideTarget { tab_type: string; lead_id: number; nama_client: string; tagihan: number; terbayar: number; outstanding: number }
+interface OverrideTarget { tab_type: string; lead_id: number; nama_client: string; tagihan: number; terbayar: number; outstanding: number; deadline: string | null }
 
 function ArOverrideDialog({ target, onClose, onSuccess }: {
   target: OverrideTarget | null;
   onClose: () => void;
   onSuccess: () => void;
 }) {
-  const [form, setForm] = useState({ tagihan: "", terbayar: "", outstanding: "" });
+  const [form, setForm] = useState({ tagihan: "", terbayar: "", outstanding: "", deadline: "" });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -318,6 +321,7 @@ function ArOverrideDialog({ target, onClose, onSuccess }: {
       tagihan: String(target.tagihan),
       terbayar: String(target.terbayar),
       outstanding: String(target.outstanding),
+      deadline: target.deadline ?? "",
     });
   }, [target]);
 
@@ -331,8 +335,9 @@ function ArOverrideDialog({ target, onClose, onSuccess }: {
         tagihan: parseFloat(form.tagihan) || 0,
         terbayar: parseFloat(form.terbayar) || 0,
         outstanding: parseFloat(form.outstanding) || 0,
+        deadline: form.deadline || null,
       });
-      toast.success("Override berhasil disimpan (permanen)");
+      toast.success("Override berhasil disimpan");
       onSuccess();
       onClose();
     } catch (e: any) {
@@ -353,8 +358,8 @@ function ArOverrideDialog({ target, onClose, onSuccess }: {
         <p className="text-sm text-muted-foreground -mt-2">
           Client: <span className="font-medium text-foreground">{target?.nama_client}</span>
         </p>
-        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-          ⚠️ Edit ini bersifat permanen dan hanya bisa dilakukan satu kali.
+        <p className="text-xs text-blue-600 bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
+          Nilai yang diisi akan menggantikan kalkulasi otomatis di AR.
         </p>
         <div className="space-y-3">
           {(["tagihan", "terbayar", "outstanding"] as const).map((field) => (
@@ -367,10 +372,18 @@ function ArOverrideDialog({ target, onClose, onSuccess }: {
               />
             </div>
           ))}
+          <div className="space-y-1">
+            <Label>Deadline</Label>
+            <Input
+              type="date"
+              value={form.deadline}
+              onChange={(e) => setForm((f) => ({ ...f, deadline: e.target.value }))}
+            />
+          </div>
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose} disabled={saving}>Batal</Button>
-          <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Permanen"}</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
         </div>
       </DialogContent>
     </Dialog>
@@ -468,6 +481,7 @@ function SurveyTab() {
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Tagihan</th>
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Terbayar</th>
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Outstanding</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Deadline</th>
                 {isAdmin && <th className="px-4 py-3 w-10" />}
               </tr>
             </thead>
@@ -489,12 +503,10 @@ function SurveyTab() {
                     <td className="px-4 py-3 text-right">
                       <span className={cn("font-semibold", r.outstanding <= 0 ? "text-green-600" : "text-red-600")}>{IDR(r.outstanding)}</span>
                     </td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{r.deadline ? fmtDate(r.deadline) : "—"}</td>
                     {isAdmin && (
                       <td className="px-2 py-3 text-center">
-                        {r.has_override
-                          ? <Lock className="h-3.5 w-3.5 text-gray-300 mx-auto" />
-                          : <button onClick={() => setOverrideTarget({ tab_type: "survey", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.tagihan, terbayar: r.total_terbayar, outstanding: r.outstanding })} className="p-1 hover:bg-gray-100 rounded" title="Edit manual"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
-                        }
+                        <button onClick={() => setOverrideTarget({ tab_type: "survey", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.tagihan, terbayar: r.total_terbayar, outstanding: r.outstanding, deadline: r.deadline })} className="p-1 hover:bg-gray-100 rounded"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
                       </td>
                     )}
                   </tr>
@@ -508,6 +520,7 @@ function SurveyTab() {
                   <td className="px-4 py-3 text-right text-gray-800">{IDR(totals.tagihan)}</td>
                   <td className="px-4 py-3 text-right text-green-700">{IDR(totals.terbayar)}</td>
                   <td className={cn("px-4 py-3 text-right", totals.outstanding > 0 ? "text-red-600" : "text-green-600")}>{IDR(totals.outstanding)}</td>
+                  <td />
                   {isAdmin && <td />}
                 </tr>
               </tfoot>
@@ -616,6 +629,7 @@ function DesainTab() {
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Terbayar</th>
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Outstanding</th>
                 <th className="px-4 py-3 text-center font-medium text-gray-500">Invoice</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Deadline</th>
                 {isAdmin && <th className="px-4 py-3 w-10" />}
               </tr>
             </thead>
@@ -640,12 +654,10 @@ function DesainTab() {
                       <span className={cn("font-semibold", r.outstanding <= 0 ? "text-green-600" : "text-red-600")}>{IDR(r.outstanding)}</span>
                     </td>
                     <td className="px-4 py-3 text-center text-gray-500 text-xs">{r.invoice_count} invoice</td>
+                    <td className="px-4 py-3 text-sm text-gray-500">{r.deadline ? fmtDate(r.deadline) : "—"}</td>
                     {isAdmin && (
                       <td className="px-2 py-3 text-center">
-                        {r.has_override
-                          ? <Lock className="h-3.5 w-3.5 text-gray-300 mx-auto" />
-                          : <button onClick={() => setOverrideTarget({ tab_type: "desain", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.harga_total, terbayar: r.total_terbayar, outstanding: r.outstanding })} className="p-1 hover:bg-gray-100 rounded" title="Edit manual"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
-                        }
+                        <button onClick={() => setOverrideTarget({ tab_type: "desain", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.harga_total, terbayar: r.total_terbayar, outstanding: r.outstanding, deadline: r.deadline })} className="p-1 hover:bg-gray-100 rounded"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
                       </td>
                     )}
                   </tr>
@@ -659,6 +671,7 @@ function DesainTab() {
                   <td className="px-4 py-3 text-right text-gray-800">{IDR(totals.total)}</td>
                   <td className="px-4 py-3 text-right text-green-700">{IDR(totals.terbayar)}</td>
                   <td className={cn("px-4 py-3 text-right", totals.outstanding > 0 ? "text-red-600" : "text-green-600")}>{IDR(totals.outstanding)}</td>
+                  <td />
                   <td />
                   {isAdmin && <td />}
                 </tr>
@@ -798,13 +811,16 @@ function ProyekTab() {
                     <p className="text-xs text-gray-400">Outstanding</p>
                     <p className={cn("text-sm font-bold", r.outstanding > 0 ? "text-red-600" : "text-green-600")}>{IDR(r.outstanding)}</p>
                   </div>
+                  {r.deadline && (
+                    <div className="text-right hidden sm:block">
+                      <p className="text-xs text-gray-400">Deadline</p>
+                      <p className="text-sm font-medium text-orange-600">{fmtDate(r.deadline)}</p>
+                    </div>
+                  )}
                   <ChevronDown className={cn("h-4 w-4 text-gray-400 flex-shrink-0 transition-transform", isExpanded && "rotate-180")} />
                   {isAdmin && (
                     <span onClick={(e) => e.stopPropagation()}>
-                      {r.has_override
-                        ? <Lock className="h-3.5 w-3.5 text-gray-300" />
-                        : <button onClick={() => setOverrideTarget({ tab_type: "projek", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.total_rab + r.total_penambahan, terbayar: r.total_terbayar, outstanding: r.outstanding })} className="p-1 hover:bg-gray-100 rounded" title="Edit manual"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
-                      }
+                      <button onClick={() => setOverrideTarget({ tab_type: "projek", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.total_rab + r.total_penambahan, terbayar: r.total_terbayar, outstanding: r.outstanding, deadline: r.deadline })} className="p-1 hover:bg-gray-100 rounded"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
                     </span>
                   )}
                 </button>

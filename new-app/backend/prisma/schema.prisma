@@ -1927,14 +1927,15 @@ model User {
 }
 
 model ArOverride {
-  id          BigInt   @id @default(autoincrement())
-  tab_type    String   @db.VarChar(20)
+  id          BigInt    @id @default(autoincrement())
+  tab_type    String    @db.VarChar(20)
   lead_id     BigInt
-  tagihan     Decimal  @db.Decimal(18, 2)
-  terbayar    Decimal  @db.Decimal(18, 2)
-  outstanding Decimal  @db.Decimal(18, 2)
+  tagihan     Decimal   @db.Decimal(18, 2)
+  terbayar    Decimal   @db.Decimal(18, 2)
+  outstanding Decimal   @db.Decimal(18, 2)
+  deadline    DateTime? @db.Date
   created_by  BigInt
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  created_at  DateTime  @default(now()) @db.Timestamptz(6)
 
   lead        Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   creator     User     @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)

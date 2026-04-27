@@ -61,6 +61,6 @@ export const financeApi = {
   getArTagihanDesain: () => apiClient.get("/finance/ar-tagihan-desain").then((r) => r.data),
   getArTagihanProjek: () => apiClient.get("/finance/ar-tagihan-projek").then((r) => r.data),
   getRabItemsByLead: (leadId: string | number) => apiClient.get(`/finance/leads/${leadId}/rab-items`).then((r) => r.data),
-  createArOverride: (data: { tab_type: string; lead_id: number; tagihan: number; terbayar: number; outstanding: number }) =>
+  createArOverride: (data: { tab_type: string; lead_id: number; tagihan: number; terbayar: number; outstanding: number; deadline?: string | null }) =>
     apiClient.post("/finance/ar-override", data).then((r) => r.data),
 };
