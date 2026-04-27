@@ -5,9 +5,13 @@ import { financeApi } from "@/lib/api/finance";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Download } from "lucide-react";
+import { ChevronDown, Download, Pencil, Lock } from "lucide-react";
 import { Document, Page, Text, View, StyleSheet, pdf as toPdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
+import { useAuthStore } from "@/store/authStore";
+import { toast } from "sonner";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
 
 const IDR = (n: number) =>
   new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n);
@@ -261,6 +265,7 @@ interface SurveyRow {
   tagihan: number;
   total_terbayar: number;
   outstanding: number;
+  has_override: boolean;
 }
 
 interface DesainRow {
@@ -272,6 +277,7 @@ interface DesainRow {
   outstanding: number;
   invoice_count: number;
   tanggal_pertama: string | null;
+  has_override: boolean;
 }
 
 interface ProjekItem {
@@ -293,6 +299,82 @@ interface ProjekRow {
   total_terbayar: number;
   outstanding: number;
   tanggal_pertama: string | null;
+  has_override: boolean;
+}
+
+// ── Override Dialog ────────────────────────────────────────────────────────────
+interface OverrideTarget { tab_type: string; lead_id: number; nama_client: string; tagihan: number; terbayar: number; outstanding: number }
+
+function ArOverrideDialog({ target, onClose, onSuccess }: {
+  target: OverrideTarget | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [form, setForm] = useState({ tagihan: "", terbayar: "", outstanding: "" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (target) setForm({
+      tagihan: String(target.tagihan),
+      terbayar: String(target.terbayar),
+      outstanding: String(target.outstanding),
+    });
+  }, [target]);
+
+  async function handleSave() {
+    if (!target) return;
+    setSaving(true);
+    try {
+      await financeApi.createArOverride({
+        tab_type: target.tab_type,
+        lead_id: target.lead_id,
+        tagihan: parseFloat(form.tagihan) || 0,
+        terbayar: parseFloat(form.terbayar) || 0,
+        outstanding: parseFloat(form.outstanding) || 0,
+      });
+      toast.success("Override berhasil disimpan (permanen)");
+      onSuccess();
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Gagal menyimpan override");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!target} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Pencil className="h-4 w-4" /> Edit Manual AR
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground -mt-2">
+          Client: <span className="font-medium text-foreground">{target?.nama_client}</span>
+        </p>
+        <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+          ⚠️ Edit ini bersifat permanen dan hanya bisa dilakukan satu kali.
+        </p>
+        <div className="space-y-3">
+          {(["tagihan", "terbayar", "outstanding"] as const).map((field) => (
+            <div key={field} className="space-y-1">
+              <Label className="capitalize">{field}</Label>
+              <Input
+                type="number"
+                value={form[field]}
+                onChange={(e) => setForm((f) => ({ ...f, [field]: e.target.value }))}
+              />
+            </div>
+          ))}
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan Permanen"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 
 // ── Tagihan Survey ─────────────────────────────────────────────────────────────
@@ -309,10 +391,16 @@ function SurveyTab() {
   const [search, setSearch] = useState("");
   const [filterBulan, setFilterBulan] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
+  const { isSuperAdmin } = useAuthStore();
+  const isAdmin = isSuperAdmin();
 
-  useEffect(() => {
+  function loadRows() {
+    setLoading(true);
     financeApi.getArTagihanSurvey().then(setRows).catch(() => setRows([])).finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadRows(); }, []);
 
   const filtered = useMemo(
     () => rows.filter((r) => {
@@ -380,6 +468,7 @@ function SurveyTab() {
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Tagihan</th>
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Terbayar</th>
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Outstanding</th>
+                {isAdmin && <th className="px-4 py-3 w-10" />}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -400,6 +489,14 @@ function SurveyTab() {
                     <td className="px-4 py-3 text-right">
                       <span className={cn("font-semibold", r.outstanding <= 0 ? "text-green-600" : "text-red-600")}>{IDR(r.outstanding)}</span>
                     </td>
+                    {isAdmin && (
+                      <td className="px-2 py-3 text-center">
+                        {r.has_override
+                          ? <Lock className="h-3.5 w-3.5 text-gray-300 mx-auto" />
+                          : <button onClick={() => setOverrideTarget({ tab_type: "survey", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.tagihan, terbayar: r.total_terbayar, outstanding: r.outstanding })} className="p-1 hover:bg-gray-100 rounded" title="Edit manual"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
+                        }
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -411,12 +508,14 @@ function SurveyTab() {
                   <td className="px-4 py-3 text-right text-gray-800">{IDR(totals.tagihan)}</td>
                   <td className="px-4 py-3 text-right text-green-700">{IDR(totals.terbayar)}</td>
                   <td className={cn("px-4 py-3 text-right", totals.outstanding > 0 ? "text-red-600" : "text-green-600")}>{IDR(totals.outstanding)}</td>
+                  {isAdmin && <td />}
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
       </div>
+      <ArOverrideDialog target={overrideTarget} onClose={() => setOverrideTarget(null)} onSuccess={loadRows} />
     </div>
   );
 }
@@ -429,10 +528,16 @@ function DesainTab() {
   const [filterBulan, setFilterBulan] = useState("");
   const [filterPaket, setFilterPaket] = useState("");
   const [downloading, setDownloading] = useState(false);
+  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
+  const { isSuperAdmin } = useAuthStore();
+  const isAdmin = isSuperAdmin();
 
-  useEffect(() => {
+  function loadRows() {
+    setLoading(true);
     financeApi.getArTagihanDesain().then(setRows).catch(() => setRows([])).finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadRows(); }, []);
 
   const filtered = useMemo(
     () => rows.filter((r) => {
@@ -511,6 +616,7 @@ function DesainTab() {
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Terbayar</th>
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Outstanding</th>
                 <th className="px-4 py-3 text-center font-medium text-gray-500">Invoice</th>
+                {isAdmin && <th className="px-4 py-3 w-10" />}
               </tr>
             </thead>
             <tbody className="divide-y">
@@ -534,6 +640,14 @@ function DesainTab() {
                       <span className={cn("font-semibold", r.outstanding <= 0 ? "text-green-600" : "text-red-600")}>{IDR(r.outstanding)}</span>
                     </td>
                     <td className="px-4 py-3 text-center text-gray-500 text-xs">{r.invoice_count} invoice</td>
+                    {isAdmin && (
+                      <td className="px-2 py-3 text-center">
+                        {r.has_override
+                          ? <Lock className="h-3.5 w-3.5 text-gray-300 mx-auto" />
+                          : <button onClick={() => setOverrideTarget({ tab_type: "desain", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.harga_total, terbayar: r.total_terbayar, outstanding: r.outstanding })} className="p-1 hover:bg-gray-100 rounded" title="Edit manual"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
+                        }
+                      </td>
+                    )}
                   </tr>
                 ))
               )}
@@ -546,12 +660,14 @@ function DesainTab() {
                   <td className="px-4 py-3 text-right text-green-700">{IDR(totals.terbayar)}</td>
                   <td className={cn("px-4 py-3 text-right", totals.outstanding > 0 ? "text-red-600" : "text-green-600")}>{IDR(totals.outstanding)}</td>
                   <td />
+                  {isAdmin && <td />}
                 </tr>
               </tfoot>
             )}
           </table>
         </div>
       </div>
+      <ArOverrideDialog target={overrideTarget} onClose={() => setOverrideTarget(null)} onSuccess={loadRows} />
     </div>
   );
 }
@@ -573,10 +689,16 @@ function ProyekTab() {
   const [filterBulan, setFilterBulan] = useState("");
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [downloading, setDownloading] = useState(false);
+  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
+  const { isSuperAdmin } = useAuthStore();
+  const isAdmin = isSuperAdmin();
 
-  useEffect(() => {
+  function loadRows() {
+    setLoading(true);
     financeApi.getArTagihanProjek().then(setRows).catch(() => setRows([])).finally(() => setLoading(false));
-  }, []);
+  }
+
+  useEffect(() => { loadRows(); }, []);
 
   const filtered = useMemo(
     () => rows.filter((r) => {
@@ -677,6 +799,14 @@ function ProyekTab() {
                     <p className={cn("text-sm font-bold", r.outstanding > 0 ? "text-red-600" : "text-green-600")}>{IDR(r.outstanding)}</p>
                   </div>
                   <ChevronDown className={cn("h-4 w-4 text-gray-400 flex-shrink-0 transition-transform", isExpanded && "rotate-180")} />
+                  {isAdmin && (
+                    <span onClick={(e) => e.stopPropagation()}>
+                      {r.has_override
+                        ? <Lock className="h-3.5 w-3.5 text-gray-300" />
+                        : <button onClick={() => setOverrideTarget({ tab_type: "projek", lead_id: r.lead_id, nama_client: r.nama_client, tagihan: r.total_rab + r.total_penambahan, terbayar: r.total_terbayar, outstanding: r.outstanding })} className="p-1 hover:bg-gray-100 rounded" title="Edit manual"><Pencil className="h-3.5 w-3.5 text-gray-400" /></button>
+                      }
+                    </span>
+                  )}
                 </button>
                 {isExpanded && (
                   <div className="border-t">
@@ -710,6 +840,7 @@ function ProyekTab() {
           })
         )}
       </div>
+      <ArOverrideDialog target={overrideTarget} onClose={() => setOverrideTarget(null)} onSuccess={loadRows} />
     </div>
   );
 }

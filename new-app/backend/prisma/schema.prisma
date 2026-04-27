@@ -928,6 +928,7 @@ model Lead {
   kontrak_dokumens                      KontrakDokumen[]
   golden_kanban_admin_cards             GoldenKanbanAdminCard[]  @relation("GoldenKanbanAdminCardLead")
   golden_kanban_sales_cards             GoldenKanbanSalesCard[]  @relation("GoldenKanbanSalesCardLead")
+  ar_overrides                          ArOverride[]
 
   @@index([bulan, tahun], map: "idx_leads_bulan_tahun")
   @@index([status], map: "idx_leads_status")
@@ -1919,9 +1920,27 @@ model User {
   golden_kanban_sales_cards             GoldenKanbanSalesCard[]  @relation("GoldenKanbanSalesCardUser")
   golden_kanban_sales_comments          GoldenKanbanSalesComment[] @relation("GoldenKanbanSalesCommentUser")
   golden_meta_ads_campaigns             GoldenMetaAdsCampaign[]  @relation("GoldenMetaAdsCampaignCreator")
+  ar_overrides                          ArOverride[]
 
   @@index([email], map: "idx_users_email")
   @@map("users")
+}
+
+model ArOverride {
+  id          BigInt   @id @default(autoincrement())
+  tab_type    String   @db.VarChar(20)
+  lead_id     BigInt
+  tagihan     Decimal  @db.Decimal(18, 2)
+  terbayar    Decimal  @db.Decimal(18, 2)
+  outstanding Decimal  @db.Decimal(18, 2)
+  created_by  BigInt
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  lead        Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  creator     User     @relation(fields: [created_by], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@unique([tab_type, lead_id])
+  @@map("ar_overrides")
 }
 
 model Warehouse {

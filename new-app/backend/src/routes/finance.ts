@@ -3007,17 +3007,22 @@ router.get("/ar-tagihan-survey", requirePermission("finance", "ar"), async (_req
     }
   }
 
+  const overrides = await prisma.arOverride.findMany({ where: { tab_type: "survey", lead_id: { in: leadIds } } });
+  const overrideMap = new Map(overrides.map((o) => [o.lead_id.toString(), o]));
+
   const rows = leads.map((l) => {
     const totalTerbayar = paymentMap.get(l.id) ?? 0;
+    const ov = overrideMap.get(l.id.toString());
     return {
       lead_id: Number(l.id),
       nama_client: l.nama,
       pic_survey: l.pic_survey ?? "-",
       tanggal_survey: l.tanggal_survey,
       survey_approved_at: l.survey_approved_at,
-      tagihan: SURVEY_FEE,
-      total_terbayar: totalTerbayar,
-      outstanding: Math.max(0, SURVEY_FEE - totalTerbayar),
+      tagihan: ov ? parseFloat(String(ov.tagihan)) : SURVEY_FEE,
+      total_terbayar: ov ? parseFloat(String(ov.terbayar)) : totalTerbayar,
+      outstanding: ov ? parseFloat(String(ov.outstanding)) : Math.max(0, SURVEY_FEE - totalTerbayar),
+      has_override: !!ov,
     };
   });
 
@@ -3058,21 +3063,27 @@ router.get("/ar-tagihan-desain", requirePermission("finance", "ar"), async (_req
     groupMap.get(key)!.invoices.push(inv);
   }
 
+  const groupLeadIds = Array.from(groupMap.keys());
+  const desainOverrides = await prisma.arOverride.findMany({ where: { tab_type: "desain", lead_id: { in: groupLeadIds } } });
+  const desainOverrideMap = new Map(desainOverrides.map((o) => [o.lead_id.toString(), o]));
+
   const rows = Array.from(groupMap.values()).map((g) => {
     const harga = PRICING[g.paket] ?? 0;
     const terbayar = g.invoices
       .filter((i) => i.status === "Lunas")
       .reduce((sum, i) => sum + parseFloat(String(i.kwitansi?.jumlah_diterima ?? 0)), 0);
     const firstDate = g.invoices[0]?.tanggal;
+    const ov = desainOverrideMap.get(g.lead_id.toString());
     return {
       lead_id: Number(g.lead_id),
       nama_client: g.nama_client,
       paket: g.paket,
-      harga_total: harga,
-      total_terbayar: terbayar,
-      outstanding: Math.max(0, harga - terbayar),
+      harga_total: ov ? parseFloat(String(ov.tagihan)) : harga,
+      total_terbayar: ov ? parseFloat(String(ov.terbayar)) : terbayar,
+      outstanding: ov ? parseFloat(String(ov.outstanding)) : Math.max(0, harga - terbayar),
       invoice_count: g.invoices.length,
       tanggal_pertama: firstDate ? new Date(firstDate).toISOString().split("T")[0] : null,
+      has_override: !!ov,
     };
   });
 
@@ -3126,6 +3137,9 @@ router.get("/ar-tagihan-projek", requirePermission("finance", "ar"), async (_req
     if (inv.rab_item_id) invByRabItem.set(String(inv.rab_item_id), inv);
   }
 
+  const projekOverrides = await prisma.arOverride.findMany({ where: { tab_type: "projek", lead_id: { in: leadIds } } });
+  const projekOverrideMap = new Map(projekOverrides.map((o) => [o.lead_id.toString(), o]));
+
   const rows = leadIds.map((leadId) => {
     const leadInvs = invoices.filter((i) => String(i.lead_id) === String(leadId));
     const proyek = projekByLead.get(String(leadId));
@@ -3154,20 +3168,41 @@ router.get("/ar-tagihan-projek", requirePermission("finance", "ar"), async (_req
     const outstanding = Math.max(0, total_rab + total_penambahan - total_terbayar);
 
     const firstDate = leadInvs[0]?.tanggal;
+    const ov = projekOverrideMap.get(leadId.toString());
     return {
       lead_id: Number(leadId),
       nama_client,
       nama_proyek: proyek?.nama_proyek ?? null,
       items: itemsData,
-      total_rab,
-      total_penambahan,
-      total_terbayar,
-      outstanding,
+      total_rab: ov ? parseFloat(String(ov.tagihan)) : total_rab,
+      total_penambahan: ov ? 0 : total_penambahan,
+      total_terbayar: ov ? parseFloat(String(ov.terbayar)) : total_terbayar,
+      outstanding: ov ? parseFloat(String(ov.outstanding)) : outstanding,
       tanggal_pertama: firstDate ? new Date(firstDate).toISOString().split("T")[0] : null,
+      has_override: !!ov,
     };
   });
 
   return res.json(rows);
+});
+
+// ── AR Override (one-time manual edit by Super Admin) ─────────────────────────
+router.post("/ar-override", requirePermission("finance", "ar"), async (req: Request, res: Response) => {
+  const { tab_type, lead_id, tagihan, terbayar, outstanding } = req.body;
+  if (!tab_type || !lead_id) return res.status(400).json({ detail: "tab_type dan lead_id wajib diisi" });
+  const existing = await prisma.arOverride.findUnique({ where: { tab_type_lead_id: { tab_type, lead_id: BigInt(lead_id) } } });
+  if (existing) return res.status(409).json({ detail: "Override sudah pernah dilakukan untuk baris ini dan tidak bisa diubah lagi" });
+  const override = await prisma.arOverride.create({
+    data: {
+      tab_type,
+      lead_id: BigInt(lead_id),
+      tagihan: parseFloat(String(tagihan ?? 0)),
+      terbayar: parseFloat(String(terbayar ?? 0)),
+      outstanding: parseFloat(String(outstanding ?? 0)),
+      created_by: req.user!.id,
+    },
+  });
+  return res.json({ id: Number(override.id), tab_type: override.tab_type, lead_id: Number(override.lead_id) });
 });
 
 // GET /finance/ar-outstanding — Tagihan outstanding per proyek
