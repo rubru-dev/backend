@@ -63,4 +63,6 @@ export const financeApi = {
   getRabItemsByLead: (leadId: string | number) => apiClient.get(`/finance/leads/${leadId}/rab-items`).then((r) => r.data),
   createArOverride: (data: { tab_type: string; lead_id: number; tagihan: number; terbayar: number; outstanding: number; deadline?: string | null }) =>
     apiClient.post("/finance/ar-override", data).then((r) => r.data),
+  createArItemOverride: (data: { rab_item_id: number; tagihan: number; terbayar: number }) =>
+    apiClient.post("/finance/ar-item-override", data).then((r) => r.data),
 };

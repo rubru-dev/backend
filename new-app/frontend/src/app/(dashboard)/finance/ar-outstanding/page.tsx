@@ -290,6 +290,68 @@ interface ProjekItem {
   invoice_id: number | null;
   invoice_status: string | null;
   terbayar: number;
+  has_item_override: boolean;
+}
+
+interface ItemOverrideTarget { rab_item_id: number; label: string; tagihan: number; terbayar: number }
+
+function ArItemOverrideDialog({ target, onClose, onSuccess }: {
+  target: ItemOverrideTarget | null;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [form, setForm] = useState({ tagihan: "", terbayar: "" });
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (target) setForm({ tagihan: String(target.tagihan), terbayar: String(target.terbayar) });
+  }, [target]);
+
+  async function handleSave() {
+    if (!target) return;
+    setSaving(true);
+    try {
+      await financeApi.createArItemOverride({
+        rab_item_id: target.rab_item_id,
+        tagihan: parseFloat(form.tagihan) || 0,
+        terbayar: parseFloat(form.terbayar) || 0,
+      });
+      toast.success("Override item berhasil disimpan");
+      onSuccess();
+      onClose();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Gagal menyimpan");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Dialog open={!!target} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2 text-base">
+            <Pencil className="h-4 w-4" /> Edit Item AR
+          </DialogTitle>
+        </DialogHeader>
+        <p className="text-sm text-muted-foreground -mt-2 font-medium">{target?.label}</p>
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <Label>Tagihan (Nilai)</Label>
+            <Input type="number" value={form.tagihan} onChange={(e) => setForm((f) => ({ ...f, tagihan: e.target.value }))} />
+          </div>
+          <div className="space-y-1">
+            <Label>Terbayar</Label>
+            <Input type="number" value={form.terbayar} onChange={(e) => setForm((f) => ({ ...f, terbayar: e.target.value }))} />
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="outline" onClick={onClose} disabled={saving}>Batal</Button>
+          <Button onClick={handleSave} disabled={saving}>{saving ? "Menyimpan..." : "Simpan"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
 }
 interface ProjekRow {
   lead_id: number;
@@ -703,6 +765,7 @@ function ProyekTab() {
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
   const [downloading, setDownloading] = useState(false);
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null);
+  const [itemOverrideTarget, setItemOverrideTarget] = useState<ItemOverrideTarget | null>(null);
   const { isSuperAdmin } = useAuthStore();
   const isAdmin = isSuperAdmin();
 
@@ -826,27 +889,38 @@ function ProyekTab() {
                 </button>
                 {isExpanded && (
                   <div className="border-t">
-                    <div className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-0 text-xs font-medium text-gray-400 px-4 py-2 bg-gray-50 border-b">
+                    <div className={cn("grid gap-0 text-xs font-medium text-gray-400 px-4 py-2 bg-gray-50 border-b", isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto]" : "grid-cols-[auto_1fr_auto_auto_auto]")}>
                       <span className="w-16">Tipe</span>
                       <span>Item</span>
                       <span className="text-right w-32 pr-2">Nilai</span>
                       <span className="text-center w-28">Status Invoice</span>
                       <span className="text-right w-32">Terbayar</span>
+                      {isAdmin && <span className="w-8" />}
                     </div>
                     {r.items.map((item) => (
-                      <div key={item.rab_item_id} className="grid grid-cols-[auto_1fr_auto_auto_auto] gap-0 items-center px-4 py-2.5 border-b last:border-0 hover:bg-gray-50/50">
+                      <div key={item.rab_item_id} className={cn("grid gap-0 items-center px-4 py-2.5 border-b last:border-0 hover:bg-gray-50/50", isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto]" : "grid-cols-[auto_1fr_auto_auto_auto]")}>
                         <span className={cn(
                           "inline-flex px-2 py-0.5 rounded-full text-xs font-medium w-16 justify-center",
                           item.tipe === "penambahan" ? "bg-orange-100 text-orange-700" : "bg-teal-100 text-teal-700"
                         )}>
                           {item.tipe === "penambahan" ? "Tambah" : "RAB"}
                         </span>
-                        <span className="text-sm text-gray-700 px-3">{item.label}</span>
+                        <span className="text-sm text-gray-700 px-3 flex items-center gap-1">
+                          {item.label}
+                          {item.has_item_override && <span className="text-xs text-blue-500">(manual)</span>}
+                        </span>
                         <span className="text-sm text-gray-700 tabular-nums text-right w-32 pr-2">{IDR(item.nilai)}</span>
                         <div className="w-28 flex justify-center"><InvoiceStatusBadge status={item.invoice_status} /></div>
                         <span className={cn("text-sm tabular-nums text-right w-32 font-medium", item.terbayar > 0 ? "text-green-700" : "text-gray-300")}>
                           {item.terbayar > 0 ? IDR(item.terbayar) : "—"}
                         </span>
+                        {isAdmin && (
+                          <div className="w-8 flex justify-center">
+                            <button onClick={() => setItemOverrideTarget({ rab_item_id: item.rab_item_id, label: item.label, tagihan: item.nilai, terbayar: item.terbayar })} className="p-1 hover:bg-gray-100 rounded">
+                              <Pencil className="h-3 w-3 text-gray-400" />
+                            </button>
+                          </div>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -857,6 +931,7 @@ function ProyekTab() {
         )}
       </div>
       <ArOverrideDialog target={overrideTarget} onClose={() => setOverrideTarget(null)} onSuccess={loadRows} />
+      <ArItemOverrideDialog target={itemOverrideTarget} onClose={() => setItemOverrideTarget(null)} onSuccess={loadRows} />
     </div>
   );
 }

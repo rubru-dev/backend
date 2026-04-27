@@ -3142,6 +3142,13 @@ router.get("/ar-tagihan-projek", requirePermission("finance", "ar"), async (_req
   const projekOverrides = await prisma.arOverride.findMany({ where: { tab_type: "projek", lead_id: { in: leadIds } } });
   const projekOverrideMap = new Map(projekOverrides.map((o) => [o.lead_id.toString(), o]));
 
+  // Item-level overrides
+  const allRabItemIds = projeksList.flatMap((p) => p.rab_items.map((ri) => ri.id));
+  const itemOverrides = allRabItemIds.length > 0
+    ? await prisma.arItemOverride.findMany({ where: { rab_item_id: { in: allRabItemIds } } })
+    : [];
+  const itemOverrideMap = new Map(itemOverrides.map((o) => [o.rab_item_id.toString(), o]));
+
   const rows = leadIds.map((leadId) => {
     const leadInvs = invoices.filter((i) => String(i.lead_id) === String(leadId));
     const proyek = projekByLead.get(String(leadId));
@@ -3150,15 +3157,19 @@ router.get("/ar-tagihan-projek", requirePermission("finance", "ar"), async (_req
 
     const itemsData = rabItems.map((ri) => {
       const inv = invByRabItem.get(String(ri.id));
-      const terbayar = inv?.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
+      const rawTerbayar = inv?.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
+      const ov = itemOverrideMap.get(ri.id.toString());
+      const nilai = ov ? parseFloat(String(ov.tagihan)) : parseFloat(String(ri.nilai));
+      const terbayar = ov ? parseFloat(String(ov.terbayar)) : rawTerbayar;
       return {
         rab_item_id: Number(ri.id),
         label: ri.label,
-        nilai: parseFloat(String(ri.nilai)),
+        nilai,
         tipe: ri.tipe,
         invoice_id: inv ? Number(inv.id) : null,
         invoice_status: inv?.status ?? null,
         terbayar,
+        has_item_override: !!ov,
       };
     });
 
@@ -3190,6 +3201,17 @@ router.get("/ar-tagihan-projek", requirePermission("finance", "ar"), async (_req
 });
 
 // ── AR Override (one-time manual edit by Super Admin) ─────────────────────────
+router.post("/ar-item-override", requirePermission("finance", "ar"), async (req: Request, res: Response) => {
+  const { rab_item_id, tagihan, terbayar } = req.body;
+  if (!rab_item_id) return res.status(400).json({ detail: "rab_item_id wajib diisi" });
+  const override = await prisma.arItemOverride.upsert({
+    where: { rab_item_id: BigInt(rab_item_id) },
+    create: { rab_item_id: BigInt(rab_item_id), tagihan: parseFloat(String(tagihan ?? 0)), terbayar: parseFloat(String(terbayar ?? 0)), created_by: req.user!.id },
+    update: { tagihan: parseFloat(String(tagihan ?? 0)), terbayar: parseFloat(String(terbayar ?? 0)), created_by: req.user!.id },
+  });
+  return res.json({ id: Number(override.id), rab_item_id: Number(override.rab_item_id) });
+});
+
 router.post("/ar-override", requirePermission("finance", "ar"), async (req: Request, res: Response) => {
   const { tab_type, lead_id, tagihan, terbayar, outstanding, deadline } = req.body;
   if (!tab_type || !lead_id) return res.status(400).json({ detail: "tab_type dan lead_id wajib diisi" });
