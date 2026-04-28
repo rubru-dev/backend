@@ -638,6 +638,7 @@ model Invoice {
   approved_at                       DateTime?       @db.Timestamptz(6)
   signature_path                    String?         @db.VarChar(500)
   rejection_note                    String?
+  nominal_locked                    Boolean         @default(false)
   created_by                        BigInt?
   head_finance_id                   BigInt?
   head_finance_at                   DateTime?       @db.Timestamptz(6)

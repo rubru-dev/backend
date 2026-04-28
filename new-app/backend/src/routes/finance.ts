@@ -80,6 +80,7 @@ function invoiceDictFrontend(inv: any) {
     kategori: inv.kategori || null,
     paket_desain: inv.paket_desain || null,
     rab_item_id: inv.rab_item_id ? Number(inv.rab_item_id) : null,
+    nominal_locked: inv.nominal_locked ?? false,
     items: (inv.items || []).map((item: any) => ({
       id: item.id,
       keterangan: item.description || "",
@@ -886,6 +887,38 @@ router.patch("/invoices/:id/set-kategori", requirePermission("finance", "view"),
     include: { items: true, lead: true, head_finance: true, admin_finance: true, bank_account: true },
   });
   return res.json(invoiceDictFrontend(updated));
+});
+
+// PATCH /finance/invoices/:id/set-nominal — one-time nominal edit (Super Admin + Sales Admin)
+router.patch("/invoices/:id/set-nominal", requirePermission("finance", "view"), async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const inv = await prisma.invoice.findUnique({ where: { id } });
+  if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
+  const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
+  const isSalesAdmin = req.user!.roles.some((r: any) => r.role.name === "Sales Admin");
+  if (!isSuperAdmin && !isSalesAdmin) return res.status(403).json({ detail: "Hanya Super Admin dan Sales Admin yang bisa mengubah nominal" });
+  if (inv.nominal_locked) return res.status(409).json({ detail: "Nominal invoice ini sudah pernah diubah dan tidak bisa diubah lagi" });
+  const { items, ppn_percentage } = req.body;
+  if (!items || !Array.isArray(items) || items.length === 0) return res.status(400).json({ detail: "Items wajib diisi" });
+  const ppnPct = parseFloat(String(ppn_percentage ?? inv.ppn_percentage ?? 0));
+  let subtotal = 0;
+  const itemsData = (items as Array<{ keterangan?: string; jumlah?: number; harga_satuan?: number }>).map((item) => {
+    const qty = item.jumlah ?? 1;
+    const price = item.harga_satuan ?? 0;
+    const sub = qty * price;
+    subtotal += sub;
+    return { description: item.keterangan ?? null, quantity: qty, unit_price: price, subtotal: sub };
+  });
+  const ppnAmt = subtotal * ppnPct / 100;
+  await prisma.$transaction([
+    prisma.invoiceItem.deleteMany({ where: { invoice_id: id } }),
+    prisma.invoice.update({
+      where: { id },
+      data: { ppn_percentage: ppnPct, subtotal, ppn_amount: ppnAmt, grand_total: subtotal + ppnAmt, nominal_locked: true, items: { create: itemsData } },
+    }),
+  ]);
+  const updated = await prisma.invoice.findUnique({ where: { id }, include: { items: true, lead: true, head_finance: true, admin_finance: true, bank_account: true } });
+  return res.json(invoiceDictFrontend(updated!));
 });
 
 router.patch("/invoices/:id", async (req: Request, res: Response) => {

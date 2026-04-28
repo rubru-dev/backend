@@ -255,6 +255,8 @@ export default function InvoiceKwitansiPage() {
   const { isSuperAdmin, hasPermission, hasAnyRole } = useAuthStore();
   const canDelete = isSuperAdmin() || hasPermission("finance", "delete");
   const canSeeProyek = isSuperAdmin() || hasAnyRole("Admin Finance", "Head Finance");
+  const canEditNominal = isSuperAdmin() || hasAnyRole("Sales Admin");
+  const canDeleteAll = isSuperAdmin();
 
   // Form state
   const [open, setOpen] = useState(false);
@@ -300,6 +302,11 @@ export default function InvoiceKwitansiPage() {
 
   // Delete state
   const [confirmDeleteId, setConfirmDeleteId] = useState<number | null>(null);
+
+  // Edit Nominal state
+  const [nominalTarget, setNominalTarget] = useState<any | null>(null);
+  const [nominalItems, setNominalItems] = useState<{ keterangan: string; jumlah: number; harga_satuan: number }[]>([]);
+  const [nominalPpn, setNominalPpn] = useState(0);
 
   // Bank account tab state
   const [bankTab, setBankTab] = useState<"invoices" | "banks">("invoices");
@@ -408,6 +415,17 @@ export default function InvoiceKwitansiPage() {
       setExpandedId(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menghapus invoice"),
+  });
+
+  const setNominalMut = useMutation({
+    mutationFn: ({ id, items, ppn_percentage }: { id: number; items: any[]; ppn_percentage: number }) =>
+      apiClient.patch(`/finance/invoices/${id}/set-nominal`, { items, ppn_percentage }).then((r) => r.data),
+    onSuccess: () => {
+      toast.success("Nominal invoice berhasil diperbarui");
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setNominalTarget(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui nominal"),
   });
 
   const markPaidMut = useMutation({
@@ -709,6 +727,24 @@ export default function InvoiceKwitansiPage() {
                                   }}>
                                   <Pencil className="h-3 w-3" /> Kategori
                                 </Button>
+                                {canEditNominal && !inv.nominal_locked && (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
+                                    onClick={() => {
+                                      setNominalTarget(inv);
+                                      setNominalItems((inv.items || []).length > 0
+                                        ? inv.items.map((it: any) => ({ keterangan: it.keterangan || "", jumlah: Number(it.jumlah) || 1, harga_satuan: Number(it.harga_satuan) || 0 }))
+                                        : [{ keterangan: "", jumlah: 1, harga_satuan: 0 }]);
+                                      setNominalPpn(inv.ppn_percentage || 0);
+                                    }}>
+                                    <Pencil className="h-3 w-3" /> Edit Nominal
+                                  </Button>
+                                )}
+                                {canDeleteAll && (
+                                  <Button size="sm" variant="ghost" className="h-7 text-xs text-red-500 hover:text-red-700 hover:bg-red-50"
+                                    onClick={() => setConfirmDeleteId(inv.id)}>
+                                    <Trash2 className="h-3 w-3 mr-1" /> Hapus
+                                  </Button>
+                                )}
                                 {inv.status === "Draft" && !inv.head_finance && !inv.admin_finance && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs"
                                     onClick={() => {
@@ -1206,6 +1242,47 @@ export default function InvoiceKwitansiPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Edit Nominal Dialog */}
+      <Dialog open={!!nominalTarget} onOpenChange={(v) => { if (!v) setNominalTarget(null); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="h-5 w-5" /> Edit Nominal Invoice
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground -mt-2">
+            {nominalTarget?.nomor_invoice} — {nominalTarget?.klien}
+          </p>
+          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            ⚠️ Perubahan nominal hanya bisa dilakukan <strong>satu kali</strong>. Setelah disimpan tidak bisa diubah lagi.
+          </p>
+          <div className="space-y-3">
+            <div>
+              <Label className="mb-2 block">PPN (%)</Label>
+              <Input type="number" value={nominalPpn} onChange={(e) => setNominalPpn(parseFloat(e.target.value) || 0)} className="w-32" />
+            </div>
+            <div>
+              <Label className="mb-2 block">Item Invoice</Label>
+              <InvoiceItemsForm items={nominalItems} setItems={setNominalItems} />
+            </div>
+            <div className="text-right text-sm font-medium text-gray-700">
+              Total: {formatRp(nominalItems.reduce((s, it) => s + (it.jumlah * it.harga_satuan), 0) * (1 + nominalPpn / 100))}
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setNominalTarget(null)}>Batal</Button>
+            <Button
+              disabled={setNominalMut.isPending || nominalItems.length === 0}
+              onClick={() => {
+                if (!nominalTarget) return;
+                setNominalMut.mutate({ id: nominalTarget.id, items: nominalItems, ppn_percentage: nominalPpn });
+              }}>
+              {setNominalMut.isPending ? "Menyimpan..." : "Simpan Permanen"}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Mark Paid Dialog */}
       <Dialog open={!!markPaidId} onOpenChange={v => { if (!v) { setMarkPaidId(null); setDetailBayar(""); setMarkPaidBukti(null); } }}>
