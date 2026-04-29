@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye, Settings, FileDown,
+  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye, Settings, FileDown, Pencil,
 } from "lucide-react";
 
 const BULAN_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -127,8 +127,9 @@ function fmtTgl(d: string | null) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function FinanceAbsenKaryawanPage() {
   const qc = useQueryClient();
-  const { isSuperAdmin, hasPermission } = useAuthStore();
+  const { isSuperAdmin, hasPermission, user } = useAuthStore();
   const canManage = isSuperAdmin() || hasPermission("absen", "manage");
+  const canOverride = user?.email === "jerry@rubahrumah.com";
 
   const [filterUser, setFilterUser]         = useState("");
   const [filterTglMulai, setFilterTglMulai] = useState("");
@@ -138,6 +139,9 @@ export default function FinanceAbsenKaryawanPage() {
   const [filterStatus, setFilterStatus]     = useState("");
   const [photoDialog, setPhotoDialog]       = useState<{ masuk?: string; keluar?: string; name?: string } | null>(null);
   const [rejectOpen, setRejectOpen]         = useState<{ id: number; catatan: string } | null>(null);
+  const [editOpen, setEditOpen]             = useState<{
+    id: number; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean;
+  } | null>(null);
 
   const { data: karyawanList } = useQuery({
     queryKey: ["absen-karyawan-list"],
@@ -188,6 +192,23 @@ export default function FinanceAbsenKaryawanPage() {
       setRejectOpen(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menolak"),
+  });
+
+  const overrideMut = useMutation({
+    mutationFn: (data: { id: number; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean }) =>
+      apiClient.patch(`/absen-karyawan/admin/${data.id}/override`, {
+        jam_masuk: data.jam_masuk || null,
+        jam_keluar: data.jam_keluar || null,
+        status: data.status,
+        terlambat: data.terlambat,
+      }).then(r => r.data),
+    onSuccess: () => {
+      toast.success("Absen berhasil diubah");
+      qc.invalidateQueries({ queryKey: ["finance-absen"] });
+      qc.invalidateQueries({ queryKey: ["finance-absen-pending"] });
+      setEditOpen(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal mengubah absen"),
   });
 
   const records: any[] = Array.isArray(absenData) ? absenData : absenData?.data ?? absenData?.items ?? [];
@@ -376,12 +397,27 @@ export default function FinanceAbsenKaryawanPage() {
                         }
                       </TableCell>
                       <TableCell>
-                        {(r.foto_masuk || r.foto_keluar) && (
-                          <Button size="sm" variant="ghost" className="h-7 gap-1"
-                            onClick={() => setPhotoDialog({ masuk: r.foto_masuk, keluar: r.foto_keluar, name: r.user?.name })}>
-                            <Camera className="h-3.5 w-3.5" /> Foto
-                          </Button>
-                        )}
+                        <div className="flex gap-1">
+                          {(r.foto_masuk || r.foto_keluar) && (
+                            <Button size="sm" variant="ghost" className="h-7 gap-1"
+                              onClick={() => setPhotoDialog({ masuk: r.foto_masuk, keluar: r.foto_keluar, name: r.user?.name })}>
+                              <Camera className="h-3.5 w-3.5" /> Foto
+                            </Button>
+                          )}
+                          {canOverride && (
+                            <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700"
+                              title="Edit Absen"
+                              onClick={() => setEditOpen({
+                                id: r.id,
+                                jam_masuk: r.jam_masuk ? new Date(r.jam_masuk).toISOString().slice(0, 16) : "",
+                                jam_keluar: r.jam_keluar ? new Date(r.jam_keluar).toISOString().slice(0, 16) : "",
+                                status: r.status,
+                                terlambat: r.terlambat ?? false,
+                              })}>
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))
@@ -458,6 +494,55 @@ export default function FinanceAbsenKaryawanPage() {
               </Button>
             </div>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Override Dialog — hanya jerry@rubahrumah.com */}
+      <Dialog open={!!editOpen} onOpenChange={v => { if (!v) setEditOpen(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-600">
+              <Pencil className="h-5 w-5" /> Edit Data Absen
+            </DialogTitle>
+          </DialogHeader>
+          {editOpen && (
+            <div className="space-y-4">
+              <div>
+                <Label>Jam Masuk</Label>
+                <Input type="datetime-local" className="mt-1" value={editOpen.jam_masuk}
+                  onChange={e => setEditOpen(prev => prev ? { ...prev, jam_masuk: e.target.value } : null)} />
+              </div>
+              <div>
+                <Label>Jam Keluar</Label>
+                <Input type="datetime-local" className="mt-1" value={editOpen.jam_keluar}
+                  onChange={e => setEditOpen(prev => prev ? { ...prev, jam_keluar: e.target.value } : null)} />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <select className="border rounded-md px-3 py-2 text-sm h-9 w-full mt-1"
+                  value={editOpen.status}
+                  onChange={e => setEditOpen(prev => prev ? { ...prev, status: e.target.value } : null)}>
+                  <option value="Hadir">Hadir</option>
+                  <option value="Terlambat">Terlambat</option>
+                  <option value="Pending">Pending</option>
+                  <option value="Disetujui">Disetujui</option>
+                  <option value="Ditolak">Ditolak</option>
+                </select>
+              </div>
+              <div className="flex items-center gap-2">
+                <input type="checkbox" id="terlambat-chk" checked={editOpen.terlambat}
+                  onChange={e => setEditOpen(prev => prev ? { ...prev, terlambat: e.target.checked } : null)} />
+                <label htmlFor="terlambat-chk" className="text-sm">Tandai Terlambat</label>
+              </div>
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" onClick={() => setEditOpen(null)}>Batal</Button>
+                <Button disabled={overrideMut.isPending}
+                  onClick={() => editOpen && overrideMut.mutate(editOpen)}>
+                  {overrideMut.isPending ? "Menyimpan..." : "Simpan"}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

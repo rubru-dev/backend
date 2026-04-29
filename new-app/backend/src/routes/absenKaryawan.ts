@@ -297,4 +297,29 @@ router.get("/admin/karyawan-list", async (_req: Request, res: Response) => {
   return res.json(users.map((u) => ({ id: String(u.id), name: u.name })));
 });
 
+// ── PATCH /absen-karyawan/admin/:id/override — edit absen oleh super admin ───
+// Hanya bisa diakses oleh user dengan email jerry@rubahrumah.com
+router.patch("/admin/:id/override", async (req: Request, res: Response) => {
+  if (req.user!.email !== "jerry@rubahrumah.com") {
+    return res.status(403).json({ detail: "Akses ditolak" });
+  }
+
+  const id = BigInt(req.params.id);
+  const record = await prisma.absenKaryawan.findUnique({ where: { id } });
+  if (!record) return res.status(404).json({ detail: "Record tidak ditemukan" });
+
+  const { jam_masuk, jam_keluar, status, terlambat, alasan_luar, catatan_reject } = req.body;
+
+  const data: any = {};
+  if (jam_masuk !== undefined) data.jam_masuk = jam_masuk ? new Date(jam_masuk) : null;
+  if (jam_keluar !== undefined) data.jam_keluar = jam_keluar ? new Date(jam_keluar) : null;
+  if (status !== undefined) data.status = status;
+  if (terlambat !== undefined) data.terlambat = Boolean(terlambat);
+  if (alasan_luar !== undefined) data.alasan_luar = alasan_luar || null;
+  if (catatan_reject !== undefined) data.catatan_reject = catatan_reject || null;
+
+  const updated = await prisma.absenKaryawan.update({ where: { id }, data });
+  return res.json(updated);
+});
+
 export default router;
