@@ -14,12 +14,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
+import { Input } from "@/components/ui/input";
 import {
   Building2, Users, TrendingUp,
   FileText, Kanban, CalendarDays, ShieldCheck, Home,
   ClipboardList, Settings, Palette,
   Send, MessageSquare, RefreshCw,
   LogIn, LogOut, Clock, CheckCircle, XCircle, Camera, MapPin, Loader2, AlertTriangle,
+  Upload,
 } from "lucide-react";
 
 type QuickCard = { title: string; desc: string; href: string; icon: React.ElementType; color: string };
@@ -362,6 +364,169 @@ function AbsenWidget({ userName }: { userName: string }) {
   );
 }
 
+const IZIN_KATEGORI = [
+  { value: "izin",  label: "Izin",  color: "bg-blue-100 text-blue-700 border-blue-200" },
+  { value: "sakit", label: "Sakit", color: "bg-red-100 text-red-700 border-red-200" },
+  { value: "cuti",  label: "Cuti",  color: "bg-purple-100 text-purple-700 border-purple-200" },
+];
+const IZIN_STATUS: Record<string, { color: string; label: string }> = {
+  Pending:   { color: "bg-blue-100 text-blue-700 border-blue-200",   label: "Menunggu" },
+  Disetujui: { color: "bg-green-100 text-green-700 border-green-200", label: "Disetujui" },
+  Ditolak:   { color: "bg-red-100 text-red-700 border-red-200",       label: "Ditolak" },
+};
+
+function IzinWidget() {
+  const qc = useQueryClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [form, setForm] = useState({ tanggal: today, kategori: "izin", keterangan: "", foto_bukti: "" });
+  const [preview, setPreview] = useState<string | null>(null);
+  const [showForm, setShowForm] = useState(false);
+
+  const { data: izinList = [] } = useQuery<any[]>({
+    queryKey: ["izin-my-dash"],
+    queryFn: () => apiClient.get("/absen-karyawan/izin/my").then(r => r.data),
+  });
+
+  const submitMut = useMutation({
+    mutationFn: (data: any) => apiClient.post("/absen-karyawan/izin", data).then(r => r.data),
+    onSuccess: () => {
+      toast.success("Pengajuan izin terkirim. Menunggu persetujuan Super Admin.");
+      qc.invalidateQueries({ queryKey: ["izin-my-dash"] });
+      setForm({ tanggal: today, kategori: "izin", keterangan: "", foto_bukti: "" });
+      setPreview(null);
+      setShowForm(false);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal mengirim izin"),
+  });
+
+  function handleFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = ev.target?.result as string;
+      setPreview(data);
+      setForm(f => ({ ...f, foto_bukti: data }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const recentIzin = (izinList as any[]).slice(0, 3);
+
+  return (
+    <Card className="rounded-xl">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center justify-between">
+          <span className="flex items-center gap-2">
+            <FileText className="h-4 w-4 text-violet-500" /> Izin / Sakit / Cuti
+          </span>
+          <button
+            className="text-xs text-violet-600 hover:underline font-normal"
+            onClick={() => { setShowForm(v => !v); setPreview(null); setForm({ tanggal: today, kategori: "izin", keterangan: "", foto_bukti: "" }); }}
+          >
+            {showForm ? "Tutup" : "+ Ajukan"}
+          </button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+
+        {/* Form pengajuan */}
+        {showForm && (
+          <div className="space-y-3 border rounded-lg p-3 bg-violet-50/40">
+            <div className="grid grid-cols-2 gap-2">
+              <div>
+                <label className="text-[10px] text-muted-foreground font-medium">Tanggal</label>
+                <Input type="date" className="h-8 text-xs mt-0.5" value={form.tanggal}
+                  onChange={e => setForm(f => ({ ...f, tanggal: e.target.value }))} />
+              </div>
+              <div>
+                <label className="text-[10px] text-muted-foreground font-medium">Kategori</label>
+                <select className="border rounded-md px-2 py-1 text-xs h-8 w-full mt-0.5"
+                  value={form.kategori} onChange={e => setForm(f => ({ ...f, kategori: e.target.value }))}>
+                  <option value="izin">Izin</option>
+                  <option value="sakit">Sakit</option>
+                  <option value="cuti">Cuti</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-[10px] text-muted-foreground font-medium">Keterangan</label>
+              <textarea
+                rows={2}
+                placeholder="Alasan izin / keterangan..."
+                className="w-full mt-0.5 border rounded-md px-2 py-1.5 text-xs resize-none focus:outline-none focus:ring-1 focus:ring-violet-400"
+                value={form.keterangan}
+                onChange={e => setForm(f => ({ ...f, keterangan: e.target.value }))}
+              />
+            </div>
+
+            <div>
+              <label className="text-[10px] text-muted-foreground font-medium">
+                Foto Bukti <span className="text-muted-foreground/70">(SS chat WA ke Head Finance)</span>
+              </label>
+              <div className="mt-0.5 space-y-1.5">
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  className="w-full border border-dashed border-violet-300 rounded-md py-1.5 text-xs text-violet-600 hover:bg-violet-50 flex items-center justify-center gap-1.5 transition-colors"
+                >
+                  <Upload className="h-3 w-3" />
+                  {preview ? "Ganti Foto" : "Upload Foto Bukti"}
+                </button>
+                <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFile} />
+                {preview && (
+                  <img src={preview} alt="preview" className="w-full rounded-md border max-h-32 object-contain bg-muted" />
+                )}
+              </div>
+            </div>
+
+            <div className="flex items-center gap-1.5 text-[10px] text-blue-700 bg-blue-50 border border-blue-100 rounded-md px-2 py-1.5">
+              <Clock className="h-3 w-3 flex-shrink-0" />
+              Butuh persetujuan <b className="ml-0.5">Super Admin</b>
+            </div>
+
+            <Button size="sm" className="w-full bg-violet-600 hover:bg-violet-700 text-xs h-8"
+              disabled={!form.tanggal || !form.kategori || submitMut.isPending}
+              onClick={() => submitMut.mutate({ tanggal: form.tanggal, kategori: form.kategori, keterangan: form.keterangan || undefined, foto_bukti: form.foto_bukti || null })}>
+              {submitMut.isPending ? <><Loader2 className="h-3 w-3 animate-spin mr-1" />Mengirim...</> : "Kirim Pengajuan"}
+            </Button>
+          </div>
+        )}
+
+        {/* Riwayat singkat */}
+        {!showForm && recentIzin.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center py-4">Belum ada riwayat izin</p>
+        )}
+        {recentIzin.length > 0 && (
+          <div className="space-y-1.5">
+            {recentIzin.map((r: any) => {
+              const kat = IZIN_KATEGORI.find(k => k.value === r.kategori);
+              const st  = IZIN_STATUS[r.status] ?? IZIN_STATUS["Pending"];
+              return (
+                <div key={r.id} className="flex items-center justify-between gap-2 border rounded-lg px-3 py-2 text-xs">
+                  <div className="min-w-0">
+                    <p className="font-medium truncate">
+                      {new Date(r.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
+                    </p>
+                    {r.keterangan && <p className="text-muted-foreground truncate text-[10px]">{r.keterangan}</p>}
+                    {r.catatan_reject && <p className="text-red-500 truncate text-[10px]">✕ {r.catatan_reject}</p>}
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    {kat && <span className={`px-1.5 py-0.5 rounded-full border text-[10px] font-semibold ${kat.color}`}>{kat.label}</span>}
+                    <span className={`px-1.5 py-0.5 rounded-full border text-[10px] font-semibold ${st.color}`}>{st.label}</span>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function getGreeting(): string {
   const hour = new Date().getHours();
   if (hour < 11) return "Selamat pagi";
@@ -593,9 +758,12 @@ export function DashboardHome() {
         ))}
       </div>
 
-      {/* ── Absen Harian (semua karyawan kecuali Tukang) ──────────────────── */}
+      {/* ── Absen Harian + Izin (semua karyawan kecuali Tukang) ─────────── */}
       {!hasAnyRole("Tukang") && (
-        <AbsenWidget userName={user.name} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <AbsenWidget userName={user.name} />
+          <IzinWidget />
+        </div>
       )}
 
       {/* ── Pesan Internal ────────────────────────────────────────────────── */}
