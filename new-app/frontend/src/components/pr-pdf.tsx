@@ -42,15 +42,20 @@ const styles = StyleSheet.create({
   cellText: { fontSize: 8.5, color: DARK },
   colNo: { width: 28 },
   colItem: { flex: 1 },
-  colSat: { width: 50 },
-  colQty: { width: 45, textAlign: "right" },
-  colHarga: { width: 80, textAlign: "right" },
-  colSub: { width: 90, textAlign: "right" },
+  colSat: { width: 44 },
+  colQty: { width: 40, textAlign: "right" },
+  colHarga: { width: 72, textAlign: "right" },
+  colDiskon: { width: 68, textAlign: "right" },
+  colSub: { width: 82, textAlign: "right" },
 
   totalRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 8 },
-  totalBox: { width: 220, backgroundColor: ORANGE, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 3, flexDirection: "row", justifyContent: "space-between" },
-  totalLabel: { fontSize: 9, color: "white", fontWeight: "bold" },
-  totalValue: { fontSize: 9, color: "white", fontWeight: "bold" },
+  totalBox: { width: 250, paddingVertical: 5, paddingHorizontal: 10, borderRadius: 3 },
+  totalLine: { flexDirection: "row", justifyContent: "space-between", marginBottom: 3 },
+  totalLineMain: { flexDirection: "row", justifyContent: "space-between", backgroundColor: ORANGE, paddingVertical: 6, paddingHorizontal: 10, borderRadius: 3 },
+  totalLabel: { fontSize: 8.5, color: GRAY },
+  totalValue: { fontSize: 8.5, color: DARK },
+  totalLabelMain: { fontSize: 9, color: "white", fontWeight: "bold" },
+  totalValueMain: { fontSize: 9, color: "white", fontWeight: "bold" },
 
   footer: { marginTop: 32, flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end" },
   noteBox: { flex: 1, marginRight: 16 },
@@ -72,8 +77,8 @@ const formatDate = (d: string | Date | null | undefined) => {
 
 export interface PRPDFProps {
   project: { nama_proyek?: string | null; klien?: string | null };
-  pr: { nomor_pr?: string | null; tanggal: string | Date; keperluan?: string | null; status: string; catatan?: string | null; hf_signed_at?: string | null; hf_name?: string | null; hf_signature?: string | null };
-  items: { nama_item: string; satuan?: string | null; qty: number; harga_perkiraan: number; subtotal: number }[];
+  pr: { nomor_pr?: string | null; tanggal: string | Date; keperluan?: string | null; status: string; catatan?: string | null; hf_signed_at?: string | null; hf_name?: string | null; hf_signature?: string | null; diskon_harga_keseluruhan?: number };
+  items: { nama_item: string; satuan?: string | null; qty: number; harga_perkiraan: number; diskon_harga_satuan?: number; harga_net?: number; subtotal: number }[];
   total: number;
 }
 
@@ -136,11 +141,13 @@ export default function PRPDF({ project, pr, items, total }: PRPDFProps) {
             <Text style={[styles.tableHeadCell, styles.colItem]}>Nama Item</Text>
             <Text style={[styles.tableHeadCell, styles.colSat]}>Satuan</Text>
             <Text style={[styles.tableHeadCell, styles.colQty]}>Qty</Text>
-            <Text style={[styles.tableHeadCell, styles.colHarga]}>Harga Perkiraan</Text>
+            <Text style={[styles.tableHeadCell, styles.colHarga]}>Harga</Text>
+            <Text style={[styles.tableHeadCell, styles.colDiskon]}>Diskon/Sat.</Text>
             <Text style={[styles.tableHeadCell, styles.colSub]}>Subtotal</Text>
           </View>
           {items.map((it, i) => {
             const Row = i % 2 === 0 ? styles.tableRow : styles.tableRowAlt;
+            const diskon = it.diskon_harga_satuan ?? 0;
             return (
               <View key={i} style={Row}>
                 <Text style={[styles.cellText, styles.colNo]}>{i + 1}</Text>
@@ -148,6 +155,7 @@ export default function PRPDF({ project, pr, items, total }: PRPDFProps) {
                 <Text style={[styles.cellText, styles.colSat]}>{it.satuan || "-"}</Text>
                 <Text style={[styles.cellText, styles.colQty]}>{it.qty}</Text>
                 <Text style={[styles.cellText, styles.colHarga]}>{formatRp(it.harga_perkiraan)}</Text>
+                <Text style={[styles.cellText, styles.colDiskon]}>{diskon > 0 ? formatRp(diskon) : "-"}</Text>
                 <Text style={[styles.cellText, styles.colSub]}>{formatRp(it.subtotal)}</Text>
               </View>
             );
@@ -155,12 +163,36 @@ export default function PRPDF({ project, pr, items, total }: PRPDFProps) {
         </View>
 
         {/* Total */}
-        <View style={styles.totalRow}>
-          <View style={styles.totalBox}>
-            <Text style={styles.totalLabel}>Total Estimasi</Text>
-            <Text style={styles.totalValue}>{formatRp(total)}</Text>
-          </View>
-        </View>
+        {(() => {
+          const subtotalBefore = items.reduce((s, it) => s + it.subtotal, 0);
+          const diskonKeseluruhan = pr.diskon_harga_keseluruhan ?? 0;
+          const hasDiskonItem = items.some(it => (it.diskon_harga_satuan ?? 0) > 0);
+          const hasDiskonKeseluruhan = diskonKeseluruhan > 0;
+          return (
+            <View style={styles.totalRow}>
+              <View style={styles.totalBox}>
+                {(hasDiskonItem || hasDiskonKeseluruhan) && (
+                  <>
+                    <View style={styles.totalLine}>
+                      <Text style={styles.totalLabel}>Subtotal</Text>
+                      <Text style={styles.totalValue}>{formatRp(subtotalBefore)}</Text>
+                    </View>
+                    {hasDiskonKeseluruhan && (
+                      <View style={styles.totalLine}>
+                        <Text style={styles.totalLabel}>Diskon Keseluruhan</Text>
+                        <Text style={[styles.totalValue, { color: "#dc2626" }]}>- {formatRp(diskonKeseluruhan)}</Text>
+                      </View>
+                    )}
+                  </>
+                )}
+                <View style={styles.totalLineMain}>
+                  <Text style={styles.totalLabelMain}>Total Estimasi</Text>
+                  <Text style={styles.totalValueMain}>{formatRp(total)}</Text>
+                </View>
+              </View>
+            </View>
+          );
+        })()}
 
         {/* Footer */}
         <View style={styles.footer}>

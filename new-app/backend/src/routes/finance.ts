@@ -1645,7 +1645,7 @@ router.get("/adm-projek/:id/pr", async (req: Request, res: Response) => {
 // POST /finance/adm-projek/:id/pr
 router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const { tanggal, nama_toko, catatan, items } = req.body;
+  const { tanggal, nama_toko, catatan, items, diskon_harga_keseluruhan } = req.body;
   if (!tanggal) return res.status(400).json({ detail: "tanggal wajib diisi" });
 
   // Auto-generate nomor PR
@@ -1660,12 +1660,14 @@ router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
       nama_toko: nama_toko || null,
       catatan: catatan || null,
       status: "Pending",
+      diskon_harga_keseluruhan: Number(diskon_harga_keseluruhan) || 0,
       items: {
         create: (items || []).map((it: any) => ({
           nama_item: it.nama_item,
           satuan: it.satuan || null,
           qty: Number(it.qty) || 0,
           harga_perkiraan: Number(it.harga_perkiraan) || 0,
+          diskon_harga_satuan: Number(it.diskon_harga_satuan) || 0,
           is_from_rapp: !!it.is_from_rapp,
           rapp_qty: it.rapp_qty != null ? Number(it.rapp_qty) : null,
           rapp_harga: it.rapp_harga != null ? Number(it.rapp_harga) : null,
@@ -1686,7 +1688,7 @@ router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
   if (!existing) return res.status(404).json({ detail: "PR tidak ditemukan" });
   if (existing.hf_signed_at) return res.status(400).json({ detail: "PR sudah ditandatangani, tidak bisa diedit" });
 
-  const { tanggal, nama_toko, catatan, items } = req.body;
+  const { tanggal, nama_toko, catatan, items, diskon_harga_keseluruhan } = req.body;
   if (!tanggal) return res.status(400).json({ detail: "tanggal wajib diisi" });
 
   // Delete old items then re-create
@@ -1698,12 +1700,14 @@ router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
       nama_toko: nama_toko || null,
       catatan: catatan || null,
       status: "Pending",
+      diskon_harga_keseluruhan: Number(diskon_harga_keseluruhan) || 0,
       items: {
         create: (items || []).map((it: any) => ({
           nama_item: it.nama_item,
           satuan: it.satuan || null,
           qty: Number(it.qty) || 0,
           harga_perkiraan: Number(it.harga_perkiraan) || 0,
+          diskon_harga_satuan: Number(it.diskon_harga_satuan) || 0,
           is_from_rapp: !!it.is_from_rapp,
           rapp_qty: it.rapp_qty != null ? Number(it.rapp_qty) : null,
           rapp_harga: it.rapp_harga != null ? Number(it.rapp_harga) : null,
@@ -2185,11 +2189,18 @@ router.get("/adm-projek/:id/pr/:pid/pdf-data", async (req: Request, res: Respons
     prisma.projekPR.findUnique({ where: { id: pid }, include: { items: true } }),
   ]);
   if (!project || !pr) return res.status(404).json({ detail: "Data tidak ditemukan" });
-  const total = pr.items.reduce((s, it) => s + Number(it.qty) * Number(it.harga_perkiraan), 0);
+  const subtotalBefore = pr.items.reduce((s, it) => {
+    const net = Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan);
+    return s + Number(it.qty) * net;
+  }, 0);
+  const total = subtotalBefore - Number(pr.diskon_harga_keseluruhan);
   return res.json({
     project: { nama_proyek: project.nama_proyek, klien: project.klien },
-    pr: { nomor_pr: pr.nomor_pr, tanggal: pr.tanggal, keperluan: pr.keperluan, nama_toko: pr.nama_toko, status: pr.status, catatan: pr.catatan, hf_signed_at: pr.hf_signed_at, hf_name: pr.hf_name, hf_signature: pr.hf_signature || null },
-    items: pr.items.map((it) => ({ nama_item: it.nama_item, satuan: it.satuan, qty: Number(it.qty), harga_perkiraan: Number(it.harga_perkiraan), subtotal: Number(it.qty) * Number(it.harga_perkiraan) })),
+    pr: { nomor_pr: pr.nomor_pr, tanggal: pr.tanggal, keperluan: pr.keperluan, nama_toko: pr.nama_toko, status: pr.status, catatan: pr.catatan, hf_signed_at: pr.hf_signed_at, hf_name: pr.hf_name, hf_signature: pr.hf_signature || null, diskon_harga_keseluruhan: Number(pr.diskon_harga_keseluruhan) },
+    items: pr.items.map((it) => {
+      const net = Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan);
+      return { nama_item: it.nama_item, satuan: it.satuan, qty: Number(it.qty), harga_perkiraan: Number(it.harga_perkiraan), diskon_harga_satuan: Number(it.diskon_harga_satuan), harga_net: net, subtotal: Number(it.qty) * net };
+    }),
     total,
   });
 });

@@ -297,6 +297,121 @@ router.get("/admin/karyawan-list", async (_req: Request, res: Response) => {
   return res.json(users.map((u) => ({ id: String(u.id), name: u.name })));
 });
 
+// ── GET /absen-karyawan/izin/my — riwayat izin milik user sendiri ─────────────
+router.get("/izin/my", async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const since = new Date();
+  since.setMonth(since.getMonth() - 3);
+  const records = await prisma.izinKaryawan.findMany({
+    where: { user_id: userId, tanggal: { gte: since } },
+    orderBy: { tanggal: "desc" },
+  });
+  return res.json(records);
+});
+
+// ── POST /absen-karyawan/izin — submit izin/sakit/cuti ──────────────────────
+router.post("/izin", async (req: Request, res: Response) => {
+  const userId = req.user!.id;
+  const { tanggal, kategori, keterangan, foto_bukti } = req.body;
+  if (!tanggal) return res.status(400).json({ detail: "Tanggal wajib diisi" });
+  if (!["izin", "sakit", "cuti"].includes(kategori))
+    return res.status(400).json({ detail: "Kategori tidak valid (izin/sakit/cuti)" });
+
+  const today = new Date(tanggal);
+  today.setHours(0, 0, 0, 0);
+
+  const existing = await prisma.izinKaryawan.findUnique({
+    where: { user_id_tanggal: { user_id: userId, tanggal: today } },
+  });
+  if (existing) return res.status(400).json({ detail: "Sudah ada pengajuan izin untuk tanggal ini" });
+
+  let fotoPath: string | null = null;
+  if (foto_bukti) {
+    const photoDir = path.resolve(config.storagePath, "izin-karyawan");
+    const saved = saveBase64Photo(foto_bukti, photoDir);
+    fotoPath = saved.replace("/storage/absen-karyawan/", "/storage/izin-karyawan/");
+  }
+
+  const record = await prisma.izinKaryawan.create({
+    data: {
+      user_id: userId,
+      tanggal: today,
+      kategori,
+      keterangan: keterangan || null,
+      foto_bukti: fotoPath,
+      status: "Pending",
+    },
+  });
+  return res.status(201).json(record);
+});
+
+// ── GET /absen-karyawan/admin/izin/list — semua izin (admin) ─────────────────
+router.get("/admin/izin/list", async (req: Request, res: Response) => {
+  const { status, user_id, tanggal_mulai, tanggal_selesai, bulan, tahun, kategori } = req.query;
+  const where: any = {};
+  if (status) where.status = status;
+  if (kategori) where.kategori = kategori;
+  if (user_id) where.user_id = BigInt(user_id as string);
+  if (tanggal_mulai || tanggal_selesai) {
+    where.tanggal = {};
+    if (tanggal_mulai) { const d = new Date(tanggal_mulai as string); d.setHours(0,0,0,0); where.tanggal.gte = d; }
+    if (tanggal_selesai) { const d = new Date(tanggal_selesai as string); d.setHours(23,59,59,999); where.tanggal.lte = d; }
+  } else if (bulan || tahun) {
+    const year = tahun ? parseInt(tahun as string) : new Date().getFullYear();
+    const month = bulan ? parseInt(bulan as string) : null;
+    if (month) {
+      where.tanggal = { gte: new Date(year, month - 1, 1), lte: new Date(year, month, 0, 23, 59, 59) };
+    } else {
+      where.tanggal = { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59) };
+    }
+  }
+  const items = await prisma.izinKaryawan.findMany({
+    where,
+    include: { user: { select: { id: true, name: true } }, approver: { select: { name: true } } },
+    orderBy: [{ tanggal: "desc" }],
+  });
+  return res.json(items);
+});
+
+// ── GET /absen-karyawan/admin/izin/pending — semua izin pending ───────────────
+router.get("/admin/izin/pending", async (_req: Request, res: Response) => {
+  const items = await prisma.izinKaryawan.findMany({
+    where: { status: "Pending" },
+    include: { user: { select: { id: true, name: true } } },
+    orderBy: { tanggal: "desc" },
+  });
+  return res.json(items);
+});
+
+// ── PATCH /absen-karyawan/admin/izin/:id/approve ─────────────────────────────
+router.patch("/admin/izin/:id/approve", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const approverId = req.user!.id;
+  const record = await prisma.izinKaryawan.findUnique({ where: { id } });
+  if (!record) return res.status(404).json({ detail: "Record tidak ditemukan" });
+  if (record.status !== "Pending") return res.status(400).json({ detail: "Hanya bisa approve status Pending" });
+  const updated = await prisma.izinKaryawan.update({
+    where: { id },
+    data: { status: "Disetujui", approved_by: approverId, approved_at: new Date(), catatan_reject: null },
+  });
+  return res.json(updated);
+});
+
+// ── PATCH /absen-karyawan/admin/izin/:id/reject ──────────────────────────────
+router.patch("/admin/izin/:id/reject", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const approverId = req.user!.id;
+  const { catatan } = req.body;
+  const record = await prisma.izinKaryawan.findUnique({ where: { id } });
+  if (!record) return res.status(404).json({ detail: "Record tidak ditemukan" });
+  if (record.status !== "Pending") return res.status(400).json({ detail: "Hanya bisa reject status Pending" });
+  const updated = await prisma.izinKaryawan.update({
+    where: { id },
+    data: { status: "Ditolak", approved_by: approverId, approved_at: new Date(), catatan_reject: catatan || null },
+  });
+  return res.json(updated);
+});
+
 // ── PATCH /absen-karyawan/admin/:id/override — edit absen oleh super admin ───
 // Hanya bisa diakses oleh user dengan email jerry@rubahrumah.com
 router.patch("/admin/:id/override", async (req: Request, res: Response) => {

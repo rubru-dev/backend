@@ -1551,11 +1551,11 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
   const [prSigDialog, setPrSigDialog] = useState<{ open: boolean; prId: number | null }>({ open: false, prId: null });
   const [prPage, setPrPage] = useState(0);
   const [editPrPage, setEditPrPage] = useState(0);
-  type PRItem = { mode: "manual" | "rapp"; nama_item: string; satuan: string; qty: number; harga_perkiraan: number; rapp_qty?: number; rapp_harga?: number };
-  const emptyItem = (): PRItem => ({ mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0 });
-  const emptyForm = { tanggal: today, nama_toko: "", items: [emptyItem()] };
-  const [form, setForm] = useState<{ tanggal: string; nama_toko: string; items: PRItem[] }>(emptyForm);
-  const [editForm, setEditForm] = useState<{ tanggal: string; nama_toko: string; items: PRItem[] }>(emptyForm);
+  type PRItem = { mode: "manual" | "rapp"; nama_item: string; satuan: string; qty: number; harga_perkiraan: number; diskon_harga_satuan: number; rapp_qty?: number; rapp_harga?: number };
+  const emptyItem = (): PRItem => ({ mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0, diskon_harga_satuan: 0 });
+  const emptyForm = { tanggal: today, nama_toko: "", items: [emptyItem()], diskon_harga_keseluruhan: 0 };
+  const [form, setForm] = useState<{ tanggal: string; nama_toko: string; items: PRItem[]; diskon_harga_keseluruhan: number }>(emptyForm);
+  const [editForm, setEditForm] = useState<{ tanggal: string; nama_toko: string; items: PRItem[]; diskon_harga_keseluruhan: number }>(emptyForm);
 
   const { data, isLoading } = useQuery({
     queryKey: ["adm-pr", proyekId],
@@ -1617,12 +1617,14 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
     setEditForm({
       tanggal: pr.tanggal ? pr.tanggal.split("T")[0] : today,
       nama_toko: pr.nama_toko || "",
+      diskon_harga_keseluruhan: Number(pr.diskon_harga_keseluruhan) || 0,
       items: (pr.items || []).map((it: any) => ({
         mode: it.is_from_rapp ? "rapp" as const : "manual" as const,
         nama_item: it.nama_item,
         satuan: it.satuan || "",
         qty: Number(it.qty),
         harga_perkiraan: Number(it.harga_perkiraan),
+        diskon_harga_satuan: Number(it.diskon_harga_satuan) || 0,
         rapp_qty: it.rapp_qty != null ? Number(it.rapp_qty) : undefined,
         rapp_harga: it.rapp_harga != null ? Number(it.rapp_harga) : undefined,
       })),
@@ -1638,11 +1640,13 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       data: {
         tanggal: editForm.tanggal,
         nama_toko: editForm.nama_toko,
+        diskon_harga_keseluruhan: editForm.diskon_harga_keseluruhan,
         items: editForm.items.map((it) => ({
           nama_item: it.nama_item,
           satuan: it.satuan,
           qty: it.qty,
           harga_perkiraan: it.harga_perkiraan,
+          diskon_harga_satuan: it.diskon_harga_satuan,
           is_from_rapp: it.mode === "rapp",
           rapp_qty: it.rapp_qty ?? null,
           rapp_harga: it.rapp_harga ?? null,
@@ -1730,7 +1734,10 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
               <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
             ))}</TableRow>
           )) : items.map((pr: any) => {
-            const totalEst = (pr.items || []).reduce((s: number, it: any) => s + (Number(it.qty) || 0) * (Number(it.harga_perkiraan) || 0), 0);
+            const totalEst = (pr.items || []).reduce((s: number, it: any) => {
+              const net = (Number(it.harga_perkiraan) || 0) - (Number(it.diskon_harga_satuan) || 0);
+              return s + (Number(it.qty) || 0) * net;
+            }, 0) - (Number(pr.diskon_harga_keseluruhan) || 0);
             return (
               <TableRow key={pr.id}>
                 <TableCell className="font-mono font-medium text-sm">{pr.nomor_pr}</TableCell>
@@ -1924,7 +1931,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                                   onChange={(e) => updateItemRow(idx, "qty", Number(e.target.value))} />
                                 {exceedsQty && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
                               </div>
-                              <div className="col-span-2">
+                              <div>
                                 <Label className="text-xs">
                                   Harga Perkiraan {it.rapp_harga != null && <span className="text-muted-foreground">(RAPP: {formatRp(it.rapp_harga)})</span>}
                                 </Label>
@@ -1934,9 +1941,20 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                                 {exceedsHarga && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
                               </div>
                               <div>
+                                <Label className="text-xs text-green-700">Diskon/Satuan <span className="text-muted-foreground">(opsional)</span></Label>
+                                <Input className="h-8 text-sm border-green-200"
+                                  type="number" min={0} value={it.diskon_harga_satuan}
+                                  onChange={(e) => updateItemRow(idx, "diskon_harga_satuan", Number(e.target.value))} />
+                                {it.diskon_harga_satuan > 0 && (
+                                  <p className="text-[10px] text-green-600 mt-0.5">
+                                    Harga net: {formatRp(it.harga_perkiraan - it.diskon_harga_satuan)}
+                                  </p>
+                                )}
+                              </div>
+                              <div>
                                 <Label className="text-xs">Subtotal</Label>
                                 <div className="h-8 flex items-center text-sm font-medium text-muted-foreground">
-                                  {formatRp(it.qty * it.harga_perkiraan)}
+                                  {formatRp(it.qty * (it.harga_perkiraan - it.diskon_harga_satuan))}
                                 </div>
                               </div>
                             </div>
@@ -1944,9 +1962,28 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                         );
                       })}
                     </div>
-                    <div className="text-right text-sm font-semibold mt-2 text-muted-foreground">
-                      Total Estimasi: <span className="text-foreground">{formatRp(form.items.reduce((s, it) => s + it.qty * it.harga_perkiraan, 0))}</span>
-                    </div>
+                    {(() => {
+                      const subtotal = form.items.reduce((s, it) => s + it.qty * (it.harga_perkiraan - it.diskon_harga_satuan), 0);
+                      const total = subtotal - form.diskon_harga_keseluruhan;
+                      return (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-end gap-2">
+                            <Label className="text-xs text-green-700 whitespace-nowrap">Diskon Keseluruhan <span className="text-muted-foreground">(opsional)</span></Label>
+                            <Input className="h-8 text-sm w-40 border-green-200" type="number" min={0}
+                              value={form.diskon_harga_keseluruhan}
+                              onChange={(e) => setForm({ ...form, diskon_harga_keseluruhan: Number(e.target.value) })} />
+                          </div>
+                          {form.diskon_harga_keseluruhan > 0 && (
+                            <div className="text-right text-xs text-muted-foreground">
+                              Subtotal: {formatRp(subtotal)} &nbsp;|&nbsp; Diskon: -{formatRp(form.diskon_harga_keseluruhan)}
+                            </div>
+                          )}
+                          <div className="text-right text-sm font-semibold text-muted-foreground">
+                            Total Estimasi: <span className="text-foreground">{formatRp(total)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </>
                 );
               })()}
@@ -1957,11 +1994,13 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
               <Button disabled={!form.tanggal || addMut.isPending} onClick={() => addMut.mutate({
                 tanggal: form.tanggal,
                 nama_toko: form.nama_toko,
+                diskon_harga_keseluruhan: form.diskon_harga_keseluruhan,
                 items: form.items.map((it) => ({
                   nama_item: it.nama_item,
                   satuan: it.satuan,
                   qty: it.qty,
                   harga_perkiraan: it.harga_perkiraan,
+                  diskon_harga_satuan: it.diskon_harga_satuan,
                   is_from_rapp: it.mode === "rapp",
                   rapp_qty: it.rapp_qty ?? null,
                   rapp_harga: it.rapp_harga ?? null,
@@ -1992,6 +2031,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                     <TableHead>Sat.</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Harga</TableHead>
+                    <TableHead className="text-right">Diskon/Sat.</TableHead>
                     <TableHead className="text-right">Subtotal</TableHead>
                     <TableHead className="w-8" />
                   </TableRow>
@@ -2017,16 +2057,34 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                           <span className={exceedsHarga ? "text-amber-600 font-semibold" : ""}>{formatRp(it.harga_perkiraan)}</span>
                           {exceedsHarga && <div className="text-[10px] text-amber-500">RAPP: {formatRp(it.rapp_harga)}</div>}
                         </TableCell>
-                        <TableCell className="text-right font-semibold">{formatRp(Number(it.qty) * Number(it.harga_perkiraan))}</TableCell>
+                        <TableCell className="text-right">
+                          {Number(it.diskon_harga_satuan) > 0
+                            ? <span className="text-green-700">-{formatRp(it.diskon_harga_satuan)}</span>
+                            : <span className="text-muted-foreground">—</span>}
+                        </TableCell>
+                        <TableCell className="text-right font-semibold">{formatRp(Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan || 0)))}</TableCell>
                         <TableCell>{(it.is_from_rapp || exceedsQty || exceedsHarga) && <ShieldCheck className="h-3.5 w-3.5 text-amber-500" aria-label="Perlu TTD HF" />}</TableCell>
                       </TableRow>
                     );
                   })}
                 </TableBody>
               </Table>
-              <div className="text-right font-bold">
-                Total: {formatRp((viewPR.items || []).reduce((s: number, it: any) => s + Number(it.qty) * Number(it.harga_perkiraan), 0))}
-              </div>
+              {(() => {
+                const subtotal = (viewPR.items || []).reduce((s: number, it: any) => s + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan || 0)), 0);
+                const diskonKeseluruhan = Number(viewPR.diskon_harga_keseluruhan) || 0;
+                const total = subtotal - diskonKeseluruhan;
+                return (
+                  <div className="text-right space-y-1">
+                    {diskonKeseluruhan > 0 && (
+                      <>
+                        <div className="text-sm text-muted-foreground">Subtotal: {formatRp(subtotal)}</div>
+                        <div className="text-sm text-green-700">Diskon Keseluruhan: -{formatRp(diskonKeseluruhan)}</div>
+                      </>
+                    )}
+                    <div className="font-bold">Total: {formatRp(total)}</div>
+                  </div>
+                );
+              })()}
               {viewPR.catatan && <p className="text-sm text-muted-foreground">Catatan: {viewPR.catatan}</p>}
               {viewPR.hf_signature && (
                 <div className="border-t pt-3">
@@ -2111,7 +2169,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                               <div className="flex rounded-md border overflow-hidden text-xs">
                                 <button type="button"
                                   className={`px-3 py-1 transition-colors ${it.mode === "manual" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
-                                  onClick={() => setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0 } : x) })}>
+                                  onClick={() => setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0, diskon_harga_satuan: 0 } : x) })}>
                                   Ketik Manual
                                 </button>
                                 {proyekBerjalanId && (
@@ -2135,7 +2193,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                                 <Select value={it.nama_item || ""} onValueChange={(v) => {
                                   const found = (rappItems as any[]).find((r) => r.nama_item === v);
                                   if (found) setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx
-                                    ? { mode: "rapp" as const, nama_item: found.nama_item, satuan: found.satuan || "", qty: found.qty || 1, harga_perkiraan: found.harga || 0, rapp_qty: found.qty, rapp_harga: found.harga }
+                                    ? { mode: "rapp" as const, nama_item: found.nama_item, satuan: found.satuan || "", qty: found.qty || 1, harga_perkiraan: found.harga || 0, diskon_harga_satuan: 0, rapp_qty: found.qty, rapp_harga: found.harga }
                                     : x) });
                                 }}>
                                   <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— Pilih item RAPP —" /></SelectTrigger>
@@ -2167,16 +2225,24 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                                   type="number" min={0} value={it.qty} onChange={(e) => updateEdit("qty", Number(e.target.value))} />
                                 {exceedsQty && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
                               </div>
-                              <div className="col-span-2">
+                              <div>
                                 <Label className="text-xs">Harga Perkiraan {it.rapp_harga != null && <span className="text-muted-foreground">(RAPP: {formatRp(it.rapp_harga)})</span>}</Label>
                                 <Input className={`h-8 text-sm ${exceedsHarga ? "border-amber-400 bg-amber-50" : ""}`}
                                   type="number" min={0} value={it.harga_perkiraan} onChange={(e) => updateEdit("harga_perkiraan", Number(e.target.value))} />
                                 {exceedsHarga && <p className="text-[10px] text-amber-600 mt-0.5">Melebihi RAPP (perlu TTD HF)</p>}
                               </div>
                               <div>
+                                <Label className="text-xs text-green-700">Diskon/Satuan <span className="text-muted-foreground">(opsional)</span></Label>
+                                <Input className="h-8 text-sm border-green-200"
+                                  type="number" min={0} value={it.diskon_harga_satuan ?? 0} onChange={(e) => updateEdit("diskon_harga_satuan", Number(e.target.value))} />
+                                {(it.diskon_harga_satuan ?? 0) > 0 && (
+                                  <p className="text-[10px] text-green-600 mt-0.5">Net: {formatRp(it.harga_perkiraan - it.diskon_harga_satuan)}</p>
+                                )}
+                              </div>
+                              <div>
                                 <Label className="text-xs">Subtotal</Label>
                                 <div className="h-8 flex items-center text-sm font-medium text-muted-foreground">
-                                  {formatRp(it.qty * it.harga_perkiraan)}
+                                  {formatRp(it.qty * (it.harga_perkiraan - (it.diskon_harga_satuan ?? 0)))}
                                 </div>
                               </div>
                             </div>
@@ -2184,9 +2250,28 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                         );
                       })}
                     </div>
-                    <div className="text-right text-sm font-semibold mt-2 text-muted-foreground">
-                      Total Estimasi: <span className="text-foreground">{formatRp(editForm.items.reduce((s, it) => s + it.qty * it.harga_perkiraan, 0))}</span>
-                    </div>
+                    {(() => {
+                      const subtotal = editForm.items.reduce((s, it) => s + it.qty * (it.harga_perkiraan - (it.diskon_harga_satuan ?? 0)), 0);
+                      const total = subtotal - editForm.diskon_harga_keseluruhan;
+                      return (
+                        <div className="mt-3 space-y-2">
+                          <div className="flex items-center justify-end gap-2">
+                            <Label className="text-xs text-green-700 whitespace-nowrap">Diskon Keseluruhan <span className="text-muted-foreground">(opsional)</span></Label>
+                            <Input className="h-8 text-sm w-40 border-green-200" type="number" min={0}
+                              value={editForm.diskon_harga_keseluruhan}
+                              onChange={(e) => setEditForm({ ...editForm, diskon_harga_keseluruhan: Number(e.target.value) })} />
+                          </div>
+                          {editForm.diskon_harga_keseluruhan > 0 && (
+                            <div className="text-right text-xs text-muted-foreground">
+                              Subtotal: {formatRp(subtotal)} &nbsp;|&nbsp; Diskon: -{formatRp(editForm.diskon_harga_keseluruhan)}
+                            </div>
+                          )}
+                          <div className="text-right text-sm font-semibold text-muted-foreground">
+                            Total Estimasi: <span className="text-foreground">{formatRp(total)}</span>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </>
                 );
               })()}

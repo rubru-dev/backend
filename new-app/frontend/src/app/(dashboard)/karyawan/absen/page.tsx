@@ -11,9 +11,11 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Camera, Clock, CheckCircle, XCircle, AlertTriangle, MapPin,
-  LogIn, LogOut, RefreshCw, Loader2,
+  LogIn, LogOut, RefreshCw, Loader2, FileText, Upload,
 } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000";
@@ -24,7 +26,15 @@ const api = {
   getHistory: () => apiClient.get("/absen-karyawan/history").then((r) => r.data),
   checkIn: (data: any) => apiClient.post("/absen-karyawan/check-in", data).then((r) => r.data),
   checkOut: (data: any) => apiClient.post("/absen-karyawan/check-out", data).then((r) => r.data),
+  getMyIzin: () => apiClient.get("/absen-karyawan/izin/my").then((r) => r.data),
+  submitIzin: (data: any) => apiClient.post("/absen-karyawan/izin", data).then((r) => r.data),
 };
+
+const KATEGORI_IZIN = [
+  { value: "izin", label: "Izin", color: "bg-blue-100 text-blue-700 border-blue-200" },
+  { value: "sakit", label: "Sakit", color: "bg-red-100 text-red-700 border-red-200" },
+  { value: "cuti", label: "Cuti", color: "bg-purple-100 text-purple-700 border-purple-200" },
+];
 
 // ── Haversine (client-side untuk preview jarak) ────────────────────────────────
 function haversine(lat1: number, lng1: number, lat2: number, lng2: number) {
@@ -246,10 +256,23 @@ export default function AbsenKaryawanPage() {
         <Button variant="ghost" size="icon" onClick={() => {
           qc.invalidateQueries({ queryKey: ["absen-today"] });
           qc.invalidateQueries({ queryKey: ["absen-history"] });
+          qc.invalidateQueries({ queryKey: ["izin-my"] });
         }}>
           <RefreshCw className="h-4 w-4" />
         </Button>
       </div>
+
+      <Tabs defaultValue="absen">
+        <TabsList className="w-full">
+          <TabsTrigger value="absen" className="flex-1 flex items-center gap-1.5">
+            <Camera className="h-4 w-4" /> Absen
+          </TabsTrigger>
+          <TabsTrigger value="izin" className="flex-1 flex items-center gap-1.5">
+            <FileText className="h-4 w-4" /> Izin
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="absen" className="space-y-4 mt-3">
 
       {/* Status hari ini */}
       {loadingToday ? (
@@ -459,6 +482,149 @@ export default function AbsenKaryawanPage() {
           )}
         </div>
       )}
+        </TabsContent>
+
+        <TabsContent value="izin" className="mt-3">
+          <IzinTab />
+        </TabsContent>
+      </Tabs>
+    </div>
+  );
+}
+
+// ── Tab Izin ──────────────────────────────────────────────────────────────────
+function IzinTab() {
+  const qc = useQueryClient();
+  const today = new Date().toISOString().slice(0, 10);
+  const [form, setForm] = useState({ tanggal: today, kategori: "izin", keterangan: "", foto_bukti: "" });
+  const [preview, setPreview] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const { data: izinList = [], isLoading } = useQuery<any[]>({
+    queryKey: ["izin-my"],
+    queryFn: api.getMyIzin,
+  });
+
+  const submitMut = useMutation({
+    mutationFn: (data: any) => api.submitIzin(data),
+    onSuccess: () => {
+      toast.success("Pengajuan izin berhasil dikirim. Menunggu persetujuan Super Admin.");
+      qc.invalidateQueries({ queryKey: ["izin-my"] });
+      setForm({ tanggal: today, kategori: "izin", keterangan: "", foto_bukti: "" });
+      setPreview(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal mengirim izin"),
+  });
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setPreview(dataUrl);
+      setForm((f) => ({ ...f, foto_bukti: dataUrl }));
+    };
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Form pengajuan */}
+      <Card>
+        <CardContent className="pt-4 space-y-4">
+          <p className="text-sm font-semibold flex items-center gap-2"><FileText className="h-4 w-4 text-blue-500" /> Ajukan Izin / Sakit / Cuti</p>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-xs">Tanggal *</Label>
+              <Input type="date" className="h-9 mt-1" value={form.tanggal}
+                onChange={(e) => setForm({ ...form, tanggal: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Kategori *</Label>
+              <select className="border rounded-md px-3 py-2 text-sm h-9 w-full mt-1"
+                value={form.kategori}
+                onChange={(e) => setForm({ ...form, kategori: e.target.value })}>
+                <option value="izin">Izin</option>
+                <option value="sakit">Sakit</option>
+                <option value="cuti">Cuti</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <Label className="text-xs">Keterangan</Label>
+            <Textarea className="mt-1 text-sm resize-none" rows={3}
+              placeholder="Tuliskan alasan izin / keterangan..."
+              value={form.keterangan}
+              onChange={(e) => setForm({ ...form, keterangan: e.target.value })} />
+          </div>
+
+          <div>
+            <Label className="text-xs">Foto Bukti <span className="text-muted-foreground">(screenshot chat WA dengan Head Finance)</span></Label>
+            <div className="mt-1 space-y-2">
+              <Button variant="outline" size="sm" className="gap-1.5 w-full" onClick={() => fileRef.current?.click()}>
+                <Upload className="h-3.5 w-3.5" /> {preview ? "Ganti Foto" : "Upload Foto"}
+              </Button>
+              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+              {preview && (
+                <img src={preview} alt="bukti" className="w-full rounded-lg border max-h-48 object-contain bg-muted" />
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2 text-xs text-blue-700 bg-blue-50 border border-blue-200 rounded-lg p-2.5">
+            <Clock className="h-3.5 w-3.5 mt-0.5 flex-shrink-0" />
+            Pengajuan izin membutuhkan persetujuan <b>Super Admin</b> sebelum disetujui.
+          </div>
+
+          <Button className="w-full" disabled={!form.tanggal || !form.kategori || submitMut.isPending}
+            onClick={() => submitMut.mutate({ tanggal: form.tanggal, kategori: form.kategori, keterangan: form.keterangan, foto_bukti: form.foto_bukti || null })}>
+            {submitMut.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Mengirim...</> : "Kirim Pengajuan Izin"}
+          </Button>
+        </CardContent>
+      </Card>
+
+      {/* Riwayat izin */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Riwayat Izin (3 Bulan Terakhir)</p>
+        {isLoading ? (
+          <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-14 rounded-lg" />)}</div>
+        ) : (izinList as any[]).length === 0 ? (
+          <p className="text-center py-6 text-muted-foreground text-sm">Belum ada riwayat izin</p>
+        ) : (
+          <div className="divide-y border rounded-xl overflow-hidden">
+            {(izinList as any[]).map((r: any) => {
+              const kat = KATEGORI_IZIN.find((k) => k.value === r.kategori);
+              const statusStyle = STATUS_STYLE[r.status] ?? STATUS_STYLE["Hadir"];
+              return (
+                <div key={r.id} className="px-4 py-3 bg-white space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">{formatTanggal(r.tanggal)}</span>
+                    <div className="flex gap-1.5">
+                      {kat && (
+                        <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full border ${kat.color}`}>
+                          {kat.label}
+                        </span>
+                      )}
+                      <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border ${statusStyle.color}`}>
+                        {statusStyle.icon}{r.status}
+                      </span>
+                    </div>
+                  </div>
+                  {r.keterangan && <p className="text-xs text-muted-foreground">{r.keterangan}</p>}
+                  {r.catatan_reject && (
+                    <p className="text-xs text-red-600 flex items-center gap-1">
+                      <XCircle className="h-3 w-3" /> {r.catatan_reject}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }

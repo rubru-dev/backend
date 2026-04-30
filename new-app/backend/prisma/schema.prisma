@@ -1926,6 +1926,8 @@ model User {
   client_portal_projects_created        ClientPortalProject[]
   absen_karyawans                       AbsenKaryawan[]      @relation("KaryawanAbsen")
   absen_karyawan_approvals              AbsenKaryawan[]      @relation("KaryawanAbsenApprover")
+  izin_karyawans                        IzinKaryawan[]       @relation("KaryawanIzin")
+  izin_karyawan_approvals               IzinKaryawan[]       @relation("KaryawanIzinApprover")
   kalender_visits_created               KalenderVisit[]      @relation("kalender_visit_creator")
   kalender_visit_pics                   KalenderVisitPic[]   @relation("kalender_visit_pic_user")
   addendum_kontraks_created             AddendumKontrak[]    @relation("addendum_creator")
@@ -2121,39 +2123,41 @@ model ProjekListMaterialItem {
 }
 
 model ProjekPR {
-  id                     BigInt            @id @default(autoincrement())
-  adm_finance_project_id BigInt
-  nomor_pr               String?           @db.VarChar(100)
-  tanggal                DateTime          @db.Date
-  keperluan              String?
-  nama_toko              String?           @db.VarChar(255)
-  status                 String            @default("Pending") @db.VarChar(50)
-  catatan                String?
-  hf_signed_at           DateTime?         @db.Timestamptz(6)
-  hf_signed_by           BigInt?
-  hf_name                String?           @db.VarChar(255)
-  hf_signature           String?           @db.Text
-  created_at             DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime          @default(now()) @db.Timestamptz(6)
-  items                  ProjekPRItem[]
-  cashflow_items         ProjekCashflow[]
-  project                AdmFinanceProject @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                       BigInt            @id @default(autoincrement())
+  adm_finance_project_id   BigInt
+  nomor_pr                 String?           @db.VarChar(100)
+  tanggal                  DateTime          @db.Date
+  keperluan                String?
+  nama_toko                String?           @db.VarChar(255)
+  status                   String            @default("Pending") @db.VarChar(50)
+  catatan                  String?
+  diskon_harga_keseluruhan Decimal           @default(0) @db.Decimal(15, 2)
+  hf_signed_at             DateTime?         @db.Timestamptz(6)
+  hf_signed_by             BigInt?
+  hf_name                  String?           @db.VarChar(255)
+  hf_signature             String?           @db.Text
+  created_at               DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at               DateTime          @default(now()) @db.Timestamptz(6)
+  items                    ProjekPRItem[]
+  cashflow_items           ProjekCashflow[]
+  project                  AdmFinanceProject @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   @@map("projek_prs")
 }
 
 model ProjekPRItem {
-  id              BigInt    @id @default(autoincrement())
-  projek_pr_id    BigInt
-  nama_item       String    @db.VarChar(255)
-  satuan          String?   @db.VarChar(50)
-  qty             Decimal   @default(0) @db.Decimal(15, 3)
-  harga_perkiraan Decimal   @default(0) @db.Decimal(15, 2)
-  is_from_rapp    Boolean   @default(false)
-  rapp_qty        Decimal?  @db.Decimal(15, 3)
-  rapp_harga      Decimal?  @db.Decimal(15, 2)
-  created_at      DateTime  @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime  @default(now()) @db.Timestamptz(6)
-  pr              ProjekPR  @relation(fields: [projek_pr_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  id                  BigInt    @id @default(autoincrement())
+  projek_pr_id        BigInt
+  nama_item           String    @db.VarChar(255)
+  satuan              String?   @db.VarChar(50)
+  qty                 Decimal   @default(0) @db.Decimal(15, 3)
+  harga_perkiraan     Decimal   @default(0) @db.Decimal(15, 2)
+  diskon_harga_satuan Decimal   @default(0) @db.Decimal(15, 2)
+  is_from_rapp        Boolean   @default(false)
+  rapp_qty            Decimal?  @db.Decimal(15, 3)
+  rapp_harga          Decimal?  @db.Decimal(15, 2)
+  created_at          DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime  @default(now()) @db.Timestamptz(6)
+  pr                  ProjekPR  @relation(fields: [projek_pr_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   @@map("projek_pr_items")
 }
 
@@ -2717,6 +2721,29 @@ model AbsenKaryawan {
   @@index([tanggal], map: "idx_absen_karyawan_tanggal")
   @@index([status], map: "idx_absen_karyawan_status")
   @@map("absen_karyawans")
+}
+
+// status: Pending | Disetujui | Ditolak
+model IzinKaryawan {
+  id           BigInt    @id @default(autoincrement())
+  user_id      BigInt
+  tanggal      DateTime  @db.Date
+  kategori     String    @db.VarChar(20)  // izin | sakit | cuti
+  keterangan   String?   @db.Text
+  foto_bukti   String?   @db.Text          // path foto screenshot chat WA dengan HF
+  status       String    @default("Pending") @db.VarChar(20)
+  approved_by  BigInt?
+  approved_at  DateTime? @db.Timestamptz(6)
+  catatan_reject String? @db.Text
+  created_at   DateTime  @default(now()) @db.Timestamptz(6)
+
+  user         User      @relation("KaryawanIzin", fields: [user_id], references: [id])
+  approver     User?     @relation("KaryawanIzinApprover", fields: [approved_by], references: [id])
+
+  @@unique([user_id, tanggal])
+  @@index([tanggal], map: "idx_izin_karyawan_tanggal")
+  @@index([status], map: "idx_izin_karyawan_status")
+  @@map("izin_karyawans")
 }
 
 model AbsenKaryawanConfig {

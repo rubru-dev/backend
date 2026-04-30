@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye, Settings, FileDown, Pencil,
+  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye, Settings, FileDown, Pencil, FileText, Image as ImageIcon,
 } from "lucide-react";
 
 const BULAN_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -92,6 +92,63 @@ function generateAbsenPDF(records: any[], karyawanList: any[], filters: {
       <th style="padding:8px;text-align:left;font-size:12px">Lokasi</th>
     </tr></thead>
     <tbody>${rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#9ca3af">Tidak ada data</td></tr>'}</tbody>
+  </table>
+  <p style="margin-top:12px;font-size:11px;color:#9ca3af">Dicetak pada: ${new Date().toLocaleString("id-ID")}</p>
+  <script>window.onload=()=>{window.print();}</script>
+  </body></html>`;
+
+  const win = window.open("", "_blank");
+  if (win) { win.document.write(html); win.document.close(); }
+}
+
+function generateIzinPDF(records: any[], filters: { userName: string; kategori: string; status: string }) {
+  const { userName, kategori, status } = filters;
+
+  const kategoriBadge = (k: string) => {
+    const map: Record<string, string> = { izin: "#2563eb", sakit: "#dc2626", cuti: "#16a34a" };
+    return `<span style="background:${map[k] || "#6b7280"};color:#fff;padding:2px 8px;border-radius:999px;font-size:11px">${k.charAt(0).toUpperCase() + k.slice(1)}</span>`;
+  };
+  const statusBadge = (s: string) => {
+    const map: Record<string, string> = { Pending: "#2563eb", Disetujui: "#16a34a", Ditolak: "#dc2626" };
+    return `<span style="background:${map[s] || "#6b7280"};color:#fff;padding:2px 8px;border-radius:999px;font-size:11px">${s}</span>`;
+  };
+
+  const rows = records.map((r, i) => `
+    <tr style="background:${i % 2 ? "#f9fafb" : "#fff"}">
+      <td style="padding:6px 8px;font-size:12px;color:#374151">${fmtTgl2(r.tanggal)}</td>
+      <td style="padding:6px 8px;font-size:12px;font-weight:600">${r.user?.name || "—"}</td>
+      <td style="padding:6px 8px">${kategoriBadge(r.kategori)}</td>
+      <td style="padding:6px 8px;font-size:12px;color:#374151;max-width:200px;word-break:break-word">${r.keterangan || "—"}</td>
+      <td style="padding:6px 8px">${statusBadge(r.status)}</td>
+      <td style="padding:6px 8px">${r.foto_bukti
+        ? `<img src="${r.foto_bukti}" style="max-width:120px;max-height:80px;border-radius:4px;border:1px solid #e5e7eb;object-fit:contain" />`
+        : "—"}</td>
+    </tr>`).join("");
+
+  const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Rekap Izin Karyawan</title>
+  <style>body{font-family:Arial,sans-serif;margin:0;padding:20px;color:#111}@media print{@page{size:A4 landscape;margin:15mm}}</style>
+  </head><body>
+  <div style="margin-bottom:8px">
+    <h2 style="margin:0;font-size:18px;color:#0F4C75">RubahRumah</h2>
+    <p style="margin:0;font-size:11px;color:#6b7280">Rekap Izin / Sakit / Cuti Karyawan</p>
+  </div>
+  <hr style="margin:8px 0;border-color:#e5e7eb"/>
+  <div style="display:flex;gap:24px;margin-bottom:14px;font-size:12px">
+    ${userName ? `<span><b>Karyawan:</b> ${userName}</span>` : `<span><b>Karyawan:</b> Semua</span>`}
+    ${kategori ? `<span><b>Kategori:</b> ${kategori}</span>` : ""}
+    ${status ? `<span><b>Status:</b> ${status}</span>` : ""}
+    <span><b>Total:</b> ${records.length}</span>
+  </div>
+  <table style="width:100%;border-collapse:collapse;border:1px solid #e5e7eb">
+    <thead><tr style="background:#0F4C75;color:#fff">
+      <th style="padding:8px;text-align:left;font-size:12px">Tanggal</th>
+      <th style="padding:8px;text-align:left;font-size:12px">Karyawan</th>
+      <th style="padding:8px;text-align:left;font-size:12px">Kategori</th>
+      <th style="padding:8px;text-align:left;font-size:12px">Keterangan</th>
+      <th style="padding:8px;text-align:left;font-size:12px">Status</th>
+      <th style="padding:8px;text-align:left;font-size:12px">Foto Bukti</th>
+    </tr></thead>
+    <tbody>${rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#9ca3af">Tidak ada data</td></tr>'}</tbody>
   </table>
   <p style="margin-top:12px;font-size:11px;color:#9ca3af">Dicetak pada: ${new Date().toLocaleString("id-ID")}</p>
   <script>window.onload=()=>{window.print();}</script>
@@ -237,6 +294,9 @@ export default function FinanceAbsenKaryawanPage() {
         <TabsList>
           <TabsTrigger value="rekap" className="flex items-center gap-1.5">
             <ClipboardCheck className="h-4 w-4" /> Rekap Absen
+          </TabsTrigger>
+          <TabsTrigger value="izin" className="flex items-center gap-1.5">
+            <FileText className="h-4 w-4" /> Izin / Sakit / Cuti
           </TabsTrigger>
           <TabsTrigger value="konfigurasi" className="flex items-center gap-1.5">
             <Settings className="h-4 w-4" /> Konfigurasi
@@ -437,6 +497,10 @@ export default function FinanceAbsenKaryawanPage() {
 
         </TabsContent>
 
+        <TabsContent value="izin" className="mt-4">
+          <IzinTab karyawanList={karyawanList ?? []} isSuperAdmin={isSuperAdmin()} />
+        </TabsContent>
+
         <TabsContent value="konfigurasi" className="mt-4">
           <KonfigurasiTab />
         </TabsContent>
@@ -543,6 +607,306 @@ export default function FinanceAbsenKaryawanPage() {
               </div>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+// ── IzinTab ───────────────────────────────────────────────────────────────────
+const KATEGORI_COLOR: Record<string, string> = {
+  izin:  "bg-blue-100 text-blue-700 border-blue-200",
+  sakit: "bg-red-100 text-red-700 border-red-200",
+  cuti:  "bg-green-100 text-green-700 border-green-200",
+};
+
+function IzinTab({ karyawanList, isSuperAdmin }: { karyawanList: any[]; isSuperAdmin: boolean }) {
+  const qc = useQueryClient();
+  const [filterUser, setFilterUser]         = useState("");
+  const [filterTglMulai, setFilterTglMulai] = useState("");
+  const [filterTglSelesai, setFilterTglSelesai] = useState("");
+  const [filterKategori, setFilterKategori] = useState("");
+  const [filterStatus, setFilterStatus]     = useState("");
+  const [photoOpen, setPhotoOpen]           = useState<{ url: string; name: string } | null>(null);
+  const [rejectOpen, setRejectOpen]         = useState<{ id: number; catatan: string } | null>(null);
+
+  const { data: izinData, isLoading } = useQuery({
+    queryKey: ["finance-izin", filterUser, filterTglMulai, filterTglSelesai, filterKategori, filterStatus],
+    queryFn: () => apiClient.get("/absen-karyawan/admin/izin/list", {
+      params: {
+        ...(filterUser ? { user_id: filterUser } : {}),
+        ...(filterTglMulai ? { tanggal_mulai: filterTglMulai } : {}),
+        ...(filterTglSelesai ? { tanggal_selesai: filterTglSelesai } : {}),
+        ...(filterKategori ? { kategori: filterKategori } : {}),
+        ...(filterStatus ? { status: filterStatus } : {}),
+        per_page: 500,
+      },
+    }).then(r => r.data as any[]),
+  });
+
+  const { data: pendingIzin } = useQuery({
+    queryKey: ["finance-izin-pending"],
+    queryFn: () => apiClient.get("/absen-karyawan/admin/izin/pending").then(r => r.data as any[]),
+    enabled: isSuperAdmin,
+    refetchInterval: 30000,
+  });
+
+  const approveIzinMut = useMutation({
+    mutationFn: (id: number) => apiClient.patch(`/absen-karyawan/admin/izin/${id}/approve`).then(r => r.data),
+    onSuccess: () => {
+      toast.success("Izin disetujui");
+      qc.invalidateQueries({ queryKey: ["finance-izin"] });
+      qc.invalidateQueries({ queryKey: ["finance-izin-pending"] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menyetujui"),
+  });
+
+  const rejectIzinMut = useMutation({
+    mutationFn: ({ id, catatan }: { id: number; catatan: string }) =>
+      apiClient.patch(`/absen-karyawan/admin/izin/${id}/reject`, { catatan }).then(r => r.data),
+    onSuccess: () => {
+      toast.success("Izin ditolak");
+      qc.invalidateQueries({ queryKey: ["finance-izin"] });
+      qc.invalidateQueries({ queryKey: ["finance-izin-pending"] });
+      setRejectOpen(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menolak"),
+  });
+
+  const records: any[] = Array.isArray(izinData) ? izinData : [];
+  const pending: any[] = Array.isArray(pendingIzin) ? pendingIzin : [];
+  const userName = karyawanList.find(u => String(u.id) === filterUser)?.name ?? "";
+
+  return (
+    <div className="space-y-6">
+
+      {/* Pending approval — Super Admin only */}
+      {isSuperAdmin && pending.length > 0 && (
+        <Card className="border-amber-200 bg-amber-50/40">
+          <CardContent className="pt-4">
+            <h3 className="font-semibold text-sm mb-3 flex items-center gap-2 text-amber-700">
+              <Clock className="h-4 w-4" /> Menunggu Persetujuan Izin ({pending.length})
+            </h3>
+            <div className="space-y-2">
+              {pending.map((p: any) => (
+                <div key={p.id} className="flex items-center justify-between gap-3 bg-white rounded-lg border p-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-sm truncate">{p.user?.name ?? "—"}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {fmtTgl(p.tanggal)} ·{" "}
+                      <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full border ${KATEGORI_COLOR[p.kategori] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                        {p.kategori}
+                      </span>
+                    </p>
+                    {p.keterangan && <p className="text-xs text-muted-foreground mt-0.5 truncate">{p.keterangan}</p>}
+                  </div>
+                  <div className="flex gap-1.5 shrink-0">
+                    {p.foto_bukti && (
+                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                        onClick={() => setPhotoOpen({ url: p.foto_bukti, name: p.user?.name ?? "—" })}>
+                        <ImageIcon className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                    <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 gap-1"
+                      disabled={approveIzinMut.isPending}
+                      onClick={() => approveIzinMut.mutate(p.id)}>
+                      <CheckCircle className="h-3.5 w-3.5" /> Setujui
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-destructive border-destructive/30 gap-1"
+                      onClick={() => setRejectOpen({ id: p.id, catatan: "" })}>
+                      <XCircle className="h-3.5 w-3.5" /> Tolak
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Filters */}
+      <div className="flex gap-2 flex-wrap items-end">
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Karyawan</span>
+          <select className="border rounded-md px-3 py-2 text-sm h-9" value={filterUser}
+            onChange={e => setFilterUser(e.target.value)}>
+            <option value="">Semua Karyawan</option>
+            {karyawanList.map((u: any) => (
+              <option key={u.id} value={String(u.id)}>{u.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Dari Tanggal</span>
+          <Input type="date" className="h-9 text-sm w-36" value={filterTglMulai}
+            onChange={e => setFilterTglMulai(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Sampai Tanggal</span>
+          <Input type="date" className="h-9 text-sm w-36" value={filterTglSelesai}
+            onChange={e => setFilterTglSelesai(e.target.value)} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Kategori</span>
+          <select className="border rounded-md px-3 py-2 text-sm h-9" value={filterKategori}
+            onChange={e => setFilterKategori(e.target.value)}>
+            <option value="">Semua</option>
+            <option value="izin">Izin</option>
+            <option value="sakit">Sakit</option>
+            <option value="cuti">Cuti</option>
+          </select>
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="text-xs text-muted-foreground">Status</span>
+          <select className="border rounded-md px-3 py-2 text-sm h-9" value={filterStatus}
+            onChange={e => setFilterStatus(e.target.value)}>
+            <option value="">Semua Status</option>
+            <option value="Pending">Pending</option>
+            <option value="Disetujui">Disetujui</option>
+            <option value="Ditolak">Ditolak</option>
+          </select>
+        </div>
+        <div className="flex gap-2 self-end">
+          {(filterUser || filterTglMulai || filterTglSelesai || filterKategori || filterStatus) && (
+            <Button variant="ghost" size="sm" className="h-9" onClick={() => {
+              setFilterUser(""); setFilterTglMulai(""); setFilterTglSelesai("");
+              setFilterKategori(""); setFilterStatus("");
+            }}>
+              <X className="h-3.5 w-3.5 mr-1" /> Reset
+            </Button>
+          )}
+          <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => {
+            generateIzinPDF(records, { userName, kategori: filterKategori, status: filterStatus });
+          }}>
+            <FileDown className="h-3.5 w-3.5" /> Download PDF
+          </Button>
+        </div>
+      </div>
+
+      {/* Table */}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Tanggal</TableHead>
+                <TableHead>Karyawan</TableHead>
+                <TableHead>Kategori</TableHead>
+                <TableHead>Keterangan</TableHead>
+                <TableHead>Foto Bukti</TableHead>
+                <TableHead>Status</TableHead>
+                {isSuperAdmin && <TableHead className="w-28">Aksi</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading
+                ? Array.from({ length: 5 }).map((_, i) => (
+                    <TableRow key={i}>
+                      {Array.from({ length: isSuperAdmin ? 7 : 6 }).map((__, j) => (
+                        <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                : records.map((r: any) => (
+                    <TableRow key={r.id}>
+                      <TableCell className="whitespace-nowrap text-sm">{fmtTgl(r.tanggal)}</TableCell>
+                      <TableCell className="font-medium text-sm">{r.user?.name ?? "—"}</TableCell>
+                      <TableCell>
+                        <span className={`inline-flex text-xs font-semibold px-2 py-0.5 rounded-full border ${KATEGORI_COLOR[r.kategori] ?? "bg-gray-100 text-gray-600 border-gray-200"}`}>
+                          {r.kategori}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">
+                        {r.keterangan || "—"}
+                      </TableCell>
+                      <TableCell>
+                        {r.foto_bukti ? (
+                          <Button size="sm" variant="ghost" className="h-7 gap-1"
+                            onClick={() => setPhotoOpen({ url: r.foto_bukti, name: r.user?.name ?? "—" })}>
+                            <ImageIcon className="h-3.5 w-3.5" /> Lihat
+                          </Button>
+                        ) : <span className="text-xs text-muted-foreground">—</span>}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={r.status} />
+                        {r.catatan_reject && (
+                          <p className="text-xs text-red-500 mt-0.5 max-w-[140px] truncate" title={r.catatan_reject}>
+                            {r.catatan_reject}
+                          </p>
+                        )}
+                      </TableCell>
+                      {isSuperAdmin && (
+                        <TableCell>
+                          {r.status === "Pending" && (
+                            <div className="flex gap-1">
+                              <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700"
+                                disabled={approveIzinMut.isPending}
+                                onClick={() => approveIzinMut.mutate(r.id)}>
+                                <CheckCircle className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-destructive border-destructive/30"
+                                onClick={() => setRejectOpen({ id: r.id, catatan: "" })}>
+                                <XCircle className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          )}
+                        </TableCell>
+                      )}
+                    </TableRow>
+                  ))
+              }
+              {!isLoading && records.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={isSuperAdmin ? 7 : 6} className="text-center py-14 text-muted-foreground">
+                    <FileText className="mx-auto h-10 w-10 opacity-20 mb-3" />
+                    <p>Belum ada data izin</p>
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      {/* Photo Dialog */}
+      <Dialog open={!!photoOpen} onOpenChange={v => { if (!v) setPhotoOpen(null); }}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ImageIcon className="h-5 w-5" /> Foto Bukti — {photoOpen?.name}
+            </DialogTitle>
+          </DialogHeader>
+          {photoOpen?.url && (
+            <img src={photoOpen.url} alt="foto bukti" className="w-full rounded-lg border max-h-[60vh] object-contain" />
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Dialog */}
+      <Dialog open={!!rejectOpen} onOpenChange={v => { if (!v) setRejectOpen(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <XCircle className="h-5 w-5" /> Tolak Izin
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>Catatan Penolakan</Label>
+              <Textarea rows={3} placeholder="Alasan penolakan..."
+                value={rejectOpen?.catatan ?? ""}
+                onChange={e => setRejectOpen(prev => prev ? { ...prev, catatan: e.target.value } : null)}
+                className="mt-1"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setRejectOpen(null)}>Batal</Button>
+              <Button variant="destructive" disabled={rejectIzinMut.isPending}
+                onClick={() => rejectOpen && rejectIzinMut.mutate({ id: rejectOpen.id, catatan: rejectOpen.catatan })}>
+                {rejectIzinMut.isPending ? "Memproses..." : "Tolak"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>
