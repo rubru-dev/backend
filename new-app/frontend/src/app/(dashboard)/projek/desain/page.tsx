@@ -654,18 +654,32 @@ export default function ProyekDesainPage() {
       if (pdfTglTo)   filtered = filtered.filter((t) => t.tanggal_selesai && t.tanggal_selesai <= pdfTglTo);
 
       const logoUrl = await getLogoBase64();
-      const rows = filtered.map((t) => ({
-        id: t.id,
-        jenis_desain: t.jenis_desain,
-        klien: t.lead?.nama ?? null,
-        bulan: t.bulan,
-        tahun: t.tahun,
-        tanggal_mulai: t.tanggal_mulai,
-        tanggal_selesai: t.tanggal_selesai,
-        progress: t.progress,
-        jumlah_item: t.jumlah_item,
-        items_selesai: t.items_selesai,
-      }));
+
+      // Fetch full details for each filtered timeline to include items + PIC
+      const details = await Promise.all(filtered.map((t) => desainApi.getTimeline(t.id)));
+
+      const rows = details.map((d: any) => {
+        const detailItems: any[] = d.items ?? [];
+        return {
+          id: d.id,
+          jenis_desain: d.jenis_desain,
+          klien: d.lead?.nama ?? null,
+          bulan: d.bulan,
+          tahun: d.tahun,
+          tanggal_mulai: d.tanggal_mulai,
+          tanggal_selesai: d.tanggal_selesai,
+          progress: d.progress,
+          jumlah_item: detailItems.length,
+          items_selesai: detailItems.filter((i: any) => i.status === "Selesai").length,
+          items: detailItems.map((i: any) => ({
+            nama_pekerjaan: i.item_pekerjaan ?? "—",
+            tanggal_mulai: i.tanggal_mulai ?? null,
+            tanggal_selesai: i.target_selesai ?? null,
+            pic: i.pic?.nama ?? "—",
+            status: i.status ?? "Belum Mulai",
+          })),
+        };
+      });
 
       const generatedAt = new Date().toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" });
       const { default: DesainSummaryPDF } = await import("@/components/desain-summary-pdf");

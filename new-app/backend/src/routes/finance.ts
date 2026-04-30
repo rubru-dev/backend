@@ -1902,10 +1902,12 @@ router.get("/adm-projek/:id/surat-jalan/:sid/pdf-data", async (req: Request, res
 
 // ─────────────────────────────────────────────────────────────────────────────
 
-// Helper: calculate total estimasi PR
+// Helper: calculate total estimasi PR (after per-item and whole-PR discounts)
 async function getPRTotal(prId: bigint): Promise<number> {
-  const items = await prisma.projekPRItem.findMany({ where: { projek_pr_id: prId } });
-  return items.reduce((sum, it) => sum + Number(it.qty) * Number(it.harga_perkiraan), 0);
+  const pr = await prisma.projekPR.findUnique({ where: { id: prId }, include: { items: true } });
+  if (!pr) return 0;
+  const subtotal = pr.items.reduce((sum, it) => sum + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan ?? 0)), 0);
+  return subtotal - Number(pr.diskon_harga_keseluruhan ?? 0);
 }
 
 // GET /finance/adm-projek/:id/termins — list termins with deposit summary
@@ -2047,7 +2049,8 @@ router.post("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: R
   const pr = await prisma.projekPR.findUnique({ where: { id: prId }, include: { items: true } });
   if (!pr) return res.status(404).json({ detail: "PR tidak ditemukan" });
   if (!pr.hf_signed_at) return res.status(400).json({ detail: "PR belum ditandatangani Head Finance" });
-  const total = pr.items.reduce((s, it) => s + Number(it.qty) * Number(it.harga_perkiraan), 0);
+  const subtotal = pr.items.reduce((s, it) => s + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan ?? 0)), 0);
+  const total = subtotal - Number(pr.diskon_harga_keseluruhan ?? 0);
   const item = await prisma.projekCashflow.create({
     data: {
       adm_finance_project_id: pid,
@@ -2133,7 +2136,7 @@ router.get("/adm-projek/:id/pr/available", async (req: Request, res: Response) =
   return res.json(prs.map((pr) => ({
     id: pr.id, nomor_pr: pr.nomor_pr, tanggal: pr.tanggal, keperluan: pr.keperluan, nama_toko: pr.nama_toko,
     hf_signed_at: pr.hf_signed_at, hf_name: pr.hf_name,
-    total: pr.items.reduce((s, it) => s + Number(it.qty) * Number(it.harga_perkiraan), 0),
+    total: pr.items.reduce((s, it) => s + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan ?? 0)), 0) - Number(pr.diskon_harga_keseluruhan ?? 0),
   })));
 });
 
