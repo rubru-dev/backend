@@ -42,7 +42,7 @@ function generateKanbanPDF(columns: KanbanColumn[]) {
       ).join("");
 
       return `
-        <tr style="background:${rowBg};border-bottom:1px solid #e2e8f0;page-break-inside:avoid">
+        <tr style="background:${rowBg};border-bottom:1px solid #e2e8f0">
           <td style="padding:8px 10px;font-size:11px;color:#6b7280;width:28px;text-align:center;vertical-align:top">${i + 1}</td>
           <td style="padding:8px 10px;font-size:12px;font-weight:600;color:#0f172a;vertical-align:top;min-width:140px">
             ${card.color ? `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${card.color};margin-right:5px;vertical-align:middle"></span>` : ""}
@@ -66,7 +66,7 @@ function generateKanbanPDF(columns: KanbanColumn[]) {
       : "";
 
     return `
-      <div style="margin-bottom:24px;page-break-inside:avoid">
+      <div style="margin-bottom:24px">
         <div style="background:${bg};border-left:4px solid ${borderColor};border-radius:6px 6px 0 0;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
           <span style="font-size:13px;font-weight:700;color:#0f172a">${col.title}</span>
           <span style="font-size:11px;font-weight:600;color:#475569;background:rgba(255,255,255,0.7);padding:2px 8px;border-radius:999px">${cards.length} kartu</span>
