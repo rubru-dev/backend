@@ -5,15 +5,229 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { adminApi } from "@/lib/api/admin";
+import type { ReminderRule } from "@/lib/api/admin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
-import { Settings, MessageCircle, Bell, Send, Eye, EyeOff, Loader2, Check, FlaskConical } from "lucide-react";
+import { Settings, MessageCircle, Bell, Send, Eye, EyeOff, Loader2, Check, FlaskConical, CalendarClock, Zap } from "lucide-react";
+
+const PRIORITY_STYLES: Record<string, string> = {
+  Urgent: "bg-red-100 text-red-700 border-red-200",
+  Tinggi: "bg-orange-100 text-orange-700 border-orange-200",
+  Sedang: "bg-yellow-100 text-yellow-700 border-yellow-200",
+  Rendah: "bg-green-100 text-green-700 border-green-200",
+  Event:  "bg-blue-100 text-blue-700 border-blue-200",
+};
+
+function PriorityBadge({ priority }: { priority: ReminderRule["priority"] }) {
+  return (
+    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${PRIORITY_STYLES[priority.level] ?? "bg-muted text-muted-foreground"}`}>
+      {priority.level}
+    </span>
+  );
+}
+
+function ReminderRuleCard({
+  rule,
+  roles,
+  updateRuleMut,
+  testRuleMut,
+}: {
+  rule: ReminderRule;
+  roles: { id: number; name: string }[];
+  updateRuleMut: any;
+  testRuleMut: any;
+}) {
+  const [tplValue, setTplValue] = useState(rule.message_template ?? "");
+
+  return (
+    <div className={`border rounded-lg p-4 space-y-3 transition-opacity ${!rule.is_active ? "opacity-60" : ""}`}>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="font-semibold text-sm">{rule.label}</p>
+            <PriorityBadge priority={rule.priority} />
+            {rule.trigger_type === "event"
+              ? <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600"><Zap className="h-2.5 w-2.5" />Event</span>
+              : <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500"><CalendarClock className="h-2.5 w-2.5" />Deadline</span>}
+          </div>
+          <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{rule.feature}</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-7 text-xs"
+            disabled={testRuleMut.isPending}
+            onClick={() => testRuleMut.mutate(rule.id)}
+          >
+            {testRuleMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FlaskConical className="h-3 w-3 mr-1" />}
+            Test
+          </Button>
+          <Switch
+            checked={rule.is_active}
+            onCheckedChange={(v) => updateRuleMut.mutate({ id: rule.id, data: { is_active: v } })}
+          />
+        </div>
+      </div>
+
+      {/* Timing (only for deadline type) */}
+      {rule.trigger_type === "deadline" && (
+        <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">Hari sebelum:</Label>
+            <Input
+              type="number"
+              min={0}
+              max={30}
+              className="h-7 w-20 text-sm"
+              defaultValue={rule.days_before}
+              onBlur={(e) => {
+                const val = parseInt(e.target.value);
+                if (!isNaN(val) && val !== rule.days_before) {
+                  updateRuleMut.mutate({ id: rule.id, data: { days_before: val } });
+                }
+              }}
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Label className="text-xs whitespace-nowrap">Jam kirim:</Label>
+            <Input
+              type="time"
+              className="h-7 w-28 text-sm"
+              defaultValue={rule.send_time ?? "08:00"}
+              onBlur={(e) => {
+                const val = e.target.value;
+                if (val && val !== rule.send_time) {
+                  updateRuleMut.mutate({ id: rule.id, data: { send_time: val } });
+                }
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Role badges */}
+      <div>
+        <Label className="text-xs">Role yang direminder:</Label>
+        <div className="flex flex-wrap gap-1.5 mt-1">
+          {roles.map((role) => {
+            const isSelected = rule.role_ids.includes(role.id);
+            return (
+              <button
+                key={role.id}
+                onClick={() => {
+                  const newIds = isSelected
+                    ? rule.role_ids.filter((id) => id !== role.id)
+                    : [...rule.role_ids, role.id];
+                  updateRuleMut.mutate({ id: rule.id, data: { role_ids: newIds } });
+                }}
+                className="focus:outline-none"
+              >
+                <Badge
+                  variant={isSelected ? "default" : "outline"}
+                  className={`cursor-pointer text-xs transition-colors ${isSelected ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
+                >
+                  {role.name}
+                </Badge>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Message template */}
+      <div>
+        <Label className="text-xs">Template Pesan WhatsApp:</Label>
+        <p className="text-[10px] text-muted-foreground mb-1">Gunakan variabel seperti &#123;nama&#125;, &#123;tanggal&#125;, &#123;days_before&#125; dll. Kosongkan untuk pakai template default.</p>
+        <Textarea
+          className="text-xs min-h-[80px] font-mono"
+          placeholder="Ketik template pesan di sini... (kosongkan untuk default)"
+          value={tplValue}
+          onChange={(e) => setTplValue(e.target.value)}
+          onBlur={() => {
+            if (tplValue !== (rule.message_template ?? "")) {
+              updateRuleMut.mutate({ id: rule.id, data: { message_template: tplValue || null } });
+            }
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function ReminderRulesTab({
+  rulesData,
+  rulesLoading,
+  updateRuleMut,
+  testRuleMut,
+}: {
+  rulesData: { rules: ReminderRule[]; roles: { id: number; name: string }[] } | undefined;
+  rulesLoading: boolean;
+  updateRuleMut: any;
+  testRuleMut: any;
+}) {
+  const deadlineRules = (rulesData?.rules ?? []).filter((r) => r.trigger_type === "deadline");
+  const eventRules = (rulesData?.rules ?? []).filter((r) => r.trigger_type === "event");
+  const roles = rulesData?.roles ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Aturan Reminder Otomatis</CardTitle>
+          <CardDescription>
+            Atur kapan dan kepada siapa reminder WhatsApp dikirim. <span className="font-medium">Deadline</span>: dikirim via cron sebelum jatuh tempo. <span className="font-medium">Event</span>: dikirim saat kejadian tertentu terjadi.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {rulesLoading ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="h-4 w-4 animate-spin" />Memuat rules...</div>
+          ) : (rulesData?.rules?.length ?? 0) === 0 ? (
+            <p className="text-sm text-muted-foreground py-4">Belum ada reminder rules. Jalankan seeder untuk membuat rules default.</p>
+          ) : (
+            <div className="space-y-6">
+              {/* Deadline-based */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <CalendarClock className="h-4 w-4 text-slate-500" />
+                  <h3 className="text-sm font-semibold text-slate-700">Reminder Deadline</h3>
+                  <span className="text-xs text-muted-foreground">— dikirim otomatis sebelum deadline</span>
+                </div>
+                <div className="space-y-3">
+                  {deadlineRules.map((rule) => (
+                    <ReminderRuleCard key={rule.id} rule={rule} roles={roles} updateRuleMut={updateRuleMut} testRuleMut={testRuleMut} />
+                  ))}
+                </div>
+              </div>
+
+              {/* Event-based */}
+              <div>
+                <div className="flex items-center gap-2 mb-3">
+                  <Zap className="h-4 w-4 text-blue-500" />
+                  <h3 className="text-sm font-semibold text-slate-700">Reminder Event</h3>
+                  <span className="text-xs text-muted-foreground">— dikirim saat event tertentu terjadi</span>
+                </div>
+                <div className="space-y-3">
+                  {eventRules.map((rule) => (
+                    <ReminderRuleCard key={rule.id} rule={rule} roles={roles} updateRuleMut={updateRuleMut} testRuleMut={testRuleMut} />
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const { user, isSuperAdmin } = useAuthStore();
@@ -210,107 +424,12 @@ export default function SettingsPage() {
 
         {/* Reminder Rules tab */}
         <TabsContent value="reminder" className="mt-4 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Aturan Reminder Otomatis</CardTitle>
-              <CardDescription>Atur kapan dan kepada siapa reminder WhatsApp dikirim untuk setiap fitur sistem.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {rulesLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground py-4"><Loader2 className="h-4 w-4 animate-spin" />Memuat rules...</div>
-              ) : (rulesData?.rules?.length ?? 0) === 0 ? (
-                <p className="text-sm text-muted-foreground py-4">Belum ada reminder rules. Jalankan seeder untuk membuat rules default.</p>
-              ) : (
-                <div className="space-y-4">
-                  {rulesData?.rules.map((rule) => (
-                    <div key={rule.id} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-sm">{rule.label}</p>
-                          <p className="text-xs text-muted-foreground font-mono">{rule.feature}</p>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 text-xs"
-                            disabled={testRuleMut.isPending}
-                            onClick={() => testRuleMut.mutate(rule.id)}
-                          >
-                            {testRuleMut.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <FlaskConical className="h-3 w-3 mr-1" />}
-                            Test Kirim
-                          </Button>
-                          <Switch
-                            checked={rule.is_active}
-                            onCheckedChange={(v) => updateRuleMut.mutate({ id: rule.id, data: { is_active: v } })}
-                          />
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs whitespace-nowrap">Hari sebelum:</Label>
-                          <Input
-                            type="number"
-                            min={0}
-                            max={30}
-                            className="h-7 w-20 text-sm"
-                            defaultValue={rule.days_before}
-                            onBlur={(e) => {
-                              const val = parseInt(e.target.value);
-                              if (!isNaN(val) && val !== rule.days_before) {
-                                updateRuleMut.mutate({ id: rule.id, data: { days_before: val } });
-                              }
-                            }}
-                          />
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Label className="text-xs whitespace-nowrap">Jam kirim:</Label>
-                          <Input
-                            type="time"
-                            className="h-7 w-28 text-sm"
-                            defaultValue={rule.send_time ?? "08:00"}
-                            onBlur={(e) => {
-                              const val = e.target.value;
-                              if (val && val !== rule.send_time) {
-                                updateRuleMut.mutate({ id: rule.id, data: { send_time: val } });
-                              }
-                            }}
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <Label className="text-xs">Role yang direminder:</Label>
-                        <div className="flex flex-wrap gap-1.5 mt-1">
-                          {rulesData?.roles.map((role) => {
-                            const isSelected = rule.role_ids.includes(role.id);
-                            return (
-                              <button
-                                key={role.id}
-                                onClick={() => {
-                                  const newIds = isSelected
-                                    ? rule.role_ids.filter((id) => id !== role.id)
-                                    : [...rule.role_ids, role.id];
-                                  updateRuleMut.mutate({ id: rule.id, data: { role_ids: newIds } });
-                                }}
-                                className="focus:outline-none"
-                              >
-                                <Badge
-                                  variant={isSelected ? "default" : "outline"}
-                                  className={`cursor-pointer text-xs transition-colors ${isSelected ? "bg-primary text-primary-foreground" : "hover:bg-muted"}`}
-                                >
-                                  {role.name}
-                                </Badge>
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <ReminderRulesTab
+            rulesData={rulesData}
+            rulesLoading={rulesLoading}
+            updateRuleMut={updateRuleMut}
+            testRuleMut={testRuleMut}
+          />
         </TabsContent>
       </Tabs>
     </div>

@@ -96,6 +96,65 @@ router.post("/", async (req: Request, res: Response) => {
   return res.status(201).json({ id: lap.id, message: "Laporan harian disimpan" });
 });
 
+// GET /follow-up-summary — ringkasan follow-up per tanggal per user (untuk tab laporan harian)
+router.get("/follow-up-summary", async (req: Request, res: Response) => {
+  const { lead_modul, tanggal_mulai, tanggal_selesai, user_id } = req.query;
+  if (!lead_modul) return res.json([]);
+
+  const where: Record<string, unknown> = {
+    lead: { modul: lead_modul as string },
+  };
+
+  if (tanggal_mulai || tanggal_selesai) {
+    const dateFilter: Record<string, Date> = {};
+    if (tanggal_mulai) dateFilter.gte = new Date(tanggal_mulai as string);
+    if (tanggal_selesai) {
+      const d = new Date(tanggal_selesai as string);
+      d.setHours(23, 59, 59, 999);
+      dateFilter.lte = d;
+    }
+    where.tanggal = dateFilter;
+  }
+  if (user_id) where.user_id = BigInt(user_id as string);
+
+  const followUps = await prisma.followUpClient.findMany({
+    where,
+    include: {
+      lead: { select: { id: true, nama: true } },
+      user: { select: { id: true, name: true } },
+    },
+    orderBy: [{ tanggal: "desc" }, { id: "desc" }],
+    take: 1000,
+  });
+
+  // Group by date + user
+  const grouped: Record<string, any> = {};
+  for (const fu of followUps) {
+    const dateStr = fu.tanggal ? String(fu.tanggal).split("T")[0] : "unknown";
+    const userId = fu.user_id ? String(fu.user_id) : "unknown";
+    const key = `${dateStr}_${userId}`;
+    if (!grouped[key]) {
+      grouped[key] = {
+        tanggal: dateStr,
+        user: fu.user ? { id: String(fu.user.id), name: fu.user.name } : null,
+        follow_ups: [],
+      };
+    }
+    grouped[key].follow_ups.push({
+      id: String(fu.id),
+      lead_id: String(fu.lead_id),
+      lead_nama: fu.lead?.nama ?? "—",
+      catatan: fu.catatan ?? null,
+      next_follow_up: fu.next_follow_up,
+    });
+  }
+
+  const result = Object.values(grouped).sort((a: any, b: any) =>
+    b.tanggal > a.tanggal ? 1 : b.tanggal < a.tanggal ? -1 : 0
+  );
+  return res.json(result);
+});
+
 // DELETE /:id
 router.delete("/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);

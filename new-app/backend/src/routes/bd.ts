@@ -20,6 +20,7 @@ function leadDict(l: {
   foto_survey?: string | null;
   luasan_tanah?: any;
   catatan_survey?: string | null;
+  projection?: string | null;
   user?: { id: bigint; name: string } | null;
   created_at: Date | null;
   _count?: { follow_ups: number };
@@ -38,6 +39,7 @@ function leadDict(l: {
     foto_survey: l.foto_survey ?? null,
     luasan_tanah: l.luasan_tanah != null ? parseFloat(String(l.luasan_tanah)) : null,
     catatan_survey: l.catatan_survey ?? null,
+    projection: l.projection ?? null,
     user: l.user ? { id: l.user.id, name: l.user.name } : null,
     created_at: l.created_at,
     follow_up_count: l._count?.follow_ups ?? undefined,
@@ -1290,11 +1292,21 @@ router.delete("/ads/targets/:id", async (req: Request, res: Response) => {
 
 // ── KANBAN (BD) ───────────────────────────────────────────────────────────────
 
-async function getBdBoard() {
+async function getBdBoard(bulan?: number, tahun?: number) {
+  const cardWhere: Record<string, unknown> = {};
+  if (bulan && tahun) {
+    const m = bulan - 1;
+    cardWhere.created_at = { gte: new Date(tahun, m, 1), lte: new Date(tahun, m + 1, 0, 23, 59, 59, 999) };
+  } else if (tahun) {
+    cardWhere.created_at = { gte: new Date(tahun, 0, 1), lte: new Date(tahun, 11, 31, 23, 59, 59, 999) };
+  }
+
   return prisma.kanbanColumn.findMany({
     include: {
       cards: {
+        where: Object.keys(cardWhere).length > 0 ? cardWhere : undefined,
         include: { labels: true, assigned_user: true, comments: true },
+        orderBy: { urutan: "asc" },
       },
     },
     orderBy: { urutan: "asc" },
@@ -1314,13 +1326,17 @@ function boardCols(cols: Awaited<ReturnType<typeof getBdBoard>>) {
   }));
 }
 
-router.get("/kanban", async (_req: Request, res: Response) => {
-  const cols = await getBdBoard();
+router.get("/kanban", async (req: Request, res: Response) => {
+  const bulan = req.query.bulan ? parseInt(req.query.bulan as string) : undefined;
+  const tahun = req.query.tahun ? parseInt(req.query.tahun as string) : undefined;
+  const cols = await getBdBoard(bulan, tahun);
   return res.json({ columns: boardCols(cols) });
 });
 
-router.get("/kanban/columns", async (_req: Request, res: Response) => {
-  const cols = await getBdBoard();
+router.get("/kanban/columns", async (req: Request, res: Response) => {
+  const bulan = req.query.bulan ? parseInt(req.query.bulan as string) : undefined;
+  const tahun = req.query.tahun ? parseInt(req.query.tahun as string) : undefined;
+  const cols = await getBdBoard(bulan, tahun);
   return res.json(boardCols(cols));
 });
 
@@ -1476,16 +1492,28 @@ router.get("/:modul/leads", async (req: Request, res: Response) => {
   const status = req.query.status as string | undefined;
   const jenis = req.query.jenis as string | undefined;
   const rencana_survey = req.query.rencana_survey as string | undefined;
+  const sumber = req.query.sumber as string | undefined;
+  const meta_ads_campaign_id = req.query.meta_ads_campaign_id as string | undefined;
+  const has_follow_up = req.query.has_follow_up as string | undefined;
   const bulan = req.query.bulan as string | undefined;
   const tahun = req.query.tahun as string | undefined;
   const tanggal_mulai = req.query.tanggal_mulai as string | undefined;
   const tanggal_selesai = req.query.tanggal_selesai as string | undefined;
 
   const where: Record<string, unknown> = { modul };
-  if (search) where.nama = { contains: search, mode: "insensitive" };
+  if (search) {
+    where.OR = [
+      { nama: { contains: search, mode: "insensitive" } },
+      { nomor_telepon: { contains: search, mode: "insensitive" } },
+    ];
+  }
   if (status) where.status = status;
   if (jenis) where.jenis = jenis;
   if (rencana_survey) where.rencana_survey = rencana_survey;
+  if (sumber) where.sumber_leads = { contains: sumber, mode: "insensitive" };
+  if (meta_ads_campaign_id) where.meta_ads_campaign_id = BigInt(meta_ads_campaign_id);
+  if (has_follow_up === "ya") where.follow_ups = { some: {} };
+  else if (has_follow_up === "tidak") where.follow_ups = { none: {} };
 
   // Date filter on created_at
   if (tanggal_mulai || tanggal_selesai) {

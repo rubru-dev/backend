@@ -115,6 +115,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const [filterTahun, setFilterTahun] = useState("all");
   const [filterTanggalMulai, setFilterTanggalMulai] = useState("");
   const [filterTanggalSelesai, setFilterTanggalSelesai] = useState("");
+  const [filterHasFollowUp, setFilterHasFollowUp] = useState("all");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string }>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
@@ -129,7 +130,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     : undefined;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai],
+    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai, filterHasFollowUp],
     queryFn: () =>
       followUpApi.list({
         search: search || undefined,
@@ -138,6 +139,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
         rencana_survey: filterSurvey !== "all" ? filterSurvey : undefined,
         sumber: resolvedSumberFilter,
         meta_ads_campaign_id: resolvedCampaignIdFilter,
+        has_follow_up: filterHasFollowUp !== "all" ? filterHasFollowUp : undefined,
         bulan: filterBulan !== "all" ? filterBulan : undefined,
         tahun: filterTahun !== "all" ? filterTahun : undefined,
         tanggal_mulai: filterTanggalMulai || undefined,
@@ -519,12 +521,14 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
 
   const hasActiveFilters =
     filterStatus !== "all" || filterJenis !== "all" || filterSurvey !== "all" || filterSumber !== "all" ||
-    filterBulan !== "all" || filterTahun !== "all" || !!filterTanggalMulai || !!filterTanggalSelesai;
+    filterBulan !== "all" || filterTahun !== "all" || !!filterTanggalMulai || !!filterTanggalSelesai ||
+    filterHasFollowUp !== "all";
 
   function resetFilters() {
     setFilterStatus("all"); setFilterJenis("all"); setFilterSurvey("all"); setFilterSumber("all");
     setFilterBulan("all"); setFilterTahun("all");
     setFilterTanggalMulai(""); setFilterTanggalSelesai("");
+    setFilterHasFollowUp("all");
     setPage(1);
   }
 
@@ -841,6 +845,14 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
               {STATIC_SUMBER_OPTIONS.map((s) => (
                 <SelectItem key={s} value={s}>{s}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterHasFollowUp} onValueChange={(v) => { setFilterHasFollowUp(v); setPage(1); }}>
+            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Follow Up" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua</SelectItem>
+              <SelectItem value="ya">Sudah Follow Up</SelectItem>
+              <SelectItem value="tidak">Belum Follow Up</SelectItem>
             </SelectContent>
           </Select>
         </div>

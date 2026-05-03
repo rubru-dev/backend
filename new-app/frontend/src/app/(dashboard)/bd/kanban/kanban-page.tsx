@@ -4,12 +4,25 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { RefreshCw, Printer, BarChart3, Kanban } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/layout/page-header";
 import { KanbanBoard } from "./kanban-board";
 import { KanbanMetrics } from "./kanban-metrics";
 import { bdKanbanApi } from "@/lib/api/kanban";
 import type { KanbanColumn } from "@/types";
+
+const BULAN_OPTIONS = [
+  { value: "1", label: "Januari" }, { value: "2", label: "Februari" },
+  { value: "3", label: "Maret" }, { value: "4", label: "April" },
+  { value: "5", label: "Mei" }, { value: "6", label: "Juni" },
+  { value: "7", label: "Juli" }, { value: "8", label: "Agustus" },
+  { value: "9", label: "September" }, { value: "10", label: "Oktober" },
+  { value: "11", label: "November" }, { value: "12", label: "Desember" },
+];
+
+const _cy = new Date().getFullYear();
+const TAHUN_OPTIONS = Array.from({ length: 5 }, (_, i) => String(_cy - i));
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return "—";
@@ -151,9 +164,15 @@ function generateKanbanPDF(columns: KanbanColumn[]) {
 
 export function KanbanPage() {
   const [tab, setTab] = useState("board");
+  const [filterBulan, setFilterBulan] = useState("all");
+  const [filterTahun, setFilterTahun] = useState("all");
+
+  const bulanNum = filterBulan !== "all" ? parseInt(filterBulan) : undefined;
+  const tahunNum = filterTahun !== "all" ? parseInt(filterTahun) : undefined;
+
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["/bd/kanban"],
-    queryFn: () => bdKanbanApi.getBoard(),
+    queryKey: ["/bd/kanban", filterBulan, filterTahun],
+    queryFn: () => bdKanbanApi.getBoard(bulanNum, tahunNum),
     staleTime: 30_000,
   });
 
@@ -163,7 +182,26 @@ export function KanbanPage() {
         title="Kanban BD"
         description="Pipeline business development — drag, custom warna, tambah kolom & kartu"
         actions={
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap items-center">
+            <Select value={filterBulan} onValueChange={setFilterBulan}>
+              <SelectTrigger className="w-[120px] h-9 text-sm"><SelectValue placeholder="Bulan" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Bulan</SelectItem>
+                {BULAN_OPTIONS.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={filterTahun} onValueChange={setFilterTahun}>
+              <SelectTrigger className="w-[100px] h-9 text-sm"><SelectValue placeholder="Tahun" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Tahun</SelectItem>
+                {TAHUN_OPTIONS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            {(filterBulan !== "all" || filterTahun !== "all") && (
+              <Button variant="ghost" size="sm" className="h-9 text-xs px-2" onClick={() => { setFilterBulan("all"); setFilterTahun("all"); }}>
+                Reset
+              </Button>
+            )}
             {tab === "board" && (
               <Button variant="outline" size="sm" onClick={() => generateKanbanPDF(data?.columns ?? [])} className="no-print">
                 <Printer className="h-4 w-4 mr-1" /> Save to PDF

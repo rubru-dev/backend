@@ -303,20 +303,36 @@ router.post("/fontee/send-test", requireRole("Super Admin"), async (req: Request
   }
 });
 
+function computePriority(days_before: number, trigger_type: string): { level: string; color: string } {
+  if (trigger_type === "event") return { level: "Event", color: "blue" };
+  if (days_before === 0) return { level: "Urgent", color: "red" };
+  if (days_before <= 1) return { level: "Tinggi", color: "orange" };
+  if (days_before <= 3) return { level: "Sedang", color: "yellow" };
+  return { level: "Rendah", color: "green" };
+}
+
+function ruleDict(r: any) {
+  const tt = r.trigger_type ?? "deadline";
+  return {
+    id: r.id,
+    feature: r.feature,
+    label: r.label,
+    days_before: r.days_before,
+    send_time: r.send_time ?? "08:00",
+    is_active: r.is_active,
+    role_ids: r.role_ids,
+    message_template: r.message_template ?? null,
+    trigger_type: tt,
+    priority: computePriority(r.days_before, tt),
+  };
+}
+
 // GET /settings/reminder-rules
 router.get("/settings/reminder-rules", requireRole("Super Admin"), async (_req: Request, res: Response) => {
   const rules = await prisma.fonteeReminderRule.findMany({ orderBy: { id: "asc" } });
   const allRoles = await prisma.role.findMany({ orderBy: { name: "asc" } });
   return res.json({
-    rules: rules.map((r) => ({
-      id: r.id,
-      feature: r.feature,
-      label: r.label,
-      days_before: r.days_before,
-      send_time: (r as any).send_time ?? "08:00",
-      is_active: r.is_active,
-      role_ids: r.role_ids,
-    })),
+    rules: rules.map(ruleDict),
     roles: allRoles.map((r) => ({ id: r.id, name: r.name })),
   });
 });
@@ -324,7 +340,7 @@ router.get("/settings/reminder-rules", requireRole("Super Admin"), async (_req: 
 // PUT /settings/reminder-rules/:id
 router.put("/settings/reminder-rules/:id", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const { days_before, is_active, role_ids, send_time } = req.body;
+  const { days_before, is_active, role_ids, send_time, message_template } = req.body;
   const rule = await prisma.fonteeReminderRule.findUnique({ where: { id } });
   if (!rule) return res.status(404).json({ detail: "Rule tidak ditemukan" });
   const updated = await prisma.fonteeReminderRule.update({
@@ -334,17 +350,10 @@ router.put("/settings/reminder-rules/:id", requireRole("Super Admin"), async (re
       send_time: send_time !== undefined ? String(send_time) : undefined,
       is_active: is_active !== undefined ? Boolean(is_active) : undefined,
       role_ids: Array.isArray(role_ids) ? role_ids.map(BigInt) : undefined,
+      message_template: message_template !== undefined ? (message_template === "" ? null : String(message_template)) : undefined,
     } as any,
   });
-  return res.json({
-    id: updated.id,
-    feature: updated.feature,
-    label: updated.label,
-    days_before: updated.days_before,
-    send_time: (updated as any).send_time ?? "08:00",
-    is_active: updated.is_active,
-    role_ids: updated.role_ids,
-  });
+  return res.json(ruleDict(updated));
 });
 
 // POST /settings/reminder-rules/:id/test — kirim test WA ke semua user dengan role yang dipilih rule
@@ -375,7 +384,10 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
     return res.status(400).json({ detail: "Tidak ada user dengan role tersebut yang memiliki nomor WhatsApp" });
   }
 
-  const message = `*[TEST] Reminder: ${rule.label}*\nIni adalah test pengiriman reminder otomatis dari sistem RubahRumah.`;
+  const customTpl = (rule as any).message_template;
+  const message = customTpl
+    ? `*[TEST]* ${customTpl.replace(/\{[^}]+\}/g, (m: string) => `_(${m})_`)}`
+    : `*[TEST] Reminder: ${rule.label}*\nIni adalah test pengiriman reminder otomatis dari sistem RubahRumah.`;
   let sent = 0;
   const errors: string[] = [];
 

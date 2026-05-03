@@ -36,8 +36,9 @@ export interface CommentPayload {
 
 // ── BD Kanban API ──────────────────────────────────────────────────────────────
 export const bdKanbanApi = {
-  getBoard: async (): Promise<BoardResponse> => {
-    const { data } = await apiClient.get<BoardResponse>("/bd/kanban");
+  getBoard: async (bulan?: number, tahun?: number): Promise<BoardResponse> => {
+    const params = bulan !== undefined || tahun !== undefined ? { bulan, tahun } : undefined;
+    const { data } = await apiClient.get<BoardResponse>("/bd/kanban", { params });
     return data;
   },
 

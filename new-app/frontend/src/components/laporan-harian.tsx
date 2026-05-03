@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Trash2, ClipboardList, Bold, Italic, List, Printer, Link2, Upload, FileText, ExternalLink, X, Loader2, Download } from "lucide-react";
+import { Plus, Trash2, ClipboardList, Bold, Italic, List, Printer, Link2, Upload, FileText, ExternalLink, X, Loader2, Download, PhoneCall, ChevronDown, ChevronRight } from "lucide-react";
 
 interface LaporanHarianProps {
   modul: string;
@@ -154,10 +154,18 @@ function MarkdownEditor({
 const today = new Date().toISOString().split("T")[0];
 const EMPTY = { tanggal_mulai: today, tanggal_selesai: today, kegiatan: "", kendala: "", user_id: "" };
 
+const MODUL_TO_LEAD_MODUL: Record<string, string> = {
+  "Sales Admin": "sales-admin",
+  "Telemarketing": "telemarketing",
+  "Golden": "golden",
+};
+
 export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianProps) {
   const qc = useQueryClient();
   const { user: currentUser } = useAuthStore();
+  const leadModul = MODUL_TO_LEAD_MODUL[modul] ?? null;
 
+  const [activeSection, setActiveSection] = useState<"laporan" | "follow-up">("laporan");
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
   const [filterMulai, setFilterMulai] = useState("");
@@ -165,6 +173,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   const [filterUserId, setFilterUserId] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [viewItem, setViewItem] = useState<any>(null);
+  const [expandedFuKey, setExpandedFuKey] = useState<string | null>(null);
 
   // Docs/Link per laporan
   const [docForm, setDocForm] = useState({ title: "", url: "", catatan: "" });
@@ -195,6 +204,22 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
     staleTime: 60_000,
   });
   const users: { id: number; name: string }[] = Array.isArray(usersData) ? usersData : [];
+
+  const { data: fuSummaryData, isLoading: fuSummaryLoading } = useQuery({
+    queryKey: ["laporan-fu-summary", leadModul, filterMulai, filterSelesai, filterUserId],
+    queryFn: () =>
+      apiClient.get("/laporan-harian/follow-up-summary", {
+        params: {
+          lead_modul: leadModul,
+          tanggal_mulai: filterMulai || undefined,
+          tanggal_selesai: filterSelesai || undefined,
+          user_id: filterUserId || undefined,
+        },
+      }).then((r) => r.data),
+    enabled: !!leadModul && activeSection === "follow-up",
+    staleTime: 30_000,
+  });
+  const fuSummary: any[] = Array.isArray(fuSummaryData) ? fuSummaryData : [];
 
   // ── Mutations ────────────────────────────────────────────────────────────────
 
@@ -404,6 +429,22 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
             Laporan Harian
           </h1>
           <p className="text-muted-foreground">{modul} — Laporan kegiatan harian</p>
+          {leadModul && (
+            <div className="flex gap-1 mt-2">
+              <button
+                onClick={() => setActiveSection("laporan")}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${activeSection === "laporan" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+              >
+                <ClipboardList className="h-3.5 w-3.5 inline mr-1.5" />Laporan Harian
+              </button>
+              <button
+                onClick={() => setActiveSection("follow-up")}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${activeSection === "follow-up" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+              >
+                <PhoneCall className="h-3.5 w-3.5 inline mr-1.5" />Ringkasan Follow Up
+              </button>
+            </div>
+          )}
         </div>
         <div className="flex gap-2 items-center flex-wrap">
           <div className="flex items-center gap-1.5">
@@ -445,80 +486,158 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
               Reset User
             </Button>
           )}
-          <Button variant="outline" size="sm" onClick={handlePrint} disabled={isLoading || items.length === 0}>
-            <Printer className="h-4 w-4 mr-1.5" /> Cetak PDF
-          </Button>
-          <Button onClick={openCreate}>
-            <Plus className="h-4 w-4 mr-2" /> Isi Laporan
-          </Button>
+          {activeSection === "laporan" && (
+            <>
+              <Button variant="outline" size="sm" onClick={handlePrint} disabled={isLoading || items.length === 0}>
+                <Printer className="h-4 w-4 mr-1.5" /> Cetak PDF
+              </Button>
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4 mr-2" /> Isi Laporan
+              </Button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Table */}
-      <Card>
-        <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead className="w-44">Periode</TableHead>
-                <TableHead className="w-36">User</TableHead>
-                <TableHead>Kegiatan Hari Ini</TableHead>
-                <TableHead className="w-48">Kendala</TableHead>
-                <TableHead className="w-10" />
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading
-                ? Array.from({ length: 4 }).map((_, i) => (
-                    <TableRow key={i}>
-                      {Array.from({ length: 5 }).map((__, j) => (
-                        <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
-                      ))}
-                    </TableRow>
-                  ))
-                : items.map((lap: any) => (
-                    <TableRow
-                      key={lap.id}
-                      className="cursor-pointer hover:bg-muted/30"
-                      onClick={() => setViewItem(lap)}
-                    >
-                      <TableCell className="font-medium text-sm whitespace-nowrap">
-                        {fmtDateRange(lap.tanggal_mulai, lap.tanggal_selesai)}
-                      </TableCell>
-                      <TableCell className="text-sm">{lap.user?.name ?? "—"}</TableCell>
-                      <TableCell className="max-w-xs">
-                        <div
-                          className="line-clamp-2 text-sm"
-                          dangerouslySetInnerHTML={{ __html: renderMarkdown(lap.kegiatan) }}
-                        />
-                      </TableCell>
-                      <TableCell className="max-w-[180px]">
-                        <p className="text-sm line-clamp-2 text-muted-foreground">{lap.kendala || "—"}</p>
-                      </TableCell>
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <Button
-                          variant="ghost" size="icon"
-                          className="h-7 w-7 text-destructive hover:bg-destructive/10"
-                          onClick={() => setConfirmDelete(lap.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-              {!isLoading && items.length === 0 && (
+      {/* Table Laporan Harian */}
+      {activeSection === "laporan" && (
+        <Card>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
-                    <ClipboardList className="mx-auto h-10 w-10 opacity-20 mb-3" />
-                    <p>Belum ada laporan harian</p>
-                    <p className="text-xs mt-1">Klik "Isi Laporan" untuk menambahkan</p>
-                  </TableCell>
+                  <TableHead className="w-44">Periode</TableHead>
+                  <TableHead className="w-36">User</TableHead>
+                  <TableHead>Kegiatan Hari Ini</TableHead>
+                  <TableHead className="w-48">Kendala</TableHead>
+                  <TableHead className="w-10" />
                 </TableRow>
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+              </TableHeader>
+              <TableBody>
+                {isLoading
+                  ? Array.from({ length: 4 }).map((_, i) => (
+                      <TableRow key={i}>
+                        {Array.from({ length: 5 }).map((__, j) => (
+                          <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
+                        ))}
+                      </TableRow>
+                    ))
+                  : items.map((lap: any) => (
+                      <TableRow
+                        key={lap.id}
+                        className="cursor-pointer hover:bg-muted/30"
+                        onClick={() => setViewItem(lap)}
+                      >
+                        <TableCell className="font-medium text-sm whitespace-nowrap">
+                          {fmtDateRange(lap.tanggal_mulai, lap.tanggal_selesai)}
+                        </TableCell>
+                        <TableCell className="text-sm">{lap.user?.name ?? "—"}</TableCell>
+                        <TableCell className="max-w-xs">
+                          <div
+                            className="line-clamp-2 text-sm"
+                            dangerouslySetInnerHTML={{ __html: renderMarkdown(lap.kegiatan) }}
+                          />
+                        </TableCell>
+                        <TableCell className="max-w-[180px]">
+                          <p className="text-sm line-clamp-2 text-muted-foreground">{lap.kendala || "—"}</p>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
+                          <Button
+                            variant="ghost" size="icon"
+                            className="h-7 w-7 text-destructive hover:bg-destructive/10"
+                            onClick={() => setConfirmDelete(lap.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                {!isLoading && items.length === 0 && (
+                  <TableRow>
+                    <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
+                      <ClipboardList className="mx-auto h-10 w-10 opacity-20 mb-3" />
+                      <p>Belum ada laporan harian</p>
+                      <p className="text-xs mt-1">Klik "Isi Laporan" untuk menambahkan</p>
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Tab Ringkasan Follow Up */}
+      {activeSection === "follow-up" && leadModul && (
+        <Card>
+          <CardContent className="p-0">
+            {fuSummaryLoading ? (
+              <div className="p-6 space-y-3">
+                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+              </div>
+            ) : fuSummary.length === 0 ? (
+              <div className="text-center py-16 text-muted-foreground">
+                <PhoneCall className="mx-auto h-10 w-10 opacity-20 mb-3" />
+                <p>Belum ada aktivitas follow up pada periode ini</p>
+              </div>
+            ) : (
+              <div className="divide-y">
+                {fuSummary.map((group: any) => {
+                  const key = `${group.tanggal}_${group.user?.id ?? "unknown"}`;
+                  const isExpanded = expandedFuKey === key;
+                  return (
+                    <div key={key}>
+                      <button
+                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+                        onClick={() => setExpandedFuKey(isExpanded ? null : key)}
+                      >
+                        {isExpanded
+                          ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        }
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="font-semibold text-sm">
+                              {group.tanggal !== "unknown"
+                                ? new Date(group.tanggal + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+                                : "Tanggal tidak diketahui"
+                              }
+                            </span>
+                            <span className="text-xs text-muted-foreground">·</span>
+                            <span className="text-sm text-amber-700 font-medium">{group.user?.name ?? "—"}</span>
+                          </div>
+                          <span className="text-xs text-muted-foreground">{group.follow_ups.length} lead di-follow-up</span>
+                        </div>
+                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
+                          {group.follow_ups.length}×
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-4 pb-3 pl-11 space-y-1.5">
+                          {group.follow_ups.map((fu: any) => (
+                            <div key={fu.id} className="bg-muted/30 border rounded-md px-3 py-2 text-sm">
+                              <div className="font-medium text-sm">{fu.lead_nama}</div>
+                              {fu.catatan
+                                ? <p className="text-muted-foreground text-xs mt-0.5">{fu.catatan}</p>
+                                : <p className="text-muted-foreground/50 text-xs mt-0.5 italic">Tidak ada catatan</p>
+                              }
+                              {fu.next_follow_up && (
+                                <p className="text-xs text-amber-600 mt-0.5">
+                                  Next FU: {new Date(fu.next_follow_up).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* ── Create dialog ── */}
       <Dialog open={open} onOpenChange={setOpen}>
