@@ -826,7 +826,16 @@ router.get("/invoices", requirePermission("finance", "view"), async (req: Reques
 });
 
 router.post("/invoices", requirePermission("finance", "view"), async (req: Request, res: Response) => {
+  const isSalesAdmin = req.user!.roles.some((r: any) => r.role.name === "Sales Admin");
+  const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
+  const isFinanceRole = req.user!.roles.some((r: any) => ["Head Finance", "Admin Finance"].includes(r.role.name));
   const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, items = [] } = req.body;
+  if (isSalesAdmin && !isSuperAdmin && !isFinanceRole) {
+    const allowed = ["Payment Desain", "Payment Survey"];
+    if (kategori && !allowed.includes(kategori)) {
+      return res.status(403).json({ detail: "Sales Admin hanya bisa membuat invoice kategori Payment Desain atau Payment Survey" });
+    }
+  }
   const tgl = tanggal ? new Date(tanggal) : new Date();
   // Determine invoice number: manual input or auto-generate from lead jenis
   let invoiceNumber = nomor_invoice || "";
@@ -997,8 +1006,8 @@ router.post("/invoices/:id/sign-head", requirePermission("finance", "sign_head")
   if (inv.status === "Lunas" || inv.status === "Batal") return res.status(400).json({ detail: "Invoice Lunas/Batal tidak bisa diubah" });
   const { signature_data } = req.body;
   if (!signature_data) return res.status(400).json({ detail: "Signature data wajib diisi" });
-  // Jika admin_finance sudah ada → status jadi Terbit, jika belum → status tetap
-  const newStatus = inv.admin_finance_id ? "Terbit" : inv.status;
+  // Head Finance signature langsung membuat invoice Terbit
+  const newStatus = "Terbit";
   await prisma.invoice.update({
     where: { id },
     data: { head_finance_id: req.user!.id, head_finance_at: new Date(), head_finance_signature: signature_data, status: newStatus },
@@ -1006,15 +1015,16 @@ router.post("/invoices/:id/sign-head", requirePermission("finance", "sign_head")
   return res.json({ message: "Tanda tangan Head Finance disimpan", status: newStatus });
 });
 
-// ── Tanda tangan Admin Finance ────────────────────────────────────────────────
+// ── Tanda tangan Admin Finance (Super Admin only — fitur ini tidak lagi diekspos di UI) ─────
 router.post("/invoices/:id/sign-admin", requirePermission("finance", "sign_admin"), async (req: Request, res: Response) => {
+  const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
+  if (!isSuperAdmin) return res.status(403).json({ detail: "Hanya Super Admin yang bisa menandatangani sebagai Admin Finance" });
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id }, include: { head_finance: true } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
   if (inv.status === "Lunas" || inv.status === "Batal") return res.status(400).json({ detail: "Invoice Lunas/Batal tidak bisa diubah" });
   const { signature_data } = req.body;
   if (!signature_data) return res.status(400).json({ detail: "Signature data wajib diisi" });
-  // Jika head_finance sudah ada → status jadi Terbit, jika belum → status tetap
   const newStatus = inv.head_finance_id ? "Terbit" : inv.status;
   await prisma.invoice.update({
     where: { id },

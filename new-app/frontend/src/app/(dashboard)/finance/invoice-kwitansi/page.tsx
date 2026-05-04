@@ -257,6 +257,8 @@ export default function InvoiceKwitansiPage() {
   const canSeeProyek = isSuperAdmin() || hasAnyRole("Admin Finance", "Head Finance");
   const canEditNominal = isSuperAdmin() || hasAnyRole("Sales Admin");
   const canDeleteAll = isSuperAdmin();
+  const canSign = isSuperAdmin() || hasPermission("finance", "sign_head");
+  const salesAdminOnly = !isSuperAdmin() && !hasAnyRole("Head Finance", "Admin Finance") && hasAnyRole("Sales Admin");
 
   // Form state
   const [open, setOpen] = useState(false);
@@ -279,8 +281,8 @@ export default function InvoiceKwitansiPage() {
   const [filterStatus, setFilterStatus] = useState("");
   const [page, setPage] = useState(1);
 
-  // Signature dialog state
-  const [signTarget, setSignTarget] = useState<{ id: number; type: "head" | "admin" } | null>(null);
+  // Signature dialog state (only Head Finance signing remains)
+  const [signTarget, setSignTarget] = useState<{ id: number } | null>(null);
 
   // Mark paid dialog state
   const [markPaidId, setMarkPaidId] = useState<number | null>(null);
@@ -396,8 +398,7 @@ export default function InvoiceKwitansiPage() {
   });
 
   const signMut = useMutation({
-    mutationFn: ({ id, type, sig }: { id: number; type: "head" | "admin"; sig: string }) =>
-      type === "head" ? api.signHead(id, sig) : api.signAdmin(id, sig),
+    mutationFn: ({ id, sig }: { id: number; sig: string }) => api.signHead(id, sig),
     onSuccess: (data) => {
       toast.success(data.message || "Tanda tangan disimpan");
       qc.invalidateQueries({ queryKey: ["invoices"] });
@@ -666,27 +667,19 @@ export default function InvoiceKwitansiPage() {
                             <TableCell onClick={e => e.stopPropagation()}>
                               {(inv.status === "Draft" || inv.status === "Terbit") && (
                                 <div className="flex flex-col gap-1">
-                                  {!inv.head_finance ? (
+                                  {inv.head_finance ? (
+                                    <span className="text-xs text-green-600 flex items-center gap-1">
+                                      <CheckCircle2 className="h-3 w-3" /> {inv.head_finance.name}
+                                    </span>
+                                  ) : canSign ? (
                                     <Button size="sm" variant="outline" className="h-6 text-xs"
-                                      onClick={() => setSignTarget({ id: inv.id, type: "head" })}>
-                                      <PenLine className="h-3 w-3 mr-1" /> Head Finance
+                                      onClick={() => setSignTarget({ id: inv.id })}>
+                                      <PenLine className="h-3 w-3 mr-1" /> Tanda Tangan
                                     </Button>
                                   ) : (
-                                    <button className="text-xs text-green-600 flex items-center gap-1 hover:underline"
-                                      onClick={() => setSignTarget({ id: inv.id, type: "head" })}>
-                                      <CheckCircle2 className="h-3 w-3" /> Head Finance
-                                    </button>
-                                  )}
-                                  {!inv.admin_finance ? (
-                                    <Button size="sm" variant="outline" className="h-6 text-xs"
-                                      onClick={() => setSignTarget({ id: inv.id, type: "admin" })}>
-                                      <PenLine className="h-3 w-3 mr-1" /> Admin Finance
-                                    </Button>
-                                  ) : (
-                                    <button className="text-xs text-green-600 flex items-center gap-1 hover:underline"
-                                      onClick={() => setSignTarget({ id: inv.id, type: "admin" })}>
-                                      <CheckCircle2 className="h-3 w-3" /> Admin Finance
-                                    </button>
+                                    <span className="text-xs text-amber-600 flex items-center gap-1">
+                                      <AlertCircle className="h-3 w-3" /> Menunggu TTD
+                                    </span>
                                   )}
                                 </div>
                               )}
@@ -829,13 +822,7 @@ export default function InvoiceKwitansiPage() {
                                         name={inv.head_finance?.name}
                                         at={inv.head_finance_at}
                                       />
-                                      <div className="text-xs text-muted-foreground">Head Finance</div>
-                                      <SignBadge
-                                        signed={!!inv.admin_finance}
-                                        name={inv.admin_finance?.name}
-                                        at={inv.admin_finance_at}
-                                      />
-                                      <div className="text-xs text-muted-foreground">Admin Finance</div>
+                                      <div className="text-xs text-muted-foreground">Head Finance / Super Admin</div>
                                     </div>
                                   </div>
                                   {/* Kwitansi */}
@@ -995,9 +982,12 @@ export default function InvoiceKwitansiPage() {
                 <option value="">— Pilih kategori —</option>
                 <option value="Payment Desain">Payment Desain</option>
                 <option value="Payment Survey">Payment Survey</option>
-                {canSeeProyek && <option value="Payment Projek">Payment Projek</option>}
-                <option value="Payment Golden">Payment Golden</option>
+                {!salesAdminOnly && canSeeProyek && <option value="Payment Projek">Payment Projek</option>}
+                {!salesAdminOnly && <option value="Payment Golden">Payment Golden</option>}
               </select>
+              {salesAdminOnly && (
+                <p className="text-xs text-amber-600 mt-1">Sales Admin hanya dapat membuat invoice kategori Payment Desain dan Payment Survey.</p>
+              )}
             </div>
 
             {form.kategori === "Payment Desain" && (
@@ -1088,11 +1078,11 @@ export default function InvoiceKwitansiPage() {
       <SignatureDialog
         open={!!signTarget}
         onOpenChange={v => { if (!v) setSignTarget(null); }}
-        title={signTarget?.type === "head" ? "Tanda Tangan Head Finance" : "Tanda Tangan Admin Finance"}
+        title="Tanda Tangan Head Finance"
         loading={signMut.isPending}
         onSave={sig => {
           if (!signTarget) return;
-          signMut.mutate({ id: signTarget.id, type: signTarget.type, sig });
+          signMut.mutate({ id: signTarget.id, sig });
         }}
       />
 
