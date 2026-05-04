@@ -907,6 +907,7 @@ model Lead {
   jam_survey                            String?                 @db.VarChar(10)
   modul                                 String?                 @db.VarChar(50)
   projection                            String?                 @db.VarChar(10)
+  fu_call                               String?                 @default("Belum") @db.VarChar(10)
   adm_finance_projects                  AdmFinanceProject[]
   administrasi_kantors                  AdministrasiKantor[]
   desain_timelines                      DesainTimeline[]
@@ -1408,6 +1409,7 @@ model FonteeReminderRule {
   role_ids         BigInt[]
   message_template String?
   trigger_type     String   @default("deadline") @db.VarChar(20)
+  priority_manual  String   @default("sedang") @db.VarChar(10)
   created_at       DateTime @default(now()) @db.Timestamptz(6)
   updated_at       DateTime @default(now()) @db.Timestamptz(6)
   @@map("fontee_reminder_rules")

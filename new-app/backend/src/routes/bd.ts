@@ -21,6 +21,7 @@ function leadDict(l: {
   luasan_tanah?: any;
   catatan_survey?: string | null;
   projection?: string | null;
+  fu_call?: string | null;
   user?: { id: bigint; name: string } | null;
   created_at: Date | null;
   _count?: { follow_ups: number };
@@ -40,6 +41,7 @@ function leadDict(l: {
     luasan_tanah: l.luasan_tanah != null ? parseFloat(String(l.luasan_tanah)) : null,
     catatan_survey: l.catatan_survey ?? null,
     projection: l.projection ?? null,
+    fu_call: l.fu_call ?? "Belum",
     user: l.user ? { id: l.user.id, name: l.user.name } : null,
     created_at: l.created_at,
     follow_up_count: l._count?.follow_ups ?? undefined,
@@ -1495,6 +1497,7 @@ router.get("/:modul/leads", async (req: Request, res: Response) => {
   const sumber = req.query.sumber as string | undefined;
   const meta_ads_campaign_id = req.query.meta_ads_campaign_id as string | undefined;
   const has_follow_up = req.query.has_follow_up as string | undefined;
+  const fu_call = req.query.fu_call as string | undefined;
   const bulan = req.query.bulan as string | undefined;
   const tahun = req.query.tahun as string | undefined;
   const tanggal_mulai = req.query.tanggal_mulai as string | undefined;
@@ -1514,6 +1517,12 @@ router.get("/:modul/leads", async (req: Request, res: Response) => {
   if (meta_ads_campaign_id) where.meta_ads_campaign_id = BigInt(meta_ads_campaign_id);
   if (has_follow_up === "ya") where.follow_ups = { some: {} };
   else if (has_follow_up === "tidak") where.follow_ups = { none: {} };
+  if (fu_call === "Sudah") where.fu_call = "Sudah";
+  else if (fu_call === "Belum") {
+    const fuBelumFilter = [{ fu_call: "Belum" }, { fu_call: null }];
+    if (!where.AND) where.AND = [{ OR: fuBelumFilter }];
+    else (where.AND as any[]).push({ OR: fuBelumFilter });
+  }
 
   // Date filter on created_at
   if (tanggal_mulai || tanggal_selesai) {
@@ -1658,6 +1667,7 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
       survey_approval_status: b.survey_approval_status ?? null,
       jam_survey: b.jam_survey ?? null,
       projection: b.projection ?? null,
+      fu_call: b.fu_call ?? "Belum",
     },
   });
 
@@ -1713,6 +1723,7 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   if (b.survey_approval_status !== undefined) updates.survey_approval_status = b.survey_approval_status;
   if (b.jam_survey !== undefined) updates.jam_survey = b.jam_survey;
   if (b.projection !== undefined) updates.projection = b.projection;
+  if (b.fu_call !== undefined) updates.fu_call = b.fu_call;
   const updatedLead = await prisma.lead.update({ where: { id }, data: updates, select: { id: true, nama: true, bulan: true, tahun: true, tanggal_survey: true } });
 
   // Auto-add ke Kanban jika projection diisi/berubah

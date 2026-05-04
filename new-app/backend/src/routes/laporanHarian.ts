@@ -96,16 +96,36 @@ router.post("/", async (req: Request, res: Response) => {
   return res.status(201).json({ id: lap.id, message: "Laporan harian disimpan" });
 });
 
+const LEAD_MODUL_TO_MODUL: Record<string, string> = {
+  "sales-admin": "Sales Admin",
+  "telemarketing": "Telemarketing",
+  "golden": "Golden",
+};
+
+function isoDate(d: Date | null | undefined): string | null {
+  if (!d) return null;
+  return d.toISOString().split("T")[0];
+}
+
 // GET /follow-up-summary — ringkasan follow-up per tanggal per user (untuk tab laporan harian)
 router.get("/follow-up-summary", async (req: Request, res: Response) => {
-  const { lead_modul, tanggal_mulai, tanggal_selesai, user_id } = req.query;
+  const { lead_modul, tanggal_mulai, tanggal_selesai, user_id, bulan, tahun } = req.query;
   if (!lead_modul) return res.json([]);
 
   const where: Record<string, unknown> = {
     lead: { modul: lead_modul as string },
   };
 
-  if (tanggal_mulai || tanggal_selesai) {
+  // bulan+tahun takes priority over date range
+  const bulanNum = bulan ? parseInt(bulan as string) : undefined;
+  const tahunNum = tahun ? parseInt(tahun as string) : undefined;
+
+  if (bulanNum && tahunNum) {
+    const m = bulanNum - 1;
+    where.tanggal = { gte: new Date(tahunNum, m, 1), lte: new Date(tahunNum, m + 1, 0) };
+  } else if (tahunNum) {
+    where.tanggal = { gte: new Date(tahunNum, 0, 1), lte: new Date(tahunNum, 11, 31) };
+  } else if (tanggal_mulai || tanggal_selesai) {
     const dateFilter: Record<string, Date> = {};
     if (tanggal_mulai) dateFilter.gte = new Date(tanggal_mulai as string);
     if (tanggal_selesai) {
@@ -115,6 +135,7 @@ router.get("/follow-up-summary", async (req: Request, res: Response) => {
     }
     where.tanggal = dateFilter;
   }
+
   if (user_id) where.user_id = BigInt(user_id as string);
 
   const followUps = await prisma.followUpClient.findMany({
@@ -124,13 +145,13 @@ router.get("/follow-up-summary", async (req: Request, res: Response) => {
       user: { select: { id: true, name: true } },
     },
     orderBy: [{ tanggal: "desc" }, { id: "desc" }],
-    take: 1000,
+    take: 2000,
   });
 
   // Group by date + user
   const grouped: Record<string, any> = {};
   for (const fu of followUps) {
-    const dateStr = fu.tanggal ? String(fu.tanggal).split("T")[0] : "unknown";
+    const dateStr = isoDate(fu.tanggal) ?? "unknown";
     const userId = fu.user_id ? String(fu.user_id) : "unknown";
     const key = `${dateStr}_${userId}`;
     if (!grouped[key]) {
@@ -138,6 +159,7 @@ router.get("/follow-up-summary", async (req: Request, res: Response) => {
         tanggal: dateStr,
         user: fu.user ? { id: String(fu.user.id), name: fu.user.name } : null,
         follow_ups: [],
+        laporan_harian: null,
       };
     }
     grouped[key].follow_ups.push({
@@ -145,8 +167,43 @@ router.get("/follow-up-summary", async (req: Request, res: Response) => {
       lead_id: String(fu.lead_id),
       lead_nama: fu.lead?.nama ?? "—",
       catatan: fu.catatan ?? null,
-      next_follow_up: fu.next_follow_up,
+      next_follow_up: isoDate(fu.next_follow_up as Date | null),
     });
+  }
+
+  // Join laporan harian entries per date+user group
+  const modul = LEAD_MODUL_TO_MODUL[lead_modul as string];
+  const uniqueDates = [...new Set(
+    Object.values(grouped).map((g: any) => g.tanggal).filter((d: string) => d !== "unknown")
+  )].sort() as string[];
+  const uniqueUserIds = [...new Set(
+    Object.values(grouped).map((g: any) => g.user?.id).filter(Boolean)
+  )].map((id: any) => BigInt(id));
+
+  if (modul && uniqueDates.length > 0) {
+    const laporans = await prisma.laporanHarian.findMany({
+      where: {
+        modul,
+        tanggal_mulai: {
+          gte: new Date(uniqueDates[0]),
+          lte: new Date(uniqueDates[uniqueDates.length - 1] + "T23:59:59"),
+        },
+        ...(uniqueUserIds.length > 0 ? { user_id: { in: uniqueUserIds } } : {}),
+      },
+      orderBy: { tanggal_mulai: "asc" },
+    });
+    for (const lap of laporans) {
+      const dateStr = isoDate(lap.tanggal_mulai) ?? "";
+      const userId = String(lap.user_id);
+      const key = `${dateStr}_${userId}`;
+      if (grouped[key] && !grouped[key].laporan_harian) {
+        grouped[key].laporan_harian = {
+          id: String(lap.id),
+          kegiatan: lap.kegiatan,
+          kendala: lap.kendala ?? null,
+        };
+      }
+    }
   }
 
   const result = Object.values(grouped).sort((a: any, b: any) =>

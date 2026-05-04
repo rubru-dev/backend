@@ -17,19 +17,36 @@ import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
 import { Settings, MessageCircle, Bell, Send, Eye, EyeOff, Loader2, Check, FlaskConical, CalendarClock, Zap } from "lucide-react";
 
-const PRIORITY_STYLES: Record<string, string> = {
-  Urgent: "bg-red-100 text-red-700 border-red-200",
-  Tinggi: "bg-orange-100 text-orange-700 border-orange-200",
-  Sedang: "bg-yellow-100 text-yellow-700 border-yellow-200",
-  Rendah: "bg-green-100 text-green-700 border-green-200",
-  Event:  "bg-blue-100 text-blue-700 border-blue-200",
+const PRIORITY_CONFIG: Record<string, { label: string; emoji: string; active: string; inactive: string }> = {
+  rendah: { label: "Rendah", emoji: "🟢", active: "bg-green-600 text-white border-green-600",  inactive: "bg-green-50 text-green-700 border-green-300 hover:bg-green-100" },
+  sedang: { label: "Sedang", emoji: "🟡", active: "bg-yellow-500 text-white border-yellow-500", inactive: "bg-yellow-50 text-yellow-700 border-yellow-300 hover:bg-yellow-100" },
+  tinggi: { label: "Tinggi", emoji: "🔴", active: "bg-red-600 text-white border-red-600",      inactive: "bg-red-50 text-red-700 border-red-300 hover:bg-red-100" },
 };
 
-function PriorityBadge({ priority }: { priority: ReminderRule["priority"] }) {
+function PrioritySelector({
+  priority,
+  onSelect,
+}: {
+  priority: string;
+  onSelect: (p: string) => void;
+}) {
   return (
-    <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border ${PRIORITY_STYLES[priority.level] ?? "bg-muted text-muted-foreground"}`}>
-      {priority.level}
-    </span>
+    <div className="flex items-center gap-1">
+      <span className="text-[10px] text-muted-foreground mr-1">Prioritas:</span>
+      {(["rendah", "sedang", "tinggi"] as const).map((p) => {
+        const cfg = PRIORITY_CONFIG[p];
+        const isActive = priority === p;
+        return (
+          <button
+            key={p}
+            onClick={() => onSelect(p)}
+            className={`text-[10px] font-semibold px-2 py-0.5 rounded border transition-colors ${isActive ? cfg.active : cfg.inactive}`}
+          >
+            {cfg.emoji} {cfg.label}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -53,10 +70,9 @@ function ReminderRuleCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
             <p className="font-semibold text-sm">{rule.label}</p>
-            <PriorityBadge priority={rule.priority} />
             {rule.trigger_type === "event"
-              ? <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600"><Zap className="h-2.5 w-2.5" />Event</span>
-              : <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500"><CalendarClock className="h-2.5 w-2.5" />Deadline</span>}
+              ? <span className="inline-flex items-center gap-0.5 text-[10px] text-blue-600 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded"><Zap className="h-2.5 w-2.5" />Event</span>
+              : <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 bg-slate-50 border border-slate-200 px-1.5 py-0.5 rounded"><CalendarClock className="h-2.5 w-2.5" />Deadline</span>}
           </div>
           <p className="text-[11px] text-muted-foreground font-mono mt-0.5">{rule.feature}</p>
         </div>
@@ -113,6 +129,12 @@ function ReminderRuleCard({
           </div>
         </div>
       )}
+
+      {/* Priority selector */}
+      <PrioritySelector
+        priority={rule.priority}
+        onSelect={(p) => updateRuleMut.mutate({ id: rule.id, data: { priority: p } })}
+      />
 
       {/* Role badges */}
       <div>

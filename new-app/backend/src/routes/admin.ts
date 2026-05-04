@@ -303,16 +303,15 @@ router.post("/fontee/send-test", requireRole("Super Admin"), async (req: Request
   }
 });
 
-function computePriority(days_before: number, trigger_type: string): { level: string; color: string } {
-  if (trigger_type === "event") return { level: "Event", color: "blue" };
-  if (days_before === 0) return { level: "Urgent", color: "red" };
-  if (days_before <= 1) return { level: "Tinggi", color: "orange" };
-  if (days_before <= 3) return { level: "Sedang", color: "yellow" };
-  return { level: "Rendah", color: "green" };
-}
+const PRIORITY_EMOJI: Record<string, string> = {
+  rendah: "🟢",
+  sedang: "🟡",
+  tinggi: "🔴",
+};
 
 function ruleDict(r: any) {
   const tt = r.trigger_type ?? "deadline";
+  const priority: string = r.priority_manual ?? "sedang";
   return {
     id: r.id,
     feature: r.feature,
@@ -323,7 +322,7 @@ function ruleDict(r: any) {
     role_ids: r.role_ids,
     message_template: r.message_template ?? null,
     trigger_type: tt,
-    priority: computePriority(r.days_before, tt),
+    priority,
   };
 }
 
@@ -340,7 +339,7 @@ router.get("/settings/reminder-rules", requireRole("Super Admin"), async (_req: 
 // PUT /settings/reminder-rules/:id
 router.put("/settings/reminder-rules/:id", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const { days_before, is_active, role_ids, send_time, message_template } = req.body;
+  const { days_before, is_active, role_ids, send_time, message_template, priority } = req.body;
   const rule = await prisma.fonteeReminderRule.findUnique({ where: { id } });
   if (!rule) return res.status(404).json({ detail: "Rule tidak ditemukan" });
   const updated = await prisma.fonteeReminderRule.update({
@@ -351,6 +350,7 @@ router.put("/settings/reminder-rules/:id", requireRole("Super Admin"), async (re
       is_active: is_active !== undefined ? Boolean(is_active) : undefined,
       role_ids: Array.isArray(role_ids) ? role_ids.map(BigInt) : undefined,
       message_template: message_template !== undefined ? (message_template === "" ? null : String(message_template)) : undefined,
+      priority_manual: priority && ["rendah", "sedang", "tinggi"].includes(priority) ? String(priority) : undefined,
     } as any,
   });
   return res.json(ruleDict(updated));
@@ -384,10 +384,13 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
     return res.status(400).json({ detail: "Tidak ada user dengan role tersebut yang memiliki nomor WhatsApp" });
   }
 
+  const priority: string = (rule as any).priority_manual ?? "sedang";
+  const priorityEmoji = PRIORITY_EMOJI[priority] ?? "🟡";
+  const priorityLabel = `${priorityEmoji} *Prioritas: ${priority.toUpperCase()}*`;
   const customTpl = (rule as any).message_template;
   const message = customTpl
-    ? `*[TEST]* ${customTpl.replace(/\{[^}]+\}/g, (m: string) => `_(${m})_`)}`
-    : `*[TEST] Reminder: ${rule.label}*\nIni adalah test pengiriman reminder otomatis dari sistem RubahRumah.`;
+    ? `*[TEST]* ${priorityLabel}\n${customTpl.replace(/\{[^}]+\}/g, (m: string) => `_(${m})_`)}`
+    : `*[TEST] Reminder: ${rule.label}*\n${priorityLabel}\nIni adalah test pengiriman reminder otomatis dari sistem RubahRumah.`;
   let sent = 0;
   const errors: string[] = [];
 

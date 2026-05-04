@@ -14,7 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, Search, PhoneCall, Printer, FileUp, FileDown, History } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, PhoneCall, Printer, FileUp, FileDown, History, DatabaseZap } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface FollowUpLeadsProps {
@@ -63,7 +63,7 @@ const EMPTY = {
   jenis: "Interior", status: "Low", keterangan: "",
   rencana_survey: "Tidak", tanggal_survey: "", jam_survey: "", pic_survey: "",
   tanggal_masuk: "", meta_ads_campaign_id: null as number | null,
-  projection: "",
+  projection: "", fu_call: "Belum",
 };
 
 export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) {
@@ -116,6 +116,9 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const [filterTanggalMulai, setFilterTanggalMulai] = useState("");
   const [filterTanggalSelesai, setFilterTanggalSelesai] = useState("");
   const [filterHasFollowUp, setFilterHasFollowUp] = useState("all");
+  const [filterFuCall, setFilterFuCall] = useState("all");
+  const [importClientOpen, setImportClientOpen] = useState(false);
+  const [importClientSearch, setImportClientSearch] = useState("");
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string }>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
@@ -130,7 +133,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     : undefined;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai, filterHasFollowUp],
+    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai, filterHasFollowUp, filterFuCall],
     queryFn: () =>
       followUpApi.list({
         search: search || undefined,
@@ -140,12 +143,23 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
         sumber: resolvedSumberFilter,
         meta_ads_campaign_id: resolvedCampaignIdFilter,
         has_follow_up: filterHasFollowUp !== "all" ? filterHasFollowUp : undefined,
+        fu_call: filterFuCall !== "all" ? filterFuCall : undefined,
         bulan: filterBulan !== "all" ? filterBulan : undefined,
         tahun: filterTahun !== "all" ? filterTahun : undefined,
         tanggal_mulai: filterTanggalMulai || undefined,
         tanggal_selesai: filterTanggalSelesai || undefined,
         limit: 10000,
       }),
+  });
+
+  const { data: importClientData } = useQuery({
+    queryKey: ["import-client-leads", importClientSearch],
+    queryFn: () =>
+      apiClient.get("/bd/database-client/leads", {
+        params: { search: importClientSearch || undefined, limit: 100 },
+      }).then((r) => r.data),
+    enabled: importClientOpen,
+    staleTime: 0,
   });
 
   const createMut = useMutation({
@@ -282,6 +296,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       tanggal_masuk: item.tanggal_masuk ? item.tanggal_masuk.split("T")[0] : "",
       meta_ads_campaign_id: item.meta_ads_campaign_id ?? null,
       projection: item.projection ?? "",
+      fu_call: item.fu_call ?? "Belum",
     });
     setOpen(true);
   }
@@ -522,13 +537,13 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const hasActiveFilters =
     filterStatus !== "all" || filterJenis !== "all" || filterSurvey !== "all" || filterSumber !== "all" ||
     filterBulan !== "all" || filterTahun !== "all" || !!filterTanggalMulai || !!filterTanggalSelesai ||
-    filterHasFollowUp !== "all";
+    filterHasFollowUp !== "all" || filterFuCall !== "all";
 
   function resetFilters() {
     setFilterStatus("all"); setFilterJenis("all"); setFilterSurvey("all"); setFilterSumber("all");
     setFilterBulan("all"); setFilterTahun("all");
     setFilterTanggalMulai(""); setFilterTanggalSelesai("");
-    setFilterHasFollowUp("all");
+    setFilterHasFollowUp("all"); setFilterFuCall("all");
     setPage(1);
   }
 
@@ -855,6 +870,14 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
               <SelectItem value="tidak">Belum Follow Up</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterFuCall} onValueChange={(v) => { setFilterFuCall(v); setPage(1); }}>
+            <SelectTrigger className="w-[150px]"><SelectValue placeholder="FU Call" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua FU Call</SelectItem>
+              <SelectItem value="Sudah">✅ Sudah Ditelfon</SelectItem>
+              <SelectItem value="Belum">📵 Belum Ditelfon</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <span className="text-xs text-muted-foreground">Tanggal:</span>
@@ -928,7 +951,12 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                             <span className="text-muted-foreground text-xs">{isExpanded ? "▼" : "▶"}</span>
                           </TableCell>
                           <TableCell>
-                            <div className="font-medium">{item.nama}</div>
+                            <div className="font-medium flex items-center gap-1.5">
+                              {item.nama}
+                              <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${item.fu_call === "Sudah" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
+                                {item.fu_call === "Sudah" ? "✅ Ditelfon" : "📵 Belum"}
+                              </span>
+                            </div>
                             <div className="text-xs text-muted-foreground">{item.jenis} · {item.sumber_leads}</div>
                           </TableCell>
                           <TableCell className="text-sm">{item.nomor_telepon || "—"}</TableCell>
@@ -1099,7 +1127,16 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       {/* Create / Edit */}
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent className="max-w-lg">
-          <DialogHeader><DialogTitle>{editItem ? "Edit Lead" : "Tambah Lead Baru"}</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <div className="flex items-center justify-between gap-2">
+              <DialogTitle>{editItem ? "Edit Lead" : "Tambah Lead Baru"}</DialogTitle>
+              {!editItem && (
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); }}>
+                  <DatabaseZap className="h-3.5 w-3.5" /> Import Data Klien
+                </Button>
+              )}
+            </div>
+          </DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Nama *</Label><Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></div>
@@ -1145,7 +1182,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                 </Select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Projection (Kanban)</Label>
                 <Select value={form.projection || "__none__"} onValueChange={(v) => setForm({ ...form, projection: v === "__none__" ? "" : v })}>
@@ -1164,6 +1201,16 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                 <Select value={form.rencana_survey} onValueChange={(v) => setForm({ ...form, rencana_survey: v })}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent><SelectItem value="Ya">Ya</SelectItem><SelectItem value="Tidak">Tidak</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>FU Call</Label>
+                <Select value={form.fu_call} onValueChange={(v) => setForm({ ...form, fu_call: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Belum">📵 Belum Ditelfon</SelectItem>
+                    <SelectItem value="Sudah">✅ Sudah Ditelfon</SelectItem>
+                  </SelectContent>
                 </Select>
               </div>
             </div>
@@ -1194,6 +1241,58 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                 {pending ? "Menyimpan..." : "Simpan"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import dari Data Klien */}
+      <Dialog open={importClientOpen} onOpenChange={setImportClientOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>Import dari Data Klien</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9"
+                placeholder="Cari nama / telepon..."
+                value={importClientSearch}
+                onChange={(e) => setImportClientSearch(e.target.value)}
+              />
+            </div>
+            <div className="max-h-72 overflow-y-auto space-y-1 border rounded-md p-1">
+              {(() => {
+                const clientItems: any[] = Array.isArray(importClientData) ? importClientData : importClientData?.items ?? [];
+                if (clientItems.length === 0) {
+                  return <p className="text-sm text-muted-foreground text-center py-8">Tidak ada data klien</p>;
+                }
+                return clientItems.map((c: any) => (
+                  <button
+                    key={c.id}
+                    className="w-full text-left px-3 py-2 rounded hover:bg-muted/50 transition-colors"
+                    onClick={() => {
+                      setForm((prev) => ({
+                        ...prev,
+                        nama: c.nama ?? prev.nama,
+                        nomor_telepon: c.nomor_telepon ?? prev.nomor_telepon,
+                        alamat: c.alamat ?? prev.alamat,
+                        jenis: c.jenis ?? prev.jenis,
+                        status: c.status ?? prev.status,
+                        keterangan: c.keterangan ?? prev.keterangan,
+                      }));
+                      setImportClientOpen(false);
+                    }}
+                  >
+                    <div className="font-medium text-sm">{c.nama}</div>
+                    <div className="text-xs text-muted-foreground">
+                      {c.nomor_telepon && <span>{c.nomor_telepon}</span>}
+                      {c.jenis && <span> · {c.jenis}</span>}
+                      {c.alamat && <span> · {c.alamat.substring(0, 30)}{c.alamat.length > 30 ? "…" : ""}</span>}
+                    </div>
+                  </button>
+                ));
+              })()}
+            </div>
+            <p className="text-xs text-muted-foreground">Pilih data klien untuk mengisi form secara otomatis.</p>
           </div>
         </DialogContent>
       </Dialog>

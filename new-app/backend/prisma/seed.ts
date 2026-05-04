@@ -925,88 +925,93 @@ async function main() {
   // ── Fontee Reminder Rules ─────────────────────────────────────────────────────
   const DEFAULT_REMINDER_RULES: Array<{
     feature: string; label: string; days_before: number; send_time: string;
-    trigger_type: string; message_template: string;
+    trigger_type: string; message_template: string; priority_manual: string;
   }> = [
     // ── Deadline-based ─────────────────────────────────────────────────────────
     {
       feature: "task_deadline", label: "Deadline Task Pekerjaan", days_before: 3, send_time: "08:00",
-      trigger_type: "deadline",
+      trigger_type: "deadline", priority_manual: "sedang",
       message_template: "⏰ *Reminder Deadline Task*\nTask: *{nama}*\nDeadline: *{tanggal}*\nSisa: *{days_before} hari* lagi.\nSegera selesaikan!",
     },
     {
       feature: "termin_deadline", label: "Deadline Termin Proyek", days_before: 7, send_time: "08:00",
-      trigger_type: "deadline",
+      trigger_type: "deadline", priority_manual: "tinggi",
       message_template: "📅 *Reminder Termin Proyek*\nProyek: *{nama}*\nTermin ke-{termin} jatuh tempo: *{tanggal}*\nSisa: *{days_before} hari* lagi.",
     },
     {
       feature: "item_pekerjaan_sipil", label: "Item Pekerjaan Proyek Sipil", days_before: 2, send_time: "08:00",
-      trigger_type: "deadline",
+      trigger_type: "deadline", priority_manual: "sedang",
       message_template: "🏗️ *Reminder Item Pekerjaan Sipil*\nProyek: *{nama}*\nItem: *{item}*\nTarget selesai: *{tanggal}*\nSisa: *{days_before} hari*.",
     },
     {
       feature: "item_pekerjaan_desain", label: "Item Pekerjaan Proyek Desain", days_before: 2, send_time: "08:00",
-      trigger_type: "deadline",
+      trigger_type: "deadline", priority_manual: "sedang",
       message_template: "🎨 *Reminder Item Pekerjaan Desain*\nProyek: *{nama}*\nItem: *{item}*\nTarget selesai: *{tanggal}*\nSisa: *{days_before} hari*.",
     },
     {
       feature: "item_pekerjaan_interior", label: "Item Pekerjaan Proyek Interior", days_before: 2, send_time: "08:00",
-      trigger_type: "deadline",
+      trigger_type: "deadline", priority_manual: "sedang",
       message_template: "🛋️ *Reminder Item Pekerjaan Interior*\nProyek: *{nama}*\nItem: *{item}*\nTarget selesai: *{tanggal}*\nSisa: *{days_before} hari*.",
     },
     {
       feature: "desain_deadline", label: "Deadline Desain Timeline", days_before: 3, send_time: "08:00",
-      trigger_type: "deadline",
+      trigger_type: "deadline", priority_manual: "sedang",
       message_template: "🖌️ *Reminder Deadline Desain*\nProyek: *{nama}*\nJenis: *{jenis}*\nDeadline: *{tanggal}*\nSisa: *{days_before} hari*.",
     },
     {
+      feature: "desain_follow_up_survey", label: "Follow Up After Survey (Desain)", days_before: 2, send_time: "09:00",
+      trigger_type: "deadline", priority_manual: "tinggi",
+      message_template: "🏠 *Follow Up After Survey — Desain*\nLead: *{nama}*\nTanggal Survey: *{tanggal_survey}*\nDeadline FU: *{tanggal}*\nSisa: *{days_before} hari*\nSegera tindak lanjuti hasil survey dan sampaikan penawaran!",
+    },
+    {
       feature: "konten_deadline", label: "Deadline Konten Creator", days_before: 2, send_time: "08:00",
-      trigger_type: "deadline",
+      trigger_type: "deadline", priority_manual: "rendah",
       message_template: "📸 *Reminder Deadline Konten*\nJudul: *{nama}*\nDeadline: *{tanggal}*\nSisa: *{days_before} hari*. Segera selesaikan!",
     },
     // ── Event-based ─────────────────────────────────────────────────────────────
     {
       feature: "invoice_sign_head", label: "TTD Head Finance Invoice", days_before: 0, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "tinggi",
       message_template: "📋 *Invoice Menunggu TTD*\nNomor: *{nomor_invoice}*\nKlien: *{klien}*\nTotal: *Rp {total}*\nSilakan review dan tandatangani di sistem.",
     },
     {
       feature: "invoice_sign_admin", label: "TTD Admin Finance Invoice", days_before: 0, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "tinggi",
       message_template: "📋 *Invoice Menunggu TTD Admin*\nNomor: *{nomor_invoice}*\nKlien: *{klien}*\nTotal: *Rp {total}*\nSilakan review dan tandatangani di sistem.",
     },
     {
       feature: "pr_sign_head", label: "TTD Head Finance PR", days_before: 0, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "tinggi",
       message_template: "📋 *Purchase Request Menunggu TTD*\nNomor: *{nomor_pr}*\nTotal: *Rp {total}*\nSilakan review dan tandatangani di sistem.",
     },
     {
       feature: "approval_needed", label: "Approval / Persetujuan Tertunda", days_before: 0, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "sedang",
       message_template: "✅ *Persetujuan Dibutuhkan*\nModul: *{modul}*\nItem: *{nama}*\nDiajukan oleh: *{pengaju}*\nSilakan buka sistem untuk menyetujui.",
     },
     {
       feature: "lead_new", label: "Lead Baru Masuk", days_before: 0, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "sedang",
       message_template: "🎯 *Lead Baru Masuk*\nNama: *{nama}*\nSumber: *{sumber}*\nModul: *{modul}*\nSegera follow up!",
     },
     {
       feature: "follow_up_new", label: "Follow Up Baru Dicatat", days_before: 0, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "rendah",
       message_template: "📞 *Follow Up Dicatat*\nLead: *{nama}*\nOleh: *{user}*\nCatatan: {catatan}\nNext follow up: *{next_follow_up}*",
     },
     {
       feature: "survey_scheduled", label: "Jadwal Survey / Kunjungan", days_before: 1, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "sedang",
       message_template: "🏠 *Reminder Survey/Kunjungan*\nProyek: *{nama}*\nTanggal: *{tanggal}*\nAlamat: *{alamat}*\nPastikan tim sudah siap.",
     },
     {
       feature: "absen_tukang_approved", label: "Absen Tukang Disetujui", days_before: 0, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "rendah",
       message_template: "✅ *Absen Tukang Disetujui*\nProyek: *{nama_proyek}*\nTanggal: *{tanggal}*\nAbsen Anda telah disetujui oleh supervisor.",
     },
     {
       feature: "gajian_tukang_ready", label: "Gajian Tukang Siap Diambil", days_before: 0, send_time: "08:00",
-      trigger_type: "event",
+      trigger_type: "event", priority_manual: "sedang",
       message_template: "💰 *Gajian Siap*\nProyek: *{nama_proyek}*\nPeriode: *{periode}*\nTotal gaji: *Rp {total}*\nSilakan konfirmasi penerimaan.",
     },
   ];
@@ -1017,15 +1022,16 @@ async function main() {
         data: { ...rule, is_active: true, role_ids: [] },
       });
     } else {
-      // Update message_template and trigger_type if missing
-      const needsUpdate = !(existing as any).message_template || !(existing as any).trigger_type;
+      const ex = existing as any;
+      const needsUpdate = !ex.message_template || !ex.trigger_type || !ex.priority_manual;
       if (needsUpdate) {
         await (prisma.fonteeReminderRule as any).update({
           where: { id: existing.id },
           data: {
-            message_template: (existing as any).message_template ?? rule.message_template,
-            trigger_type: (existing as any).trigger_type ?? rule.trigger_type,
-            send_time: (existing as any).send_time ?? "08:00",
+            message_template: ex.message_template ?? rule.message_template,
+            trigger_type: ex.trigger_type ?? rule.trigger_type,
+            priority_manual: ex.priority_manual ?? rule.priority_manual,
+            send_time: ex.send_time ?? "08:00",
           },
         });
       }

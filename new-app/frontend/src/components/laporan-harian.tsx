@@ -149,7 +149,7 @@ function MarkdownEditor({
   );
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Constants & helpers ───────────────────────────────────────────────────────
 
 const today = new Date().toISOString().split("T")[0];
 const EMPTY = { tanggal_mulai: today, tanggal_selesai: today, kegiatan: "", kendala: "", user_id: "" };
@@ -159,6 +159,31 @@ const MODUL_TO_LEAD_MODUL: Record<string, string> = {
   "Telemarketing": "telemarketing",
   "Golden": "golden",
 };
+
+const BULAN_OPTIONS = [
+  { value: "1", label: "Januari" }, { value: "2", label: "Februari" },
+  { value: "3", label: "Maret" }, { value: "4", label: "April" },
+  { value: "5", label: "Mei" }, { value: "6", label: "Juni" },
+  { value: "7", label: "Juli" }, { value: "8", label: "Agustus" },
+  { value: "9", label: "September" }, { value: "10", label: "Oktober" },
+  { value: "11", label: "November" }, { value: "12", label: "Desember" },
+];
+const _cy = new Date().getFullYear();
+const TAHUN_OPTIONS = Array.from({ length: 5 }, (_, i) => String(_cy - i));
+
+function safeFmtDate(d: string | null | undefined, opts?: Intl.DateTimeFormatOptions): string {
+  if (!d || d === "unknown") return "—";
+  const clean = d.includes("T") ? d : d + "T00:00:00";
+  const dt = new Date(clean);
+  if (isNaN(dt.getTime())) return d;
+  return dt.toLocaleDateString("id-ID", opts ?? { day: "numeric", month: "long", year: "numeric" });
+}
+
+function safeFmtDateLong(d: string | null | undefined): string {
+  return safeFmtDate(d, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianProps) {
   const qc = useQueryClient();
@@ -174,6 +199,13 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [viewItem, setViewItem] = useState<any>(null);
   const [expandedFuKey, setExpandedFuKey] = useState<string | null>(null);
+
+  // Follow-up tab dedicated filters
+  const [fuFilterUserId, setFuFilterUserId] = useState("");
+  const [fuFilterBulan, setFuFilterBulan] = useState("all");
+  const [fuFilterTahun, setFuFilterTahun] = useState("all");
+  const [fuFilterMulai, setFuFilterMulai] = useState("");
+  const [fuFilterSelesai, setFuFilterSelesai] = useState("");
 
   // Docs/Link per laporan
   const [docForm, setDocForm] = useState({ title: "", url: "", catatan: "" });
@@ -205,15 +237,20 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   });
   const users: { id: number; name: string }[] = Array.isArray(usersData) ? usersData : [];
 
+  const fuBulanNum = fuFilterBulan !== "all" ? parseInt(fuFilterBulan) : undefined;
+  const fuTahunNum = fuFilterTahun !== "all" ? parseInt(fuFilterTahun) : undefined;
+
   const { data: fuSummaryData, isLoading: fuSummaryLoading } = useQuery({
-    queryKey: ["laporan-fu-summary", leadModul, filterMulai, filterSelesai, filterUserId],
+    queryKey: ["laporan-fu-summary", leadModul, fuFilterUserId, fuFilterBulan, fuFilterTahun, fuFilterMulai, fuFilterSelesai],
     queryFn: () =>
       apiClient.get("/laporan-harian/follow-up-summary", {
         params: {
           lead_modul: leadModul,
-          tanggal_mulai: filterMulai || undefined,
-          tanggal_selesai: filterSelesai || undefined,
-          user_id: filterUserId || undefined,
+          user_id: fuFilterUserId || undefined,
+          bulan: fuBulanNum,
+          tahun: fuTahunNum,
+          tanggal_mulai: (!fuBulanNum && fuFilterMulai) ? fuFilterMulai : undefined,
+          tanggal_selesai: (!fuBulanNum && fuFilterSelesai) ? fuFilterSelesai : undefined,
         },
       }).then((r) => r.data),
     enabled: !!leadModul && activeSection === "follow-up",
@@ -304,9 +341,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   }
 
   function fmtDate(d: string) {
-    return new Date(d + "T00:00:00").toLocaleDateString("id-ID", {
-      day: "numeric", month: "short", year: "numeric",
-    });
+    return safeFmtDate(d, { day: "numeric", month: "short", year: "numeric" });
   }
 
   function fmtDateRange(mulai: string, selesai: string) {
@@ -319,23 +354,176 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
 
   // ── Print / PDF ───────────────────────────────────────────────────────────────
 
-  function handlePrint() {
+  function generateFollowUpPDF(summary: any[]) {
+    const now = new Date();
+    const nowStr = now.toLocaleString("id-ID", { dateStyle: "full", timeStyle: "short" });
+
+    const filterLabel = (() => {
+      if (fuFilterBulan !== "all" && fuFilterTahun !== "all") {
+        const bLabel = BULAN_OPTIONS.find(b => b.value === fuFilterBulan)?.label ?? fuFilterBulan;
+        return `${bLabel} ${fuFilterTahun}`;
+      }
+      if (fuFilterTahun !== "all") return `Tahun ${fuFilterTahun}`;
+      if (fuFilterMulai || fuFilterSelesai) return `${fuFilterMulai || "—"} s/d ${fuFilterSelesai || "—"}`;
+      return "Semua Periode";
+    })();
+    const userLabel = fuFilterUserId ? (users.find(u => String(u.id) === fuFilterUserId)?.name ?? "—") : "Semua User";
+
+    const totalFu = summary.reduce((s, g) => s + g.follow_ups.length, 0);
+
+    const groupRows = summary.map((group, gi) => {
+      const lapHarian = group.laporan_harian;
+      const fuRows = (group.follow_ups as any[]).map((fu, i) => `
+        <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"};border-bottom:1px solid #e2e8f0">
+          <td style="padding:6px 10px;font-size:10px;color:#6b7280;text-align:center;width:24px">${i + 1}</td>
+          <td style="padding:6px 10px;font-size:11px;font-weight:600;color:#0f172a;min-width:120px">${fu.lead_nama}</td>
+          <td style="padding:6px 10px;font-size:11px;color:#475569;line-height:1.5">${fu.catatan ? fu.catatan.replace(/\n/g, "<br>") : '<span style="color:#94a3b8;font-style:italic">—</span>'}</td>
+          <td style="padding:6px 10px;font-size:11px;color:#d97706;white-space:nowrap">${fu.next_follow_up ? safeFmtDate(fu.next_follow_up) : '<span style="color:#94a3b8">—</span>'}</td>
+        </tr>`).join("");
+
+      const lapHarianSection = lapHarian ? `
+        <div style="margin:8px 0 4px;padding:8px 12px;background:#eff6ff;border-left:3px solid #3b82f6;border-radius:0 4px 4px 0;font-size:11px">
+          <div style="font-weight:600;color:#1e40af;margin-bottom:2px">Laporan Harian:</div>
+          <div style="color:#1e3a8a;line-height:1.6;white-space:pre-line">${lapHarian.kegiatan?.substring(0, 300) ?? "—"}${lapHarian.kegiatan?.length > 300 ? "..." : ""}</div>
+          ${lapHarian.kendala ? `<div style="color:#dc2626;margin-top:4px;font-size:10px"><strong>Kendala:</strong> ${lapHarian.kendala}</div>` : ""}
+        </div>` : "";
+
+      return `
+        <div style="margin-bottom:20px;border:1px solid #e2e8f0;border-radius:8px;overflow:hidden">
+          <div style="background:#f8fafc;border-bottom:2px solid #e2e8f0;padding:10px 14px;display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <span style="font-size:13px;font-weight:700;color:#0f172a">${safeFmtDateLong(group.tanggal)}</span>
+              <span style="font-size:11px;color:#64748b;margin-left:10px">— ${group.user?.name ?? "—"}</span>
+            </div>
+            <span style="font-size:11px;font-weight:600;background:#fef3c7;color:#92400e;padding:2px 10px;border-radius:999px">${group.follow_ups.length} follow-up</span>
+          </div>
+          <div style="padding:8px 14px">
+            ${lapHarianSection}
+            <table style="width:100%;border-collapse:collapse;margin-top:6px">
+              <thead>
+                <tr style="background:#f1f5f9;border-bottom:2px solid #e2e8f0">
+                  <th style="padding:5px 10px;font-size:9px;color:#64748b;text-align:center;width:24px">#</th>
+                  <th style="padding:5px 10px;font-size:9px;color:#64748b;text-align:left;min-width:120px">Nama Lead</th>
+                  <th style="padding:5px 10px;font-size:9px;color:#64748b;text-align:left">Catatan Follow Up</th>
+                  <th style="padding:5px 10px;font-size:9px;color:#64748b;text-align:left;white-space:nowrap">Next FU</th>
+                </tr>
+              </thead>
+              <tbody>${fuRows}</tbody>
+            </table>
+          </div>
+        </div>`;
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Ringkasan Follow Up — ${modul}</title>
+  <style>* { box-sizing: border-box; } body { font-family: Arial, sans-serif; margin: 0; padding: 24px; color: #0f172a; }
+  @media print { @page { size: A4 portrait; margin: 14mm 12mm; } body { padding: 0; } }</style>
+</head>
+<body>
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:12px;border-bottom:3px solid #f59e0b;margin-bottom:16px">
+    <div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <img src="${window.location.origin}/images/logo.png" style="height:48px;object-fit:contain" onerror="this.style.display='none'"/>
+        <div>
+          <h1 style="margin:0;font-size:18px;color:#92400e;font-weight:700">Ringkasan Follow Up — ${modul}</h1>
+          <p style="margin:3px 0 0;font-size:11px;color:#64748b">Periode: ${filterLabel} · Karyawan: ${userLabel}</p>
+        </div>
+      </div>
+    </div>
+    <div style="text-align:right"><p style="margin:0;font-size:10px;color:#94a3b8">Dicetak: ${nowStr}</p></div>
+  </div>
+  <div style="display:flex;gap:12px;margin-bottom:16px">
+    <div style="flex:1;background:#fef3c7;border-radius:8px;padding:10px 14px">
+      <div style="font-size:22px;font-weight:700;color:#92400e">${summary.length}</div>
+      <div style="font-size:10px;color:#6b7280;margin-top:1px">Hari Aktif</div>
+    </div>
+    <div style="flex:1;background:#e0f2fe;border-radius:8px;padding:10px 14px">
+      <div style="font-size:22px;font-weight:700;color:#0284c7">${totalFu}</div>
+      <div style="font-size:10px;color:#6b7280;margin-top:1px">Total Follow Up</div>
+    </div>
+    <div style="flex:1;background:#f0fdf4;border-radius:8px;padding:10px 14px">
+      <div style="font-size:22px;font-weight:700;color:#16a34a">${summary.filter(g => g.laporan_harian).length}</div>
+      <div style="font-size:10px;color:#6b7280;margin-top:1px">Ada Laporan Harian</div>
+    </div>
+  </div>
+  ${groupRows || '<p style="text-align:center;color:#94a3b8;padding:32px">Tidak ada data follow up</p>'}
+  <div style="margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0;display:flex;justify-content:space-between">
+    <span style="font-size:10px;color:#94a3b8">PT. Rubah Rumah Inovasi Pemuda — Ringkasan Follow Up ${modul}</span>
+    <span style="font-size:10px;color:#94a3b8">${nowStr}</span>
+  </div>
+  <script>window.onload = () => { window.print(); }</script>
+</body></html>`;
+
+    const w = window.open("", "_blank", "width=960,height=700");
+    if (!w) { alert("Popup diblokir. Izinkan popup untuk mencetak."); return; }
+    w.document.write(html);
+    w.document.close();
+  }
+
+  async function handlePrint() {
     const now = new Date();
     const fmtPeriod =
       filterMulai && filterSelesai
-        ? `${fmtDate(filterMulai)} s/d ${fmtDate(filterSelesai)}`
+        ? `${safeFmtDate(filterMulai)} s/d ${safeFmtDate(filterSelesai)}`
         : filterMulai
-        ? `Dari ${fmtDate(filterMulai)}`
+        ? `Dari ${safeFmtDate(filterMulai)}`
         : filterSelesai
-        ? `Sampai ${fmtDate(filterSelesai)}`
+        ? `Sampai ${safeFmtDate(filterSelesai)}`
         : "Semua Periode";
     const selectedUser = filterUserId ? users.find(u => String(u.id) === filterUserId) : null;
     const userLabel = selectedUser ? selectedUser.name : "Semua Karyawan";
 
-    const rows = items
-      .map(
-        (lap, i) => `
-      <tr>
+    // Fetch follow-up summary for the same period (if modul supports it)
+    let fuLookup: Record<string, any[]> = {};
+    if (leadModul) {
+      try {
+        const fuResp = await apiClient.get("/laporan-harian/follow-up-summary", {
+          params: {
+            lead_modul: leadModul,
+            tanggal_mulai: filterMulai || undefined,
+            tanggal_selesai: filterSelesai || undefined,
+            user_id: filterUserId || undefined,
+          },
+        });
+        const fuData: any[] = Array.isArray(fuResp.data) ? fuResp.data : [];
+        for (const group of fuData) {
+          const key = `${group.tanggal}_${String(group.user?.id ?? "")}`;
+          fuLookup[key] = group.follow_ups ?? [];
+        }
+      } catch { /* ignore */ }
+    }
+
+    const rows = items.map((lap, i) => {
+      const dateStr = String(lap.tanggal_mulai).split("T")[0];
+      const userId = String(lap.user?.id ?? "");
+      const fuKey = `${dateStr}_${userId}`;
+      const lapFus: any[] = fuLookup[fuKey] ?? [];
+
+      const fuSection = lapFus.length > 0 ? `
+        <tr>
+          <td colspan="5" style="padding:0 10px 10px 10px">
+            <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:6px;padding:8px 12px;margin-top:4px">
+              <div style="font-size:9px;font-weight:700;color:#92400e;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px">
+                Follow Up Leads (${lapFus.length}×)
+              </div>
+              ${lapFus.map((fu, fi) => `
+                <div style="padding:4px 0;border-top:${fi > 0 ? "1px solid #fde68a" : "none"};display:flex;gap:8px;align-items:flex-start">
+                  <span style="font-size:9px;color:#d97706;font-weight:700;width:16px;shrink:0">${fi + 1}.</span>
+                  <div>
+                    <span style="font-size:11px;font-weight:600;color:#78350f">${fu.lead_nama}</span>
+                    ${fu.catatan ? `<div style="font-size:10px;color:#92400e;margin-top:1px;line-height:1.5">${fu.catatan.replace(/\n/g, " · ")}</div>` : ""}
+                    ${fu.next_follow_up ? `<div style="font-size:9px;color:#d97706;margin-top:1px">Next FU: ${safeFmtDate(fu.next_follow_up)}</div>` : ""}
+                  </div>
+                </div>`).join("")}
+            </div>
+          </td>
+        </tr>` : "";
+
+      return `
+      <tr style="background:${i % 2 === 0 ? "#ffffff" : "#f8fafc"}">
         <td class="num">${i + 1}</td>
         <td style="white-space:nowrap">${fmtDateRange(
           String(lap.tanggal_mulai).split("T")[0],
@@ -344,9 +532,8 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
         <td>${lap.user?.name ?? "—"}</td>
         <td>${renderMarkdown(lap.kegiatan)}</td>
         <td style="color:#dc2626">${lap.kendala ? lap.kendala.replace(/</g, "&lt;") : '<span style="color:#94a3b8">—</span>'}</td>
-      </tr>`
-      )
-      .join("");
+      </tr>${fuSection}`;
+    }).join("");
 
     const html = `<!DOCTYPE html>
 <html lang="id">
@@ -392,6 +579,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
     <div class="scard"><div class="scard-label">Total Laporan</div><div class="scard-value">${items.length}</div></div>
     <div class="scard"><div class="scard-label">Ada Kendala</div><div class="scard-value">${items.filter((l: any) => l.kendala).length}</div></div>
     <div class="scard"><div class="scard-label">Tanpa Kendala</div><div class="scard-value">${items.filter((l: any) => !l.kendala).length}</div></div>
+    ${leadModul ? `<div class="scard"><div class="scard-label">Total Follow Up</div><div class="scard-value">${Object.values(fuLookup).reduce((s, arr) => s + arr.length, 0)}</div></div>` : ""}
   </div>
   <table>
     <thead><tr>
@@ -496,6 +684,11 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
               </Button>
             </>
           )}
+          {activeSection === "follow-up" && leadModul && (
+            <Button variant="outline" size="sm" onClick={() => generateFollowUpPDF(fuSummary)} disabled={fuSummaryLoading || fuSummary.length === 0}>
+              <Download className="h-4 w-4 mr-1.5" /> Download PDF
+            </Button>
+          )}
         </div>
       </div>
 
@@ -569,74 +762,168 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
 
       {/* Tab Ringkasan Follow Up */}
       {activeSection === "follow-up" && leadModul && (
-        <Card>
-          <CardContent className="p-0">
-            {fuSummaryLoading ? (
-              <div className="p-6 space-y-3">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 w-full" />)}
+        <div className="space-y-3">
+          {/* Dedicated filter panel */}
+          <Card>
+            <CardContent className="py-3 px-4">
+              <div className="flex flex-wrap gap-2 items-center">
+                <Select value={fuFilterUserId || "__all__"} onValueChange={(v) => setFuFilterUserId(v === "__all__" ? "" : v)}>
+                  <SelectTrigger className="w-[150px] h-8 text-sm"><SelectValue placeholder="Semua User" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">Semua User</SelectItem>
+                    {users.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={fuFilterBulan} onValueChange={(v) => { setFuFilterBulan(v); setFuFilterMulai(""); setFuFilterSelesai(""); }}>
+                  <SelectTrigger className="w-[120px] h-8 text-sm"><SelectValue placeholder="Bulan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Bulan</SelectItem>
+                    {BULAN_OPTIONS.map(b => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={fuFilterTahun} onValueChange={(v) => { setFuFilterTahun(v); setFuFilterMulai(""); setFuFilterSelesai(""); }}>
+                  <SelectTrigger className="w-[100px] h-8 text-sm"><SelectValue placeholder="Tahun" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Tahun</SelectItem>
+                    {TAHUN_OPTIONS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <span className="text-xs text-muted-foreground px-1">atau rentang:</span>
+                <Input type="date" className="w-36 h-8 text-sm" value={fuFilterMulai}
+                  onChange={(e) => { setFuFilterMulai(e.target.value); setFuFilterBulan("all"); setFuFilterTahun("all"); }} />
+                <span className="text-xs text-muted-foreground">s/d</span>
+                <Input type="date" className="w-36 h-8 text-sm" value={fuFilterSelesai}
+                  onChange={(e) => { setFuFilterSelesai(e.target.value); setFuFilterBulan("all"); setFuFilterTahun("all"); }} />
+                {(fuFilterUserId || fuFilterBulan !== "all" || fuFilterTahun !== "all" || fuFilterMulai || fuFilterSelesai) && (
+                  <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => {
+                    setFuFilterUserId(""); setFuFilterBulan("all"); setFuFilterTahun("all");
+                    setFuFilterMulai(""); setFuFilterSelesai("");
+                  }}>Reset</Button>
+                )}
               </div>
-            ) : fuSummary.length === 0 ? (
-              <div className="text-center py-16 text-muted-foreground">
-                <PhoneCall className="mx-auto h-10 w-10 opacity-20 mb-3" />
-                <p>Belum ada aktivitas follow up pada periode ini</p>
+            </CardContent>
+          </Card>
+
+          {/* Summary stats */}
+          {!fuSummaryLoading && fuSummary.length > 0 && (
+            <div className="grid grid-cols-3 gap-2">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
+                <div className="text-xl font-bold text-amber-700">{fuSummary.length}</div>
+                <div className="text-[10px] text-amber-600">Hari Aktif</div>
               </div>
-            ) : (
-              <div className="divide-y">
-                {fuSummary.map((group: any) => {
-                  const key = `${group.tanggal}_${group.user?.id ?? "unknown"}`;
-                  const isExpanded = expandedFuKey === key;
-                  return (
-                    <div key={key}>
-                      <button
-                        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
-                        onClick={() => setExpandedFuKey(isExpanded ? null : key)}
-                      >
-                        {isExpanded
-                          ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        }
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-sm">
-                              {group.tanggal !== "unknown"
-                                ? new Date(group.tanggal + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
-                                : "Tanggal tidak diketahui"
-                              }
-                            </span>
-                            <span className="text-xs text-muted-foreground">·</span>
-                            <span className="text-sm text-amber-700 font-medium">{group.user?.name ?? "—"}</span>
-                          </div>
-                          <span className="text-xs text-muted-foreground">{group.follow_ups.length} lead di-follow-up</span>
-                        </div>
-                        <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-medium flex-shrink-0">
-                          {group.follow_ups.length}×
-                        </span>
-                      </button>
-                      {isExpanded && (
-                        <div className="px-4 pb-3 pl-11 space-y-1.5">
-                          {group.follow_ups.map((fu: any) => (
-                            <div key={fu.id} className="bg-muted/30 border rounded-md px-3 py-2 text-sm">
-                              <div className="font-medium text-sm">{fu.lead_nama}</div>
-                              {fu.catatan
-                                ? <p className="text-muted-foreground text-xs mt-0.5">{fu.catatan}</p>
-                                : <p className="text-muted-foreground/50 text-xs mt-0.5 italic">Tidak ada catatan</p>
-                              }
-                              {fu.next_follow_up && (
-                                <p className="text-xs text-amber-600 mt-0.5">
-                                  Next FU: {new Date(fu.next_follow_up).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
-                                </p>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-center">
+                <div className="text-xl font-bold text-blue-700">{fuSummary.reduce((s: number, g: any) => s + g.follow_ups.length, 0)}</div>
+                <div className="text-[10px] text-blue-600">Total Follow Up</div>
+              </div>
+              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-center">
+                <div className="text-xl font-bold text-green-700">{fuSummary.filter((g: any) => g.laporan_harian).length}</div>
+                <div className="text-[10px] text-green-600">Ada Laporan Harian</div>
+              </div>
+            </div>
+          )}
+
+          <Card>
+            <CardContent className="p-0">
+              {fuSummaryLoading ? (
+                <div className="p-6 space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
+                </div>
+              ) : fuSummary.length === 0 ? (
+                <div className="text-center py-16 text-muted-foreground">
+                  <PhoneCall className="mx-auto h-10 w-10 opacity-20 mb-3" />
+                  <p>Belum ada aktivitas follow up pada periode ini</p>
+                  <p className="text-xs mt-1">Coba ubah filter atau tambah follow up leads terlebih dahulu</p>
+                </div>
+              ) : (
+                <div className="divide-y">
+                  {fuSummary.map((group: any) => {
+                    const key = `${group.tanggal}_${group.user?.id ?? "unknown"}`;
+                    const isExpanded = expandedFuKey === key;
+                    const lap = group.laporan_harian;
+                    return (
+                      <div key={key}>
+                        {/* Group header */}
+                        <button
+                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
+                          onClick={() => setExpandedFuKey(isExpanded ? null : key)}
+                        >
+                          {isExpanded
+                            ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                            : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                          }
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-semibold text-sm">{safeFmtDateLong(group.tanggal)}</span>
+                              <span className="text-xs text-muted-foreground">·</span>
+                              <span className="text-sm text-amber-700 font-medium">{group.user?.name ?? "—"}</span>
+                              {lap && (
+                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 font-medium">Ada Laporan Harian</span>
                               )}
                             </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                            <span className="text-xs text-muted-foreground">{group.follow_ups.length} lead di-follow-up</span>
+                          </div>
+                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">
+                            {group.follow_ups.length}×
+                          </span>
+                        </button>
+
+                        {/* Expanded content */}
+                        {isExpanded && (
+                          <div className="px-4 pb-4 pl-11 space-y-3">
+                            {/* Laporan Harian entry */}
+                            {lap && (
+                              <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3">
+                                <p className="text-[11px] font-semibold text-blue-700 mb-1 flex items-center gap-1">
+                                  <ClipboardList className="h-3 w-3" /> Laporan Harian ({group.user?.name ?? "—"})
+                                </p>
+                                <div className="text-xs text-blue-900 leading-relaxed whitespace-pre-line line-clamp-4">
+                                  {lap.kegiatan}
+                                </div>
+                                {lap.kendala && (
+                                  <div className="mt-2 text-xs text-red-600 border-t border-blue-200 pt-2">
+                                    <span className="font-medium">Kendala:</span> {lap.kendala}
+                                  </div>
+                                )}
+                              </div>
+                            )}
+
+                            {/* Follow-up list */}
+                            <div>
+                              <p className="text-[11px] font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
+                                <PhoneCall className="h-3 w-3" /> Follow Up Leads
+                              </p>
+                              <div className="space-y-1.5">
+                                {group.follow_ups.map((fu: any, idx: number) => (
+                                  <div key={fu.id} className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+                                    <div className="flex items-start gap-2">
+                                      <span className="text-[10px] text-amber-600 font-bold mt-0.5 w-4 shrink-0">{idx + 1}.</span>
+                                      <div className="flex-1 min-w-0">
+                                        <div className="font-semibold text-sm text-amber-900">{fu.lead_nama}</div>
+                                        {fu.catatan
+                                          ? <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">{fu.catatan}</p>
+                                          : <p className="text-xs text-muted-foreground/60 mt-0.5 italic">Tidak ada catatan</p>
+                                        }
+                                        {fu.next_follow_up && (
+                                          <p className="text-[10px] text-orange-600 mt-1 font-medium">
+                                            Next FU: {safeFmtDate(fu.next_follow_up)}
+                                          </p>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
 
       {/* ── Create dialog ── */}
