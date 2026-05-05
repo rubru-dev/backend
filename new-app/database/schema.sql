@@ -231,6 +231,7 @@ CREATE TABLE bon_harian_files (
 CREATE TABLE leads (
     id                     BIGSERIAL PRIMARY KEY,
     user_id                BIGINT REFERENCES users(id) ON DELETE SET NULL,
+    salutation             VARCHAR(10),
     nama                   VARCHAR(255) NOT NULL,
     nomor_telepon          VARCHAR(50),
     alamat                 TEXT,

@@ -1666,7 +1666,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item, i) => i === idx
-        ? { mode: "rapp" as const, nama_item: it.nama_item, satuan: it.satuan || "", qty: it.qty || 1, harga_perkiraan: it.harga || 0, rapp_qty: it.qty, rapp_harga: it.harga }
+        ? { mode: "rapp" as const, nama_item: it.nama_item, satuan: it.satuan || "", qty: it.qty || 1, harga_perkiraan: it.harga || 0, diskon_harga_satuan: 0, rapp_qty: it.qty, rapp_harga: it.harga }
         : item
       ),
     }));
@@ -1676,7 +1676,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       ...prev,
       items: prev.items.map((item, i) => i === idx
         ? mode === "manual"
-          ? { mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0 }
+          ? { mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0, diskon_harga_satuan: 0 }
           : { ...item, mode: "rapp", nama_item: "", satuan: "" }
         : item
       ),

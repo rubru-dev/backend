@@ -58,7 +58,9 @@ export type SurveyApprovalStatus = "Pending" | "Approved" | "Rejected";
 export interface Lead {
   id: number;
   user_id: number | null;
+  salutation: "Mr" | "Mrs" | null;
   nama: string;
+  display_name?: string;
   nomor_telepon: string | null;
   alamat: string | null;
   sumber_leads: string | null;

@@ -13,6 +13,11 @@ function generateInvoiceNumber(): string {
   return prefix + String(Math.floor(Math.random() * 9000) + 1000);
 }
 
+function leadDisplayName(lead?: { salutation?: string | null; nama?: string | null } | null) {
+  if (!lead?.nama) return "";
+  return lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama;
+}
+
 function invoiceDict(inv: {
   id: bigint; invoice_number: string | null; tanggal: Date | null; lead_id: bigint | null; catatan: string | null;
   ppn_percentage: unknown; subtotal: unknown; ppn_amount: unknown; grand_total: unknown; status: string | null;
@@ -52,11 +57,12 @@ function generateNomorInvoice(jenis: string | null | undefined, tanggal: Date): 
 }
 
 function invoiceDictFrontend(inv: any) {
+  const leadName = leadDisplayName(inv.lead);
   return {
     id: inv.id,
     nomor_invoice: inv.invoice_number,
-    lead: inv.lead ? { id: inv.lead.id, nama: inv.lead.nama, jenis: inv.lead.jenis, alamat: inv.lead.alamat, nomor_telepon: inv.lead.nomor_telepon } : null,
-    klien: inv.lead?.nama || "",
+    lead: inv.lead ? { id: inv.lead.id, salutation: inv.lead.salutation ?? null, nama: inv.lead.nama, display_name: leadName, jenis: inv.lead.jenis, alamat: inv.lead.alamat, nomor_telepon: inv.lead.nomor_telepon } : null,
+    klien: leadName,
     tanggal: inv.tanggal,
     overdue_date: inv.overdue_date || null,
     total: parseFloat(String(inv.grand_total ?? 0)),
@@ -767,10 +773,10 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const search = (req.query.search as string) || "";
   const leads = await prisma.lead.findMany({
     where: search ? { nama: { contains: search, mode: "insensitive" } } : {},
-    select: { id: true, nama: true, jenis: true, nomor_telepon: true, alamat: true },
+    select: { id: true, salutation: true, nama: true, jenis: true, nomor_telepon: true, alamat: true },
     orderBy: { nama: "asc" },
   });
-  return res.json({ items: leads });
+  return res.json({ items: leads.map((lead) => ({ ...lead, display_name: leadDisplayName(lead) })) });
 });
 
 // ── Bank Accounts ─────────────────────────────────────────────────────────────
@@ -873,7 +879,7 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
     },
     include: { lead: true, items: true, head_finance: true, admin_finance: true, bank_account: true },
   });
-  const clientName = (inv as any).lead?.nama ?? "—";
+  const clientName = leadDisplayName((inv as any).lead) || "—";
   const totalAmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(inv.grand_total));
   const invoiceMsg = `🧾 *Invoice Baru Dibuat*\n\nInvoice untuk klien: *${clientName}*\nNomor: ${inv.invoice_number}\nTotal: ${totalAmt}\n\nSilakan review dan tanda tangani.\n\n🔗 ${FRONTEND_URL}/finance/invoice-kwitansi`;
   sendFonntToRoles(["Admin Finance", "Head Finance"], invoiceMsg).catch(() => {});

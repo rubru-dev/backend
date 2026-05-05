@@ -5,6 +5,17 @@
 
 ---
 
+## 0. Changelog Fitur Terbaru (2026-05-05)
+
+### Follow Up Leads — Salutation Mr/Mrs
+- **Schema:** Tambah `Lead.salutation` (`Mr`/`Mrs`, nullable) untuk membedakan sapaan klien tanpa menggabungkannya ke field `nama`.
+- **Backend `bd.ts`:** Create/edit/bulk import leads menerima `salutation`; response leads menambahkan `display_name` = `"Mr/Mrs Nama"` jika salutation tersedia.
+- **Frontend `follow-up-leads.tsx`:** Form tambah/edit lead memiliki dropdown Salutation; tabel, PDF riwayat/laporan, dan export Excel memakai nama tampilan berawalan salutation.
+- **Finance invoice/kwitansi:** `finance.ts` mengirim `lead.salutation`, `lead.display_name`, dan `klien` berawalan salutation; halaman Invoice & Kwitansi serta PDF invoice/kwitansi otomatis menampilkan `Mr/Mrs` di depan nama klien.
+- **DB update required:** jalankan migrasi/SQL `ALTER TABLE leads ADD COLUMN IF NOT EXISTS salutation VARCHAR(10);` atau `prisma db push` sebelum memakai field ini di database lama.
+
+---
+
 ## 0. Changelog Fitur Terbaru (2026-04-20)
 
 ### RubahrumahxGolden — Dokumentasi Lengkap + Responsive + GPS Timestamp

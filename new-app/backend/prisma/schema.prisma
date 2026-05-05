@@ -875,6 +875,7 @@ model LaporanHarian {
 model Lead {
   id                                    BigInt                  @id @default(autoincrement())
   user_id                               BigInt?
+  salutation                            String?                 @db.VarChar(10)
   nama                                  String                  @db.VarChar(255)
   nomor_telepon                         String?                 @db.VarChar(50)
   alamat                                String?

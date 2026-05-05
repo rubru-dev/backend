@@ -73,6 +73,12 @@ function formatRp(val: number | string) {
   return "Rp " + (Number(val) || 0).toLocaleString("id-ID");
 }
 
+function leadDisplayName(lead: any) {
+  if (!lead) return "";
+  if (lead.display_name) return lead.display_name;
+  return lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama;
+}
+
 const today = new Date().toISOString().split("T")[0];
 
 const EMPTY_FORM = {
@@ -478,7 +484,7 @@ export default function InvoiceKwitansiPage() {
 
   function handleSelectLead(lead: any) {
     setForm((f: any) => ({ ...f, lead_id: String(lead.id), _nomorManual: false }));
-    setLeadSearch(lead.nama);
+    setLeadSearch(leadDisplayName(lead));
     setShowLeadDropdown(false);
   }
 
@@ -762,7 +768,7 @@ export default function InvoiceKwitansiPage() {
                                         rab_item_id: inv.rab_item_id ? String(inv.rab_item_id) : "",
                                         _nomorManual: true,
                                       });
-                                      setLeadSearch(inv.lead?.nama || "");
+                                      setLeadSearch(leadDisplayName(inv.lead));
                                       setOpen(true);
                                     }}>
                                     <Pencil className="h-3 w-3 mr-1" /> Edit
@@ -915,7 +921,7 @@ export default function InvoiceKwitansiPage() {
                     <button key={l.id} type="button"
                       className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 flex justify-between"
                       onClick={() => handleSelectLead(l)}>
-                      <span>{l.nama}</span>
+                      <span>{leadDisplayName(l)}</span>
                       <span className="text-muted-foreground text-xs">{l.jenis || "—"}</span>
                     </button>
                   ))}

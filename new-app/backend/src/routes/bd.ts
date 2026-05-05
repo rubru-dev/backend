@@ -8,8 +8,16 @@ const router = Router();
 
 // ── LEAD HELPERS ──────────────────────────────────────────────────────────────
 
+function normalizeSalutation(value: unknown): "Mr" | "Mrs" | null {
+  return value === "Mr" || value === "Mrs" ? value : null;
+}
+
+function leadDisplayName(l: { salutation?: string | null; nama: string }) {
+  return l.salutation ? `${l.salutation} ${l.nama}` : l.nama;
+}
+
 function leadDict(l: {
-  id: bigint; nama: string; nomor_telepon: string | null; alamat: string | null;
+  id: bigint; salutation?: string | null; nama: string; nomor_telepon: string | null; alamat: string | null;
   sumber_leads: string | null; meta_ads_campaign_id?: bigint | null;
   tanggal_masuk?: Date | null;
   keterangan: string | null; jenis: string | null;
@@ -28,7 +36,7 @@ function leadDict(l: {
   follow_ups?: { id: bigint; tanggal: Date | null; catatan: string | null; user?: { name: string } | null }[];
 }) {
   return {
-    id: l.id, nama: l.nama, nomor_telepon: l.nomor_telepon, alamat: l.alamat,
+    id: l.id, salutation: l.salutation ?? null, nama: l.nama, display_name: leadDisplayName(l), nomor_telepon: l.nomor_telepon, alamat: l.alamat,
     sumber_leads: l.sumber_leads,
     meta_ads_campaign_id: l.meta_ads_campaign_id ? String(l.meta_ads_campaign_id) : null,
     tanggal_masuk: l.tanggal_masuk ?? null,
@@ -140,6 +148,7 @@ router.post("/leads", async (req: Request, res: Response) => {
   const lead = await prisma.lead.create({
     data: {
       user_id: req.user!.id,
+      salutation: normalizeSalutation(b.salutation),
       nama: b.nama,
       nomor_telepon: b.nomor_telepon ?? null,
       alamat: b.alamat ?? null,
@@ -187,6 +196,7 @@ router.patch("/leads/:id", async (req: Request, res: Response) => {
   const b = req.body;
   const updates: Record<string, unknown> = {};
   if (b.nama !== undefined) updates.nama = b.nama;
+  if (b.salutation !== undefined) updates.salutation = normalizeSalutation(b.salutation);
   if (b.nomor_telepon !== undefined) updates.nomor_telepon = b.nomor_telepon;
   if (b.alamat !== undefined) updates.alamat = b.alamat;
   if (b.sumber_leads !== undefined) updates.sumber_leads = b.sumber_leads;
@@ -1648,6 +1658,7 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
     data: {
       user_id: req.user!.id,
       modul,
+      salutation: normalizeSalutation(b.salutation),
       nama: b.nama,
       nomor_telepon: b.nomor_telepon ?? null,
       alamat: b.alamat ?? null,
@@ -1705,6 +1716,7 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   const b = req.body;
   const updates: Record<string, unknown> = {};
   if (b.nama !== undefined) updates.nama = b.nama;
+  if (b.salutation !== undefined) updates.salutation = normalizeSalutation(b.salutation);
   if (b.nomor_telepon !== undefined) updates.nomor_telepon = b.nomor_telepon;
   if (b.alamat !== undefined) updates.alamat = b.alamat;
   if (b.sumber_leads !== undefined) updates.sumber_leads = b.sumber_leads;
@@ -2101,6 +2113,7 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
       return prisma.lead.create({
         data: {
           nama: l.nama, nomor_telepon: l.nomor_telepon || null,
+          salutation: normalizeSalutation(l.salutation),
           alamat: l.alamat || null, sumber_leads: l.sumber_leads || null,
           jenis: l.jenis || null, status: l.status || "Low",
           keterangan: l.keterangan || null,

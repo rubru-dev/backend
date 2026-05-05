@@ -43,6 +43,7 @@ const JENIS_OPTIONS = ["Sipil", "Interior", "Desain"];
 const JENIS_OPTIONS_GOLDEN = ["Anti Rayap", "Jasa Cleaning", "Sanitasi Produk"];
 const STATUS_OPTIONS = ["Low", "Medium", "Hot", "Client", "Batal"];
 const STATIC_SUMBER_OPTIONS = ["Instagram", "TikTok", "Facebook", "Referral", "Walk-in", "Lainnya"];
+const SALUTATION_OPTIONS = ["Mr", "Mrs"] as const;
 
 const BULAN_OPTIONS = [
   { value: "1", label: "Januari" }, { value: "2", label: "Februari" },
@@ -59,12 +60,18 @@ const TAHUN_OPTIONS = Array.from({ length: 5 }, (_, i) => String(_cy - i));
 const PROJECTION_OPTIONS = ["", "W1", "W2", "W3", "W4"];
 
 const EMPTY = {
-  nama: "", nomor_telepon: "", alamat: "", sumber_leads: "Instagram",
+  salutation: "Mr", nama: "", nomor_telepon: "", alamat: "", sumber_leads: "Instagram",
   jenis: "Interior", status: "Low", keterangan: "",
   rencana_survey: "Tidak", tanggal_survey: "", jam_survey: "", pic_survey: "",
   tanggal_masuk: "", meta_ads_campaign_id: null as number | null,
   projection: "", fu_call: "Belum",
 };
+
+function leadDisplayName(item: { salutation?: string | null; nama?: string | null; display_name?: string | null }) {
+  if (item.display_name) return item.display_name;
+  if (!item.nama) return "";
+  return item.salutation ? `${item.salutation} ${item.nama}` : item.nama;
+}
 
 export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) {
   const qc = useQueryClient();
@@ -259,6 +266,9 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
           }
         }
         return {
+          salutation: SALUTATION_OPTIONS.includes(String(r["Salutation"] || r["salutation"] || "").trim() as any)
+            ? String(r["Salutation"] || r["salutation"]).trim()
+            : "Mr",
           nama: String(r["Nama"] || r["nama"] || "").trim(),
           nomor_telepon: String(r["Nomor Telepon"] || r["nomor_telepon"] || "").trim(),
           alamat: String(r["Alamat"] || r["alamat"] || "").trim(),
@@ -287,6 +297,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       ? `campaign:${matchedCampaign.id}:${matchedCampaign.campaign_name}`
       : item.sumber_leads ?? "Instagram";
     setForm({
+      salutation: item.salutation ?? "Mr",
       nama: item.nama, nomor_telepon: item.nomor_telepon ?? "", alamat: item.alamat ?? "",
       sumber_leads: sumberValue, jenis: item.jenis ?? "Interior",
       status: item.status ?? "Low", keterangan: item.keterangan ?? "",
@@ -338,7 +349,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
 
     const html = `<!DOCTYPE html>
 <html lang="id">
-<head><meta charset="UTF-8"/><title>Riwayat Follow Up — ${item.nama}</title>
+<head><meta charset="UTF-8"/><title>Riwayat Follow Up — ${leadDisplayName(item)}</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; }
   body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a1a; background: #fff; padding: 28px 36px; }
@@ -372,7 +383,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   <hr class="letterhead-divider"/>
   <h1>Riwayat Follow Up Lead</h1>
   <div class="info-grid">
-    <div><div class="info-label">Nama</div><div class="info-value">${item.nama}</div></div>
+    <div><div class="info-label">Nama</div><div class="info-value">${leadDisplayName(item)}</div></div>
     <div><div class="info-label">Telepon</div><div class="info-value">${item.nomor_telepon || "—"}</div></div>
     <div><div class="info-label">Jenis</div><div class="info-value">${item.jenis || "—"}</div></div>
     <div><div class="info-label">Status</div><div class="info-value">${item.status || "—"}</div></div>
@@ -455,7 +466,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       return `
         <div class="lead-block">
           <div class="lead-header">
-            <span class="lead-name">${lead.nama.replace(/</g, "&lt;")}</span>
+            <span class="lead-name">${leadDisplayName(lead).replace(/</g, "&lt;")}</span>
             <span class="badge ${statusClass}">${lead.status}</span>
             <span class="lead-meta">${lead.jenis ?? ""}${lead.nomor_telepon ? " · " + lead.nomor_telepon : ""}${lead.sumber_leads ? " · " + lead.sumber_leads : ""}</span>
             <span class="fu-count">${fus.length} follow up</span>
@@ -577,7 +588,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
         (item: any, i) => `
       <tr>
         <td class="num">${i + 1}</td>
-        <td><strong>${item.nama.replace(/</g, "&lt;")}</strong></td>
+        <td><strong>${leadDisplayName(item).replace(/</g, "&lt;")}</strong></td>
         <td>${item.nomor_telepon || "—"}</td>
         <td>${item.jenis}</td>
         <td>${item.sumber_leads || "—"}</td>
@@ -674,7 +685,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     const modulLabel = modul === "sales-admin" ? "Sales Admin" : modul === "telemarketing" ? "Telemarketing" : "Database Client";
     const rows = items.map((item: any, i: number) => ({
       "No":              i + 1,
-      "Nama":            item.nama,
+      "Nama":            leadDisplayName(item),
       "Nomor Telepon":   item.nomor_telepon ?? "",
       "Alamat":          item.alamat ?? "",
       "Sumber Leads":    item.sumber_leads ?? "",
@@ -716,7 +727,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     // Sheet 1: Ringkasan leads
     const summaryRows = allLeads.map((lead: any, i: number) => ({
       "No":             i + 1,
-      "Nama":           lead.nama,
+      "Nama":           leadDisplayName(lead),
       "Nomor Telepon":  lead.nomor_telepon ?? "",
       "Alamat":         lead.alamat ?? "",
       "Sumber Leads":   lead.sumber_leads ?? "",
@@ -734,7 +745,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       const fus: any[] = lead.follow_ups ?? [];
       if (fus.length === 0) {
         detailRows.push({
-          "Nama Lead":     lead.nama,
+          "Nama Lead":     leadDisplayName(lead),
           "Telepon":       lead.nomor_telepon ?? "",
           "Status Lead":   lead.status ?? "",
           "No FU":         "",
@@ -746,7 +757,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       } else {
         fus.forEach((f: any, fi: number) => {
           detailRows.push({
-            "Nama Lead":     fi === 0 ? lead.nama : "",
+            "Nama Lead":     fi === 0 ? leadDisplayName(lead) : "",
             "Telepon":       fi === 0 ? (lead.nomor_telepon ?? "") : "",
             "Status Lead":   fi === 0 ? (lead.status ?? "") : "",
             "No FU":         fi + 1,
@@ -952,7 +963,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                           </TableCell>
                           <TableCell>
                             <div className="font-medium flex items-center gap-1.5">
-                              {item.nama}
+                              {leadDisplayName(item)}
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${item.fu_call === "Sudah" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
                                 {item.fu_call === "Sudah" ? "✅ Ditelfon" : "📵 Belum"}
                               </span>
@@ -1138,14 +1149,21 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
             </div>
           </DialogHeader>
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-[110px_1fr] gap-3">
+              <div>
+                <Label>Salutation</Label>
+                <Select value={form.salutation} onValueChange={(v) => setForm({ ...form, salutation: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>{SALUTATION_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                </Select>
+              </div>
               <div><Label>Nama *</Label><Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></div>
-              <div><Label>No. Telepon</Label><Input value={form.nomor_telepon} onChange={(e) => setForm({ ...form, nomor_telepon: e.target.value })} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
+              <div><Label>No. Telepon</Label><Input value={form.nomor_telepon} onChange={(e) => setForm({ ...form, nomor_telepon: e.target.value })} /></div>
               <div><Label>Alamat</Label><Input value={form.alamat} onChange={(e) => setForm({ ...form, alamat: e.target.value })} /></div>
-              <div><Label>Tanggal Masuk</Label><Input type="date" value={form.tanggal_masuk} onChange={(e) => setForm({ ...form, tanggal_masuk: e.target.value })} /></div>
             </div>
+            <div><Label>Tanggal Masuk</Label><Input type="date" value={form.tanggal_masuk} onChange={(e) => setForm({ ...form, tanggal_masuk: e.target.value })} /></div>
             <div className="grid grid-cols-3 gap-3">
               <div>
                 <Label>Jenis</Label>
@@ -1272,6 +1290,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                     onClick={() => {
                       setForm((prev) => ({
                         ...prev,
+                        salutation: c.salutation ?? prev.salutation,
                         nama: c.nama ?? prev.nama,
                         nomor_telepon: c.nomor_telepon ?? prev.nomor_telepon,
                         alamat: c.alamat ?? prev.alamat,
@@ -1282,7 +1301,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                       setImportClientOpen(false);
                     }}
                   >
-                    <div className="font-medium text-sm">{c.nama}</div>
+                    <div className="font-medium text-sm">{leadDisplayName(c)}</div>
                     <div className="text-xs text-muted-foreground">
                       {c.nomor_telepon && <span>{c.nomor_telepon}</span>}
                       {c.jenis && <span> · {c.jenis}</span>}
