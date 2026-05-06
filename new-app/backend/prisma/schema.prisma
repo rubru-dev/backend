@@ -1007,6 +1007,19 @@ model Permission {
   @@map("permissions")
 }
 
+model Sop {
+  id          BigInt   @id @default(autoincrement())
+  nama_sop    String   @db.VarChar(255)
+  role        String?  @db.VarChar(100)
+  tanggal     DateTime @db.Date
+  deskripsi   String   @db.Text
+  created_by  BigInt?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @updatedAt @db.Timestamptz(6)
+
+  @@map("sops")
+}
+
 model PicProjectReport {
   id         BigInt   @id @default(autoincrement())
   user_id    BigInt?

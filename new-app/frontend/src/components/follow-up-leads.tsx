@@ -40,7 +40,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const JENIS_OPTIONS = ["Sipil", "Interior", "Desain"];
-const JENIS_OPTIONS_GOLDEN = ["Anti Rayap", "Jasa Cleaning", "Sanitasi Produk"];
+const JENIS_OPTIONS_GOLDEN = ["Anti Rayap", "Jasa Cleaning", "Hygiene Product"];
 const STATUS_OPTIONS = ["Low", "Medium", "Hot", "Client", "Batal"];
 const STATIC_SUMBER_OPTIONS = ["Instagram", "TikTok", "Facebook", "Referral", "Walk-in", "Lainnya"];
 const SALUTATION_OPTIONS = ["Mr", "Mrs"] as const;
@@ -1141,7 +1141,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
           <DialogHeader>
             <div className="flex items-center justify-between gap-2">
               <DialogTitle>{editItem ? "Edit Lead" : "Tambah Lead Baru"}</DialogTitle>
-              {!editItem && (
+              {!editItem && !isGolden && (
                 <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); }}>
                   <DatabaseZap className="h-3.5 w-3.5" /> Import Data Klien
                 </Button>

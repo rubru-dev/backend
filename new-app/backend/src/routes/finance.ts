@@ -817,10 +817,12 @@ router.get("/invoices", requirePermission("finance", "view"), async (req: Reques
   const perPage = Math.min(parseInt(req.query.per_page as string) || 20, 1000);
   const feStatus = req.query.status as string | undefined;
   const search = req.query.search as string | undefined;
+  const salutation = req.query.salutation as string | undefined;
   const where: Record<string, unknown> = {};
   if (feStatus && DB_STATUS_FROM_FE[feStatus]) where.status = DB_STATUS_FROM_FE[feStatus];
   else if (feStatus) where.status = feStatus;
   if (search) where.invoice_number = { contains: search, mode: "insensitive" };
+  if (salutation) where.lead = { is: { salutation } };
   const [total, invs] = await Promise.all([
     prisma.invoice.count({ where }),
     prisma.invoice.findMany({
@@ -3257,6 +3259,42 @@ router.get("/ar-tagihan-projek", requirePermission("finance", "ar"), async (_req
       tanggal_pertama: firstDate ? new Date(firstDate).toISOString().split("T")[0] : null,
       deadline: ov?.deadline ? new Date(ov.deadline).toISOString().split("T")[0] : null,
       has_override: !!ov,
+    };
+  });
+
+  return res.json(rows);
+});
+
+// GET /finance/ar-tagihan-golden — Tagihan Golden dari invoice kategori "Payment Golden"
+router.get("/ar-tagihan-golden", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
+  const invoices = await prisma.invoice.findMany({
+    where: { kategori: "Payment Golden", lead_id: { not: null } },
+    select: {
+      id: true,
+      invoice_number: true,
+      lead_id: true,
+      tanggal: true,
+      grand_total: true,
+      status: true,
+      lead: { select: { nama: true, salutation: true } },
+      kwitansi: { select: { jumlah_diterima: true } },
+    },
+    orderBy: { tanggal: "desc" },
+  });
+
+  const rows = invoices.map((inv) => {
+    const tagihan = parseFloat(String(inv.grand_total ?? 0));
+    const terbayar = inv.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
+    return {
+      invoice_id: Number(inv.id),
+      invoice_number: inv.invoice_number,
+      lead_id: inv.lead_id ? Number(inv.lead_id) : null,
+      nama_client: leadDisplayName(inv.lead),
+      tanggal: inv.tanggal ? new Date(inv.tanggal).toISOString().split("T")[0] : null,
+      status: FE_STATUS_FROM_DB[inv.status || "draft"] || inv.status,
+      total_tagihan: tagihan,
+      total_terbayar: terbayar,
+      outstanding: Math.max(0, tagihan - terbayar),
     };
   });
 

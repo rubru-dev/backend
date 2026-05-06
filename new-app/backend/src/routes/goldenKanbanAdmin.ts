@@ -10,7 +10,7 @@ const PERMANENT_COLUMNS = [
   { title: "W3",                    color: "#f59e0b", urutan: 2 },
   { title: "W4",                    color: "#10b981", urutan: 3 },
   { title: "Closing Survey",        color: "#22c55e", urutan: 4 },
-  { title: "Move To Telemarketing", color: "#ef4444", urutan: 5 },
+  { title: "Outstanding",           color: "#fee2e2", urutan: 5 },
 ];
 
 // GET /kanban?bulan=&tahun=
@@ -58,39 +58,46 @@ router.get("/kanban/leads", async (_req: Request, res: Response) => {
   return res.json(leads);
 });
 
-// POST /kanban/carryover
+// POST /kanban/carryover - copy Outstanding cards from previous/selected month to target month
 router.post("/kanban/carryover", async (req: Request, res: Response) => {
   const { from_bulan, from_tahun, to_bulan, to_tahun } = req.body;
 
-  const fromCols = await prisma.goldenKanbanAdminColumn.findMany({
-    where: { bulan: from_bulan, tahun: from_tahun },
+  const fromCol = await prisma.goldenKanbanAdminColumn.findFirst({
+    where: { title: "Outstanding", bulan: from_bulan, tahun: from_tahun },
     include: { cards: true },
   });
+  if (!fromCol) return res.json({ copied: 0, message: "Tidak ada kolom Outstanding bulan sumber" });
 
-  const excluded = ["Move To Telemarketing"];
-
-  for (const fromCol of fromCols) {
-    if (excluded.includes(fromCol.title)) continue;
-    let toCol = await prisma.goldenKanbanAdminColumn.findFirst({
-      where: { title: fromCol.title, bulan: to_bulan, tahun: to_tahun },
+  let toCol = await prisma.goldenKanbanAdminColumn.findFirst({
+    where: { title: "Outstanding", bulan: to_bulan, tahun: to_tahun },
+  });
+  if (!toCol) {
+    toCol = await prisma.goldenKanbanAdminColumn.create({
+      data: { title: "Outstanding", color: "#fee2e2", urutan: 5, bulan: to_bulan, tahun: to_tahun },
     });
-    if (!toCol) {
-      toCol = await prisma.goldenKanbanAdminColumn.create({
-        data: { title: fromCol.title, color: fromCol.color, urutan: fromCol.urutan, bulan: to_bulan, tahun: to_tahun },
-      });
-    }
-    for (const card of fromCol.cards) {
-      await prisma.goldenKanbanAdminCard.create({
-        data: {
-          column_id: toCol.id, title: card.title, description: card.description,
-          lead_id: card.lead_id, assigned_user_id: card.assigned_user_id,
-          deadline: card.deadline, tanggal_survey: card.tanggal_survey, color: card.color, urutan: card.urutan,
-        },
-      });
-    }
   }
 
-  return res.json({ message: "Carryover selesai" });
+  const existing = await prisma.goldenKanbanAdminCard.findMany({
+    where: { column_id: toCol.id },
+    select: { lead_id: true, title: true },
+  });
+  const existingKeys = new Set(existing.map((c) => c.lead_id ? `lead:${c.lead_id}` : `title:${c.title}`));
+
+  let copied = 0;
+  for (const card of fromCol.cards) {
+    const key = card.lead_id ? `lead:${card.lead_id}` : `title:${card.title}`;
+    if (existingKeys.has(key)) continue;
+    await prisma.goldenKanbanAdminCard.create({
+      data: {
+        column_id: toCol.id, title: card.title, description: card.description,
+        lead_id: card.lead_id, assigned_user_id: card.assigned_user_id,
+        deadline: card.deadline, tanggal_survey: card.tanggal_survey, color: card.color, urutan: card.urutan,
+      },
+    });
+    copied++;
+  }
+
+  return res.json({ copied, message: "Carryover Outstanding selesai" });
 });
 
 // POST /kanban/columns

@@ -11,11 +11,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { Loader2, Plus, Pencil, Trash2, GripVertical, User, CalendarDays, Kanban, Printer, Filter } from "lucide-react";
+import { Loader2, Plus, Pencil, Trash2, GripVertical, User, CalendarDays, Kanban, Printer, Filter, Copy } from "lucide-react";
 
 interface Lead { id: string; nama: string; telepon?: string; jenis?: string; status?: string; }
 interface Employee { id: string; nama: string; }
-interface Card { id: string; column_id: string; catatan?: string | null; deadline?: string | null; lead?: Lead | null; assignee?: { id: string; nama: string } | null; ro?: { id: string; nama: string } | null; urutan: number; }
+interface Card { id: string; column_id: string; catatan?: string | null; deadline?: string | null; created_at?: string | null; lead?: Lead | null; assignee?: { id: string; nama: string } | null; ro?: { id: string; nama: string } | null; urutan: number; }
 interface Column { id: string; title: string; color?: string | null; urutan: number; is_permanent: boolean; cards: Card[]; }
 
 const JENIS_COLOR: Record<string, string> = { Sipil: "bg-blue-100 text-blue-700", Desain: "bg-purple-100 text-purple-700", Interior: "bg-amber-100 text-amber-700" };
@@ -37,9 +37,9 @@ function fmtDate(d?: string | null) {
   return new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-function deadlineInRange(deadline: string | null | undefined, mulai: string, selesai: string, bulan: string, tahun: string): boolean {
-  if (!deadline) return false;
-  const d = new Date(deadline);
+function dateInRange(cardDate: string | null | undefined, mulai: string, selesai: string, bulan: string, tahun: string): boolean {
+  if (!cardDate) return false;
+  const d = new Date(cardDate);
   if (bulan !== "all" || tahun !== "all") {
     const m = bulan !== "all" ? parseInt(bulan) - 1 : null;
     const y = tahun !== "all" ? parseInt(tahun) : null;
@@ -101,7 +101,8 @@ export default function DesainFollowUpSurveyPage() {
       ...col,
       cards: col.cards.filter((card) => {
         if (filterRoId !== "all" && card.ro?.id !== filterRoId) return false;
-        if (useDateFilter && !deadlineInRange(card.deadline, filterTanggalMulai, filterTanggalSelesai, filterBulan, filterTahun)) return false;
+        const filterDate = (filterBulan !== "all" || filterTahun !== "all") ? card.created_at : card.deadline;
+        if (useDateFilter && !dateInRange(filterDate, filterTanggalMulai, filterTanggalSelesai, filterBulan, filterTahun)) return false;
         return true;
       }),
     }));
@@ -160,6 +161,19 @@ export default function DesainFollowUpSurveyPage() {
   const moveCardMut = useMutation({
     mutationFn: ({ id, column_id }: { id: string; column_id: string }) => desainApi.updateCard(id, { column_id }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["desain-kanban"] }),
+  });
+  const carryoverMut = useMutation({
+    mutationFn: () => {
+      const now = new Date();
+      const month = filterBulan !== "all" ? Number(filterBulan) : now.getMonth() + 1;
+      const year = filterTahun !== "all" ? Number(filterTahun) : now.getFullYear();
+      return desainApi.carryoverKanban({ month, year });
+    },
+    onSuccess: (data: any) => {
+      toast.success(data?.copied > 0 ? `${data.copied} card berhasil di-carryover` : "Tidak ada card baru untuk di-carryover");
+      qc.invalidateQueries({ queryKey: ["desain-kanban"] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal carryover"),
   });
 
   function openAddCard(columnId: string) {
@@ -312,6 +326,10 @@ export default function DesainFollowUpSurveyPage() {
         <div className="flex gap-2">
           <Button size="sm" variant="outline" onClick={handlePrintPDF} disabled={totalFiltered === 0}>
             <Printer size={14} className="mr-1" /> Download PDF
+          </Button>
+          <Button size="sm" variant="outline" onClick={() => carryoverMut.mutate()} disabled={carryoverMut.isPending}>
+            {carryoverMut.isPending ? <Loader2 size={14} className="mr-1 animate-spin" /> : <Copy size={14} className="mr-1" />}
+            Carry over dari bulan lalu
           </Button>
           <Button size="sm" variant="outline" onClick={() => setColDialog({ open: true, title: "", color: "#6366f1" })}>
             <Plus size={14} className="mr-1" /> Tambah Kolom

@@ -36,7 +36,7 @@ import {
 import { useAuthStore } from "@/store/authStore";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
-const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing Survey", "Move To Telemarketing"];
+const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing Survey", "Outstanding"];
 const PAGE_SIZE = 10;
 
 const MONTHS = [
@@ -334,8 +334,6 @@ function KanbanColumnComp({
   }
 
   const isClosingSurvey = column.title === "Closing Survey";
-  const isMoveToTelemarketing = column.title === "Move To Telemarketing";
-
   return (
     <div className="flex-shrink-0 w-72">
       {/* Column Header */}
@@ -369,9 +367,6 @@ function KanbanColumnComp({
             <span className="font-semibold text-sm truncate">{column.title}</span>
             {isClosingSurvey && (
               <CalendarCheck className="h-4 w-4 text-green-700 flex-shrink-0" />
-            )}
-            {isMoveToTelemarketing && (
-              <Badge variant="destructive" className="text-xs px-1 py-0">TM</Badge>
             )}
             <Badge variant="secondary" className="text-xs px-1 py-0 ml-auto flex-shrink-0">
               {column.cards.length}
@@ -724,14 +719,14 @@ export function GoldenAdminKanbanBoard() {
     let prevTahun = tahun;
     if (prevBulan === 0) { prevBulan = 12; prevTahun -= 1; }
     try {
-      await goldenKanbanAdminApi.carryover({
+      const result = await goldenKanbanAdminApi.carryover({
         from_bulan: prevBulan,
         from_tahun: prevTahun,
         to_bulan: bulan,
         to_tahun: tahun,
       });
       await loadBoard();
-      toast.success("Carryover selesai");
+      toast.success(result.copied > 0 ? `${result.copied} card Outstanding di-carryover` : "Tidak ada card Outstanding baru untuk di-carryover");
     } catch {
       toast.error("Gagal carryover");
     }

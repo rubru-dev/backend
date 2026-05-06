@@ -36,6 +36,7 @@ import absenKaryawanRouter from "./routes/absenKaryawan";
 import goldenRouter from "./routes/golden";
 import goldenKanbanAdminRouter from "./routes/goldenKanbanAdmin";
 import goldenKanbanSalesRouter from "./routes/goldenKanbanSales";
+import tutorialRouter from "./routes/tutorial";
 
 // BigInt serialization fix
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -127,6 +128,7 @@ app.use("/api/v1/absen-karyawan", authenticate, absenKaryawanRouter);
 app.use("/api/v1/golden", authenticate, goldenRouter);
 app.use("/api/v1/golden-kanban-admin", authenticate, goldenKanbanAdminRouter);
 app.use("/api/v1/golden-kanban-sales", authenticate, goldenKanbanSalesRouter);
+app.use("/api/v1/tutorial", authenticate, tutorialRouter);
 
 // Global error handler
 app.use(

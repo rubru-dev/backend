@@ -1,0 +1,268 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role     @default(QC_OFFICER)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  inspections  Inspection[]
+  ocrDocuments OcrDocument[]
+  ncrs         NCR[]
+  documents    Document[]
+
+  @@map("users")
+}
+
+enum Role {
+  ADMIN
+  QC_MANAGER
+  QC_OFFICER
+}
+
+model Inspection {
+  id           String           @id @default(cuid())
+  type         InspectionType
+  batchId      String?
+  productName  String
+  supplierName String?
+  status       InspectionStatus @default(PENDING)
+  notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  officerId  String
+  officer    User                  @relation(fields: [officerId], references: [id])
+  batch      Batch?                @relation(fields: [batchId], references: [id])
+  parameters InspectionParameter[]
+  ncrs       NCR[]
+
+  @@index([type, status])
+  @@index([productName])
+  @@map("inspections")
+}
+
+enum InspectionType {
+  RAW_MATERIAL
+  IN_PROCESS
+  FINISHED_GOODS
+}
+
+enum InspectionStatus {
+  PENDING
+  PASS
+  FAIL
+  ON_HOLD
+}
+
+model InspectionParameter {
+  id            String          @id @default(cuid())
+  inspectionId  String
+  name          String
+  unit          String?
+  standardMin   Float?
+  standardMax   Float?
+  result        Float?
+  resultText    String?
+  status        ParameterStatus @default(PENDING)
+
+  inspection Inspection @relation(fields: [inspectionId], references: [id], onDelete: Cascade)
+
+  @@map("inspection_parameters")
+}
+
+enum ParameterStatus {
+  PENDING
+  PASS
+  FAIL
+}
+
+model OcrDocument {
+  id           String      @id @default(cuid())
+  title        String
+  category     OcrCategory
+  originalFile String
+  ocrText      String      @db.Text
+  confidence   Float?
+  pdfFile      String?
+  status       OcrStatus   @default(DRAFT)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  uploadedById String
+  uploadedBy   User        @relation(fields: [uploadedById], references: [id])
+
+  @@index([category, status])
+  @@map("ocr_documents")
+}
+
+enum OcrCategory {
+  COA
+  LABEL
+  LAB_RESULT
+  INSPECTION_FORM
+  OTHER
+}
+
+enum OcrStatus {
+  DRAFT
+  REVIEWED
+  APPROVED
+  EXPORTED
+}
+
+model NCR {
+  id           String    @id @default(cuid())
+  ncrNumber    String    @unique
+  productName  String
+  batchId      String?
+  inspectionId String?
+  description  String    @db.Text
+  severity     Severity  @default(MINOR)
+  status       NCRStatus @default(OPEN)
+  rootCause    String?   @db.Text
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  closedAt     DateTime?
+
+  reportedById String
+  reportedBy   User        @relation(fields: [reportedById], references: [id])
+  batch        Batch?      @relation(fields: [batchId], references: [id])
+  inspection   Inspection? @relation(fields: [inspectionId], references: [id])
+  capas        CAPA[]
+
+  @@index([severity, status])
+  @@index([productName])
+  @@map("ncrs")
+}
+
+enum Severity {
+  CRITICAL
+  MAJOR
+  MINOR
+}
+
+enum NCRStatus {
+  OPEN
+  IN_PROGRESS
+  CLOSED
+}
+
+model CAPA {
+  id          String     @id @default(cuid())
+  ncrId       String
+  type        CAPAType
+  description String     @db.Text
+  dueDate     DateTime?
+  status      CAPAStatus @default(OPEN)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  ncr NCR @relation(fields: [ncrId], references: [id], onDelete: Cascade)
+
+  @@map("capas")
+}
+
+enum CAPAType {
+  CORRECTIVE
+  PREVENTIVE
+}
+
+enum CAPAStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+}
+
+model Batch {
+  id          String      @id @default(cuid())
+  batchNumber String      @unique
+  productName String
+  productCode String?
+  quantity    Float
+  unit        String
+  mfgDate     DateTime
+  expDate     DateTime?
+  status      BatchStatus @default(ACTIVE)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  rawMaterials BatchRawMaterial[]
+  inspections  Inspection[]
+  ncrs         NCR[]
+
+  @@index([status])
+  @@index([productName])
+  @@map("batches")
+}
+
+enum BatchStatus {
+  ACTIVE
+  RELEASED
+  REJECTED
+  QUARANTINE
+}
+
+model BatchRawMaterial {
+  id           String @id @default(cuid())
+  batchId      String
+  materialName String
+  supplierName String?
+  lotNumber    String?
+  quantity     Float
+  unit         String
+
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@map("batch_raw_materials")
+}
+
+model Document {
+  id             String      @id @default(cuid())
+  title          String
+  category       DocCategory
+  description    String?
+  currentVersion Int         @default(1)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  authorId String
+  author   User              @relation(fields: [authorId], references: [id])
+  versions DocumentVersion[]
+
+  @@index([category])
+  @@map("documents")
+}
+
+enum DocCategory {
+  SOP
+  QUALITY_STANDARD
+  PRODUCT_SPEC
+  WORK_INSTRUCTION
+  FORM_TEMPLATE
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  version    Int
+  filePath   String
+  changelog  String?
+  createdAt  DateTime @default(now())
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, version])
+  @@map("document_versions")
+}

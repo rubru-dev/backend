@@ -285,6 +285,7 @@ export default function InvoiceKwitansiPage() {
   // Table state
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
+  const [filterSalutation, setFilterSalutation] = useState("");
   const [page, setPage] = useState(1);
 
   // Signature dialog state (only Head Finance signing remains)
@@ -339,8 +340,12 @@ export default function InvoiceKwitansiPage() {
 
   // Invoice list
   const { data, isLoading } = useQuery({
-    queryKey: ["invoices", filterStatus],
-    queryFn: () => api.list({ per_page: 1000, ...(filterStatus ? { status: filterStatus } : {}) }),
+    queryKey: ["invoices", filterStatus, filterSalutation],
+    queryFn: () => api.list({
+      per_page: 1000,
+      ...(filterStatus ? { status: filterStatus } : {}),
+      ...(filterSalutation ? { salutation: filterSalutation } : {}),
+    }),
     retry: false,
   });
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
@@ -613,6 +618,12 @@ export default function InvoiceKwitansiPage() {
               <option value="Terbit">Terbit</option>
               <option value="Lunas">Lunas</option>
               <option value="Batal">Batal</option>
+            </select>
+            <select className="border rounded-md px-3 py-2 text-sm" value={filterSalutation}
+              onChange={e => { setFilterSalutation(e.target.value); setPage(1); }}>
+              <option value="">Semua Salutation</option>
+              <option value="Mr">Mr</option>
+              <option value="Mrs">Mrs</option>
             </select>
             <Button onClick={() => { setForm(EMPTY_FORM); setLeadSearch(""); setOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" /> Buat Invoice

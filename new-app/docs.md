@@ -1,7 +1,29 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-04-20 (RubahrumahxGolden full docs + responsive + GPS timestamp + Mitra sub_role + kalender_after permission)
+> Last updated: 2026-05-06 (Golden Follow Up Leads + Kanban Admin Outstanding)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-05-06)
+
+### Follow Up After Survey, Sales Kanban, AR Golden, Filter Salutation
+- **Desain > Follow Up After Survey:** Kolom permanen baru `Outstanding`; auto-ensure kolom permanen tetap dibuat walau database lama sudah punya kolom lain.
+- **Desain > Follow Up After Survey:** Tombol `Carry over dari bulan lalu` menyalin card bulan sebelumnya ke bulan target/current, skip duplikat per lead/catatan, dan menggeser deadline ke bulan target bila ada.
+- **Sales > Kanban Sales:** Kolom `Outstanding` menjadi permanen dan tidak bisa dihapus; setiap load board otomatis menyalin card Outstanding bulan sebelumnya ke bulan berjalan bila belum ada.
+- **Finance > AR:** Tab baru `Tagihan Golden` mengambil invoice kategori `Payment Golden`, menghitung total tagihan, terbayar dari kwitansi invoice lunas, dan outstanding.
+- **Finance > Invoice & Kwitansi:** Filter baru `Salutation` (`Mr`/`Mrs`) di daftar invoice/kwitansi; backend `/finance/invoices` menerima query `salutation`.
+
+### Tutorial SOP
+- **Schema:** Model baru `Sop` (`sops`) dengan field `nama_sop`, `role`, `tanggal`, `deskripsi`, `created_by`, timestamp.
+- **Backend:** Route baru `/api/v1/tutorial/sop`; list/detail butuh permission `tutorial.sop`, sedangkan create/edit/delete hanya `Super Admin`.
+- **Frontend:** Sub-menu baru `Tutorial > SOP` untuk list SOP, preview detail saat diklik, dan download PDF per SOP. Super Admin mendapat tombol buat/edit/hapus SOP; role lain hanya preview dan download.
+- **RBAC:** Permission ensured baru `tutorial.sop` agar muncul di Admin > Roles.
+
+### RUBAHRUMAHXGOLDEN Follow Up Leads & Kanban Admin
+- **Golden > Follow Up Leads:** Tombol `Import Data Klien` disembunyikan khusus modul Golden; opsi jenis `Sanitasi Produk` diganti menjadi `Hygiene Product`.
+- **Backend Lead Golden:** Saat lead Golden di-assign projection `W1`/`W2`/`W3`/`W4`, card otomatis dibuat di `RUBAHRUMAHXGOLDEN > Kanban Admin` pada bulan/tahun lead terkait dan dicegah duplikat per lead.
+- **Golden > Kanban Admin:** Kolom permanen `Move To Telemarketing` diganti menjadi `Outstanding`; carryover hanya menyalin card dari kolom `Outstanding` bulan sebelumnya ke bulan target dan skip card yang sudah ada.
 
 ---
 

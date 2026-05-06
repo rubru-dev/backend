@@ -246,6 +246,56 @@ function ArProjekPDF({ rows, filterBulan, search, totals }: {
 }
 
 // ── Shared helpers ─────────────────────────────────────────────────────────────
+function ArGoldenPDF({ rows, filterBulan, search, totals }: {
+  rows: GoldenRow[];
+  filterBulan: string;
+  search: string;
+  totals: { tagihan: number; terbayar: number; outstanding: number };
+}) {
+  return (
+    <Document>
+      <Page size="A4" orientation="landscape" style={S.page}>
+        <Text style={S.title}>AR Tagihan Golden</Text>
+        <Text style={S.subtitle}>Rekap tagihan Golden berdasarkan invoice Payment Golden</Text>
+        <Text style={S.filterLine}>
+          Bulan: {monthLabel(filterBulan)}{search ? `  |  Pencarian: "${search}"` : ""}
+          {"  |  "}Total: {rows.length} invoice
+        </Text>
+        <View style={S.summaryRow}>
+          <View style={S.summaryBox}><Text style={S.summaryLabel}>Total Tagihan</Text><Text style={S.summaryValue}>{IDR(totals.tagihan)}</Text></View>
+          <View style={S.summaryBox}><Text style={S.summaryLabel}>Total Terbayar</Text><Text style={[S.summaryValue, S.green]}>{IDR(totals.terbayar)}</Text></View>
+          <View style={S.summaryBox}><Text style={S.summaryLabel}>Outstanding</Text><Text style={[S.summaryValue, totals.outstanding > 0 ? S.red : S.green]}>{IDR(totals.outstanding)}</Text></View>
+        </View>
+        <View style={S.table}>
+          <View style={S.thead}>
+            <Text style={[S.th, { width: 24 }]}>No</Text>
+            <Text style={[S.th, { flex: 1.5 }]}>No. Invoice</Text>
+            <Text style={[S.th, { flex: 2.5 }]}>Nama Client</Text>
+            <Text style={[S.th, { flex: 1.2 }]}>Tanggal</Text>
+            <Text style={[S.th, { flex: 1 }]}>Status</Text>
+            <Text style={[S.th, { flex: 1.4, textAlign: "right" }]}>Tagihan</Text>
+            <Text style={[S.th, { flex: 1.4, textAlign: "right" }]}>Terbayar</Text>
+            <Text style={[S.th, { flex: 1.4, textAlign: "right" }]}>Outstanding</Text>
+          </View>
+          {rows.map((r, i) => (
+            <View key={r.invoice_id} style={i % 2 === 0 ? S.tr : S.trAlt}>
+              <Text style={[S.td, { width: 24, color: "#9ca3af" }]}>{i + 1}</Text>
+              <Text style={[S.td, { flex: 1.5 }]}>{r.invoice_number ?? "-"}</Text>
+              <Text style={[S.td, { flex: 2.5, fontFamily: "Helvetica-Bold" }]}>{r.nama_client}</Text>
+              <Text style={[S.td, { flex: 1.2 }]}>{fmtDate(r.tanggal)}</Text>
+              <Text style={[S.td, { flex: 1 }]}>{r.status}</Text>
+              <Text style={[S.tdR, { flex: 1.4 }]}>{IDR(r.total_tagihan)}</Text>
+              <Text style={[S.tdR, { flex: 1.4, color: "#16a34a" }]}>{IDR(r.total_terbayar)}</Text>
+              <Text style={[S.tdR, { flex: 1.4, fontFamily: "Helvetica-Bold", color: r.outstanding > 0 ? "#dc2626" : "#16a34a" }]}>{IDR(r.outstanding)}</Text>
+            </View>
+          ))}
+        </View>
+        <Text style={S.printed}>{printedAt()}</Text>
+      </Page>
+    </Document>
+  );
+}
+
 function SummaryCard({ label, value, color }: { label: string; value: string; color: string }) {
   return (
     <div className="bg-white rounded-xl border p-4 space-y-1">
@@ -365,6 +415,18 @@ interface ProjekRow {
   tanggal_pertama: string | null;
   deadline: string | null;
   has_override: boolean;
+}
+
+interface GoldenRow {
+  invoice_id: number;
+  invoice_number: string | null;
+  lead_id: number | null;
+  nama_client: string;
+  tanggal: string | null;
+  status: string;
+  total_tagihan: number;
+  total_terbayar: number;
+  outstanding: number;
 }
 
 // ── Override Dialog ────────────────────────────────────────────────────────────
@@ -936,11 +998,125 @@ function ProyekTab() {
   );
 }
 
+function GoldenTab() {
+  const [rows, setRows] = useState<GoldenRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterBulan, setFilterBulan] = useState("");
+  const [downloading, setDownloading] = useState(false);
+
+  useEffect(() => {
+    setLoading(true);
+    financeApi.getArTagihanGolden().then(setRows).catch(() => setRows([])).finally(() => setLoading(false));
+  }, []);
+
+  const filtered = useMemo(
+    () => rows.filter((r) => {
+      const q = search.toLowerCase();
+      const matchSearch = !q || r.nama_client.toLowerCase().includes(q) || (r.invoice_number ?? "").toLowerCase().includes(q);
+      const matchBulan = inMonth(r.tanggal, filterBulan);
+      return matchSearch && matchBulan;
+    }),
+    [rows, search, filterBulan]
+  );
+
+  const totals = useMemo(
+    () => filtered.reduce(
+      (acc, r) => ({
+        tagihan: acc.tagihan + r.total_tagihan,
+        terbayar: acc.terbayar + r.total_terbayar,
+        outstanding: acc.outstanding + r.outstanding,
+      }),
+      { tagihan: 0, terbayar: 0, outstanding: 0 }
+    ),
+    [filtered]
+  );
+
+  async function handleDownload() {
+    setDownloading(true);
+    try {
+      const blob = await toPdf(<ArGoldenPDF rows={filtered} filterBulan={filterBulan} search={search} totals={totals} />).toBlob();
+      const bulan = filterBulan ? `-${filterBulan}` : "";
+      saveAs(blob, `AR-Golden${bulan}.pdf`);
+    } finally {
+      setDownloading(false);
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <SummaryCard label="Total Tagihan" value={IDR(totals.tagihan)} color="text-gray-800" />
+        <SummaryCard label="Total Terbayar" value={IDR(totals.terbayar)} color="text-green-600" />
+        <SummaryCard label="Outstanding" value={IDR(totals.outstanding)} color={totals.outstanding > 0 ? "text-red-600" : "text-green-600"} />
+      </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <Input placeholder="Cari client atau invoice..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64" />
+        <input
+          type="month"
+          value={filterBulan}
+          onChange={(e) => setFilterBulan(e.target.value)}
+          className="border rounded-md px-3 py-2 text-sm h-10 focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        {filterBulan && (
+          <button onClick={() => setFilterBulan("")} className="text-xs text-gray-400 hover:text-gray-600 underline">Reset bulan</button>
+        )}
+        <div className="ml-auto">
+          <Button variant="outline" size="sm" onClick={handleDownload} disabled={downloading || filtered.length === 0}>
+            <Download className="h-4 w-4 mr-1.5" /> {downloading ? "Generating..." : "Download PDF"}
+          </Button>
+        </div>
+      </div>
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-gray-500 w-10">No</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">No. Invoice</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Nama Client</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Tanggal</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Tagihan</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Terbayar</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Outstanding</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {loading ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Memuat data...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Tidak ada invoice Payment Golden</td></tr>
+              ) : (
+                filtered.map((r, i) => (
+                  <tr key={r.invoice_id} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-4 py-3 text-gray-400">{i + 1}</td>
+                    <td className="px-4 py-3 font-mono text-gray-700">{r.invoice_number ?? "-"}</td>
+                    <td className="px-4 py-3 font-medium text-gray-900">{r.nama_client}</td>
+                    <td className="px-4 py-3 text-gray-600">{fmtDate(r.tanggal)}</td>
+                    <td className="px-4 py-3 text-gray-600">{r.status}</td>
+                    <td className="px-4 py-3 text-right text-gray-700">{IDR(r.total_tagihan)}</td>
+                    <td className="px-4 py-3 text-right text-green-700">{IDR(r.total_terbayar)}</td>
+                    <td className="px-4 py-3 text-right">
+                      <span className={cn("font-semibold", r.outstanding <= 0 ? "text-green-600" : "text-red-600")}>{IDR(r.outstanding)}</span>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 const TABS = [
   { key: "survey", label: "Tagihan Survey" },
   { key: "desain", label: "Tagihan Desain" },
   { key: "projek", label: "Tagihan Projek" },
+  { key: "golden", label: "Tagihan Golden" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
@@ -974,6 +1150,7 @@ export default function ArOutstandingPage() {
       {activeTab === "survey" && <SurveyTab />}
       {activeTab === "desain" && <DesainTab />}
       {activeTab === "projek" && <ProyekTab />}
+      {activeTab === "golden" && <GoldenTab />}
     </div>
   );
 }

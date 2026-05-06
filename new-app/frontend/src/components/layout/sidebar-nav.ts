@@ -249,6 +249,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Tutorial Aplikasi",      href: "/tutorial/tutorial-aplikasi", icon: "BookOpen", permission: "tutorial.tutorial_aplikasi" },
       { label: "Tutorial API Eksternal", href: "/tutorial/api-eksternal",     icon: "Globe",    permission: "tutorial.api_eksternal" },
       { label: "Tutorial Deployment",    href: "/tutorial/deployment",        icon: "Server",   permission: "tutorial.deployment" },
+      { label: "SOP",                    href: "/tutorial/sop",               icon: "ClipboardList", permission: "tutorial.sop" },
     ],
   },
 ];

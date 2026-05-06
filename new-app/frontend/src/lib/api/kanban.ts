@@ -355,8 +355,9 @@ export const goldenKanbanAdminApi = {
   setSurveyDate: async (cardId: number, tanggal_survey: string | null): Promise<void> => {
     await apiClient.patch(`/golden-kanban-admin/kanban/cards/${cardId}/survey`, { tanggal_survey });
   },
-  carryover: async (payload: { from_bulan: number; from_tahun: number; to_bulan: number; to_tahun: number }): Promise<void> => {
-    await apiClient.post("/golden-kanban-admin/kanban/carryover", payload);
+  carryover: async (payload: { from_bulan: number; from_tahun: number; to_bulan: number; to_tahun: number }): Promise<{ copied: number; message: string }> => {
+    const { data } = await apiClient.post<{ copied: number; message: string }>("/golden-kanban-admin/kanban/carryover", payload);
+    return data;
   },
   getComments: async (cardId: number): Promise<{ id: number; body: string; user: { name: string }; created_at: string }[]> => {
     const { data } = await apiClient.get(`/golden-kanban-admin/kanban/cards/${cardId}/comments`);

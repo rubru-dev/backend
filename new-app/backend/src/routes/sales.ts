@@ -158,7 +158,7 @@ async function getSalesBoard() {
   });
 }
 
-const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing", "Lost"];
+const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing", "Lost", "Outstanding"];
 
 const PERMANENT_COLUMN_COLORS: Record<string, string> = {
   "W1": "#dbeafe",
@@ -167,7 +167,61 @@ const PERMANENT_COLUMN_COLORS: Record<string, string> = {
   "W4": "#ffedd5",
   "Closing": "#d1fae5",
   "Lost": "#fee2e2",
+  "Outstanding": "#fee2e2",
 };
+
+async function carryoverOutstandingToMonth(month: number, year: number) {
+  const targetStart = new Date(year, month - 1, 1);
+  const now = new Date();
+  if (targetStart > now) return 0;
+
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const prevStart = new Date(prevYear, prevMonth - 1, 1);
+  const prevEnd = new Date(prevYear, prevMonth, 0, 23, 59, 59, 999);
+  const targetEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
+  const col = await prisma.salesKanbanColumn.findFirst({ where: { title: "Outstanding" } });
+  if (!col) return 0;
+
+  const prevCards = await prisma.salesKanbanCard.findMany({
+    where: { column_id: col.id, created_at: { gte: prevStart, lte: prevEnd } },
+  });
+  if (prevCards.length === 0) return 0;
+
+  const existing = await prisma.salesKanbanCard.findMany({
+    where: { column_id: col.id, created_at: { gte: targetStart, lte: targetEnd } },
+    select: { title: true, lead_id: true },
+  });
+  const existingKeys = new Set(existing.map((c) => c.lead_id ? `lead:${c.lead_id}` : `title:${c.title}`));
+
+  let copied = 0;
+  for (const card of prevCards) {
+    const key = card.lead_id ? `lead:${card.lead_id}` : `title:${card.title}`;
+    if (existingKeys.has(key)) continue;
+    const created = await prisma.salesKanbanCard.create({
+      data: {
+        column_id: col.id,
+        lead_id: card.lead_id,
+        title: card.title,
+        description: card.description ?? null,
+        deadline: card.deadline ?? null,
+        assigned_user_id: card.assigned_user_id,
+        tipe_pekerjaan: card.tipe_pekerjaan ?? null,
+        color: card.color ?? null,
+        projeksi_sales: card.projeksi_sales ?? undefined,
+        urutan: card.urutan,
+      },
+    });
+    await prisma.$executeRaw`
+      UPDATE sales_kanban_cards
+      SET created_at = ${targetStart}, updated_at = ${targetStart}
+      WHERE id = ${created.id}
+    `;
+    copied++;
+  }
+  return copied;
+}
 
 // GET /kanban — auto-ensures permanent columns exist on every load
 router.get("/kanban", async (_req: Request, res: Response) => {
@@ -185,6 +239,8 @@ router.get("/kanban", async (_req: Request, res: Response) => {
       })),
     });
   }
+  const now = new Date();
+  await carryoverOutstandingToMonth(now.getMonth() + 1, now.getFullYear());
   const cols = await getSalesBoard();
   return res.json({ columns: salesBoardCols(cols as unknown as Parameters<typeof salesBoardCols>[0]) });
 });

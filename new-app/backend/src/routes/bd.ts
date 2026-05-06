@@ -61,6 +61,33 @@ function leadDict(l: {
 
 // ── LEADS (BD module) ─────────────────────────────────────────────────────────
 
+async function addLeadToGoldenAdminProjection(lead: { id: bigint; nama: string }, projection: string, bulan: number, tahun: number) {
+  const allowed = new Set(["W1", "W2", "W3", "W4"]);
+  if (!allowed.has(projection)) return;
+
+  const colDefaults: Record<string, { color: string; urutan: number }> = {
+    W1: { color: "#3b82f6", urutan: 0 },
+    W2: { color: "#8b5cf6", urutan: 1 },
+    W3: { color: "#f59e0b", urutan: 2 },
+    W4: { color: "#10b981", urutan: 3 },
+  };
+  const defaults = colDefaults[projection];
+  let col = await prisma.goldenKanbanAdminColumn.findFirst({ where: { title: projection, bulan, tahun } });
+  if (!col) {
+    col = await prisma.goldenKanbanAdminColumn.create({
+      data: { title: projection, color: defaults.color, urutan: defaults.urutan, bulan, tahun },
+    });
+  }
+
+  const exists = await prisma.goldenKanbanAdminCard.findFirst({ where: { column_id: col.id, lead_id: lead.id } });
+  if (exists) return;
+
+  const lastCard = await prisma.goldenKanbanAdminCard.findFirst({ where: { column_id: col.id }, orderBy: { urutan: "desc" } });
+  await prisma.goldenKanbanAdminCard.create({
+    data: { column_id: col.id, title: lead.nama, lead_id: lead.id, urutan: (lastCard?.urutan ?? 0) + 1 },
+  });
+}
+
 router.get("/leads", requirePermission("bd", "view"), async (req: Request, res: Response) => {
   const { page, limit, skip } = getPagination(req.query);
   const search = req.query.search as string | undefined;
@@ -1683,11 +1710,13 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
   });
 
   // Auto-add ke Kanban jika projection diisi
-  if (b.projection && (modul === "sales-admin" || modul === "telemarketing")) {
+  if (b.projection && (modul === "sales-admin" || modul === "telemarketing" || modul === "golden")) {
     const now = new Date();
     const bln = b.bulan != null ? parseInt(b.bulan) : now.getMonth() + 1;
     const thn = b.tahun != null ? parseInt(b.tahun) : now.getFullYear();
-    if (modul === "sales-admin") {
+    if (modul === "golden") {
+      await addLeadToGoldenAdminProjection(lead, b.projection, bln, thn);
+    } else if (modul === "sales-admin") {
       let col = await prisma.adminKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
       if (col) {
         await prisma.adminKanbanCard.create({
@@ -1739,11 +1768,13 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   const updatedLead = await prisma.lead.update({ where: { id }, data: updates, select: { id: true, nama: true, bulan: true, tahun: true, tanggal_survey: true } });
 
   // Auto-add ke Kanban jika projection diisi/berubah
-  if (b.projection && (modul === "sales-admin" || modul === "telemarketing")) {
+  if (b.projection && (modul === "sales-admin" || modul === "telemarketing" || modul === "golden")) {
     const now = new Date();
     const bln = updatedLead.bulan != null ? updatedLead.bulan : now.getMonth() + 1;
     const thn = updatedLead.tahun != null ? updatedLead.tahun : now.getFullYear();
-    if (modul === "sales-admin") {
+    if (modul === "golden") {
+      await addLeadToGoldenAdminProjection(updatedLead, b.projection, bln, thn);
+    } else if (modul === "sales-admin") {
       const col = await prisma.adminKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
       if (col) {
         const exists = await prisma.adminKanbanCard.findFirst({ where: { column_id: col.id, lead_id: updatedLead.id } });

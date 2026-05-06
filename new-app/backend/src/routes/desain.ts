@@ -427,12 +427,22 @@ const DEFAULT_KANBAN_COLUMNS = [
   { title: "Revisi",         color: "#ec4899", urutan: 2, is_permanent: true },
   { title: "Presentasi",     color: "#10b981", urutan: 3, is_permanent: true },
   { title: "Closing",        color: "#14b8a6", urutan: 4, is_permanent: true },
+  { title: "Outstanding",    color: "#ef4444", urutan: 5, is_permanent: true },
 ];
 
 async function ensureDesainColumns() {
-  const count = await prisma.desainKanbanColumn.count();
-  if (count === 0) {
+  const existing = await prisma.desainKanbanColumn.findMany({ select: { title: true, urutan: true } });
+  if (existing.length === 0) {
     await prisma.desainKanbanColumn.createMany({ data: DEFAULT_KANBAN_COLUMNS });
+    return;
+  }
+  const titleSet = new Set(existing.map((c) => c.title));
+  const missing = DEFAULT_KANBAN_COLUMNS.filter((col) => !titleSet.has(col.title));
+  if (missing.length > 0) {
+    const maxUrutan = existing.reduce((max, col) => Math.max(max, col.urutan), 0);
+    await prisma.desainKanbanColumn.createMany({
+      data: missing.map((col, index) => ({ ...col, urutan: maxUrutan + index + 1 })),
+    });
   }
 }
 
@@ -463,6 +473,7 @@ router.get("/kanban", async (req: Request, res: Response) => {
       column_id: c.column_id,
       catatan: c.catatan,
       deadline: c.deadline ? c.deadline.toISOString().split("T")[0] : null,
+      created_at: c.created_at,
       urutan: c.urutan,
       lead: c.lead ? { id: String(c.lead.id), nama: c.lead.nama, telepon: c.lead.nomor_telepon, jenis: c.lead.jenis, status: c.lead.status } : null,
       assignee: c.assignee ? { id: String(c.assignee.id), nama: c.assignee.name } : null,
@@ -511,6 +522,68 @@ router.delete("/kanban/columns/:id", async (req: Request, res: Response) => {
   if (col.is_permanent) return res.status(400).json({ detail: "Kolom permanen tidak bisa dihapus" });
   await prisma.desainKanbanColumn.delete({ where: { id } });
   return res.json({ message: "OK" });
+});
+
+// POST /desain/kanban/carryover — copy previous-month cards into target month
+router.post("/kanban/carryover", async (req: Request, res: Response) => {
+  await ensureDesainColumns();
+  const { month, year } = req.body as { month: number; year: number };
+  if (!month || !year || month < 1 || month > 12) {
+    return res.status(400).json({ detail: "month dan year wajib valid" });
+  }
+
+  const now = new Date();
+  if (new Date(year, month - 1, 1) > now) return res.json({ copied: 0 });
+
+  const prevMonth = month === 1 ? 12 : month - 1;
+  const prevYear = month === 1 ? year - 1 : year;
+  const prevStart = new Date(prevYear, prevMonth - 1, 1);
+  const prevEnd = new Date(prevYear, prevMonth, 0, 23, 59, 59, 999);
+  const targetStart = new Date(year, month - 1, 1);
+  const targetEnd = new Date(year, month, 0, 23, 59, 59, 999);
+
+  const columns = await prisma.desainKanbanColumn.findMany();
+  let copied = 0;
+
+  for (const col of columns) {
+    const prevCards = await prisma.desainKanbanCard.findMany({
+      where: { column_id: col.id, created_at: { gte: prevStart, lte: prevEnd } },
+    });
+    if (prevCards.length === 0) continue;
+
+    const existing = await prisma.desainKanbanCard.findMany({
+      where: { column_id: col.id, created_at: { gte: targetStart, lte: targetEnd } },
+      select: { lead_id: true, catatan: true },
+    });
+    const existingKeys = new Set(existing.map((c) => c.lead_id ? `lead:${c.lead_id}` : `catatan:${c.catatan ?? ""}`));
+
+    for (const card of prevCards) {
+      const key = card.lead_id ? `lead:${card.lead_id}` : `catatan:${card.catatan ?? ""}`;
+      if (existingKeys.has(key)) continue;
+      const shiftedDeadline = card.deadline
+        ? new Date(year, month - 1, Math.min(card.deadline.getDate(), new Date(year, month, 0).getDate()))
+        : null;
+      const created = await prisma.desainKanbanCard.create({
+        data: {
+          column_id: col.id,
+          lead_id: card.lead_id,
+          catatan: card.catatan,
+          assigned_to: card.assigned_to,
+          ro_id: card.ro_id,
+          deadline: shiftedDeadline,
+          urutan: card.urutan,
+        },
+      });
+      await prisma.$executeRaw`
+        UPDATE desain_kanban_cards
+        SET created_at = ${targetStart}, updated_at = ${targetStart}
+        WHERE id = ${created.id}
+      `;
+      copied++;
+    }
+  }
+
+  return res.json({ copied });
 });
 
 // POST /desain/kanban/columns/:id/cards
