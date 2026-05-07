@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
 import { sendFonnte, sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
+import { syncInstagram, syncInstagramAccountLevel, syncYouTube } from "../lib/socialSync";
 
 const router = Router();
 
@@ -817,9 +818,9 @@ router.get("/meta-ads/dashboard", async (req: Request, res: Response) => {
   const now = new Date();
   let since: string;
   let until: string;
-  if (start_date && end_date) {
-    since = start_date as string;
-    until = end_date as string;
+  if (start_date || end_date) {
+    since = (start_date as string) || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    until = (end_date as string) || now.toISOString().slice(0, 10);
   } else if (bulan && tahun) {
     const m = parseInt(bulan as string);
     const y = parseInt(tahun as string);
@@ -966,6 +967,193 @@ router.get("/meta-ads/dashboard", async (req: Request, res: Response) => {
   });
 });
 
+function resolveAdsRange(query: Request["query"]) {
+  const { bulan, tahun, start_date, end_date } = query;
+  const now = new Date();
+  let since: string;
+  let until: string;
+  if (start_date && end_date) {
+    since = start_date as string;
+    until = end_date as string;
+  } else if (bulan && tahun) {
+    const m = parseInt(bulan as string);
+    const y = parseInt(tahun as string);
+    since = `${y}-${String(m).padStart(2, "0")}-01`;
+    const lastDay = new Date(y, m, 0).getDate();
+    until = `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+  } else if (tahun) {
+    const y = parseInt(tahun as string);
+    since = `${y}-01-01`;
+    until = `${y}-12-31`;
+  } else {
+    since = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+    until = now.toISOString().slice(0, 10);
+  }
+  return { since, until };
+}
+
+async function buildRealtimeAdsReport(query: Request["query"]) {
+  const { platform, campaign_id } = query;
+  const { since, until } = resolveAdsRange(query);
+  const campaignWhere: Record<string, unknown> = { is_hidden: false };
+  if (platform && platform !== "all") campaignWhere.platform = platform;
+  if (campaign_id) campaignWhere.id = BigInt(campaign_id as string);
+
+  const camps = await prisma.metaAdsCampaign.findMany({
+    where: campaignWhere,
+    include: { _count: { select: { leads: true } } },
+  });
+
+  const metaAccount = await prisma.adPlatformAccount.findFirst({ where: { platform: "Meta", is_active: true } });
+  if (metaAccount?.access_token && metaAccount?.ad_account_id) {
+    try {
+      const filterCampId = campaign_id
+        ? camps.find((c) => c.id === BigInt(campaign_id as string))?.meta_campaign_id ?? undefined
+        : undefined;
+      const [aggRows, accountTotals] = await Promise.all([
+        fetchMetaAggregate(metaAccount.access_token, metaAccount.ad_account_id, since, until, filterCampId ?? undefined),
+        !filterCampId ? fetchMetaAccountTotals(metaAccount.access_token, metaAccount.ad_account_id, since, until) : Promise.resolve(null),
+      ]);
+      const apiAgg: Record<string, MetaInsightRow> = {};
+      for (const row of aggRows) apiAgg[row.campaign_id] = row;
+      const campaigns = camps.map((c) => {
+        const row = c.meta_campaign_id ? apiAgg[c.meta_campaign_id] : undefined;
+        const spend = parseFloat(row?.spend ?? "0");
+        const impressions = parseInt(row?.impressions ?? "0");
+        const reach = parseInt(row?.reach ?? "0");
+        const clicks = parseInt((row as any)?.inline_link_clicks ?? "0");
+        const cpr = parseCPR(row?.cost_per_result as any);
+        const result = getResult(row?.actions, spend, cpr);
+        return {
+          id: Number(c.id),
+          campaign_name: c.campaign_name,
+          platform: c.platform,
+          status: c.status,
+          spend,
+          clicks,
+          impressions,
+          reach,
+          result,
+          leads_count: c._count.leads,
+        };
+      });
+      const totalClicks = accountTotals ? parseInt(accountTotals.inline_link_clicks ?? "0") : campaigns.reduce((s, c) => s + c.clicks, 0);
+      const totalSpend = accountTotals ? parseFloat(accountTotals.spend ?? "0") : campaigns.reduce((s, c) => s + c.spend, 0);
+      const totalImpressions = accountTotals ? parseInt(accountTotals.impressions ?? "0") : campaigns.reduce((s, c) => s + c.impressions, 0);
+      const totalReach = accountTotals ? parseInt(accountTotals.reach ?? "0") : campaigns.reduce((s, c) => s + c.reach, 0);
+      const totalResult = campaigns.reduce((s, c) => s + c.result, 0);
+      return {
+        ads: campaigns,
+        totals: {
+          spend: totalSpend,
+          clicks: totalClicks,
+          impressions: totalImpressions,
+          reach: totalReach,
+          result: totalResult,
+        },
+        data_source: "realtime",
+        range: { since, until },
+      };
+    } catch {
+      // fall through to local fallback
+    }
+  }
+
+  const metricDateWhere = { date: { gte: new Date(since), lte: new Date(until) } };
+  const localCamps = await prisma.metaAdsCampaign.findMany({
+    where: campaignWhere,
+    include: { content_metrics: { where: metricDateWhere } },
+    orderBy: { id: "desc" },
+  });
+  const ads = localCamps.map((c) => ({
+    id: Number(c.id),
+    campaign_name: c.campaign_name,
+    platform: c.platform,
+    status: c.status,
+    spend: c.content_metrics.reduce((s, m) => s + Number(m.spend ?? 0), 0),
+    impressions: c.content_metrics.reduce((s, m) => s + Number(m.impressions ?? 0), 0),
+    reach: c.content_metrics.reduce((s, m) => s + Number(m.reach ?? 0), 0),
+    clicks: c.content_metrics.reduce((s, m) => s + Number(m.clicks ?? 0), 0),
+    result: c.content_metrics.reduce((s, m) => s + Number(m.conversions ?? 0), 0),
+  }));
+  return {
+    ads,
+    totals: {
+      spend: ads.reduce((s, a) => s + a.spend, 0),
+      clicks: ads.reduce((s, a) => s + a.clicks, 0),
+      impressions: ads.reduce((s, a) => s + a.impressions, 0),
+      reach: ads.reduce((s, a) => s + a.reach, 0),
+      result: ads.reduce((s, a) => s + a.result, 0),
+    },
+    data_source: "local",
+    range: { since, until },
+  };
+}
+
+async function syncOrganicAccountsForReport() {
+  const accounts = await prisma.socialMediaAccount.findMany({
+    where: {
+      OR: [
+        { platform: { in: ["Instagram", "INSTAGRAM"] } },
+        { platform: { in: ["YouTube", "YOUTUBE"] } },
+      ],
+    },
+  });
+
+  const tasks = accounts.map(async (acc) => {
+    let rawPosts: Awaited<ReturnType<typeof syncInstagram>> = [];
+    const platform = acc.platform.toUpperCase();
+    if (platform === "INSTAGRAM" && acc.instagram_user_id && acc.instagram_access_token) {
+      rawPosts = await syncInstagram(acc.instagram_user_id, acc.instagram_access_token);
+    } else if (platform === "YOUTUBE" && acc.youtube_channel_id && acc.youtube_access_token) {
+      rawPosts = await syncYouTube(acc.youtube_channel_id, acc.youtube_access_token);
+    } else {
+      return;
+    }
+
+    for (const post of rawPosts) {
+      const postData: any = {
+        judul_konten: post.judul_konten,
+        link_konten: post.link_konten,
+        tanggal: new Date(post.tanggal),
+        views: post.views,
+        likes: post.likes,
+        comments: post.comments,
+        shares: post.shares,
+        saves: post.saves,
+        reach: post.reach,
+        data_source: "api",
+      };
+      if (post.media_type !== undefined) postData.media_type = post.media_type;
+      if (post.reposts !== undefined) postData.reposts = post.reposts;
+      if (post.watch_time_minutes !== undefined && post.watch_time_minutes !== null) postData.watch_time_minutes = post.watch_time_minutes;
+      if (post.engagement_rate !== undefined && post.engagement_rate !== null) postData.engagement_rate = post.engagement_rate;
+      const existing = await prisma.socialMediaPostMetric.findFirst({
+        where: { account_id: acc.id, post_id_platform: post.post_id_platform },
+      });
+      if (existing) await prisma.socialMediaPostMetric.update({ where: { id: existing.id }, data: postData });
+      else await prisma.socialMediaPostMetric.create({ data: { account_id: acc.id, post_id_platform: post.post_id_platform, ...postData } });
+    }
+
+    const accountData: Record<string, unknown> = { last_synced_at: new Date() };
+    if (platform === "INSTAGRAM" && acc.instagram_user_id && acc.instagram_access_token) {
+      try {
+        const acct = await syncInstagramAccountLevel(acc.instagram_user_id, acc.instagram_access_token);
+        Object.assign(accountData, {
+          ig_profile_visits: acct.profile_visits,
+          ig_website_clicks: acct.website_clicks,
+          ig_followers_count: acct.followers_count,
+          ig_follower_reach: acct.follower_reach,
+          ig_non_follower_reach: acct.non_follower_reach,
+        });
+      } catch { /* keep post sync even if account-level metrics fail */ }
+    }
+    await prisma.socialMediaAccount.update({ where: { id: acc.id }, data: accountData });
+  });
+
+  await Promise.allSettled(tasks);
+}
+
 // GET /bd/report-analytics - consolidated BD report sections
 router.get("/report-analytics", requirePermission("bd", "view"), async (req: Request, res: Response) => {
   const bulan = req.query.bulan ? parseInt(String(req.query.bulan)) : undefined;
@@ -1025,15 +1213,15 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     return { total, scheduled, approved, pending: Math.max(0, total - approved) };
   }
 
-  const [adCamps, igPosts, ytPosts, igAccounts, closingCards, closingInvoices, goldenInvoices, filterAirInvoices] = await Promise.all([
-    prisma.metaAdsCampaign.findMany({
-      where: { is_hidden: false },
-      include: { content_metrics: { where: dateWhere("date" as any) as any }, chat_metrics: true },
-      orderBy: { id: "desc" },
-    }),
-    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: "Instagram" }, ...(dateWhere("tanggal") as any) } }),
-    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: "YouTube" }, ...(dateWhere("tanggal") as any) } }),
-    prisma.socialMediaAccount.findMany({ where: { platform: "Instagram" } }),
+  const [adsReport] = await Promise.all([
+    buildRealtimeAdsReport(req.query),
+    syncOrganicAccountsForReport(),
+  ]);
+
+  const [igPosts, ytPosts, igAccounts, closingCards, closingInvoices, goldenInvoices, filterAirInvoices] = await Promise.all([
+    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["Instagram", "INSTAGRAM"] } }, ...(dateWhere("tanggal") as any) } }),
+    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["YouTube", "YOUTUBE"] } }, ...(dateWhere("tanggal") as any) } }),
+    prisma.socialMediaAccount.findMany({ where: { platform: { in: ["Instagram", "INSTAGRAM"] } } }),
     prisma.salesKanbanCard.findMany({
       where: { column: { title: "Closing" }, ...dateWhere("created_at") },
       include: { lead: { select: { jenis: true } } },
@@ -1063,17 +1251,6 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     };
   }
 
-  const ads = adCamps.map((c) => ({
-    id: Number(c.id),
-    campaign_name: c.campaign_name,
-    platform: c.platform,
-    spend: c.content_metrics.reduce((s, m) => s + Number(m.spend ?? 0), 0),
-    impressions: c.content_metrics.reduce((s, m) => s + Number(m.impressions ?? 0), 0),
-    reach: c.content_metrics.reduce((s, m) => s + Number(m.reach ?? 0), 0),
-    clicks: c.content_metrics.reduce((s, m) => s + Number(m.clicks ?? 0), 0),
-    result: c.content_metrics.reduce((s, m) => s + Number(m.conversions ?? 0), 0),
-  }));
-
   const closingByJenis: Record<string, number> = {};
   for (const c of closingCards) {
     const key = c.tipe_pekerjaan || c.lead?.jenis || "Lainnya";
@@ -1086,7 +1263,14 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
   }
 
   return res.json({
-    ads_organik: { ads, instagram: socialSummary(igPosts, true), youtube: socialSummary(ytPosts) },
+    ads_organik: {
+      ads: adsReport.ads,
+      ads_totals: adsReport.totals,
+      ads_data_source: adsReport.data_source,
+      ads_range: adsReport.range,
+      instagram: socialSummary(igPosts, true),
+      youtube: socialSummary(ytPosts),
+    },
     sales_admin_rubahrumah: { leads: await leadStats("sales-admin"), survey: await surveyStats("sales-admin") },
     sales_admin_rkr_mitra: {
       rkr: { leads: await leadStats("telemarketing"), survey: await surveyStats("telemarketing") },

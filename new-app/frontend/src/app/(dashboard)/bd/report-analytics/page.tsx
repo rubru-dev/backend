@@ -13,12 +13,10 @@ const num = (n: number) => new Intl.NumberFormat("id-ID").format(n || 0);
 const TABS = [
   ["all", "Semua"],
   ["ads", "Ads dan Organik"],
-  ["rubahrumah", "Data Sales Admin Rubahrumah"],
+  ["rubahrumah", "Data Sales Rubahrumah + Closing RKR"],
   ["rkr", "Data Sales Admin Produk RKR"],
-  ["golden", "Data Sales Admin Produk Golden"],
-  ["filter-air", "Data Sales Admin Produk Filter Air"],
-  ["closing-rkr", "Closing Rubahrumah dan RKR"],
-  ["closing-golden-filter", "Closing Golden dan Filter Air"],
+  ["golden", "Data Sales Golden + Closing Golden"],
+  ["filter-air", "Data Sales Filter Air + Closing Filter Air"],
 ] as const;
 
 function MetricCard({ label, value }: { label: string; value: string | number }) {
@@ -47,6 +45,7 @@ export default function BdReportAnalyticsPage() {
   const [tahun, setTahun] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [printingAll, setPrintingAll] = useState(false);
 
   const params = useMemo(() => ({
     ...(startDate ? { start_date: startDate } : {}),
@@ -63,7 +62,7 @@ export default function BdReportAnalyticsPage() {
   const ig = data?.ads_organik?.instagram ?? {};
   const yt = data?.ads_organik?.youtube ?? {};
   const ads = data?.ads_organik?.ads ?? [];
-  const adTotals = ads.reduce((acc: any, a: any) => ({
+  const adTotals = data?.ads_organik?.ads_totals ?? ads.reduce((acc: any, a: any) => ({
     spend: acc.spend + a.spend,
     clicks: acc.clicks + a.clicks,
     impressions: acc.impressions + a.impressions,
@@ -71,7 +70,17 @@ export default function BdReportAnalyticsPage() {
     result: acc.result + a.result,
   }), { spend: 0, clicks: 0, impressions: 0, reach: 0, result: 0 });
 
-  const show = (key: typeof activeTab) => activeTab === "all" || activeTab === key;
+  const show = (key: typeof activeTab) => printingAll || activeTab === "all" || activeTab === key;
+
+  function downloadAllPdf() {
+    setPrintingAll(true);
+    const reset = () => {
+      setPrintingAll(false);
+      window.removeEventListener("afterprint", reset);
+    };
+    window.addEventListener("afterprint", reset);
+    setTimeout(() => window.print(), 100);
+  }
 
   return (
     <div className="p-6 space-y-6">
@@ -80,7 +89,7 @@ export default function BdReportAnalyticsPage() {
           <h1 className="text-2xl font-bold">Report dan Analytics BD</h1>
           <p className="text-sm text-muted-foreground">Jika filter kosong, semua data ditampilkan.</p>
         </div>
-        <Button variant="outline" onClick={() => window.print()}><Download className="h-4 w-4 mr-2" /> PDF</Button>
+        <Button variant="outline" onClick={downloadAllPdf}><Download className="h-4 w-4 mr-2" /> PDF</Button>
       </div>
 
       <div className="flex flex-wrap gap-2 items-end rounded-lg border bg-white p-3 print:hidden">
@@ -103,7 +112,9 @@ export default function BdReportAnalyticsPage() {
           {show("ads") && <Block title="Ads dan Organik">
             <div className="space-y-4">
               <div>
-                <h3 className="text-sm font-semibold mb-2">Ads</h3>
+                <h3 className="text-sm font-semibold mb-2">
+                  Ads <span className="text-xs font-normal text-muted-foreground">({data?.ads_organik?.ads_data_source === "realtime" ? "sync Meta API realtime" : "fallback data lokal"})</span>
+                </h3>
                 <div className="grid md:grid-cols-5 gap-3">
                   <MetricCard label="Spend" value={IDR(adTotals.spend)} />
                   <MetricCard label="Klik" value={num(adTotals.clicks)} />
@@ -145,25 +156,34 @@ export default function BdReportAnalyticsPage() {
             </div>
           </Block>}
 
-          {show("rubahrumah") && <Block title="Data Sales Admin Rubahrumah"><LeadSurveyCards leads={data?.sales_admin_rubahrumah?.leads} survey={data?.sales_admin_rubahrumah?.survey} /></Block>}
-          {show("rkr") && <Block title="Data Sales Admin Produk RKR"><LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.rkr?.leads} survey={data?.sales_admin_rkr_mitra?.rkr?.survey} /></Block>}
-          {show("golden") && <Block title="Data Sales Admin Produk Golden"><LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.golden?.leads} survey={data?.sales_admin_rkr_mitra?.golden?.survey} extra={{ label: "Kalender After Pengerjaan", value: `${num(data?.sales_admin_rkr_mitra?.golden?.pengerjaan?.total)} total / ${num(data?.sales_admin_rkr_mitra?.golden?.pengerjaan?.approved)} approved` }} /></Block>}
-          {show("filter-air") && <Block title="Data Sales Admin Produk Filter Air"><LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.filter_air?.leads} survey={data?.sales_admin_rkr_mitra?.filter_air?.survey} extra={{ label: "Kalender Instalasi Filter Air", value: `${num(data?.sales_admin_rkr_mitra?.filter_air?.pengerjaan?.total)} total / ${num(data?.sales_admin_rkr_mitra?.filter_air?.pengerjaan?.approved)} approved` }} /></Block>}
-
-          {show("closing-rkr") && <Block title="Closing Rubahrumah dan RKR">
-            <div className="grid md:grid-cols-3 gap-3">
-              <MetricCard label="Total Closing Kanban Sales" value={IDR(data?.closing_rubahrumah_rkr?.total_closing)} />
-              <MetricCard label="Total Card Closing" value={num(data?.closing_rubahrumah_rkr?.total_cards)} />
-              <MetricCard label="Kategori Payment" value={Object.entries(data?.closing_rubahrumah_rkr?.by_payment_category ?? {}).map(([k, v]) => `${k}: ${IDR(Number(v))}`).join(" | ") || "-"} />
+          {show("rubahrumah") && <Block title="Data Sales Admin Rubahrumah + Closing Rubahrumah dan RKR">
+            <div className="space-y-4">
+              <LeadSurveyCards leads={data?.sales_admin_rubahrumah?.leads} survey={data?.sales_admin_rubahrumah?.survey} />
+              <div className="grid md:grid-cols-3 gap-3">
+                <MetricCard label="Total Closing Kanban Sales" value={IDR(data?.closing_rubahrumah_rkr?.total_closing)} />
+                <MetricCard label="Total Card Closing" value={num(data?.closing_rubahrumah_rkr?.total_cards)} />
+                <MetricCard label="Kategori Payment" value={Object.entries(data?.closing_rubahrumah_rkr?.by_payment_category ?? {}).map(([k, v]) => `${k}: ${IDR(Number(v))}`).join(" | ") || "-"} />
+              </div>
             </div>
           </Block>}
-
-          {show("closing-golden-filter") && <Block title="Closing Golden dan Filter Air">
-            <div className="grid md:grid-cols-4 gap-3">
-              <MetricCard label="Total Closing Golden" value={IDR(data?.closing_golden?.total_harga)} />
-              <MetricCard label="Invoice Golden" value={num(data?.closing_golden?.total_invoice)} />
-              <MetricCard label="Total Closing Filter Air" value={IDR(data?.closing_filter_air?.total_harga)} />
-              <MetricCard label="Jenis Filter Air" value={Object.entries(data?.closing_filter_air?.by_jenis ?? {}).map(([k, v]) => `${k}: ${IDR(Number(v))}`).join(" | ") || "-"} />
+          {show("rkr") && <Block title="Data Sales Admin Produk RKR"><LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.rkr?.leads} survey={data?.sales_admin_rkr_mitra?.rkr?.survey} /></Block>}
+          {show("golden") && <Block title="Data Sales Admin Produk Golden + Closing Golden">
+            <div className="space-y-4">
+              <LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.golden?.leads} survey={data?.sales_admin_rkr_mitra?.golden?.survey} extra={{ label: "Kalender After Pengerjaan", value: `${num(data?.sales_admin_rkr_mitra?.golden?.pengerjaan?.total)} total / ${num(data?.sales_admin_rkr_mitra?.golden?.pengerjaan?.approved)} approved` }} />
+              <div className="grid md:grid-cols-2 gap-3">
+                <MetricCard label="Total Closing Golden" value={IDR(data?.closing_golden?.total_harga)} />
+                <MetricCard label="Invoice Golden" value={num(data?.closing_golden?.total_invoice)} />
+              </div>
+            </div>
+          </Block>}
+          {show("filter-air") && <Block title="Data Sales Admin Produk Filter Air + Closing Filter Air">
+            <div className="space-y-4">
+              <LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.filter_air?.leads} survey={data?.sales_admin_rkr_mitra?.filter_air?.survey} extra={{ label: "Kalender Instalasi Filter Air", value: `${num(data?.sales_admin_rkr_mitra?.filter_air?.pengerjaan?.total)} total / ${num(data?.sales_admin_rkr_mitra?.filter_air?.pengerjaan?.approved)} approved` }} />
+              <div className="grid md:grid-cols-3 gap-3">
+                <MetricCard label="Total Closing Filter Air" value={IDR(data?.closing_filter_air?.total_harga)} />
+                <MetricCard label="Invoice Filter Air" value={num(data?.closing_filter_air?.total_invoice)} />
+                <MetricCard label="Jenis Filter Air" value={Object.entries(data?.closing_filter_air?.by_jenis ?? {}).map(([k, v]) => `${k}: ${IDR(Number(v))}`).join(" | ") || "-"} />
+              </div>
             </div>
           </Block>}
         </div>

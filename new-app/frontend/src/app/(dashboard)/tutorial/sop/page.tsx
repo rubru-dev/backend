@@ -111,7 +111,7 @@ function imgUrl(img: SopImage): string {
   return `${API_BASE}${img.path}`;
 }
 
-async function SopPDF({ sop }: { sop: Sop }) {
+function SopPDF({ sop }: { sop: Sop }) {
   const images = getSopImages(sop);
   return (
     <Document>

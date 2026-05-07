@@ -1,7 +1,7 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-05-07 (Projek Desain RO)
+> Last updated: 2026-05-07 (BD Report Analytics Sync)
 
 ---
 
@@ -34,6 +34,11 @@
 - **Schema:** Model `DesainTimeline` ditambah `ro_id` dengan relasi ke `User`.
 - **Backend:** Endpoint `/desain/timeline` create/edit/list/detail/export menyimpan dan mengembalikan data RO.
 - **Frontend:** Dialog tambah/edit Projek Desain memiliki field `RO` dari daftar karyawan; nama RO tampil di card, print HTML, PDF timeline, dan summary PDF.
+
+### BD Report Analytics Sync + Tab Gabungan
+- **Backend:** `/bd/report-analytics` bagian Ads memakai data realtime Meta API seperti dashboard BD bila token tersedia, dengan fallback lokal. Data organik Instagram/YouTube disync dari akun API sebelum summary dibaca.
+- **Frontend:** Tab closing digabung ke tab sales terkait: Rubahrumah + Closing Rubahrumah/RKR, Golden + Closing Golden, Filter Air + Closing Filter Air.
+- **PDF/Print:** Tombol PDF selalu mencetak semua summary sesuai filter aktif, bukan hanya tab yang sedang dibuka.
 
 ---
 
