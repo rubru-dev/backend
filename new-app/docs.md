@@ -1,7 +1,25 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-05-06 (Golden Follow Up Leads + Kanban Admin Outstanding)
+> Last updated: 2026-05-07 (Filter Air + BD Report Analytics)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-05-07)
+
+### Sales Admin Product dan Mitra + Golden Sync
+- **Menu Telemarketing:** Label grup diganti menjadi `Sales Admin Product dan Mitra`.
+- **Sub-menu RKR:** `Follow Up Leads` diganti menjadi `Follow Up Leads RKR`, `Kalender Survey` diganti menjadi `Kalender Survey RKR`, dan `Kanban Telemarketing` diganti menjadi `Kanban Admin Product`.
+- **Kalender Survey RKR:** Data tidak lagi digabung dengan Sales Admin; halaman ini hanya mengambil survey dari leads modul `telemarketing`.
+- **Sub-menu Golden di Telemarketing:** Tambah `Follow Up Leads Golden`, `Kanban Golden`, `Kalender Survey Golden`, dan `Kalender After Pengerjaan Golden`.
+- **Sync Golden:** Sub-menu Golden di Telemarketing memakai modul/data Golden yang sama dengan `RUBAHRUMAHXGOLDEN`, sehingga update dari salah satu menu langsung terlihat di menu lain.
+
+### Filter Air + BD Report Analytics
+- **Finance > Invoice & Kwitansi:** Kategori baru `Payment Filter Air`; saat dipilih muncul dropdown jenis `Standart`, `Menengah`, `High`.
+- **Finance > AR:** Tab baru `Tagihan Filter Air` mengambil invoice kategori `Payment Filter Air` dan menampilkan jenis Filter Air.
+- **Sales Admin Product dan Mitra:** Sub-menu baru `Follow Up Leads Filter Air` dengan jenis `B2C`/`B2B`, `Kalender Survey Filter Air`, dan `Kalender Instalasi Filter Air`.
+- **BD:** Sub-menu baru `Report dan Analytics` dengan filter tanggal/bulan/tahun dan tombol PDF/print untuk data Ads & Organik, Sales Admin Rubahrumah, RKR/Mitra/Golden, Closing Rubahrumah/RKR, Closing Golden, dan Closing Filter Air.
+- **Schema:** Tambah `Invoice.jenis_filter_air`; database disinkronkan via `prisma db push`.
 
 ---
 

@@ -95,7 +95,7 @@ async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number
 }
 
 interface KalenderSurveyProps {
-  modul: "sales-admin" | "telemarketing" | "golden";
+  modul: "sales-admin" | "telemarketing" | "golden" | "filter-air";
   showAll?: boolean;
 }
 
@@ -177,7 +177,7 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     queryFn: () =>
       apiClient
         .get("/bd/survey-pic-users", {
-          params: modul === "golden" ? { sub_role: "Mitra" } : undefined,
+          params: modul === "golden" || modul === "filter-air" ? { sub_role: "Mitra" } : undefined,
         })
         .then((r) => r.data),
   });

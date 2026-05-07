@@ -18,7 +18,7 @@ import { Plus, Pencil, Trash2, Search, PhoneCall, Printer, FileUp, FileDown, His
 import * as XLSX from "xlsx";
 
 interface FollowUpLeadsProps {
-  modul: "sales-admin" | "telemarketing" | "database-client" | "golden";
+  modul: "sales-admin" | "telemarketing" | "database-client" | "golden" | "filter-air";
   campaignSelectUrl?: string;
 }
 
@@ -40,7 +40,9 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 const JENIS_OPTIONS = ["Sipil", "Interior", "Desain"];
+const JENIS_OPTIONS_RKR = ["Interior", "Eksterior"];
 const JENIS_OPTIONS_GOLDEN = ["Anti Rayap", "Jasa Cleaning", "Hygiene Product"];
+const JENIS_OPTIONS_FILTER_AIR = ["B2C", "B2B"];
 const STATUS_OPTIONS = ["Low", "Medium", "Hot", "Client", "Batal"];
 const STATIC_SUMBER_OPTIONS = ["Instagram", "TikTok", "Facebook", "Referral", "Walk-in", "Lainnya"];
 const SALUTATION_OPTIONS = ["Mr", "Mrs"] as const;
@@ -76,10 +78,12 @@ function leadDisplayName(item: { salutation?: string | null; nama?: string | nul
 export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) {
   const qc = useQueryClient();
   const isGolden = modul === "golden";
+  const isRkr = modul === "telemarketing";
+  const isFilterAir = modul === "filter-air";
   const canDelete = useAuthStore((s) =>
     !isGolden || s.isSuperAdmin() || s.hasAnyRole("Head Golden")
   );
-  const activeJenisOptions = isGolden ? JENIS_OPTIONS_GOLDEN : JENIS_OPTIONS;
+  const activeJenisOptions = isGolden ? JENIS_OPTIONS_GOLDEN : isFilterAir ? JENIS_OPTIONS_FILTER_AIR : isRkr ? JENIS_OPTIONS_RKR : JENIS_OPTIONS;
   const defaultJenis = activeJenisOptions[0];
   const endpoint = `/bd/${modul}/leads`;
   const bulkEndpoint = `/bd/${modul}/leads/bulk`;

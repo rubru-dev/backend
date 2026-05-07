@@ -214,6 +214,15 @@ router.put("/roles/:id/permissions", requireRole("Super Admin"), async (req: Req
 // Permission yang harus selalu ada (auto-sync tanpa perlu re-run seeder)
 const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }> = [
   { name: "pic.kalender_visit", module: "pic", label: "Sub-menu: Kalender Visit PIC" },
+  { name: "bd.report_analytics", module: "bd", label: "Sub-menu: Report dan Analytics BD" },
+  { name: "telemarketing.view",          module: "telemarketing", label: "Lihat Sales Admin Product dan Mitra" },
+  { name: "telemarketing.create",        module: "telemarketing", label: "Buat Sales Admin Product dan Mitra" },
+  { name: "telemarketing.edit",          module: "telemarketing", label: "Edit Sales Admin Product dan Mitra" },
+  { name: "telemarketing.delete",        module: "telemarketing", label: "Hapus Sales Admin Product dan Mitra" },
+  { name: "telemarketing.kanban",        module: "telemarketing", label: "Sub-menu: Kanban Admin Product / Kanban Golden" },
+  { name: "telemarketing.follow_up",     module: "telemarketing", label: "Sub-menu: Follow Up Leads RKR / Golden" },
+  { name: "telemarketing.kalender",      module: "telemarketing", label: "Sub-menu: Kalender Survey RKR / Golden / After Pengerjaan Golden" },
+  { name: "telemarketing.laporan_harian",module: "telemarketing", label: "Sub-menu: Laporan Harian Sales Admin Product dan Mitra" },
   // RubahrumahxGolden
   { name: "golden.view",         module: "golden", label: "Lihat menu RubahrumahxGolden" },
   { name: "golden.create",       module: "golden", label: "Tambah data Golden" },

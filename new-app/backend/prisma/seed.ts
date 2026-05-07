@@ -42,11 +42,11 @@ async function main() {
     { name: "sales_admin.create", module: "sales_admin", label: "Buat Sales Admin" },
     { name: "sales_admin.edit",   module: "sales_admin", label: "Edit Sales Admin" },
     { name: "sales_admin.delete", module: "sales_admin", label: "Hapus Sales Admin" },
-    // Telemarketing
-    { name: "telemarketing.view",   module: "telemarketing", label: "Lihat Telemarketing" },
-    { name: "telemarketing.create", module: "telemarketing", label: "Buat Telemarketing" },
-    { name: "telemarketing.edit",   module: "telemarketing", label: "Edit Telemarketing" },
-    { name: "telemarketing.delete", module: "telemarketing", label: "Hapus Telemarketing" },
+    // Sales Admin Product dan Mitra
+    { name: "telemarketing.view",   module: "telemarketing", label: "Lihat Sales Admin Product dan Mitra" },
+    { name: "telemarketing.create", module: "telemarketing", label: "Buat Sales Admin Product dan Mitra" },
+    { name: "telemarketing.edit",   module: "telemarketing", label: "Edit Sales Admin Product dan Mitra" },
+    { name: "telemarketing.delete", module: "telemarketing", label: "Hapus Sales Admin Product dan Mitra" },
     // Desain
     { name: "desain.view",   module: "desain", label: "Lihat Desain" },
     { name: "desain.create", module: "desain", label: "Buat Desain" },
@@ -96,6 +96,7 @@ async function main() {
     { name: "bd.dashboard",  module: "bd", label: "Sub-menu: Dashboard BD" },
     { name: "bd.kanban",     module: "bd", label: "Sub-menu: Kanban BD" },
     { name: "bd.meta_ads",   module: "bd", label: "Sub-menu: Meta Ads BD" },
+    { name: "bd.report_analytics", module: "bd", label: "Sub-menu: Report dan Analytics BD" },
     // Content sub-menus
     { name: "content.dashboard_sosmed", module: "content", label: "Sub-menu: Dashboard Sosmed" },
     { name: "content.social_media",     module: "content", label: "Sub-menu: Sosial Media" },
@@ -107,11 +108,11 @@ async function main() {
     { name: "sales_admin.follow_up",     module: "sales_admin", label: "Sub-menu: Follow Up Leads" },
     { name: "sales_admin.kalender",      module: "sales_admin", label: "Sub-menu: Kalender Survey" },
     { name: "sales_admin.laporan_harian",module: "sales_admin", label: "Sub-menu: Laporan Harian Sales Admin" },
-    // Telemarketing sub-menus
-    { name: "telemarketing.kanban",        module: "telemarketing", label: "Sub-menu: Kanban Telemarketing" },
-    { name: "telemarketing.follow_up",     module: "telemarketing", label: "Sub-menu: Follow Up Leads TM" },
-    { name: "telemarketing.kalender",      module: "telemarketing", label: "Sub-menu: Kalender Survey TM" },
-    { name: "telemarketing.laporan_harian",module: "telemarketing", label: "Sub-menu: Laporan Harian TM" },
+    // Sales Admin Product dan Mitra sub-menus
+    { name: "telemarketing.kanban",        module: "telemarketing", label: "Sub-menu: Kanban Admin Product / Kanban Golden" },
+    { name: "telemarketing.follow_up",     module: "telemarketing", label: "Sub-menu: Follow Up Leads RKR / Golden" },
+    { name: "telemarketing.kalender",      module: "telemarketing", label: "Sub-menu: Kalender Survey RKR / Golden / After Pengerjaan Golden" },
+    { name: "telemarketing.laporan_harian",module: "telemarketing", label: "Sub-menu: Laporan Harian Sales Admin Product dan Mitra" },
     // Desain sub-menus
     { name: "desain.follow_up",      module: "desain", label: "Sub-menu: Follow Up After Survey" },
     { name: "desain.kanban_paket",   module: "desain", label: "Sub-menu: Kanban Paket Desain" },
@@ -260,7 +261,7 @@ async function main() {
   // Menggunakan createMany + skipDuplicates agar tidak menimpa perubahan manual
   const TUTORIAL_PERMS = ["tutorial.view","tutorial.tutorial_aplikasi","tutorial.api_eksternal","tutorial.deployment"];
   const subMenuRolePerms: Record<string, string[]> = {
-    "BD":            ["bd.dashboard","bd.kanban","bd.meta_ads","absen.submit", ...TUTORIAL_PERMS],
+    "BD":            ["bd.dashboard","bd.kanban","bd.meta_ads","bd.report_analytics","absen.submit", ...TUTORIAL_PERMS],
     "Content Creator": [
       "content.dashboard_sosmed","content.social_media",
       "content.timelines","content.laporan_harian","content.target",

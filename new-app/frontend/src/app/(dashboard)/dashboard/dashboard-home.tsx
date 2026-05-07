@@ -35,7 +35,7 @@ const ALL_CARDS: QuickCard[] = [
   { title: "Kanban Sales",      desc: "Pipeline penjualan",             href: "/sales/kanban",             icon: Kanban,        color: "text-blue-600" },
   { title: "Proyek Berjalan",   desc: "Proyek penjualan aktif",         href: "/sales/proyek",             icon: Building2,     color: "text-blue-600" },
   { title: "Kanban Admin",      desc: "Pipeline sales admin",           href: "/sales-admin/kanban",       icon: Kanban,        color: "text-cyan-600" },
-  { title: "Kanban TM",         desc: "Pipeline telemarketing",         href: "/telemarketing/kanban",     icon: Kanban,        color: "text-purple-600" },
+  { title: "Kanban Admin Product", desc: "Pipeline RKR",                href: "/telemarketing/kanban",     icon: Kanban,        color: "text-purple-600" },
   { title: "Adm. Projek",       desc: "Administrasi keuangan proyek",   href: "/finance/adm-projek",       icon: FileText,      color: "text-red-600" },
   { title: "Proyek Sipil",      desc: "Kelola proyek sipil",            href: "/projek/sipil",             icon: Building2,     color: "text-teal-600" },
   { title: "Proyek Interior",   desc: "Kelola proyek interior",         href: "/projek/interior",          icon: Home,          color: "text-orange-600" },
@@ -75,7 +75,7 @@ const PERMISSION_CARDS: { permission: string; cards: QuickCard[] }[] = [
   {
     permission: "telemarketing.view",
     cards: [
-      { title: "Kanban TM",       desc: "Pipeline telemarketing",       href: "/telemarketing/kanban",     icon: Kanban,       color: "text-purple-600" },
+      { title: "Kanban Admin Product", desc: "Pipeline RKR",            href: "/telemarketing/kanban",     icon: Kanban,       color: "text-purple-600" },
     ],
   },
   {
@@ -721,7 +721,7 @@ export function DashboardHome() {
       href: "/sales-admin/kanban",
     },
     canSeeTM && {
-      label: "Total Leads Telemarketing",
+      label: "Total Leads Sales Admin Product dan Mitra",
       value: stats.leadsTelemarketing,
       icon: Users,
       color: "text-purple-600",

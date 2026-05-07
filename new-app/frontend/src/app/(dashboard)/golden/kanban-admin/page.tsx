@@ -1,6 +1,6 @@
 import { GoldenAdminKanbanBoard } from "./kanban-board";
 
-export const metadata = { title: "Kanban Admin — RubahrumahxGolden" };
+export const metadata = { title: "Kanban Admin - RubahrumahxGolden" };
 
 export default function GoldenKanbanAdminPage() {
   return (
@@ -8,7 +8,7 @@ export default function GoldenKanbanAdminPage() {
       <div>
         <h1 className="text-2xl font-bold">Kanban Admin Golden</h1>
         <p className="text-muted-foreground text-sm">
-          Tracking leads RubahrumahxGolden — W1, W2, W3, W4, Closing Survey, Move To Telemarketing
+          Tracking leads RubahrumahxGolden: W1, W2, W3, W4, Closing Survey, Outstanding.
         </p>
       </div>
       <GoldenAdminKanbanBoard />

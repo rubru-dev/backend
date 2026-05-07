@@ -20,7 +20,7 @@ import {
 } from "lucide-react";
 
 interface Props {
-  modul: "golden";
+  modul: "golden" | "filter-air";
 }
 
 const MONTH_NAMES = [

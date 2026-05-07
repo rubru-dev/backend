@@ -613,7 +613,7 @@ export function TelemarketingKanbanBoard() {
         <td style="text-align:center;font-weight:bold;">${col.cards.length}</td>
       </tr>`).join("");
 
-    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Kanban Telemarketing — ${periodeLabel}</title><style>
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>Kanban Admin Product - ${periodeLabel}</title><style>
       * { margin:0; padding:0; box-sizing:border-box; }
       body { font-family:Arial,sans-serif; font-size:11px; color:#111; padding:24px; }
       .header { display:flex; align-items:center; gap:16px; border-bottom:2px solid #f97316; padding-bottom:12px; margin-bottom:16px; }
@@ -641,7 +641,7 @@ export function TelemarketingKanbanBoard() {
       <div class="meta">
         <div class="meta-item">
           <div class="label">Dokumen</div>
-          <div class="value">Rekap Kanban Telemarketing</div>
+          <div class="value">Rekap Kanban Admin Product</div>
         </div>
         <div class="meta-item">
           <div class="label">Periode</div>

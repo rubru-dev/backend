@@ -85,6 +85,7 @@ function invoiceDictFrontend(inv: any) {
     admin_finance_signature: inv.admin_finance_signature || null,
     kategori: inv.kategori || null,
     paket_desain: inv.paket_desain || null,
+    jenis_filter_air: inv.jenis_filter_air || null,
     rab_item_id: inv.rab_item_id ? Number(inv.rab_item_id) : null,
     nominal_locked: inv.nominal_locked ?? false,
     items: (inv.items || []).map((item: any) => ({
@@ -837,7 +838,7 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
   const isSalesAdmin = req.user!.roles.some((r: any) => r.role.name === "Sales Admin");
   const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
   const isFinanceRole = req.user!.roles.some((r: any) => ["Head Finance", "Admin Finance"].includes(r.role.name));
-  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, items = [] } = req.body;
+  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, jenis_filter_air, rab_item_id, items = [] } = req.body;
   if (isSalesAdmin && !isSuperAdmin && !isFinanceRole) {
     const allowed = ["Payment Desain", "Payment Survey"];
     if (kategori && !allowed.includes(kategori)) {
@@ -875,6 +876,7 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
       status: "draft",
       kategori: kategori || null,
       paket_desain: paket_desain || null,
+      jenis_filter_air: kategori === "Payment Filter Air" ? (jenis_filter_air || null) : null,
       rab_item_id: rab_item_id ? BigInt(rab_item_id) : null,
       created_by: req.user!.id,
       items: { create: itemsData },
@@ -893,12 +895,13 @@ router.patch("/invoices/:id/set-kategori", requirePermission("finance", "view"),
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
-  const { kategori, paket_desain, rab_item_id } = req.body;
+  const { kategori, paket_desain, jenis_filter_air, rab_item_id } = req.body;
   const updated = await prisma.invoice.update({
     where: { id },
     data: {
       kategori: kategori || null,
       paket_desain: kategori === "Payment Desain" ? (paket_desain || null) : null,
+      jenis_filter_air: kategori === "Payment Filter Air" ? (jenis_filter_air || null) : null,
       rab_item_id: kategori === "Payment Projek" ? (rab_item_id ? BigInt(rab_item_id) : null) : null,
     },
     include: { items: true, lead: true, head_finance: true, admin_finance: true, bank_account: true },
@@ -946,7 +949,7 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   if (inv.head_finance_id || inv.admin_finance_id) {
     return res.status(400).json({ detail: "Invoice yang sudah ditandatangani tidak bisa diubah" });
   }
-  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, items } = req.body;
+  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, jenis_filter_air, rab_item_id, items } = req.body;
   const updates: Record<string, unknown> = {};
   if (nomor_invoice !== undefined) updates.invoice_number = nomor_invoice;
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
@@ -956,6 +959,7 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   if (bank_account_id !== undefined) updates.bank_account_id = bank_account_id ? BigInt(bank_account_id) : null;
   if (kategori !== undefined) updates.kategori = kategori || null;
   if (paket_desain !== undefined) updates.paket_desain = paket_desain || null;
+  if (jenis_filter_air !== undefined) updates.jenis_filter_air = kategori === "Payment Filter Air" ? (jenis_filter_air || null) : null;
   if (rab_item_id !== undefined) updates.rab_item_id = rab_item_id ? BigInt(rab_item_id) : null;
 
   // Recalculate subtotal/ppn/grand_total bila items atau ppn_percentage berubah
@@ -3302,6 +3306,42 @@ router.get("/ar-tagihan-golden", requirePermission("finance", "ar"), async (_req
 });
 
 // ── AR Override (one-time manual edit by Super Admin) ─────────────────────────
+// GET /finance/ar-tagihan-filter-air - Tagihan Filter Air dari invoice kategori "Payment Filter Air"
+router.get("/ar-tagihan-filter-air", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
+  const invoices = await prisma.invoice.findMany({
+    where: { kategori: "Payment Filter Air", lead_id: { not: null } },
+    select: {
+      id: true,
+      invoice_number: true,
+      lead_id: true,
+      tanggal: true,
+      grand_total: true,
+      status: true,
+      jenis_filter_air: true,
+      lead: { select: { nama: true, salutation: true } },
+      kwitansi: { select: { jumlah_diterima: true } },
+    },
+    orderBy: { tanggal: "desc" },
+  });
+
+  return res.json(invoices.map((inv) => {
+    const tagihan = parseFloat(String(inv.grand_total ?? 0));
+    const terbayar = inv.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
+    return {
+      invoice_id: Number(inv.id),
+      invoice_number: inv.invoice_number,
+      lead_id: inv.lead_id ? Number(inv.lead_id) : null,
+      nama_client: leadDisplayName(inv.lead),
+      tanggal: inv.tanggal ? new Date(inv.tanggal).toISOString().split("T")[0] : null,
+      status: FE_STATUS_FROM_DB[inv.status || "draft"] || inv.status,
+      jenis_filter_air: inv.jenis_filter_air,
+      total_tagihan: tagihan,
+      total_terbayar: terbayar,
+      outstanding: Math.max(0, tagihan - terbayar),
+    };
+  }));
+});
+
 router.post("/ar-item-override", requirePermission("finance", "ar"), async (req: Request, res: Response) => {
   const { rab_item_id, tagihan, terbayar } = req.body;
   if (!rab_item_id) return res.status(400).json({ detail: "rab_item_id wajib diisi" });

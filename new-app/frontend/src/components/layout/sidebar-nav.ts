@@ -31,6 +31,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Dashboard BD",  href: "/bd/dashboard",  icon: "LayoutDashboard", permission: "bd.dashboard" },
       { label: "Kanban BD",     href: "/bd/kanban",     icon: "Kanban",          permission: "bd.kanban" },
       { label: "Meta Ads",      href: "/bd/meta-ads",   icon: "TrendingUp",      permission: "bd.meta_ads" },
+      { label: "Report dan Analytics", href: "/bd/report-analytics", icon: "BarChart2", permission: "bd.view" },
     ],
   },
 
@@ -76,18 +77,25 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
-  // ── Telemarketing ─────────────────────────────────────────────────────────────
+  // ── Sales Admin Product dan Mitra ─────────────────────────────────────────────
   // Group: telemarketing.view | Items: telemarketing.kanban, telemarketing.follow_up, telemarketing.kalender, telemarketing.laporan_harian
   {
-    title: "Telemarketing",
+    title: "Sales Admin Product dan Mitra",
     color: "#10b981",
     permission: "telemarketing.view",
     roles: ["Telemarketing"],
     items: [
-      { label: "Kanban Telemarketing", href: "/telemarketing/kanban",          icon: "Kanban",       permission: "telemarketing.kanban" },
-      { label: "Follow Up Leads",      href: "/telemarketing/follow-up",       icon: "PhoneCall",    permission: "telemarketing.follow_up" },
-      { label: "Kalender Survey",      href: "/telemarketing/kalender-survey", icon: "CalendarDays", permission: "telemarketing.kalender" },
-      { label: "Laporan Harian",       href: "/telemarketing/laporan-harian",  icon: "ClipboardList",permission: "telemarketing.laporan_harian" },
+      { label: "Kanban Admin Product",          href: "/telemarketing/kanban",                   icon: "Kanban",       permission: "telemarketing.kanban" },
+      { label: "Kanban Golden",                 href: "/telemarketing/kanban-golden",            icon: "Kanban",       permission: "telemarketing.kanban" },
+      { label: "Follow Up Leads RKR",           href: "/telemarketing/follow-up",                icon: "PhoneCall",    permission: "telemarketing.follow_up" },
+      { label: "Follow Up Leads Golden",        href: "/telemarketing/follow-up-golden",         icon: "PhoneCall",    permission: "telemarketing.follow_up" },
+      { label: "Follow Up Leads Filter Air",    href: "/telemarketing/follow-up-filter-air",     icon: "PhoneCall",    permission: "telemarketing.follow_up" },
+      { label: "Kalender Survey RKR",           href: "/telemarketing/kalender-survey",          icon: "CalendarDays", permission: "telemarketing.kalender" },
+      { label: "Kalender Survey Golden",        href: "/telemarketing/kalender-survey-golden",   icon: "CalendarDays", permission: "telemarketing.kalender" },
+      { label: "Kalender Survey Filter Air",    href: "/telemarketing/kalender-survey-filter-air", icon: "CalendarDays", permission: "telemarketing.kalender" },
+      { label: "Kalender Instalasi Filter Air", href: "/telemarketing/kalender-instalasi-filter-air", icon: "Hammer", permission: "telemarketing.kalender" },
+      { label: "Kalender After Pengerjaan Golden", href: "/telemarketing/kalender-after-golden", icon: "Hammer",       permission: "telemarketing.kalender" },
+      { label: "Laporan Harian",                href: "/telemarketing/laporan-harian",           icon: "ClipboardList",permission: "telemarketing.laporan_harian" },
     ],
   },
 

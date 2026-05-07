@@ -633,6 +633,7 @@ model Invoice {
   status                            String          @default("draft") @db.VarChar(50)
   kategori                          String?         @db.VarChar(100)
   paket_desain                      String?         @db.VarChar(50)
+  jenis_filter_air                  String?         @db.VarChar(50)
   rab_item_id                       BigInt?
   approved_by                       BigInt?
   approved_at                       DateTime?       @db.Timestamptz(6)

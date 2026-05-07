@@ -89,6 +89,7 @@ const EMPTY_FORM = {
   catatan: "",
   kategori: "",
   paket_desain: "",
+  jenis_filter_air: "",
   rab_item_id: "",
   items: [{ keterangan: "", jumlah: 1, harga_satuan: 0 }],
   bank_account_id: "",
@@ -298,7 +299,7 @@ export default function InvoiceKwitansiPage() {
 
   // Set Kategori dialog state
   const [kategoriTarget, setKategoriTarget] = useState<{ id: number; lead_id: string } | null>(null);
-  const [kategoriForm, setKategoriForm] = useState({ kategori: "", paket_desain: "", rab_item_id: "" });
+  const [kategoriForm, setKategoriForm] = useState({ kategori: "", paket_desain: "", jenis_filter_air: "", rab_item_id: "" });
   const [kategoriRabItems, setKategoriRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string }[]>([]);
 
   useEffect(() => {
@@ -403,7 +404,7 @@ export default function InvoiceKwitansiPage() {
       toast.success("Kategori berhasil diperbarui");
       qc.invalidateQueries({ queryKey: ["invoices"] });
       setKategoriTarget(null);
-      setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" });
+      setKategoriForm({ kategori: "", paket_desain: "", jenis_filter_air: "", rab_item_id: "" });
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui kategori"),
   });
@@ -732,6 +733,7 @@ export default function InvoiceKwitansiPage() {
                                     setKategoriForm({
                                       kategori: inv.kategori || "",
                                       paket_desain: inv.paket_desain || "",
+                                      jenis_filter_air: inv.jenis_filter_air || "",
                                       rab_item_id: inv.rab_item_id ? String(inv.rab_item_id) : "",
                                     });
                                   }}>
@@ -776,6 +778,7 @@ export default function InvoiceKwitansiPage() {
                                         overdue_date: inv.overdue_date ? new Date(inv.overdue_date).toISOString().split("T")[0] : "",
                                         kategori: inv.kategori || "",
                                         paket_desain: inv.paket_desain || "",
+                                        jenis_filter_air: inv.jenis_filter_air || "",
                                         rab_item_id: inv.rab_item_id ? String(inv.rab_item_id) : "",
                                         _nomorManual: true,
                                       });
@@ -995,12 +998,13 @@ export default function InvoiceKwitansiPage() {
               <Label>Kategori</Label>
               <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
                 value={form.kategori}
-                onChange={e => setForm({ ...form, kategori: e.target.value, paket_desain: "", rab_item_id: "" })}>
+                onChange={e => setForm({ ...form, kategori: e.target.value, paket_desain: "", jenis_filter_air: "", rab_item_id: "" })}>
                 <option value="">— Pilih kategori —</option>
                 <option value="Payment Desain">Payment Desain</option>
                 <option value="Payment Survey">Payment Survey</option>
                 {!salesAdminOnly && canSeeProyek && <option value="Payment Projek">Payment Projek</option>}
                 {!salesAdminOnly && <option value="Payment Golden">Payment Golden</option>}
+                {!salesAdminOnly && <option value="Payment Filter Air">Payment Filter Air</option>}
               </select>
               {salesAdminOnly && (
                 <p className="text-xs text-amber-600 mt-1">Sales Admin hanya dapat membuat invoice kategori Payment Desain dan Payment Survey.</p>
@@ -1018,6 +1022,20 @@ export default function InvoiceKwitansiPage() {
                   <option value="Standart">Standart — Rp 6.800.000</option>
                   <option value="Premium">Premium — Rp 8.500.000</option>
                   <option value="Deluxe">Deluxe — Rp 15.800.000</option>
+                </select>
+              </div>
+            )}
+
+            {form.kategori === "Payment Filter Air" && (
+              <div>
+                <Label>Jenis Filter Air</Label>
+                <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                  value={form.jenis_filter_air}
+                  onChange={e => setForm({ ...form, jenis_filter_air: e.target.value })}>
+                  <option value="">Pilih jenis</option>
+                  <option value="Standart">Standart</option>
+                  <option value="Menengah">Menengah</option>
+                  <option value="High">High</option>
                 </select>
               </div>
             )}
@@ -1075,6 +1093,7 @@ export default function InvoiceKwitansiPage() {
                     catatan: form.catatan,
                     kategori: form.kategori || undefined,
                     paket_desain: form.kategori === "Payment Desain" ? (form.paket_desain || undefined) : undefined,
+                    jenis_filter_air: form.kategori === "Payment Filter Air" ? (form.jenis_filter_air || undefined) : undefined,
                     rab_item_id: form.kategori === "Payment Projek" ? (form.rab_item_id || undefined) : undefined,
                     items: form.items,
                   };
@@ -1143,7 +1162,7 @@ export default function InvoiceKwitansiPage() {
       </Dialog>
 
       {/* Set Kategori Dialog */}
-      <Dialog open={!!kategoriTarget} onOpenChange={(v) => { if (!v) { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" }); } }}>
+      <Dialog open={!!kategoriTarget} onOpenChange={(v) => { if (!v) { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", jenis_filter_air: "", rab_item_id: "" }); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1157,13 +1176,14 @@ export default function InvoiceKwitansiPage() {
               <select
                 className="w-full border rounded-md px-3 py-2 text-sm mt-1"
                 value={kategoriForm.kategori}
-                onChange={(e) => setKategoriForm({ kategori: e.target.value, paket_desain: "", rab_item_id: "" })}
+                onChange={(e) => setKategoriForm({ kategori: e.target.value, paket_desain: "", jenis_filter_air: "", rab_item_id: "" })}
               >
                 <option value="">— Pilih kategori —</option>
                 <option value="Payment Desain">Payment Desain</option>
                 <option value="Payment Survey">Payment Survey</option>
                 <option value="Payment Projek">Payment Projek</option>
                 <option value="Payment Golden">Payment Golden</option>
+                <option value="Payment Filter Air">Payment Filter Air</option>
               </select>
             </div>
             {kategoriForm.kategori === "Payment Desain" && (
@@ -1179,6 +1199,21 @@ export default function InvoiceKwitansiPage() {
                   <option value="Standart">Standart — Rp 6.800.000</option>
                   <option value="Premium">Premium — Rp 8.500.000</option>
                   <option value="Deluxe">Deluxe — Rp 15.800.000</option>
+                </select>
+              </div>
+            )}
+            {kategoriForm.kategori === "Payment Filter Air" && (
+              <div>
+                <Label>Jenis Filter Air</Label>
+                <select
+                  className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                  value={kategoriForm.jenis_filter_air}
+                  onChange={(e) => setKategoriForm((f) => ({ ...f, jenis_filter_air: e.target.value }))}
+                >
+                  <option value="">Pilih jenis</option>
+                  <option value="Standart">Standart</option>
+                  <option value="Menengah">Menengah</option>
+                  <option value="High">High</option>
                 </select>
               </div>
             )}
@@ -1207,7 +1242,7 @@ export default function InvoiceKwitansiPage() {
               </div>
             )}
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={() => { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" }); }}>Batal</Button>
+              <Button variant="outline" onClick={() => { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", jenis_filter_air: "", rab_item_id: "" }); }}>Batal</Button>
               <Button
                 disabled={!kategoriForm.kategori || setKategoriMut.isPending}
                 onClick={() => {
@@ -1217,6 +1252,7 @@ export default function InvoiceKwitansiPage() {
                     data: {
                       kategori: kategoriForm.kategori,
                       paket_desain: kategoriForm.kategori === "Payment Desain" ? kategoriForm.paket_desain : undefined,
+                      jenis_filter_air: kategoriForm.kategori === "Payment Filter Air" ? kategoriForm.jenis_filter_air : undefined,
                       rab_item_id: kategoriForm.kategori === "Payment Projek" ? (kategoriForm.rab_item_id || undefined) : undefined,
                     },
                   });

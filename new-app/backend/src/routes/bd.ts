@@ -966,6 +966,134 @@ router.get("/meta-ads/dashboard", async (req: Request, res: Response) => {
   });
 });
 
+// GET /bd/report-analytics - consolidated BD report sections
+router.get("/report-analytics", requirePermission("bd", "view"), async (req: Request, res: Response) => {
+  const bulan = req.query.bulan ? parseInt(String(req.query.bulan)) : undefined;
+  const tahun = req.query.tahun ? parseInt(String(req.query.tahun)) : undefined;
+  const start = req.query.start_date ? new Date(String(req.query.start_date)) : undefined;
+  const end = req.query.end_date ? new Date(String(req.query.end_date)) : undefined;
+  if (end) end.setHours(23, 59, 59, 999);
+
+  function dateWhere(field: "created_at" | "tanggal_masuk" | "tanggal_survey" | "tanggal" = "created_at") {
+    const where: Record<string, unknown> = {};
+    if (start || end) where[field] = { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) };
+    else if (bulan && tahun) {
+      const s = new Date(tahun, bulan - 1, 1);
+      const e = new Date(tahun, bulan, 0, 23, 59, 59, 999);
+      where[field] = { gte: s, lte: e };
+    } else if (tahun) {
+      where[field] = { gte: new Date(tahun, 0, 1), lte: new Date(tahun, 11, 31, 23, 59, 59, 999) };
+    }
+    return where;
+  }
+
+  async function leadStats(modul: string) {
+    const where = { modul, ...dateWhere("tanggal_masuk") };
+    const total = await prisma.lead.count({ where });
+    const items = await prisma.lead.findMany({ where, select: { tanggal_masuk: true } });
+    const daily: Record<string, number> = {};
+    const weekly: Record<string, number> = {};
+    const monthly: Record<string, number> = {};
+    for (const l of items) {
+      const d = l.tanggal_masuk ?? new Date();
+      const day = d.toISOString().slice(0, 10);
+      const month = day.slice(0, 7);
+      const week = `${d.getFullYear()}-W${Math.ceil(d.getDate() / 7)}`;
+      daily[day] = (daily[day] ?? 0) + 1;
+      weekly[week] = (weekly[week] ?? 0) + 1;
+      monthly[month] = (monthly[month] ?? 0) + 1;
+    }
+    return { total, daily, weekly, monthly };
+  }
+
+  async function surveyStats(modul: string) {
+    const where = { modul, rencana_survey: "Ya", tanggal_survey: { not: null }, ...dateWhere("tanggal_survey") };
+    const [total, approved] = await Promise.all([
+      prisma.lead.count({ where }),
+      prisma.lead.count({ where: { ...where, survey_approval_status: "approved" } }),
+    ]);
+    return { total, approved, pending: Math.max(0, total - approved) };
+  }
+
+  const [adCamps, igPosts, ytPosts, igAccounts, closingCards, goldenInvoices, filterAirInvoices] = await Promise.all([
+    prisma.metaAdsCampaign.findMany({
+      where: { is_hidden: false },
+      include: { content_metrics: { where: dateWhere("date" as any) as any }, chat_metrics: true },
+      orderBy: { id: "desc" },
+    }),
+    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: "Instagram" }, ...(dateWhere("tanggal") as any) } }),
+    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: "YouTube" }, ...(dateWhere("tanggal") as any) } }),
+    prisma.socialMediaAccount.findMany({ where: { platform: "Instagram" } }),
+    prisma.salesKanbanCard.findMany({
+      where: { column: { title: "Closing" }, ...dateWhere("created_at") },
+      include: { lead: { select: { jenis: true } } },
+    }),
+    prisma.invoice.findMany({ where: { kategori: "Payment Golden", ...dateWhere("tanggal") } }),
+    prisma.invoice.findMany({ where: { kategori: "Payment Filter Air", ...dateWhere("tanggal") } }),
+  ]);
+
+  function socialSummary(posts: any[], includeIgAccount = false) {
+    const avg = posts.length ? posts.reduce((s, p) => s + Number(p.engagement_rate ?? 0), 0) / posts.length : 0;
+    const accounts = includeIgAccount ? igAccounts : [];
+    return {
+      total_views: posts.reduce((s, p) => s + Number(p.views ?? 0), 0),
+      total_likes: posts.reduce((s, p) => s + Number(p.likes ?? 0), 0),
+      total_comments: posts.reduce((s, p) => s + Number(p.comments ?? 0), 0),
+      total_shares: posts.reduce((s, p) => s + Number(p.shares ?? 0), 0),
+      avg_engagement_rate: avg,
+      total_saves: posts.reduce((s, p) => s + Number(p.saves ?? 0), 0),
+      total_reach: posts.reduce((s, p) => s + Number(p.reach ?? 0), 0),
+      total_repost: posts.reduce((s, p) => s + Number(p.reposts ?? 0), 0),
+      profile_visits: accounts.reduce((s, a) => s + Number(a.ig_profile_visits ?? 0), 0),
+      link_clicks_bio: accounts.reduce((s, a) => s + Number(a.ig_website_clicks ?? 0), 0),
+      total_followers: accounts.reduce((s, a) => s + Number(a.ig_followers_count ?? 0), 0),
+      watch_time_minutes: posts.reduce((s, p) => s + Number(p.watch_time_minutes ?? 0), 0),
+      total_konten: posts.length,
+    };
+  }
+
+  const ads = adCamps.map((c) => ({
+    id: Number(c.id),
+    campaign_name: c.campaign_name,
+    platform: c.platform,
+    spend: c.content_metrics.reduce((s, m) => s + Number(m.spend ?? 0), 0),
+    impressions: c.content_metrics.reduce((s, m) => s + Number(m.impressions ?? 0), 0),
+    reach: c.content_metrics.reduce((s, m) => s + Number(m.reach ?? 0), 0),
+    clicks: c.content_metrics.reduce((s, m) => s + Number(m.clicks ?? 0), 0),
+    result: c.content_metrics.reduce((s, m) => s + Number(m.conversions ?? 0), 0),
+  }));
+
+  const closingByJenis: Record<string, number> = {};
+  for (const c of closingCards) {
+    const key = c.tipe_pekerjaan || c.lead?.jenis || "Lainnya";
+    closingByJenis[key] = (closingByJenis[key] ?? 0) + Number(c.projeksi_sales ?? 0);
+  }
+
+  return res.json({
+    ads_organik: { ads, instagram: socialSummary(igPosts, true), youtube: socialSummary(ytPosts) },
+    sales_admin_rubahrumah: { leads: await leadStats("sales-admin"), survey: await surveyStats("sales-admin") },
+    sales_admin_rkr_mitra: {
+      rkr: { leads: await leadStats("telemarketing"), survey: await surveyStats("telemarketing") },
+      golden: { leads: await leadStats("golden"), survey: await surveyStats("golden") },
+    },
+    closing_rubahrumah_rkr: {
+      total_closing: closingCards.reduce((s, c) => s + Number(c.projeksi_sales ?? 0), 0),
+      total_cards: closingCards.length,
+      by_jenis: closingByJenis,
+    },
+    closing_golden: { total_harga: goldenInvoices.reduce((s, i) => s + Number(i.grand_total ?? 0), 0), total_invoice: goldenInvoices.length },
+    closing_filter_air: {
+      total_harga: filterAirInvoices.reduce((s, i) => s + Number(i.grand_total ?? 0), 0),
+      total_invoice: filterAirInvoices.length,
+      by_jenis: filterAirInvoices.reduce((acc: Record<string, number>, i: any) => {
+        const key = i.jenis_filter_air || "Tanpa Jenis";
+        acc[key] = (acc[key] ?? 0) + Number(i.grand_total ?? 0);
+        return acc;
+      }, {}),
+    },
+  });
+});
+
 router.post("/meta-ads/campaigns/:id/sync", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const camp = await prisma.metaAdsCampaign.findUnique({ where: { id } });
@@ -1512,7 +1640,7 @@ router.post("/kanban/labels", async (_req: Request, res: Response) => {
 
 // ── MODULAR LEADS (sales-admin / telemarketing) ───────────────────────────────
 
-const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client", "golden"]);
+const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client", "golden", "filter-air"]);
 
 function validateModul(modul: string, res: Response): boolean {
   if (!VALID_MODUL.has(modul)) {
@@ -1797,7 +1925,9 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   if (b.pic_survey && b.tanggal_survey) {
     const picUser = await prisma.user.findFirst({ where: { name: b.pic_survey }, select: { whatsapp_number: true } });
     if (picUser?.whatsapp_number) {
-      const calendarPath = modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
+      const calendarPath = modul === "golden"
+        ? "golden/kalender-survey"
+        : modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
       const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${updatedLead.nama}\n*Tanggal:* ${b.tanggal_survey}\n*Jam:* ${b.jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
       sendFonnte(picUser.whatsapp_number, msg).catch(() => {});
     }
@@ -1874,8 +2004,8 @@ router.get("/:modul/survey-kalender", async (req: Request, res: Response) => {
 
   // showAll hanya berlaku untuk sales-admin & telemarketing (gabung keduanya).
   // Golden selalu difilter sendiri — tidak ikut campuran showAll.
-  if (modul === "golden") {
-    where.modul = "golden";
+  if (modul === "golden" || modul === "filter-air") {
+    where.modul = modul;
   } else if (showAll) {
     where.modul = { in: ["sales-admin", "telemarketing", "database-client"] };
   } else {
@@ -2012,7 +2142,9 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
     const picUser = await prisma.user.findFirst({ where: { name: pic_survey }, select: { whatsapp_number: true } });
     if (picUser?.whatsapp_number) {
       const modul = req.params.modul;
-      const calendarPath = modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
+      const calendarPath = modul === "golden"
+        ? "golden/kalender-survey"
+        : modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
       const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${lead.nama}\n*Tanggal:* ${tanggal_survey}\n*Jam:* ${jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
       sendFonnte(picUser.whatsapp_number, msg).catch(() => {});
     }

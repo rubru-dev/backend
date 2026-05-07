@@ -7,7 +7,13 @@ const router = Router();
 // ── META ADS ──────────────────────────────────────────────────────────────────
 
 // GET /golden/meta-ads/campaigns-select — minimal list for dropdown
-router.get("/meta-ads/campaigns-select", requirePermission("golden", "view"), async (_req: Request, res: Response) => {
+router.get("/meta-ads/campaigns-select", async (req: Request, res: Response) => {
+  const isSuperAdmin = req.user?.roles.some((r) => r.role.name === "Super Admin") ?? false;
+  const canAccess = isSuperAdmin ||
+    req.userPermissions?.has("golden.view") ||
+    req.userPermissions?.has("telemarketing.view");
+  if (!canAccess) return res.status(403).json({ detail: "Tidak memiliki akses" });
+
   const camps = await prisma.goldenMetaAdsCampaign.findMany({
     where: { is_hidden: false },
     select: { id: true, campaign_name: true, platform: true },
