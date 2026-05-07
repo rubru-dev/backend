@@ -74,6 +74,7 @@ type DesainTimeline = {
   tanggal_mulai: string | null;
   tanggal_selesai: string | null;
   lead: { id: string; nama: string } | null;
+  ro: { id: string; nama: string } | null;
   jumlah_item: number;
   items_selesai: number;
   progress: number;
@@ -337,6 +338,7 @@ async function handlePrint(id: string, jenis_desain: string | null) {
 <h2>${data.judul}</h2>
 <div class="meta">
   Periode: ${data.periode} &nbsp;|&nbsp; Klien: ${data.klien} &nbsp;|&nbsp;
+  RO: ${data.ro ?? "-"} &nbsp;|&nbsp;
   Progress: <span class="progress">${data.progress_total}%</span> &nbsp;|&nbsp;
   Dibuat oleh: ${data.dibuat_oleh}
 </div>
@@ -385,6 +387,7 @@ async function handlePrint(id: string, jenis_desain: string | null) {
 const EMPTY_TIMELINE = {
   jenis_desain: "Basic",
   lead_id: "",
+  ro_id: "",
   bulan: String(new Date().getMonth() + 1),
   tahun: String(new Date().getFullYear()),
   tanggal_mulai: "",
@@ -542,6 +545,7 @@ export default function ProyekDesainPage() {
     setTlForm({
       jenis_desain: tl.jenis_desain ?? "",
       lead_id: tl.lead?.id ?? "",
+      ro_id: tl.ro?.id ?? "",
       bulan: String(tl.bulan ?? new Date().getMonth() + 1),
       tahun: String(tl.tahun ?? new Date().getFullYear()),
       tanggal_mulai: tl.tanggal_mulai ?? "",
@@ -554,6 +558,7 @@ export default function ProyekDesainPage() {
     const payload = {
       jenis_desain: tlForm.jenis_desain || null,
       lead_id: tlForm.lead_id || null,
+      ro_id: tlForm.ro_id || null,
       bulan: tlForm.bulan ? Number(tlForm.bulan) : null,
       tahun: tlForm.tahun ? Number(tlForm.tahun) : null,
       tanggal_mulai: tlForm.tanggal_mulai || null,
@@ -664,6 +669,7 @@ export default function ProyekDesainPage() {
           id: d.id,
           jenis_desain: d.jenis_desain,
           klien: d.lead?.nama ?? null,
+          ro: d.ro?.nama ?? null,
           bulan: d.bulan,
           tahun: d.tahun,
           tanggal_mulai: d.tanggal_mulai,
@@ -746,6 +752,7 @@ export default function ProyekDesainPage() {
           : undefined,
         extra_info: [
           { label: "Jenis Desain", value: d.jenis_desain ?? "—" },
+          { label: "RO", value: d.ro?.nama ?? "-" },
           { label: "Bulan / Tahun", value: `${bulanLabel} ${d.tahun ?? ""}` },
         ],
         progress: d.progress,
@@ -841,6 +848,11 @@ export default function ProyekDesainPage() {
                         <Badge variant="outline" className="text-xs flex-shrink-0">
                           {BULAN_OPTIONS.find((b) => b.val === tl.bulan)?.label}{" "}
                           {tl.tahun}
+                        </Badge>
+                      )}
+                      {tl.ro && (
+                        <Badge variant="secondary" className="text-xs flex-shrink-0">
+                          RO: {tl.ro.nama}
                         </Badge>
                       )}
                       {(tl.tanggal_mulai || tl.tanggal_selesai) && (
@@ -1369,6 +1381,25 @@ export default function ProyekDesainPage() {
                   {(leads as any[]).filter((l: any) => !leadSearch || l.nama?.toLowerCase().includes(leadSearch.toLowerCase())).map((l: any) => (
                     <SelectItem key={l.id} value={String(l.id)}>
                       {l.nama}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>RO</Label>
+              <Select
+                value={tlForm.ro_id || "__none__"}
+                onValueChange={(v) => setTlForm({ ...tlForm, ro_id: v === "__none__" ? "" : v })}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Pilih RO (opsional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Tanpa RO</SelectItem>
+                  {employees.map((e) => (
+                    <SelectItem key={e.id} value={String(e.id)}>
+                      {e.nama}
                     </SelectItem>
                   ))}
                 </SelectContent>

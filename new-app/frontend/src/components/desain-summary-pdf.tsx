@@ -62,6 +62,7 @@ const styles = StyleSheet.create({
   colNo: { width: 20 },
   colJenis: { width: 60 },
   colKlien: { flex: 1 },
+  colRo: { width: 78 },
   colBulan: { width: 72 },
   colProgress: { width: 48, textAlign: "center" },
   colItemCount: { width: 40, textAlign: "center" },
@@ -104,6 +105,7 @@ export interface DesainSummaryRow {
   id: string;
   jenis_desain: string | null;
   klien: string | null;
+  ro?: string | null;
   bulan: number | null;
   tahun: number | null;
   tanggal_mulai: string | null;
@@ -200,6 +202,7 @@ export default function DesainSummaryPDF({ logoUrl, rows, filters, generatedAt }
           <Text style={[styles.tlHeadCell, styles.colNo]}>No</Text>
           <Text style={[styles.tlHeadCell, styles.colJenis]}>Jenis</Text>
           <Text style={[styles.tlHeadCell, styles.colKlien]}>Klien</Text>
+          <Text style={[styles.tlHeadCell, styles.colRo]}>RO</Text>
           <Text style={[styles.tlHeadCell, styles.colBulan]}>Bulan / Tahun</Text>
           <Text style={[styles.tlHeadCell, styles.colProgress]}>Progress</Text>
           <Text style={[styles.tlHeadCell, styles.colItemCount]}>Item</Text>
@@ -223,6 +226,7 @@ export default function DesainSummaryPDF({ logoUrl, rows, filters, generatedAt }
                 <Text style={[styles.tlCell, styles.colNo]}>{i + 1}</Text>
                 <Text style={[styles.tlCell, styles.colJenis]}>{r.jenis_desain ?? "—"}</Text>
                 <Text style={[styles.tlCell, styles.colKlien]}>{r.klien ?? "—"}</Text>
+                <Text style={[styles.tlCell, styles.colRo]}>{r.ro ?? "—"}</Text>
                 <Text style={[styles.tlCell, styles.colBulan]}>
                   {r.bulan ? BULAN_LABEL[r.bulan] : "—"}{r.tahun ? ` ${r.tahun}` : ""}
                 </Text>

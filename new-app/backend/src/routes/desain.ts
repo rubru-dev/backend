@@ -93,6 +93,7 @@ router.get("/timeline", async (req: Request, res: Response) => {
     include: {
       items: { include: { user: { select: { id: true, name: true } } } },
       lead: true,
+      ro: { select: { id: true, name: true } },
     },
     orderBy: { id: "desc" },
   });
@@ -106,6 +107,7 @@ router.get("/timeline", async (req: Request, res: Response) => {
       tanggal_mulai: fmtDate(t.tanggal_mulai),
       tanggal_selesai: fmtDate(t.tanggal_selesai),
       lead: t.lead ? { id: t.lead.id, nama: t.lead.nama } : null,
+      ro: t.ro ? { id: String(t.ro.id), nama: t.ro.name } : null,
       jumlah_item: t.items.length,
       items_selesai: t.items.filter((i) => i.status === "Selesai").length,
       progress: calcProgress(t.items),
@@ -115,10 +117,11 @@ router.get("/timeline", async (req: Request, res: Response) => {
 
 // POST /timeline
 router.post("/timeline", async (req: Request, res: Response) => {
-  const { lead_id, jenis_desain, bulan, tahun, tanggal_mulai, tanggal_selesai } = req.body;
+  const { lead_id, ro_id, jenis_desain, bulan, tahun, tanggal_mulai, tanggal_selesai } = req.body;
   const t = await prisma.desainTimeline.create({
     data: {
       lead_id: lead_id ? BigInt(lead_id) : null,
+      ro_id: ro_id ? BigInt(ro_id) : null,
       jenis_desain: jenis_desain ?? null,
       bulan: bulan ?? null,
       tahun: tahun ?? null,
@@ -150,6 +153,7 @@ router.get("/timeline/:id", async (req: Request, res: Response) => {
       },
       lead: true,
       creator: { select: { id: true, name: true } },
+      ro: { select: { id: true, name: true } },
     },
   });
   if (!t) return res.status(404).json({ detail: "Timeline tidak ditemukan" });
@@ -162,6 +166,7 @@ router.get("/timeline/:id", async (req: Request, res: Response) => {
     tanggal_mulai: fmtDate(t.tanggal_mulai),
     tanggal_selesai: fmtDate(t.tanggal_selesai),
     lead: t.lead ? { id: t.lead.id, nama: t.lead.nama } : null,
+    ro: t.ro ? { id: String(t.ro.id), nama: t.ro.name } : null,
     dibuat_oleh: t.creator ? { id: t.creator.id, nama: t.creator.name } : null,
     progress: calcProgress(t.items),
     items: t.items.map((i) => ({
@@ -182,9 +187,10 @@ router.patch("/timeline/:id", async (req: Request, res: Response) => {
   const t = await prisma.desainTimeline.findUnique({ where: { id } });
   if (!t) return res.status(404).json({ detail: "Timeline tidak ditemukan" });
 
-  const { lead_id, jenis_desain, bulan, tahun, tanggal_mulai, tanggal_selesai } = req.body;
+  const { lead_id, ro_id, jenis_desain, bulan, tahun, tanggal_mulai, tanggal_selesai } = req.body;
   const updates: Record<string, unknown> = {};
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
+  if (ro_id !== undefined) updates.ro_id = ro_id ? BigInt(ro_id) : null;
   if (jenis_desain !== undefined) updates.jenis_desain = jenis_desain;
   if (bulan !== undefined) updates.bulan = bulan;
   if (tahun !== undefined) updates.tahun = tahun;
@@ -215,6 +221,7 @@ router.get("/timeline/:id/gantt", async (req: Request, res: Response) => {
         orderBy: { id: "asc" },
       },
       lead: true,
+      ro: { select: { id: true, name: true } },
     },
   });
   if (!t) return res.status(404).json({ detail: "Timeline tidak ditemukan" });
@@ -227,6 +234,7 @@ router.get("/timeline/:id/gantt", async (req: Request, res: Response) => {
     tanggal_mulai: fmtDate(t.tanggal_mulai),
     tanggal_selesai: fmtDate(t.tanggal_selesai),
     lead: t.lead ? { nama: t.lead.nama } : null,
+    ro: t.ro ? { id: String(t.ro.id), nama: t.ro.name } : null,
     progress: calcProgress(t.items),
     tasks: t.items.map((i) => ({
       id: i.id,
@@ -253,6 +261,7 @@ router.get("/timeline/:id/export", async (req: Request, res: Response) => {
       },
       lead: true,
       creator: { select: { id: true, name: true } },
+      ro: { select: { id: true, name: true } },
     },
   });
   if (!t) return res.status(404).json({ detail: "Timeline tidak ditemukan" });
@@ -264,6 +273,7 @@ router.get("/timeline/:id/export", async (req: Request, res: Response) => {
         ? `${BULAN_NAMES[t.bulan]} ${t.tahun}`
         : "-",
     klien: t.lead?.nama ?? "-",
+    ro: t.ro?.name ?? "-",
     dibuat_oleh: t.creator?.name ?? "-",
     progress_total: calcProgress(t.items),
     pekerjaan: t.items.map((i) => ({
@@ -653,6 +663,7 @@ router.get("/kanban-paket", async (_req: Request, res: Response) => {
     include: {
       lead: { select: { id: true, nama: true } },
       creator: { select: { id: true, name: true } },
+      ro: { select: { id: true, name: true } },
       items: { select: { status: true } },
     },
     orderBy: { id: "desc" },
@@ -667,6 +678,7 @@ router.get("/kanban-paket", async (_req: Request, res: Response) => {
         id: String(t.id),
         lead: t.lead ? { id: String(t.lead.id), nama: t.lead.nama } : null,
         dibuat_oleh: t.creator ? { id: String(t.creator.id), nama: t.creator.name } : null,
+        ro: t.ro ? { id: String(t.ro.id), nama: t.ro.name } : null,
         jenis_desain: t.jenis_desain,
         bulan: t.bulan,
         tahun: t.tahun,

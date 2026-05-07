@@ -60,6 +60,7 @@ export const financeApi = {
   getArTagihanSurvey: () => apiClient.get("/finance/ar-tagihan-survey").then((r) => r.data),
   getArTagihanDesain: () => apiClient.get("/finance/ar-tagihan-desain").then((r) => r.data),
   getArTagihanProjek: () => apiClient.get("/finance/ar-tagihan-projek").then((r) => r.data),
+  getArTagihanRkr: () => apiClient.get("/finance/ar-tagihan-rkr").then((r) => r.data),
   getArTagihanGolden: () => apiClient.get("/finance/ar-tagihan-golden").then((r) => r.data),
   getArTagihanFilterAir: () => apiClient.get("/finance/ar-tagihan-filter-air").then((r) => r.data),
   getRabItemsByLead: (leadId: string | number) => apiClient.get(`/finance/leads/${leadId}/rab-items`).then((r) => r.data),

@@ -1,7 +1,7 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-05-07 (Filter Air + BD Report Analytics)
+> Last updated: 2026-05-07 (Projek Desain RO)
 
 ---
 
@@ -20,6 +20,20 @@
 - **Sales Admin Product dan Mitra:** Sub-menu baru `Follow Up Leads Filter Air` dengan jenis `B2C`/`B2B`, `Kalender Survey Filter Air`, dan `Kalender Instalasi Filter Air`.
 - **BD:** Sub-menu baru `Report dan Analytics` dengan filter tanggal/bulan/tahun dan tombol PDF/print untuk data Ads & Organik, Sales Admin Rubahrumah, RKR/Mitra/Golden, Closing Rubahrumah/RKR, Closing Golden, dan Closing Filter Air.
 - **Schema:** Tambah `Invoice.jenis_filter_air`; database disinkronkan via `prisma db push`.
+- **Sales Admin Product dan Mitra:** Urutan submenu dirapikan: Kanban RKR, Kanban Golden, Kanban Filter Air, follow-up/kalender per produk, lalu laporan harian.
+- **Finance > Invoice & Kwitansi:** Tambah kategori `Payment RKR`.
+- **Finance > AR:** Tambah tab `Tagihan RKR` di sebelah `Tagihan Projek`, mengambil invoice kategori `Payment RKR`.
+- **BD > Report dan Analytics:** Tampilan diubah menjadi tab `Semua`, `Ads dan Organik`, data Sales Admin per produk, closing Rubahrumah/RKR, dan closing Golden/Filter Air. Filter kosong menampilkan seluruh data.
+
+### Tutorial SOP Role Access + Image Upload
+- **Schema:** Model `Sop` ditambah `roles` JSON serta `image_data`, `image_mime`, dan `image_name` untuk lampiran gambar PNG/JPG/JPEG.
+- **Backend:** List/detail SOP memfilter akses berdasarkan role yang diasosiasikan ke SOP; `Super Admin` tetap bisa membuka semua SOP. Create/edit wajib memilih minimal satu role dan menerima gambar data URL.
+- **Frontend:** Form SOP memakai multi-select role dari data role existing, mendukung upload gambar dengan preview langsung, detail SOP menampilkan gambar, dan PDF download menyertakan lampiran gambar di halaman sendiri.
+
+### Projek Desain RO
+- **Schema:** Model `DesainTimeline` ditambah `ro_id` dengan relasi ke `User`.
+- **Backend:** Endpoint `/desain/timeline` create/edit/list/detail/export menyimpan dan mengembalikan data RO.
+- **Frontend:** Dialog tambah/edit Projek Desain memiliki field `RO` dari daftar karyawan; nama RO tampil di card, print HTML, PDF timeline, dan summary PDF.
 
 ---
 

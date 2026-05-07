@@ -1112,6 +1112,82 @@ function GoldenTab() {
   );
 }
 
+function RkrTab() {
+  const [rows, setRows] = useState<GoldenRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [filterBulan, setFilterBulan] = useState("");
+
+  useEffect(() => {
+    setLoading(true);
+    financeApi.getArTagihanRkr().then(setRows).catch(() => setRows([])).finally(() => setLoading(false));
+  }, []);
+
+  const filtered = useMemo(
+    () => rows.filter((r) => {
+      const q = search.toLowerCase();
+      return (!q || r.nama_client.toLowerCase().includes(q) || (r.invoice_number ?? "").toLowerCase().includes(q)) && inMonth(r.tanggal, filterBulan);
+    }),
+    [rows, search, filterBulan]
+  );
+
+  const totals = useMemo(
+    () => filtered.reduce((acc, r) => ({ tagihan: acc.tagihan + r.total_tagihan, terbayar: acc.terbayar + r.total_terbayar, outstanding: acc.outstanding + r.outstanding }), { tagihan: 0, terbayar: 0, outstanding: 0 }),
+    [filtered]
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <SummaryCard label="Total Tagihan" value={IDR(totals.tagihan)} color="text-gray-800" />
+        <SummaryCard label="Total Terbayar" value={IDR(totals.terbayar)} color="text-green-600" />
+        <SummaryCard label="Outstanding" value={IDR(totals.outstanding)} color={totals.outstanding > 0 ? "text-red-600" : "text-green-600"} />
+      </div>
+      <div className="flex flex-wrap gap-2 items-center">
+        <Input placeholder="Cari client atau invoice..." value={search} onChange={(e) => setSearch(e.target.value)} className="w-64" />
+        <input type="month" value={filterBulan} onChange={(e) => setFilterBulan(e.target.value)} className="border rounded-md px-3 py-2 text-sm h-10" />
+        {filterBulan && <button onClick={() => setFilterBulan("")} className="text-xs text-gray-400 hover:text-gray-600 underline">Reset bulan</button>}
+      </div>
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 border-b">
+              <tr>
+                <th className="px-4 py-3 text-left font-medium text-gray-500 w-10">No</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">No. Invoice</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Nama Client</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Tanggal</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Status</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Tagihan</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Terbayar</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Outstanding</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {loading ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Memuat data...</td></tr>
+              ) : filtered.length === 0 ? (
+                <tr><td colSpan={8} className="px-4 py-8 text-center text-gray-400">Tidak ada invoice Payment RKR</td></tr>
+              ) : filtered.map((r, i) => (
+                <tr key={r.invoice_id} className="hover:bg-gray-50 transition-colors">
+                  <td className="px-4 py-3 text-gray-400">{i + 1}</td>
+                  <td className="px-4 py-3 font-mono text-gray-700">{r.invoice_number ?? "-"}</td>
+                  <td className="px-4 py-3 font-medium text-gray-900">{r.nama_client}</td>
+                  <td className="px-4 py-3 text-gray-600">{fmtDate(r.tanggal)}</td>
+                  <td className="px-4 py-3 text-gray-600">{r.status}</td>
+                  <td className="px-4 py-3 text-right text-gray-700">{IDR(r.total_tagihan)}</td>
+                  <td className="px-4 py-3 text-right text-green-700">{IDR(r.total_terbayar)}</td>
+                  <td className="px-4 py-3 text-right"><span className={cn("font-semibold", r.outstanding <= 0 ? "text-green-600" : "text-red-600")}>{IDR(r.outstanding)}</span></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FilterAirTab() {
   const [rows, setRows] = useState<GoldenRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1205,6 +1281,7 @@ const TABS = [
   { key: "survey", label: "Tagihan Survey" },
   { key: "desain", label: "Tagihan Desain" },
   { key: "projek", label: "Tagihan Projek" },
+  { key: "rkr", label: "Tagihan RKR" },
   { key: "golden", label: "Tagihan Golden" },
   { key: "filter-air", label: "Tagihan Filter Air" },
 ] as const;
@@ -1240,6 +1317,7 @@ export default function ArOutstandingPage() {
       {activeTab === "survey" && <SurveyTab />}
       {activeTab === "desain" && <DesainTab />}
       {activeTab === "projek" && <ProyekTab />}
+      {activeTab === "rkr" && <RkrTab />}
       {activeTab === "golden" && <GoldenTab />}
       {activeTab === "filter-air" && <FilterAirTab />}
     </div>

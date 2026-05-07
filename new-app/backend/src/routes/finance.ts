@@ -3306,6 +3306,40 @@ router.get("/ar-tagihan-golden", requirePermission("finance", "ar"), async (_req
 });
 
 // ── AR Override (one-time manual edit by Super Admin) ─────────────────────────
+// GET /finance/ar-tagihan-rkr - Tagihan RKR dari invoice kategori "Payment RKR"
+router.get("/ar-tagihan-rkr", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
+  const invoices = await prisma.invoice.findMany({
+    where: { kategori: "Payment RKR", lead_id: { not: null } },
+    select: {
+      id: true,
+      invoice_number: true,
+      lead_id: true,
+      tanggal: true,
+      grand_total: true,
+      status: true,
+      lead: { select: { nama: true, salutation: true } },
+      kwitansi: { select: { jumlah_diterima: true } },
+    },
+    orderBy: { tanggal: "desc" },
+  });
+
+  return res.json(invoices.map((inv) => {
+    const tagihan = parseFloat(String(inv.grand_total ?? 0));
+    const terbayar = inv.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
+    return {
+      invoice_id: Number(inv.id),
+      invoice_number: inv.invoice_number,
+      lead_id: inv.lead_id ? Number(inv.lead_id) : null,
+      nama_client: leadDisplayName(inv.lead),
+      tanggal: inv.tanggal ? new Date(inv.tanggal).toISOString().split("T")[0] : null,
+      status: FE_STATUS_FROM_DB[inv.status || "draft"] || inv.status,
+      total_tagihan: tagihan,
+      total_terbayar: terbayar,
+      outstanding: Math.max(0, tagihan - terbayar),
+    };
+  }));
+});
+
 // GET /finance/ar-tagihan-filter-air - Tagihan Filter Air dari invoice kategori "Payment Filter Air"
 router.get("/ar-tagihan-filter-air", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
   const invoices = await prisma.invoice.findMany({

@@ -1002,6 +1002,7 @@ export default function InvoiceKwitansiPage() {
                 <option value="">— Pilih kategori —</option>
                 <option value="Payment Desain">Payment Desain</option>
                 <option value="Payment Survey">Payment Survey</option>
+                {!salesAdminOnly && <option value="Payment RKR">Payment RKR</option>}
                 {!salesAdminOnly && canSeeProyek && <option value="Payment Projek">Payment Projek</option>}
                 {!salesAdminOnly && <option value="Payment Golden">Payment Golden</option>}
                 {!salesAdminOnly && <option value="Payment Filter Air">Payment Filter Air</option>}
@@ -1181,6 +1182,7 @@ export default function InvoiceKwitansiPage() {
                 <option value="">— Pilih kategori —</option>
                 <option value="Payment Desain">Payment Desain</option>
                 <option value="Payment Survey">Payment Survey</option>
+                <option value="Payment RKR">Payment RKR</option>
                 <option value="Payment Projek">Payment Projek</option>
                 <option value="Payment Golden">Payment Golden</option>
                 <option value="Payment Filter Air">Payment Filter Air</option>

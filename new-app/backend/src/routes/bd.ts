@@ -974,7 +974,7 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
   const end = req.query.end_date ? new Date(String(req.query.end_date)) : undefined;
   if (end) end.setHours(23, 59, 59, 999);
 
-  function dateWhere(field: "created_at" | "tanggal_masuk" | "tanggal_survey" | "tanggal" = "created_at") {
+  function dateWhere(field = "created_at") {
     const where: Record<string, unknown> = {};
     if (start || end) where[field] = { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) };
     else if (bulan && tahun) {
@@ -1015,7 +1015,17 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     return { total, approved, pending: Math.max(0, total - approved) };
   }
 
-  const [adCamps, igPosts, ytPosts, igAccounts, closingCards, goldenInvoices, filterAirInvoices] = await Promise.all([
+  async function pengerjaanStats(modul: string) {
+    const where = { modul, survey_approval_status: "approved", ...dateWhere("tanggal_pengerjaan") };
+    const [total, scheduled, approved] = await Promise.all([
+      prisma.lead.count({ where: { modul, survey_approval_status: "approved", ...dateWhere("survey_approved_at" as any) } as any }),
+      prisma.lead.count({ where: { ...where, tanggal_pengerjaan: { not: null } } as any }),
+      prisma.lead.count({ where: { ...where, pengerjaan_approval_status: "approved" } as any }),
+    ]);
+    return { total, scheduled, approved, pending: Math.max(0, total - approved) };
+  }
+
+  const [adCamps, igPosts, ytPosts, igAccounts, closingCards, closingInvoices, goldenInvoices, filterAirInvoices] = await Promise.all([
     prisma.metaAdsCampaign.findMany({
       where: { is_hidden: false },
       include: { content_metrics: { where: dateWhere("date" as any) as any }, chat_metrics: true },
@@ -1028,6 +1038,7 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
       where: { column: { title: "Closing" }, ...dateWhere("created_at") },
       include: { lead: { select: { jenis: true } } },
     }),
+    prisma.invoice.findMany({ where: { kategori: { in: ["Payment Desain", "Payment Projek", "Payment RKR"] }, ...dateWhere("tanggal") } }),
     prisma.invoice.findMany({ where: { kategori: "Payment Golden", ...dateWhere("tanggal") } }),
     prisma.invoice.findMany({ where: { kategori: "Payment Filter Air", ...dateWhere("tanggal") } }),
   ]);
@@ -1068,18 +1079,25 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     const key = c.tipe_pekerjaan || c.lead?.jenis || "Lainnya";
     closingByJenis[key] = (closingByJenis[key] ?? 0) + Number(c.projeksi_sales ?? 0);
   }
+  const closingByPayment: Record<string, number> = {};
+  for (const inv of closingInvoices) {
+    const key = inv.kategori || "Tanpa Kategori";
+    closingByPayment[key] = (closingByPayment[key] ?? 0) + Number(inv.grand_total ?? 0);
+  }
 
   return res.json({
     ads_organik: { ads, instagram: socialSummary(igPosts, true), youtube: socialSummary(ytPosts) },
     sales_admin_rubahrumah: { leads: await leadStats("sales-admin"), survey: await surveyStats("sales-admin") },
     sales_admin_rkr_mitra: {
       rkr: { leads: await leadStats("telemarketing"), survey: await surveyStats("telemarketing") },
-      golden: { leads: await leadStats("golden"), survey: await surveyStats("golden") },
+      golden: { leads: await leadStats("golden"), survey: await surveyStats("golden"), pengerjaan: await pengerjaanStats("golden") },
+      filter_air: { leads: await leadStats("filter-air"), survey: await surveyStats("filter-air"), pengerjaan: await pengerjaanStats("filter-air") },
     },
     closing_rubahrumah_rkr: {
       total_closing: closingCards.reduce((s, c) => s + Number(c.projeksi_sales ?? 0), 0),
       total_cards: closingCards.length,
       by_jenis: closingByJenis,
+      by_payment_category: closingByPayment,
     },
     closing_golden: { total_harga: goldenInvoices.reduce((s, i) => s + Number(i.grand_total ?? 0), 0), total_invoice: goldenInvoices.length },
     closing_filter_air: {
