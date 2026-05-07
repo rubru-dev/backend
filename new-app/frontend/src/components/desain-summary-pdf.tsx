@@ -45,6 +45,18 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 7, color: GRAY, marginTop: 2 },
 
   // Timeline header row
+  // RO summary table
+  roSectionTitle: { fontSize: 9, fontWeight: "bold", color: VIOLET, marginTop: 10, marginBottom: 4, textTransform: "uppercase", letterSpacing: 0.5 },
+  roHead: { flexDirection: "row", backgroundColor: VIOLET, paddingVertical: 4, paddingHorizontal: 6, borderRadius: 3 },
+  roHeadCell: { color: "white", fontSize: 7.5, fontWeight: "bold" },
+  roRow: { flexDirection: "row", paddingVertical: 4, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: "#ddd6fe", backgroundColor: VIOLET_LIGHT },
+  roRowAlt: { flexDirection: "row", paddingVertical: 4, paddingHorizontal: 6, borderBottomWidth: 1, borderBottomColor: "#ddd6fe" },
+  roCell: { fontSize: 8, color: DARK },
+  roColNo: { width: 20 },
+  roColRo: { width: 110 },
+  roColProjects: { flex: 1 },
+  roColTotal: { width: 36, textAlign: "center" },
+
   tlHead: { flexDirection: "row", backgroundColor: VIOLET, paddingVertical: 5, paddingHorizontal: 6, borderRadius: 3, marginTop: 8 },
   tlHeadCell: { color: "white", fontSize: 7.5, fontWeight: "bold" },
 
@@ -134,6 +146,20 @@ export default function DesainSummaryPDF({ logoUrl, rows, filters, generatedAt }
   const proses  = rows.filter((r) => r.progress > 0 && r.progress < 100).length;
   const belum   = rows.filter((r) => r.progress === 0).length;
 
+  // Build RO summary: group projects by RO name
+  const roMap = new Map<string, { klienList: string[]; totalSelesai: number; total: number }>();
+  for (const r of rows) {
+    const roName = r.ro ?? "— (Belum ditentukan)";
+    if (!roMap.has(roName)) roMap.set(roName, { klienList: [], totalSelesai: 0, total: 0 });
+    const entry = roMap.get(roName)!;
+    entry.klienList.push(r.klien ?? "—");
+    entry.total++;
+    if (r.progress === 100) entry.totalSelesai++;
+  }
+  const roSummary = Array.from(roMap.entries())
+    .map(([ro, val]) => ({ ro, ...val }))
+    .sort((a, b) => b.total - a.total);
+
   const activeFilters: { label: string; value: string }[] = [];
   if (filters.jenis)    activeFilters.push({ label: "Jenis Desain", value: filters.jenis });
   if (filters.bulan)    activeFilters.push({ label: "Bulan", value: BULAN_LABEL[Number(filters.bulan)] ?? filters.bulan });
@@ -196,6 +222,32 @@ export default function DesainSummaryPDF({ logoUrl, rows, filters, generatedAt }
             <Text style={styles.statLabel}>Belum Mulai</Text>
           </View>
         </View>
+
+        {/* RO Summary */}
+        {roSummary.length > 0 && (
+          <View>
+            <Text style={styles.roSectionTitle}>Summary per RO — Projek Desain yang Ditangani</Text>
+            <View style={styles.roHead}>
+              <Text style={[styles.roHeadCell, styles.roColNo]}>No</Text>
+              <Text style={[styles.roHeadCell, styles.roColRo]}>Nama RO</Text>
+              <Text style={[styles.roHeadCell, styles.roColProjects]}>Projek Desain (Klien)</Text>
+              <Text style={[styles.roHeadCell, styles.roColTotal]}>Total</Text>
+              <Text style={[styles.roHeadCell, styles.roColTotal]}>Selesai</Text>
+            </View>
+            {roSummary.map((entry, i) => {
+              const RowStyle = i % 2 === 0 ? styles.roRow : styles.roRowAlt;
+              return (
+                <View key={i} style={RowStyle}>
+                  <Text style={[styles.roCell, styles.roColNo]}>{i + 1}</Text>
+                  <Text style={[styles.roCell, styles.roColRo]}>{entry.ro}</Text>
+                  <Text style={[styles.roCell, styles.roColProjects]}>{entry.klienList.join(", ")}</Text>
+                  <Text style={[styles.roCell, styles.roColTotal, { textAlign: "center", fontWeight: "bold" }]}>{entry.total}</Text>
+                  <Text style={[styles.roCell, styles.roColTotal, { textAlign: "center", color: entry.totalSelesai === entry.total ? GREEN : GRAY }]}>{entry.totalSelesai}</Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
 
         {/* Timeline table header */}
         <View style={styles.tlHead}>

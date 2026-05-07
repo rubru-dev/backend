@@ -16,6 +16,14 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClipboardList, Download, FileText, ImagePlus, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
+const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+
+interface SopImage {
+  path: string;
+  name: string;
+  mime: string;
+}
+
 interface Sop {
   id: number;
   nama_sop: string;
@@ -26,6 +34,7 @@ interface Sop {
   image_data: string | null;
   image_mime: string | null;
   image_name: string | null;
+  images: SopImage[];
   created_at: string;
   updated_at: string;
 }
@@ -35,14 +44,20 @@ interface RoleOption {
   name: string;
 }
 
+interface PendingImage {
+  data: string;   // base64 data URL (pending upload)
+  mime: string;
+  name: string;
+  preview: string; // same as data
+}
+
 interface SopForm {
   nama_sop: string;
   roles: string[];
   tanggal: string;
   deskripsi: string;
-  image_data: string | null;
-  image_mime: string | null;
-  image_name: string | null;
+  pendingImages: PendingImage[];   // new images to upload
+  keepImages: SopImage[];          // existing images to keep
 }
 
 const EMPTY_FORM: SopForm = {
@@ -50,9 +65,8 @@ const EMPTY_FORM: SopForm = {
   roles: [],
   tanggal: new Date().toISOString().split("T")[0],
   deskripsi: "",
-  image_data: null,
-  image_mime: null,
-  image_name: null,
+  pendingImages: [],
+  keepImages: [],
 };
 
 const S = StyleSheet.create({
@@ -66,6 +80,7 @@ const S = StyleSheet.create({
   body: { fontSize: 10, lineHeight: 1.55 },
   fullImage: { width: 547 },
   footer: { position: "absolute", bottom: 24, right: 34, fontSize: 8, color: "#9ca3af" },
+  imageLabel: { fontSize: 9, color: "#6b7280", textTransform: "uppercase", marginBottom: 6, marginTop: 8 },
 });
 
 function fmtDate(date?: string | null) {
@@ -84,7 +99,20 @@ function roleText(sop: Pick<Sop, "roles" | "role">) {
   return roles.length ? roles.join(", ") : "Semua Role";
 }
 
-function SopPDF({ sop }: { sop: Sop }) {
+function getSopImages(sop: Sop): SopImage[] {
+  if (sop.images?.length) return sop.images;
+  if (sop.image_data) return [{ path: sop.image_data, name: sop.image_name ?? "gambar", mime: sop.image_mime ?? "image/jpeg" }];
+  return [];
+}
+
+function imgUrl(img: SopImage): string {
+  // If it's an old base64 stored directly, return as-is
+  if (img.path.startsWith("data:")) return img.path;
+  return `${API_BASE}${img.path}`;
+}
+
+async function SopPDF({ sop }: { sop: Sop }) {
+  const images = getSopImages(sop);
   return (
     <Document>
       <Page size="A4" style={S.page}>
@@ -99,12 +127,12 @@ function SopPDF({ sop }: { sop: Sop }) {
         </View>
         <Text style={S.footer}>Dicetak: {fmtDate(new Date().toISOString())}</Text>
       </Page>
-      {sop.image_data && (
-        <Page size="A4" style={S.imagePage}>
-          <Text style={S.label}>Lampiran Gambar SOP</Text>
-          <PdfImage src={sop.image_data} style={S.fullImage} />
+      {images.map((img, i) => (
+        <Page key={i} size="A4" style={S.imagePage}>
+          <Text style={S.imageLabel}>Lampiran Gambar SOP {images.length > 1 ? `(${i + 1}/${images.length})` : ""}</Text>
+          <PdfImage src={imgUrl(img)} style={S.fullImage} />
         </Page>
-      )}
+      ))}
     </Document>
   );
 }
@@ -112,8 +140,8 @@ function SopPDF({ sop }: { sop: Sop }) {
 const api = {
   list: () => apiClient.get<Sop[]>("/tutorial/sop").then((r) => r.data),
   roles: () => apiClient.get<RoleOption[]>("/admin/roles").then((r) => r.data),
-  create: (data: SopForm) => apiClient.post<Sop>("/tutorial/sop", data).then((r) => r.data),
-  update: (id: number, data: SopForm) => apiClient.patch<Sop>(`/tutorial/sop/${id}`, data).then((r) => r.data),
+  create: (data: any) => apiClient.post<Sop>("/tutorial/sop", data).then((r) => r.data),
+  update: (id: number, data: any) => apiClient.patch<Sop>(`/tutorial/sop/${id}`, data).then((r) => r.data),
   delete: (id: number) => apiClient.delete(`/tutorial/sop/${id}`).then((r) => r.data),
 };
 
@@ -144,8 +172,7 @@ export default function SopPage() {
     return rows.filter((sop) =>
       sop.nama_sop.toLowerCase().includes(q) ||
       roleText(sop).toLowerCase().includes(q) ||
-      sop.deskripsi.toLowerCase().includes(q) ||
-      (sop.image_name ?? "").toLowerCase().includes(q)
+      sop.deskripsi.toLowerCase().includes(q)
     );
   }, [rows, search]);
 
@@ -163,7 +190,7 @@ export default function SopPage() {
   });
 
   const updateMut = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: SopForm }) => api.update(id, data),
+    mutationFn: ({ id, data }: { id: number; data: any }) => api.update(id, data),
     onSuccess: (sop) => {
       toast.success("SOP berhasil diperbarui");
       qc.invalidateQueries({ queryKey: ["tutorial-sop"] });
@@ -202,9 +229,8 @@ export default function SopPage() {
       roles: roleLabels(sop),
       tanggal: sop.tanggal,
       deskripsi: sop.deskripsi,
-      image_data: sop.image_data,
-      image_mime: sop.image_mime,
-      image_name: sop.image_name,
+      pendingImages: [],
+      keepImages: getSopImages(sop),
     });
     setOpen(true);
   }
@@ -229,38 +255,73 @@ export default function SopPage() {
   }
 
   function handleImageUpload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const files = Array.from(event.target.files ?? []);
     event.target.value = "";
-    if (!file) return;
-    if (!["image/png", "image/jpeg"].includes(file.type)) {
+    if (files.length === 0) return;
+
+    const invalid = files.find((f) => !["image/png", "image/jpeg"].includes(f.type));
+    if (invalid) {
       toast.error("Upload gambar hanya menerima PNG, JPG, atau JPEG");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
-      setForm((f) => ({
-        ...f,
-        image_data: String(reader.result),
-        image_mime: file.type,
-        image_name: file.name,
-      }));
-    };
-    reader.onerror = () => toast.error("Gagal membaca gambar SOP");
-    reader.readAsDataURL(file);
+
+    Promise.all(
+      files.map(
+        (file) =>
+          new Promise<PendingImage>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () =>
+              resolve({ data: String(reader.result), mime: file.type, name: file.name, preview: String(reader.result) });
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          })
+      )
+    )
+      .then((newImgs) =>
+        setForm((f) => ({ ...f, pendingImages: [...f.pendingImages, ...newImgs] }))
+      )
+      .catch(() => toast.error("Gagal membaca gambar SOP"));
   }
 
-  function removeImage() {
-    setForm((f) => ({ ...f, image_data: null, image_mime: null, image_name: null }));
+  function removePendingImage(idx: number) {
+    setForm((f) => ({ ...f, pendingImages: f.pendingImages.filter((_, i) => i !== idx) }));
+  }
+
+  function removeKeepImage(idx: number) {
+    setForm((f) => ({ ...f, keepImages: f.keepImages.filter((_, i) => i !== idx) }));
   }
 
   function submitForm() {
-    if (!form.nama_sop.trim() || !form.tanggal || form.roles.length === 0 || (!form.deskripsi.trim() && !form.image_data)) {
+    const totalImages = form.pendingImages.length + form.keepImages.length;
+    if (!form.nama_sop.trim() || !form.tanggal || form.roles.length === 0 || (!form.deskripsi.trim() && totalImages === 0)) {
       toast.error("Nama SOP, role, tanggal, dan deskripsi atau gambar wajib diisi");
       return;
     }
-    if (editId) updateMut.mutate({ id: editId, data: form });
-    else createMut.mutate(form);
+
+    // Build payload: new images as base64, kept images as path references
+    // Backend will re-save pending images; kept images already on disk
+    const allImages = [
+      ...form.keepImages.map((img) => ({ data: img.path, mime: img.mime, name: img.name, keep: true })),
+      ...form.pendingImages.map((img) => ({ data: img.data, mime: img.mime, name: img.name, keep: false })),
+    ];
+
+    // For kept images, don't re-upload — send as is (backend handles path vs base64)
+    const payload = {
+      nama_sop: form.nama_sop,
+      roles: form.roles,
+      tanggal: form.tanggal,
+      deskripsi: form.deskripsi,
+      images: allImages,
+    };
+
+    if (editId) updateMut.mutate({ id: editId, data: payload });
+    else createMut.mutate(payload);
   }
+
+  const allPreviewImages: { src: string; name: string; isKept?: boolean; idx: number }[] = [
+    ...form.keepImages.map((img, i) => ({ src: imgUrl(img), name: img.name, isKept: true, idx: i })),
+    ...form.pendingImages.map((img, i) => ({ src: img.preview, name: img.name, isKept: false, idx: i })),
+  ];
 
   return (
     <div className="p-6 space-y-5">
@@ -356,15 +417,27 @@ export default function SopPage() {
                 <Label className="text-xs text-muted-foreground uppercase">Deskripsi SOP</Label>
                 <div className="mt-3 whitespace-pre-wrap text-sm leading-7 text-gray-800">{selected.deskripsi || "-"}</div>
               </div>
-              {selected.image_data && (
-                <div className="border rounded-lg p-4 space-y-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <Label className="text-xs text-muted-foreground uppercase">Gambar SOP</Label>
-                    {selected.image_name && <span className="text-xs text-muted-foreground truncate">{selected.image_name}</span>}
+              {(() => {
+                const imgs = getSopImages(selected);
+                if (imgs.length === 0) return null;
+                return (
+                  <div className="border rounded-lg p-4 space-y-3">
+                    <Label className="text-xs text-muted-foreground uppercase">Gambar SOP ({imgs.length})</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {imgs.map((img, i) => (
+                        <div key={i} className="space-y-1">
+                          {img.name && <p className="text-xs text-muted-foreground truncate">{img.name}</p>}
+                          <img
+                            src={imgUrl(img)}
+                            alt={img.name || `Gambar SOP ${i + 1}`}
+                            className="w-full h-auto rounded-md border bg-white"
+                          />
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <img src={selected.image_data} alt={selected.image_name || selected.nama_sop} className="w-full h-auto rounded-md border bg-white" />
-                </div>
-              )}
+                );
+              })()}
             </div>
           )}
         </div>
@@ -413,26 +486,34 @@ export default function SopPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Upload Gambar SOP PNG/JPG/JPEG</Label>
-              <div className="flex flex-wrap items-center gap-2">
-                <Button type="button" variant="outline" asChild>
-                  <label className="cursor-pointer">
-                    <ImagePlus className="h-4 w-4 mr-2" /> Pilih Gambar
-                    <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={handleImageUpload} />
-                  </label>
-                </Button>
-                {form.image_name && <span className="text-sm text-muted-foreground">{form.image_name}</span>}
-                {form.image_data && (
-                  <Button type="button" variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={removeImage}>
-                    <X className="h-4 w-4 mr-1" /> Hapus Gambar
-                  </Button>
-                )}
-              </div>
-              {form.image_data && (
-                <div className="border rounded-lg p-3 bg-slate-50">
-                  <img src={form.image_data} alt={form.image_name || "Preview SOP"} className="w-full h-auto rounded border bg-white" />
+              <Label>Upload Gambar SOP PNG/JPG/JPEG <span className="text-xs text-muted-foreground font-normal">(bisa lebih dari satu)</span></Label>
+
+              {/* Preview all images */}
+              {allPreviewImages.length > 0 && (
+                <div className="grid sm:grid-cols-2 gap-3">
+                  {allPreviewImages.map((img) => (
+                    <div key={`${img.isKept ? "k" : "p"}-${img.idx}`} className="relative border rounded-lg p-2 bg-slate-50">
+                      <img src={img.src} alt={img.name} className="w-full h-auto rounded border bg-white max-h-48 object-contain" />
+                      <p className="text-xs text-muted-foreground mt-1 truncate">{img.name}</p>
+                      <button
+                        type="button"
+                        className="absolute top-1.5 right-1.5 bg-red-500 text-white rounded-full p-0.5 hover:bg-red-600"
+                        onClick={() => img.isKept ? removeKeepImage(img.idx) : removePendingImage(img.idx)}
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
               )}
+
+              <Button type="button" variant="outline" asChild>
+                <label className="cursor-pointer">
+                  <ImagePlus className="h-4 w-4 mr-2" /> Pilih Gambar
+                  <input type="file" accept="image/png,image/jpeg" className="hidden" multiple onChange={handleImageUpload} />
+                </label>
+              </Button>
+              <p className="text-xs text-muted-foreground">PNG atau JPG/JPEG. Bisa pilih beberapa file sekaligus.</p>
             </div>
           </div>
           <DialogFooter>

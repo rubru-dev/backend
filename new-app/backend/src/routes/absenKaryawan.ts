@@ -317,8 +317,8 @@ router.post("/izin", async (req: Request, res: Response) => {
   if (!["izin", "sakit", "cuti"].includes(kategori))
     return res.status(400).json({ detail: "Kategori tidak valid (izin/sakit/cuti)" });
 
-  const today = new Date(tanggal);
-  today.setHours(0, 0, 0, 0);
+  // Parse date string as UTC midnight to avoid server timezone shifting the date
+  const today = new Date(tanggal as string);
 
   const existing = await prisma.izinKaryawan.findUnique({
     where: { user_id_tanggal: { user_id: userId, tanggal: today } },

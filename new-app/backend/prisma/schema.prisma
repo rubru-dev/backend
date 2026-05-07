@@ -1013,13 +1013,14 @@ model Permission {
 model Sop {
   id          BigInt   @id @default(autoincrement())
   nama_sop    String   @db.VarChar(255)
-  role        String?  @db.VarChar(100)
+  role        String?  @db.Text
   roles       Json?
   tanggal     DateTime @db.Date
   deskripsi   String   @db.Text
   image_data  String?  @db.Text
   image_mime  String?  @db.VarChar(50)
   image_name  String?  @db.VarChar(255)
+  images      Json?
   created_by  BigInt?
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   updated_at  DateTime @updatedAt @db.Timestamptz(6)
