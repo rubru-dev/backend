@@ -25,6 +25,15 @@ function normalizeLeadPhone(value: unknown) {
   return String(value ?? "").replace(/\D/g, "");
 }
 
+function leadDuplicateKeys(lead: { nama?: unknown; nomor_telepon?: unknown }) {
+  const nameKey = normalizeLeadIdentity(lead.nama);
+  const phoneKey = normalizeLeadPhone(lead.nomor_telepon);
+  const keys: string[] = [];
+  if (nameKey) keys.push(`name_phone:${nameKey}|${phoneKey}`);
+  if (phoneKey) keys.push(`phone:${phoneKey}`);
+  return keys;
+}
+
 function leadDict(l: {
   id: bigint; salutation?: string | null; nama: string; nomor_telepon: string | null; alamat: string | null;
   sumber_leads: string | null; meta_ads_campaign_id?: bigint | null;
@@ -1886,6 +1895,7 @@ router.get("/:modul/leads", async (req: Request, res: Response) => {
   const meta_ads_campaign_id = req.query.meta_ads_campaign_id as string | undefined;
   const has_follow_up = req.query.has_follow_up as string | undefined;
   const fu_call = req.query.fu_call as string | undefined;
+  const data_klien = req.query.data_klien as string | undefined;
   const bulan = req.query.bulan as string | undefined;
   const tahun = req.query.tahun as string | undefined;
   const tanggal_mulai = req.query.tanggal_mulai as string | undefined;
@@ -1905,6 +1915,16 @@ router.get("/:modul/leads", async (req: Request, res: Response) => {
   if (meta_ads_campaign_id) where.meta_ads_campaign_id = BigInt(meta_ads_campaign_id);
   if (has_follow_up === "ya") where.follow_ups = { some: {} };
   else if (has_follow_up === "tidak") where.follow_ups = { none: {} };
+  if (data_klien === "ya") {
+    where.sumber_leads = { in: ["Data Klien", "Database Client"] };
+  } else if (data_klien === "tidak") {
+    const dataKlienFilter = [
+      { sumber_leads: { notIn: ["Data Klien", "Database Client"] } },
+      { sumber_leads: null },
+    ];
+    if (!where.AND) where.AND = [{ OR: dataKlienFilter }];
+    else (where.AND as any[]).push({ OR: dataKlienFilter });
+  }
   if (fu_call === "Sudah") where.fu_call = "Sudah";
   else if (fu_call === "Belum") {
     const fuBelumFilter = [{ fu_call: "Belum" }, { fu_call: null }];
@@ -2157,6 +2177,19 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   }
 
   return res.json({ message: "Lead berhasil diupdate" });
+});
+
+router.delete("/:modul/leads/bulk-delete", requireRole("Super Admin"), async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+  const ids = Array.isArray(req.body?.ids) ? req.body.ids : [];
+  const uniqueIds = Array.from(new Set<string>(ids.map((id: unknown) => String(id)).filter((id: string) => /^\d+$/.test(id))));
+  if (uniqueIds.length === 0) return res.status(400).json({ detail: "ids wajib diisi" });
+  if (uniqueIds.length > 1000) return res.status(400).json({ detail: "Maksimal bulk delete 1000 leads" });
+
+  const bigintIds = uniqueIds.map((id) => BigInt(id));
+  const result = await prisma.lead.deleteMany({ where: { id: { in: bigintIds }, modul } });
+  return res.json({ deleted: result.count, skipped: uniqueIds.length - result.count });
 });
 
 router.delete("/:modul/leads/:id", async (req: Request, res: Response) => {
@@ -2492,37 +2525,34 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
   const leads = req.body as any[];
   if (!Array.isArray(leads) || leads.length === 0)
     return res.status(400).json({ detail: "Array leads wajib diisi" });
+  const leadsInput = leads.slice(0, 1000);
   const now = new Date();
   const uniqueLeads: any[] = [];
   const seen = new Set<string>();
-  let skippedDuplicates = 0;
-  for (const lead of leads) {
+  let skippedDuplicates = Math.max(0, leads.length - leadsInput.length);
+  for (const lead of leadsInput) {
     const nameKey = normalizeLeadIdentity(lead.nama);
-    const phoneKey = normalizeLeadPhone(lead.nomor_telepon);
     if (!nameKey) continue;
-    const key = `${nameKey}|${phoneKey}`;
-    if (seen.has(key)) {
+    const duplicateKeys = leadDuplicateKeys(lead);
+    if (duplicateKeys.some((key) => seen.has(key))) {
       skippedDuplicates += 1;
       continue;
     }
-    seen.add(key);
+    duplicateKeys.forEach((key) => seen.add(key));
     uniqueLeads.push(lead);
   }
   if (uniqueLeads.length === 0)
     return res.status(400).json({ detail: "Tidak ada leads unik yang valid" });
   const existing = await prisma.lead.findMany({
-    where: {
-      modul,
-      nama: { in: uniqueLeads.map((l) => String(l.nama ?? "").trim()).filter(Boolean) },
-    },
+    where: { modul },
     select: { nama: true, nomor_telepon: true },
   });
   const existingKeys = new Set(
-    existing.map((lead) => `${normalizeLeadIdentity(lead.nama)}|${normalizeLeadPhone(lead.nomor_telepon)}`)
+    existing.flatMap((lead) => leadDuplicateKeys(lead))
   );
   const insertLeads = uniqueLeads.filter((lead) => {
-    const key = `${normalizeLeadIdentity(lead.nama)}|${normalizeLeadPhone(lead.nomor_telepon)}`;
-    if (existingKeys.has(key)) {
+    const duplicateKeys = leadDuplicateKeys(lead);
+    if (duplicateKeys.some((key) => existingKeys.has(key))) {
       skippedDuplicates += 1;
       return false;
     }

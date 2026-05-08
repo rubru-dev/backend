@@ -80,9 +80,11 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const isGolden = modul === "golden";
   const isRkr = modul === "telemarketing";
   const isFilterAir = modul === "filter-air";
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin());
   const canDelete = useAuthStore((s) =>
     !isGolden || s.isSuperAdmin() || s.hasAnyRole("Head Golden")
   );
+  const canBulkDelete = isSuperAdmin && (modul === "sales-admin" || modul === "telemarketing");
   const activeJenisOptions = isGolden ? JENIS_OPTIONS_GOLDEN : isFilterAir ? JENIS_OPTIONS_FILTER_AIR : isRkr ? JENIS_OPTIONS_RKR : JENIS_OPTIONS;
   const defaultJenis = activeJenisOptions[0];
   const endpoint = `/bd/${modul}/leads`;
@@ -94,6 +96,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     create: (data: any) => apiClient.post(endpoint, data).then((r) => r.data),
     update: (id: number, data: any) => apiClient.patch(`${endpoint}/${id}`, data).then((r) => r.data),
     delete: (id: number) => apiClient.delete(`${endpoint}/${id}`).then((r) => r.data),
+    bulkDelete: (ids: number[]) => apiClient.delete(`${endpoint}/bulk-delete`, { data: { ids } }).then((r) => r.data),
     addFollowUp: (id: number, data: any) =>
       apiClient.post(`${endpoint}/${id}/follow-up`, data).then((r) => r.data),
     bulkCreate: (leads: any[]) => apiClient.post(bulkEndpoint, leads).then((r) => r.data),
@@ -128,11 +131,15 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const [filterTanggalSelesai, setFilterTanggalSelesai] = useState("");
   const [filterHasFollowUp, setFilterHasFollowUp] = useState("all");
   const [filterFuCall, setFilterFuCall] = useState("all");
+  const [filterDataKlien, setFilterDataKlien] = useState("all");
   const [importClientOpen, setImportClientOpen] = useState(false);
   const [importClientSearch, setImportClientSearch] = useState("");
+  const [importClientPage, setImportClientPage] = useState(1);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string }>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
+  const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
+  const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
   const [page, setPage] = useState(1);
 
   // Resolve sumber filter value to actual sumber_leads string or campaign id
@@ -144,7 +151,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     : undefined;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai, filterHasFollowUp, filterFuCall],
+    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai, filterHasFollowUp, filterFuCall, filterDataKlien],
     queryFn: () =>
       followUpApi.list({
         search: search || undefined,
@@ -155,6 +162,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
         meta_ads_campaign_id: resolvedCampaignIdFilter,
         has_follow_up: filterHasFollowUp !== "all" ? filterHasFollowUp : undefined,
         fu_call: filterFuCall !== "all" ? filterFuCall : undefined,
+        data_klien: filterDataKlien !== "all" ? filterDataKlien : undefined,
         bulan: filterBulan !== "all" ? filterBulan : undefined,
         tahun: filterTahun !== "all" ? filterTahun : undefined,
         tanggal_mulai: filterTanggalMulai || undefined,
@@ -164,10 +172,10 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   });
 
   const { data: importClientData } = useQuery({
-    queryKey: ["import-client-leads", importClientSearch],
+    queryKey: ["import-client-leads", importClientSearch, importClientPage],
     queryFn: () =>
       apiClient.get("/bd/database-client/leads", {
-        params: { search: importClientSearch || undefined, limit: 100 },
+        params: { search: importClientSearch || undefined, page: importClientPage, limit: IMPORT_CLIENT_PAGE_SIZE },
       }).then((r) => r.data),
     enabled: importClientOpen,
     staleTime: 0,
@@ -205,6 +213,17 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       setConfirmDelete(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
+
+  const bulkDeleteMut = useMutation({
+    mutationFn: (ids: number[]) => followUpApi.bulkDelete(ids),
+    onSuccess: (res: any) => {
+      toast.success(`${res.deleted ?? 0} leads berhasil dihapus${res.skipped ? `, ${res.skipped} dilewati` : ""}`);
+      qc.invalidateQueries({ queryKey: ["follow-up-leads", modul] });
+      setSelectedLeadIds([]);
+      setConfirmBulkDelete(false);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal bulk delete"),
   });
 
   const addFollowUpMut = useMutation({
@@ -560,19 +579,31 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
   const pending = createMut.isPending || updateMut.isPending;
 
-  const PAGE_SIZE = 20;
+const PAGE_SIZE = 20;
+const IMPORT_CLIENT_PAGE_SIZE = 100;
+const DATA_KLIEN_SOURCE = "Data Klien";
+
+function isDataKlienLead(item: { sumber_leads?: string | null }) {
+  return item.sumber_leads === DATA_KLIEN_SOURCE || item.sumber_leads === "Database Client";
+}
   const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
   const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const selectedLeadSet = new Set(selectedLeadIds);
+  const pagedLeadIds = pagedItems.map((item: any) => Number(item.id));
+  const selectedOnPage = pagedLeadIds.filter((id) => selectedLeadSet.has(id));
+  const allPageSelected = canBulkDelete && pagedLeadIds.length > 0 && selectedOnPage.length === pagedLeadIds.length;
 
   const hasActiveFilters =
     filterStatus !== "all" || filterJenis !== "all" || filterSurvey !== "all" || filterSumber !== "all" ||
     filterBulan !== "all" || filterTahun !== "all" || !!filterTanggalMulai || !!filterTanggalSelesai ||
+    filterDataKlien !== "all" ||
     filterHasFollowUp !== "all" || filterFuCall !== "all";
 
   function resetFilters() {
     setFilterStatus("all"); setFilterJenis("all"); setFilterSurvey("all"); setFilterSumber("all");
     setFilterBulan("all"); setFilterTahun("all");
     setFilterTanggalMulai(""); setFilterTanggalSelesai("");
+    setFilterDataKlien("all");
     setFilterHasFollowUp("all"); setFilterFuCall("all");
     setPage(1);
   }
@@ -908,6 +939,14 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
               <SelectItem value="Belum">📵 Belum Ditelfon</SelectItem>
             </SelectContent>
           </Select>
+          <Select value={filterDataKlien} onValueChange={(v) => { setFilterDataKlien(v); setPage(1); }}>
+            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Data Klien" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Semua Data</SelectItem>
+              <SelectItem value="ya">Data Klien: Ya</SelectItem>
+              <SelectItem value="tidak">Data Klien: Tidak</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div className="flex gap-2 flex-wrap items-center">
           <span className="text-xs text-muted-foreground">Tanggal:</span>
@@ -945,12 +984,45 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       </div>
 
       {/* Table */}
+      {canBulkDelete && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-white p-3">
+          <div className="text-sm text-muted-foreground">
+            {selectedLeadIds.length > 0
+              ? `${selectedLeadIds.length} leads dipilih`
+              : "Pilih leads untuk bulk delete"}
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={selectedLeadIds.length === 0 || bulkDeleteMut.isPending}
+            onClick={() => setConfirmBulkDelete(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-1.5" />
+            Bulk Delete
+          </Button>
+        </div>
+      )}
       <Card>
         <CardContent className="p-0">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-4" />
+                <TableHead className="w-10">
+                  {canBulkDelete && (
+                    <input
+                      type="checkbox"
+                      checked={allPageSelected}
+                      onChange={(e) => {
+                        setSelectedLeadIds((prev) => {
+                          const next = new Set(prev);
+                          if (e.target.checked) pagedLeadIds.forEach((id) => next.add(id));
+                          else pagedLeadIds.forEach((id) => next.delete(id));
+                          return Array.from(next).slice(0, 1000);
+                        });
+                      }}
+                    />
+                  )}
+                </TableHead>
                 <TableHead>Nama</TableHead>
                 <TableHead>Telepon</TableHead>
                 <TableHead>Status</TableHead>
@@ -978,11 +1050,33 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                           onClick={() => setExpandedId(isExpanded ? null : item.id)}
                         >
                           <TableCell className="pr-0 pl-3">
+                            {canBulkDelete && (
+                              <input
+                                type="checkbox"
+                                className="mr-2"
+                                checked={selectedLeadSet.has(Number(item.id))}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => {
+                                  setSelectedLeadIds((prev) => {
+                                    const next = new Set(prev);
+                                    const id = Number(item.id);
+                                    if (e.target.checked) next.add(id);
+                                    else next.delete(id);
+                                    return Array.from(next).slice(0, 1000);
+                                  });
+                                }}
+                              />
+                            )}
                             <span className="text-muted-foreground text-xs">{isExpanded ? "▼" : "▶"}</span>
                           </TableCell>
                           <TableCell>
                             <div className="font-medium flex items-center gap-1.5">
                               {leadDisplayName(item)}
+                              {isDataKlienLead(item) && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 border-blue-200 bg-blue-50 text-blue-700">
+                                  Data Klien
+                                </Badge>
+                              )}
                               <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${item.fu_call === "Sudah" ? "bg-green-100 text-green-700" : "bg-orange-100 text-orange-700"}`}>
                                 {item.fu_call === "Sudah" ? "✅ Ditelfon" : "📵 Belum"}
                               </span>
@@ -1161,7 +1255,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
             <div className="flex items-center justify-between gap-2">
               <DialogTitle>{editItem ? "Edit Lead" : "Tambah Lead Baru"}</DialogTitle>
               {!editItem && !isGolden && (
-                <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); }}>
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); setImportClientPage(1); }}>
                   <DatabaseZap className="h-3.5 w-3.5" /> Import Data Klien
                 </Button>
               )}
@@ -1284,7 +1378,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
 
       {/* Import dari Data Klien */}
       <Dialog open={importClientOpen} onOpenChange={setImportClientOpen}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl">
           <DialogHeader><DialogTitle>Import dari Data Klien</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="relative">
@@ -1293,10 +1387,47 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                 className="pl-9"
                 placeholder="Cari nama / telepon..."
                 value={importClientSearch}
-                onChange={(e) => setImportClientSearch(e.target.value)}
+                onChange={(e) => { setImportClientSearch(e.target.value); setImportClientPage(1); }}
               />
             </div>
-            <div className="max-h-72 overflow-y-auto space-y-1 border rounded-md p-1">
+            {(() => {
+              const clientItems: any[] = Array.isArray(importClientData) ? importClientData : importClientData?.items ?? [];
+              const totalClients = Array.isArray(importClientData) ? clientItems.length : importClientData?.total ?? clientItems.length;
+              const toLeadPayload = (c: any) => ({
+                salutation: c.salutation ?? "Mr",
+                nama: c.nama ?? "",
+                nomor_telepon: c.nomor_telepon ?? "",
+                alamat: c.alamat ?? "",
+                sumber_leads: DATA_KLIEN_SOURCE,
+                jenis: c.jenis ?? "",
+                status: c.status ?? "Low",
+                keterangan: c.keterangan ?? "",
+                tanggal_masuk: c.tanggal_masuk ?? null,
+              });
+              return (
+                <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
+                  <span className="text-xs text-muted-foreground">
+                    Menampilkan {clientItems.length} dari {totalClients} data klien.
+                  </span>
+                  <Button
+                    size="sm"
+                    disabled={bulkImportMut.isPending || totalClients === 0}
+                    onClick={async () => {
+                      const res = await apiClient.get("/bd/database-client/leads", {
+                        params: { search: importClientSearch || undefined, page: 1, limit: 1000 },
+                      });
+                      const bulkItems: any[] = Array.isArray(res.data) ? res.data : res.data?.items ?? [];
+                      bulkImportMut.mutate(bulkItems.slice(0, 1000).map(toLeadPayload), {
+                        onSuccess: () => setImportClientOpen(false),
+                      });
+                    }}
+                  >
+                    {bulkImportMut.isPending ? "Mengimport..." : `Import Semua Hasil (${Math.min(totalClients, 1000)})`}
+                  </Button>
+                </div>
+              );
+            })()}
+            <div className="max-h-96 overflow-y-auto space-y-1 border rounded-md p-1">
               {(() => {
                 const clientItems: any[] = Array.isArray(importClientData) ? importClientData : importClientData?.items ?? [];
                 if (clientItems.length === 0) {
@@ -1313,6 +1444,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                         nama: c.nama ?? prev.nama,
                         nomor_telepon: c.nomor_telepon ?? prev.nomor_telepon,
                         alamat: c.alamat ?? prev.alamat,
+                        sumber_leads: DATA_KLIEN_SOURCE,
                         jenis: c.jenis ?? prev.jenis,
                         status: c.status ?? prev.status,
                         keterangan: c.keterangan ?? prev.keterangan,
@@ -1330,7 +1462,59 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
                 ));
               })()}
             </div>
-            <p className="text-xs text-muted-foreground">Pilih data klien untuk mengisi form secara otomatis.</p>
+            {(() => {
+              const clientItems: any[] = Array.isArray(importClientData) ? importClientData : importClientData?.items ?? [];
+              const totalClients = Array.isArray(importClientData) ? clientItems.length : importClientData?.total ?? clientItems.length;
+              const totalClientPages = Math.max(1, Math.ceil(totalClients / IMPORT_CLIENT_PAGE_SIZE));
+              return (
+                <div className="flex items-center justify-between gap-2 text-xs text-muted-foreground">
+                  <span>
+                    Halaman {importClientPage} dari {totalClientPages} · {totalClients} data
+                  </span>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2"
+                      disabled={importClientPage <= 1}
+                      onClick={() => setImportClientPage((p) => Math.max(1, p - 1))}
+                    >
+                      Prev
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2"
+                      disabled={importClientPage >= totalClientPages}
+                      onClick={() => setImportClientPage((p) => Math.min(totalClientPages, p + 1))}
+                    >
+                      Next
+                    </Button>
+                  </div>
+                </div>
+              );
+            })()}
+            <p className="text-xs text-muted-foreground">Klik data klien untuk mengisi form satuan, atau gunakan Import Semua untuk add bulk maksimal 1000 leads. Duplikat nama+telepon atau nomor telepon akan dilewati.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Delete Confirm */}
+      <Dialog open={confirmBulkDelete} onOpenChange={setConfirmBulkDelete}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Hapus {selectedLeadIds.length} Leads?</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Aksi bulk delete hanya untuk Super Admin dan akan menghapus lead terpilih beserta riwayat terkait.
+          </p>
+          <div className="flex justify-end gap-2 mt-2">
+            <Button variant="outline" onClick={() => setConfirmBulkDelete(false)}>Batal</Button>
+            <Button
+              variant="destructive"
+              disabled={bulkDeleteMut.isPending || selectedLeadIds.length === 0}
+              onClick={() => bulkDeleteMut.mutate(selectedLeadIds)}
+            >
+              {bulkDeleteMut.isPending ? "Menghapus..." : "Hapus Terpilih"}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
