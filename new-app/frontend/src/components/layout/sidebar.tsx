@@ -42,8 +42,13 @@ function SidebarItem({ item }: { item: NavItem }) {
   // Item-level permission check (opsional — jika tidak diset, item selalu tampil)
   if (item.permission && !isSuperAdmin()) {
     const [mod, act] = item.permission.split(".");
+    if (item.roles?.length && !hasAnyRole(...item.roles)) {
+      return null;
+    }
     // Head Golden: full access to all golden.* items
     if (hasAnyRole("Head Golden") && mod === "golden") {
+      // allow through
+    } else if (item.roles?.length && hasAnyRole(...item.roles)) {
       // allow through
     } else if (!hasPermission(mod, act)) {
       return null;

@@ -102,6 +102,9 @@ export interface KanbanCard {
   deadline: string | null;
   due_date?: string | null;     // legacy alias
   color?: string | null;
+  is_approved?: boolean;
+  approved_at?: string | null;
+  approved_by?: number | null;
   status?: string | null;
   projeksi_sales?: number | null;
   urutan: number;

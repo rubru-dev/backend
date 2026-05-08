@@ -20,6 +20,7 @@ export interface CardPayload {
   lead_id?: number | null;
   deadline?: string | null;
   color?: string | null;
+  is_approved?: boolean;
   label_ids?: number[];
   urutan?: number;
   projeksi_sales?: number | null;

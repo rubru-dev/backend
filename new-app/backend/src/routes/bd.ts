@@ -17,6 +17,14 @@ function leadDisplayName(l: { salutation?: string | null; nama: string }) {
   return l.salutation ? `${l.salutation} ${l.nama}` : l.nama;
 }
 
+function normalizeLeadIdentity(value: unknown) {
+  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function normalizeLeadPhone(value: unknown) {
+  return String(value ?? "").replace(/\D/g, "");
+}
+
 function leadDict(l: {
   id: bigint; salutation?: string | null; nama: string; nomor_telepon: string | null; alamat: string | null;
   sumber_leads: string | null; meta_ads_campaign_id?: bigint | null;
@@ -1688,6 +1696,9 @@ function boardCols(cols: Awaited<ReturnType<typeof getBdBoard>>) {
     cards: col.cards.map((c) => ({
       id: c.id, title: c.title, description: c.description, deadline: c.deadline,
       urutan: c.urutan, color: c.color,
+      is_approved: (c as any).is_approved ?? false,
+      approved_at: (c as any).approved_at ?? null,
+      approved_by: (c as any).approved_by ?? null,
       assigned_user: c.assigned_user ? { id: c.assigned_user.id, name: c.assigned_user.name } : null,
       labels: c.labels.map((lb) => ({ id: lb.id, label_name: lb.label_name, color: lb.color })),
       comments_count: c.comments.length, created_at: c.created_at,
@@ -1739,14 +1750,17 @@ router.delete("/kanban/columns/:id", async (req: Request, res: Response) => {
 });
 
 router.post("/kanban/cards", async (req: Request, res: Response) => {
-  const { column_id, title, description, deadline, assigned_user_id, color, urutan } = req.body;
+  const { column_id, title, description, deadline, assigned_user_id, color, urutan, is_approved } = req.body;
   const card = await prisma.kanbanCard.create({
     data: {
       column_id, title, description: description ?? null,
-      deadline: deadline ? new Date(deadline) : null,
+      deadline: is_approved ? null : (deadline ? new Date(deadline) : null),
       assigned_user_id: assigned_user_id ?? null,
       color: color ?? null, urutan: urutan ?? 0,
-    },
+      is_approved: Boolean(is_approved),
+      approved_at: is_approved ? new Date() : null,
+      approved_by: is_approved ? req.user!.id : null,
+    } as any,
   });
   return res.status(201).json({ id: card.id, message: "Card dibuat" });
 });
@@ -1763,7 +1777,7 @@ router.patch("/kanban/cards/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const card = await prisma.kanbanCard.findUnique({ where: { id } });
   if (!card) return res.status(404).json({ detail: "Card tidak ditemukan" });
-  const { column_id, title, description, deadline, assigned_user_id, color, urutan } = req.body;
+  const { column_id, title, description, deadline, assigned_user_id, color, urutan, is_approved } = req.body;
   const updates: Record<string, unknown> = {};
   if (column_id !== undefined) updates.column_id = column_id;
   if (title !== undefined) updates.title = title;
@@ -1772,7 +1786,14 @@ router.patch("/kanban/cards/:id", async (req: Request, res: Response) => {
   if (assigned_user_id !== undefined) updates.assigned_user_id = assigned_user_id;
   if (color !== undefined) updates.color = color;
   if (urutan !== undefined) updates.urutan = urutan;
-  await prisma.kanbanCard.update({ where: { id }, data: updates });
+  if (is_approved !== undefined) {
+    const approved = Boolean(is_approved);
+    updates.is_approved = approved;
+    updates.approved_at = approved ? new Date() : null;
+    updates.approved_by = approved ? req.user!.id : null;
+    if (approved) updates.deadline = null;
+  }
+  await prisma.kanbanCard.update({ where: { id }, data: updates as any });
   return res.json({ message: "Card diupdate" });
 });
 
@@ -2472,8 +2493,45 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
   if (!Array.isArray(leads) || leads.length === 0)
     return res.status(400).json({ detail: "Array leads wajib diisi" });
   const now = new Date();
+  const uniqueLeads: any[] = [];
+  const seen = new Set<string>();
+  let skippedDuplicates = 0;
+  for (const lead of leads) {
+    const nameKey = normalizeLeadIdentity(lead.nama);
+    const phoneKey = normalizeLeadPhone(lead.nomor_telepon);
+    if (!nameKey) continue;
+    const key = `${nameKey}|${phoneKey}`;
+    if (seen.has(key)) {
+      skippedDuplicates += 1;
+      continue;
+    }
+    seen.add(key);
+    uniqueLeads.push(lead);
+  }
+  if (uniqueLeads.length === 0)
+    return res.status(400).json({ detail: "Tidak ada leads unik yang valid" });
+  const existing = await prisma.lead.findMany({
+    where: {
+      modul,
+      nama: { in: uniqueLeads.map((l) => String(l.nama ?? "").trim()).filter(Boolean) },
+    },
+    select: { nama: true, nomor_telepon: true },
+  });
+  const existingKeys = new Set(
+    existing.map((lead) => `${normalizeLeadIdentity(lead.nama)}|${normalizeLeadPhone(lead.nomor_telepon)}`)
+  );
+  const insertLeads = uniqueLeads.filter((lead) => {
+    const key = `${normalizeLeadIdentity(lead.nama)}|${normalizeLeadPhone(lead.nomor_telepon)}`;
+    if (existingKeys.has(key)) {
+      skippedDuplicates += 1;
+      return false;
+    }
+    return true;
+  });
+  if (insertLeads.length === 0)
+    return res.json({ inserted: 0, skipped_duplicates: skippedDuplicates });
   const created = await prisma.$transaction(
-    leads.map((l) => {
+    insertLeads.map((l) => {
       const tanggalMasuk = l.tanggal_masuk ? new Date(l.tanggal_masuk) : now;
       return prisma.lead.create({
         data: {
@@ -2489,7 +2547,7 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
       });
     })
   );
-  return res.json({ inserted: created.length });
+  return res.json({ inserted: created.length, skipped_duplicates: skippedDuplicates });
 });
 
 export default router;

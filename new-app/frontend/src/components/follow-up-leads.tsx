@@ -241,7 +241,8 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const bulkImportMut = useMutation({
     mutationFn: (leads: any[]) => followUpApi.bulkCreate(leads),
     onSuccess: (res: any) => {
-      toast.success(`${res.inserted ?? "?"} leads berhasil diimport`);
+      const skipped = Number(res.skipped_duplicates ?? 0);
+      toast.success(`${res.inserted ?? "?"} leads berhasil diimport${skipped > 0 ? `, ${skipped} duplikat dilewati` : ""}`);
       qc.invalidateQueries({ queryKey: ["follow-up-leads", modul] });
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal import"),
@@ -255,7 +256,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       const wb = XLSX.read(buffer);
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
-      const leads = rows.map((r) => {
+      const rawLeads = rows.map((r) => {
         const rawTgl = String(r["Tanggal Masuk"] || r["tanggal_masuk"] || "").trim();
         // Handle Excel numeric date serial (e.g. 45678)
         let tanggal_masuk: string | null = null;
@@ -283,7 +284,21 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
           tanggal_masuk,
         };
       }).filter((l) => l.nama.length > 0);
+      const seen = new Set<string>();
+      let duplicateCount = 0;
+      const leads = rawLeads.filter((lead) => {
+        const nameKey = String(lead.nama ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+        const phoneKey = String(lead.nomor_telepon ?? "").replace(/\D/g, "");
+        const key = `${nameKey}|${phoneKey}`;
+        if (seen.has(key)) {
+          duplicateCount += 1;
+          return false;
+        }
+        seen.add(key);
+        return true;
+      });
       if (leads.length === 0) { toast.error("Tidak ada data valid ditemukan di file Excel"); return; }
+      if (duplicateCount > 0) toast.info(`${duplicateCount} data duplikat di file Excel dilewati`);
       bulkImportMut.mutate(leads);
     } catch {
       toast.error("Gagal membaca file Excel");

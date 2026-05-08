@@ -8,6 +8,7 @@ export interface NavItem {
   href: string;
   icon: string;
   permission?: string; // item-level: jika diset, user harus punya permission ini untuk melihat item
+  roles?: string[];    // optional item-level role allowlist
 }
 
 export interface NavGroup {
@@ -221,10 +222,10 @@ export const NAV_GROUPS: NavGroup[] = [
     title: "RubahrumahxGolden",
     color: "#f59e0b",
     permission: "golden.view",
-    roles: [],
+    roles: ["BD"],
     items: [
       { label: "Dashboard Ads",          href: "/golden/dashboard-ads",    icon: "BarChart2",       permission: "golden.dashboard_ads" },
-      { label: "Meta Ads",               href: "/golden/meta-ads",         icon: "TrendingUp",      permission: "golden.meta_ads" },
+      { label: "Meta Ads",               href: "/golden/meta-ads",         icon: "TrendingUp",      permission: "golden.meta_ads", roles: ["BD"] },
       { label: "Follow Up Leads",        href: "/golden/follow-up",        icon: "PhoneCall",       permission: "golden.follow_up" },
       { label: "Kanban Admin",           href: "/golden/kanban-admin",     icon: "Kanban",          permission: "golden.kanban_admin" },
       { label: "Kalender Survey",        href: "/golden/kalender-survey",  icon: "CalendarDays",    permission: "golden.kalender" },

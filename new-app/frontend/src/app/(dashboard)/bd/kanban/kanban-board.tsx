@@ -150,7 +150,8 @@ function KanbanCardItem({
   const [detailOpen, setDetailOpen] = useState(false);
   const [colorOpen, setColorOpen] = useState(false);
   const deadline = card.deadline ?? card.due_date;
-  const isOverdue = deadline && new Date(deadline) < new Date();
+  const isApproved = Boolean(card.is_approved);
+  const isOverdue = !isApproved && deadline && new Date(deadline) < new Date();
 
   return (
     <>
@@ -159,11 +160,11 @@ function KanbanCardItem({
           <div
             ref={provided.innerRef}
             {...provided.draggableProps}
-            className={`group bg-white rounded-lg border shadow-sm transition-shadow ${
+            className={`group rounded-lg border shadow-sm transition-shadow ${
               snapshot.isDragging ? "shadow-lg rotate-1 scale-[1.02]" : "hover:shadow-md"
-            }`}
+            } ${isApproved ? "bg-emerald-50 border-emerald-300" : "bg-white"}`}
             style={{
-              borderLeft: card.color ? `4px solid ${card.color}` : undefined,
+              borderLeft: isApproved ? "4px solid #16a34a" : (card.color ? `4px solid ${card.color}` : undefined),
               ...provided.draggableProps.style,
             }}
           >
@@ -175,7 +176,10 @@ function KanbanCardItem({
 
               {/* Card content */}
               <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setDetailOpen(true)}>
-                <p className="text-sm font-medium leading-snug">{card.title}</p>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-sm font-medium leading-snug">{card.title}</p>
+                  {isApproved && <Badge className="bg-emerald-600 hover:bg-emerald-600 text-white">Approved</Badge>}
+                </div>
                 {card.description && (
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{card.description}</p>
                 )}
@@ -192,7 +196,7 @@ function KanbanCardItem({
                   </div>
                 )}
                 <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-                  {deadline && (
+                  {!isApproved && deadline && (
                     <span className={`flex items-center gap-1 ${isOverdue ? "text-destructive font-medium" : ""}`}>
                       <Clock className="h-3 w-3" />
                       {format(new Date(deadline), "d MMM", { locale: id })}
@@ -208,6 +212,16 @@ function KanbanCardItem({
               </div>
 
               {/* Quick color picker — visible on hover */}
+              {!isApproved && (
+                <button
+                  className="mt-0.5 shrink-0 rounded-md p-1 text-emerald-700 hover:bg-emerald-100 hover:text-emerald-800"
+                  onClick={(e) => { e.stopPropagation(); onUpdate(card.id, { is_approved: true, deadline: null }); }}
+                  title="Approve kartu"
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </button>
+              )}
+
               <Popover open={colorOpen} onOpenChange={setColorOpen}>
                 <PopoverTrigger asChild>
                   <button
@@ -549,7 +563,7 @@ export function KanbanBoard({ initialColumns, isLoading = false, onRefresh }: Ka
       const newCard: KanbanCard = {
         id: res.id, column_id: columnId, title,
         description: null, assigned_user_id: null, deadline: null, color: null,
-        urutan: 0, comments_count: 0, labels: [],
+        is_approved: false, urutan: 0, comments_count: 0, labels: [],
       };
       setColumns((prev) =>
         prev.map((col) => col.id === columnId ? { ...col, cards: [...(col.cards ?? []), newCard] } : col)
@@ -564,6 +578,7 @@ export function KanbanBoard({ initialColumns, isLoading = false, onRefresh }: Ka
       description: data.description ?? undefined,
       deadline: data.deadline ?? undefined,
       color: data.color ?? undefined,
+      is_approved: data.is_approved,
     });
     setColumns((prev) =>
       prev.map((col) => ({

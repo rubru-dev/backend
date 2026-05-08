@@ -79,11 +79,37 @@ export default function BdReportAnalyticsPage() {
       window.removeEventListener("afterprint", reset);
     };
     window.addEventListener("afterprint", reset);
-    setTimeout(() => window.print(), 100);
+    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="bd-report-print p-6 space-y-6">
+      <style jsx global>{`
+        @media print {
+          @page { size: A4 portrait; margin: 10mm; }
+          html, body, body > div, main {
+            height: auto !important;
+            min-height: auto !important;
+            overflow: visible !important;
+          }
+          aside, header, .print\\:hidden {
+            display: none !important;
+          }
+          .bd-report-print {
+            display: block !important;
+            width: 100% !important;
+            padding: 0 !important;
+          }
+          .bd-report-print section {
+            break-inside: auto;
+            page-break-inside: auto;
+            margin-bottom: 16px;
+          }
+          .bd-report-print .grid {
+            display: grid !important;
+          }
+        }
+      `}</style>
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Report dan Analytics BD</h1>
