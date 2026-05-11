@@ -34,6 +34,43 @@ function leadDuplicateKeys(lead: { nama?: unknown; nomor_telepon?: unknown }) {
   return keys;
 }
 
+function normalizeFollowUpAttachment(body: any) {
+  const data = typeof body?.attachment_data === "string" ? body.attachment_data : null;
+  const mime = typeof body?.attachment_mime === "string" ? body.attachment_mime : null;
+  const name = typeof body?.attachment_name === "string" ? body.attachment_name : null;
+  const allowed = new Set(["image/jpeg", "image/png", "image/jpg"]);
+  if (!data) return { attachment_data: null, attachment_mime: null, attachment_name: null };
+  if (!mime || !allowed.has(mime)) {
+    const err = new Error("Lampiran follow up hanya mendukung JPG, JPEG, atau PNG");
+    (err as any).status = 400;
+    throw err;
+  }
+  if (!data.startsWith(`data:${mime};base64,`)) {
+    const err = new Error("Format lampiran tidak valid");
+    (err as any).status = 400;
+    throw err;
+  }
+  return {
+    attachment_data: data,
+    attachment_mime: mime,
+    attachment_name: name?.slice(0, 255) ?? "lampiran-follow-up",
+  };
+}
+
+function followUpDict(f: any) {
+  return {
+    id: f.id,
+    tanggal: f.tanggal,
+    catatan: f.catatan,
+    next_follow_up: f.next_follow_up,
+    attachment_data: f.attachment_data ?? null,
+    attachment_mime: f.attachment_mime ?? null,
+    attachment_name: f.attachment_name ?? null,
+    user: f.user ? { id: f.user.id, name: f.user.name } : null,
+    created_at: f.created_at,
+  };
+}
+
 function leadDict(l: {
   id: bigint; salutation?: string | null; nama: string; nomor_telepon: string | null; alamat: string | null;
   sumber_leads: string | null; meta_ads_campaign_id?: bigint | null;
@@ -1011,6 +1048,7 @@ function resolveAdsRange(query: Request["query"]) {
 
 async function buildRealtimeAdsReport(query: Request["query"]) {
   const { platform, campaign_id } = query;
+  const useManual = query.ads_source === "manual";
   const { since, until } = resolveAdsRange(query);
   const campaignWhere: Record<string, unknown> = { is_hidden: false };
   if (platform && platform !== "all") campaignWhere.platform = platform;
@@ -1022,7 +1060,7 @@ async function buildRealtimeAdsReport(query: Request["query"]) {
   });
 
   const metaAccount = await prisma.adPlatformAccount.findFirst({ where: { platform: "Meta", is_active: true } });
-  if (metaAccount?.access_token && metaAccount?.ad_account_id) {
+  if (!useManual && metaAccount?.access_token && metaAccount?.ad_account_id) {
     try {
       const filterCampId = campaign_id
         ? camps.find((c) => c.id === BigInt(campaign_id as string))?.meta_campaign_id ?? undefined
@@ -1102,7 +1140,7 @@ async function buildRealtimeAdsReport(query: Request["query"]) {
       reach: ads.reduce((s, a) => s + a.reach, 0),
       result: ads.reduce((s, a) => s + a.result, 0),
     },
-    data_source: "local",
+    data_source: useManual ? "manual" : "local",
     range: { since, until },
   };
 }
@@ -1230,8 +1268,9 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     return { total, scheduled, approved, pending: Math.max(0, total - approved) };
   }
 
+  const adsSource = req.query.ads_source === "manual" ? "manual" : "actual";
   const [adsReport] = await Promise.all([
-    buildRealtimeAdsReport(req.query),
+    buildRealtimeAdsReport({ ...req.query, ads_source: adsSource === "manual" ? "manual" : undefined } as any),
     syncOrganicAccountsForReport(),
   ]);
 
@@ -2025,6 +2064,9 @@ router.get("/:modul/leads/follow-up-report", async (req: Request, res: Response)
       tanggal: f.tanggal,
       catatan: f.catatan,
       next_follow_up: f.next_follow_up,
+      attachment_data: (f as any).attachment_data ?? null,
+      attachment_mime: (f as any).attachment_mime ?? null,
+      attachment_name: (f as any).attachment_name ?? null,
       user: f.user ? { name: f.user.name } : null,
     })),
   })));
@@ -2217,14 +2259,7 @@ router.get("/:modul/leads/:id/follow-up", async (req: Request, res: Response) =>
     include: { user: { select: { id: true, name: true } } },
     orderBy: { tanggal: "desc" },
   });
-  return res.json(items.map((f) => ({
-    id: f.id,
-    tanggal: f.tanggal,
-    catatan: f.catatan,
-    next_follow_up: f.next_follow_up,
-    user: f.user ? { id: f.user.id, name: f.user.name } : null,
-    created_at: f.created_at,
-  })));
+  return res.json(items.map(followUpDict));
 });
 
 router.post("/:modul/leads/:id/follow-up", async (req: Request, res: Response) => {
@@ -2233,12 +2268,19 @@ router.post("/:modul/leads/:id/follow-up", async (req: Request, res: Response) =
   const leadId = BigInt(req.params.id);
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
+  let attachment;
+  try {
+    attachment = normalizeFollowUpAttachment(req.body);
+  } catch (e: any) {
+    return res.status(e.status ?? 400).json({ detail: e.message });
+  }
   await prisma.followUpClient.create({
     data: {
       lead_id: leadId, user_id: req.user!.id,
       tanggal: new Date(),
       catatan: req.body.catatan ?? null,
       next_follow_up: req.body.next_follow_up ? new Date(req.body.next_follow_up) : null,
+      ...attachment,
     },
   });
   return res.status(201).json({ message: "Follow up dicatat" });
@@ -2477,6 +2519,15 @@ router.patch("/:modul/leads/:id/pengerjaan-schedule", requireRole("Head Golden",
     where: { id },
     data: { tanggal_pengerjaan: new Date(tanggal_pengerjaan) },
   });
+
+  if (lead.pic_survey) {
+    const picUser = await prisma.user.findFirst({ where: { name: lead.pic_survey }, select: { whatsapp_number: true } });
+    if (picUser?.whatsapp_number) {
+      const calendarPath = modul === "golden" ? "golden/kalender-after" : "telemarketing/kalender-instalasi-filter-air";
+      const msg = `🔨 *Assign After Pengerjaan Baru*\n\nAnda ditugaskan sebagai PIC After Pengerjaan:\n*Klien:* ${lead.nama}\n*Tanggal:* ${tanggal_pengerjaan}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
+      sendFonnte(picUser.whatsapp_number, msg).catch(() => {});
+    }
+  }
   return res.json({ message: "Tanggal pengerjaan berhasil diset" });
 });
 

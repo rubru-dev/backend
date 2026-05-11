@@ -1,7 +1,20 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-05-07 (BD Report Analytics Sync)
+> Last updated: 2026-05-11 (Penawaran + Follow Up Attachment)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-05-11)
+
+### Follow Up, Ads Manual, Golden, dan Penawaran
+- **Sales Admin > Follow Up Leads:** Riwayat follow up per client mendukung lampiran gambar JPG/JPEG/PNG dengan preview pada riwayat.
+- **BD > Report dan Analytics:** Tambah mode Ads `Actual Meta` dan `Manual`; mode manual memakai data lokal tanpa koneksi token Meta.
+- **RubahrumahxGolden > Dashboard Ads:** Tambah mode `Actual Meta` dan `Manual`; `Actual Meta` hanya bisa dilihat Super Admin, user lain otomatis melihat `Manual`. Input metrik manual juga hanya bisa dilakukan Super Admin.
+- **RubahrumahxGolden:** Invoice kategori `Payment Golden` yang ditandai `Lunas` memastikan card masuk ke Kanban Sales Golden kolom `Closing` dengan nama client.
+- **Kalender Golden:** Assign Kalender Survey Golden dan Kalender After Pengerjaan Golden mengirim notifikasi WhatsApp ke PIC yang ditunjuk.
+- **Menu Penawaran:** Tambah menu baru `Penawaran` setelah menu Sales, berisi `Penawaran Desain`, `Penawaran RKR`, `Penawaran Golden`, dan `Penawaran Filter Air`.
+- **Penawaran Desain:** Form memilih client, tanggal, dan paket Basic/Standart/Premium/Deluxe; preview mengikuti template `Form Template Penawaran Jasa Desain.docx` dan dapat di-download sebagai PDF via print browser.
 
 ---
 
@@ -1287,7 +1300,7 @@ Digunakan oleh aplikasi `rubahrumah/` (portal klien). Login menghasilkan token b
 | Model | Table | Key Fields |
 |-------|-------|-----------|
 | `Lead` | `leads` | id, user_id, nama, nomor_telepon, alamat, sumber_leads, jenis(Sipil/Desain/Interior), status(Low/Medium/Hot), tipe, week, bulan, tahun, rencana_survey, tanggal_survey, modul |
-| `FollowUpClient` | `follow_up_clients` | lead_id, user_id, tanggal, catatan, next_follow_up |
+| `FollowUpClient` | `follow_up_clients` | lead_id, user_id, tanggal, catatan, next_follow_up, attachment_data, attachment_mime, attachment_name |
 
 ### Kanban (BD)
 | Model | Table | Key Fields |

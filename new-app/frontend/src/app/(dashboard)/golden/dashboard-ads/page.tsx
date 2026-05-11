@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
   Users, MessageSquare, TrendingUp, MousePointerClick, Eye, Target,
   DollarSign, BarChart3,
@@ -14,10 +15,14 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import { goldenMetaAdsApi } from "@/lib/api/golden-meta-ads";
+import { useAuthStore } from "@/store/authStore";
 
 const MONTHS = [
   "Januari","Februari","Maret","April","Mei","Juni",
@@ -62,16 +67,33 @@ function formatShort(v: number) {
 }
 
 export default function GoldenDashboardAdsPage() {
+  const qc = useQueryClient();
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin());
   const [bulan, setBulan] = useState<number | null>(null);
   const [tahun, setTahun] = useState(now.getFullYear());
   const [campaignId, setCampaignId] = useState<number | null>(null);
+  const [dataSource, setDataSource] = useState<"actual" | "manual">("actual");
   const [lineMetric, setLineMetric] = useState("impressions");
   const [barMetric, setBarMetric] = useState("impressions");
+  const [manualForm, setManualForm] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    campaign_id: "",
+    impressions: "",
+    reach: "",
+    clicks: "",
+    spend: "",
+    conversions: "",
+  });
+
+  useEffect(() => {
+    if (!isSuperAdmin) setDataSource("manual");
+  }, [isSuperAdmin]);
 
   const params = {
     bulan: bulan ?? undefined,
     tahun,
     campaign_id: campaignId ?? undefined,
+    data_source: dataSource,
   };
 
   const { data, isLoading } = useQuery({
@@ -86,6 +108,25 @@ export default function GoldenDashboardAdsPage() {
     staleTime: 5 * 60_000,
   });
   const campaigns = (campaignsData?.items ?? []).filter((c) => !c.is_hidden);
+  const manualCampaignId = manualForm.campaign_id || String(campaignId ?? campaigns[0]?.id ?? "");
+
+  const manualMetricMut = useMutation({
+    mutationFn: () => goldenMetaAdsApi.upsertManualMetric({
+      campaign_id: Number(manualCampaignId),
+      date: manualForm.date,
+      impressions: Number(manualForm.impressions || 0),
+      reach: Number(manualForm.reach || 0),
+      clicks: Number(manualForm.clicks || 0),
+      spend: Number(manualForm.spend || 0),
+      conversions: Number(manualForm.conversions || 0),
+    }),
+    onSuccess: (res) => {
+      toast.success(res.message || "Metrik manual tersimpan");
+      qc.invalidateQueries({ queryKey: ["/golden/meta-ads/dashboard"] });
+      setDataSource("manual");
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan metrik manual"),
+  });
 
   const summary = (data as any)?.summary ?? {};
   const totalSpend        = summary.total_spend ?? 0;
@@ -164,7 +205,48 @@ export default function GoldenDashboardAdsPage() {
             ))}
           </SelectContent>
         </Select>
+
+        {isSuperAdmin ? (
+          <div className="flex rounded-md border bg-muted/30 p-1">
+            <button type="button" onClick={() => setDataSource("actual")} className={`px-3 py-1.5 text-xs font-medium rounded ${dataSource === "actual" ? "bg-white shadow-sm" : "text-muted-foreground"}`}>Actual Meta</button>
+            <button type="button" onClick={() => setDataSource("manual")} className={`px-3 py-1.5 text-xs font-medium rounded ${dataSource === "manual" ? "bg-white shadow-sm" : "text-muted-foreground"}`}>Manual</button>
+          </div>
+        ) : (
+          <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs font-medium text-muted-foreground">
+            Manual
+          </div>
+        )}
       </div>
+
+      {isSuperAdmin && dataSource === "manual" && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Input Manual Ads Golden</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-3 md:grid-cols-4">
+            <div>
+              <Label>Campaign</Label>
+              <Select value={manualCampaignId} onValueChange={(v) => setManualForm((f) => ({ ...f, campaign_id: v }))}>
+                <SelectTrigger><SelectValue placeholder="Pilih campaign" /></SelectTrigger>
+                <SelectContent>
+                  {campaigns.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.campaign_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div><Label>Tanggal</Label><Input type="date" value={manualForm.date} onChange={(e) => setManualForm((f) => ({ ...f, date: e.target.value }))} /></div>
+            <div><Label>Spend</Label><Input type="number" value={manualForm.spend} onChange={(e) => setManualForm((f) => ({ ...f, spend: e.target.value }))} /></div>
+            <div><Label>Impressions</Label><Input type="number" value={manualForm.impressions} onChange={(e) => setManualForm((f) => ({ ...f, impressions: e.target.value }))} /></div>
+            <div><Label>Reach</Label><Input type="number" value={manualForm.reach} onChange={(e) => setManualForm((f) => ({ ...f, reach: e.target.value }))} /></div>
+            <div><Label>Klik</Label><Input type="number" value={manualForm.clicks} onChange={(e) => setManualForm((f) => ({ ...f, clicks: e.target.value }))} /></div>
+            <div><Label>Result / Conversions</Label><Input type="number" value={manualForm.conversions} onChange={(e) => setManualForm((f) => ({ ...f, conversions: e.target.value }))} /></div>
+            <div className="flex items-end">
+              <Button className="w-full" disabled={!manualCampaignId || !manualForm.date || manualMetricMut.isPending} onClick={() => manualMetricMut.mutate()}>
+                {manualMetricMut.isPending ? "Menyimpan..." : "Simpan Manual"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {isLoading ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

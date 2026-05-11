@@ -27,6 +27,9 @@ interface FollowUpHistoryItem {
   tanggal: string;
   catatan: string | null;
   next_follow_up: string | null;
+  attachment_data?: string | null;
+  attachment_mime?: string | null;
+  attachment_name?: string | null;
   user: { id: number; name: string } | null;
   created_at: string;
 }
@@ -136,7 +139,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const [importClientSearch, setImportClientSearch] = useState("");
   const [importClientPage, setImportClientPage] = useState(1);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string }>>({});
+  const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string; attachment_data?: string; attachment_mime?: string; attachment_name?: string }>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -256,6 +259,31 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
         .then((r) => r.data),
   });
   const picUserList: any[] = Array.isArray(picUsersData) ? picUsersData : [];
+
+  function handleFollowUpAttachment(leadId: number, file?: File) {
+    const inlineForm = inlineFollowUpForm[leadId] ?? { catatan: "", next_follow_up: "" };
+    if (!file) {
+      setInlineFollowUpForm((prev) => ({ ...prev, [leadId]: { ...inlineForm, attachment_data: undefined, attachment_mime: undefined, attachment_name: undefined } }));
+      return;
+    }
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      toast.error("Lampiran hanya JPG, JPEG, atau PNG");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setInlineFollowUpForm((prev) => ({
+        ...prev,
+        [leadId]: {
+          ...inlineForm,
+          attachment_data: String(reader.result),
+          attachment_mime: file.type,
+          attachment_name: file.name,
+        },
+      }));
+    };
+    reader.readAsDataURL(file);
+  }
 
   const bulkImportMut = useMutation({
     mutationFn: (leads: any[]) => followUpApi.bulkCreate(leads),
@@ -383,6 +411,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
         <td>${h.catatan ? h.catatan.replace(/</g, "&lt;") : "—"}</td>
         <td>${h.next_follow_up ? new Date(h.next_follow_up).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
         <td>${h.user?.name ?? "—"}</td>
+        <td>${h.attachment_data ? `<img class="fu-attachment" src="${h.attachment_data}" alt="${(h.attachment_name ?? "Lampiran").replace(/"/g, "&quot;")}"/>` : "-"}</td>
       </tr>`).join("");
 
     const html = `<!DOCTYPE html>
@@ -405,6 +434,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   th { background: #f1f5f9; padding: 7px 8px; text-align: left; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
   td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
   .num { text-align: center; color: #94a3b8; width: 24px; }
+  .fu-attachment { max-width: 110px; max-height: 85px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; }
   .empty { text-align: center; color: #94a3b8; padding: 24px; font-style: italic; }
   .footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
   @media print { body { padding: 16px 20px; } }
@@ -437,8 +467,9 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       <th>Catatan</th>
       <th style="width:90px">Next Follow Up</th>
       <th style="width:110px">Oleh</th>
+      <th style="width:120px">Lampiran</th>
     </tr></thead>
-    <tbody>${rows || `<tr><td colspan="5" class="empty">Belum ada riwayat follow up</td></tr>`}</tbody>
+    <tbody>${rows || `<tr><td colspan="6" class="empty">Belum ada riwayat follow up</td></tr>`}</tbody>
   </table>
   <div class="footer">
     <span>PT. Rubah Rumah Inovasi Pemuda — Riwayat Follow Up</span>
@@ -491,13 +522,14 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     const rows = allLeads.map((lead: any) => {
       const fus: any[] = lead.follow_ups ?? [];
       const followUpRows = fus.length === 0
-        ? `<tr><td colspan="4" class="no-fu">Belum ada catatan follow up</td></tr>`
+        ? `<tr><td colspan="5" class="no-fu">Belum ada catatan follow up</td></tr>`
         : fus.map((f: any, fi: number) => `
           <tr class="${fi % 2 === 0 ? "fu-even" : "fu-odd"}">
             <td class="fu-num">${fi + 1}</td>
             <td class="fu-date">${new Date(f.tanggal).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
             <td class="fu-note">${f.catatan ? f.catatan.replace(/</g, "&lt;") : "—"}</td>
             <td class="fu-next">${f.next_follow_up ? new Date(f.next_follow_up).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—"} ${f.user?.name ? `<span class="fu-by">${f.user.name}</span>` : ""}</td>
+            <td class="fu-attach">${f.attachment_data ? `<img class="fu-attachment" src="${f.attachment_data}" alt="${(f.attachment_name ?? "Lampiran").replace(/"/g, "&quot;")}"/>` : "-"}</td>
           </tr>`).join("");
 
       const statusClass = { Low: "s-low", Medium: "s-med", Hot: "s-hot", Client: "s-cli", Batal: "s-bat" }[lead.status as string] ?? "s-low";
@@ -510,7 +542,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
             <span class="fu-count">${fus.length} follow up</span>
           </div>
           ${lead.keterangan ? `<div class="lead-note">${lead.keterangan.replace(/</g, "&lt;")}</div>` : ""}
-          <table class="fu-table"><thead><tr><th class="fu-num">#</th><th style="width:80px">Tanggal</th><th>Catatan</th><th style="width:120px">Next / Oleh</th></tr></thead>
+          <table class="fu-table"><thead><tr><th class="fu-num">#</th><th style="width:80px">Tanggal</th><th>Catatan</th><th style="width:120px">Next / Oleh</th><th style="width:120px">Lampiran</th></tr></thead>
           <tbody>${followUpRows}</tbody></table>
         </div>`;
     }).join("");
@@ -547,6 +579,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   .fu-num { text-align:center; color:#94a3b8; width:20px; }
   .fu-date { white-space:nowrap; width:80px; }
   .fu-by { display:block; color:#64748b; font-size:9px; margin-top:2px; }
+  .fu-attachment { max-width:110px; max-height:85px; object-fit:contain; border:1px solid #e2e8f0; border-radius:4px; }
   .no-fu { text-align:center; color:#94a3b8; padding:6px; font-style:italic; }
   .footer { margin-top:20px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:10px; color:#94a3b8; display:flex; justify-content:space-between; }
   @media print { body { padding:14px 18px; } .lead-block { page-break-inside:avoid; } }
@@ -1146,6 +1179,17 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                                               Next: {new Date(h.next_follow_up).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
                                             </p>
                                           )}
+                                          {h.attachment_data && (
+                                            <a
+                                              href={h.attachment_data}
+                                              target="_blank"
+                                              rel="noreferrer"
+                                              className="mt-2 inline-flex items-center gap-2 text-xs text-primary hover:underline"
+                                            >
+                                              <img src={h.attachment_data} alt={h.attachment_name ?? "Lampiran follow up"} className="h-10 w-10 rounded border object-cover" />
+                                              {h.attachment_name ?? "Lampiran gambar"}
+                                            </a>
+                                          )}
                                         </div>
                                       ))}
                                     </div>
@@ -1178,11 +1222,34 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                                         disabled={!inlineForm.catatan || addFollowUpMut.isPending}
                                         onClick={(e) => {
                                           e.stopPropagation();
-                                          addFollowUpMut.mutate({ id: item.id, data: { catatan: inlineForm.catatan, next_follow_up: inlineForm.next_follow_up || null } });
+                                          addFollowUpMut.mutate({
+                                            id: item.id,
+                                            data: {
+                                              catatan: inlineForm.catatan,
+                                              next_follow_up: inlineForm.next_follow_up || null,
+                                              attachment_data: inlineForm.attachment_data || null,
+                                              attachment_mime: inlineForm.attachment_mime || null,
+                                              attachment_name: inlineForm.attachment_name || null,
+                                            },
+                                          });
                                         }}
                                       >
                                         Simpan
                                       </Button>
+                                    </div>
+                                    <div className="space-y-1">
+                                      <Input
+                                        type="file"
+                                        accept="image/png,image/jpeg,.jpg,.jpeg,.png"
+                                        className="h-8 text-xs bg-white"
+                                        onChange={(e) => handleFollowUpAttachment(item.id, e.target.files?.[0])}
+                                      />
+                                      {inlineForm.attachment_data && (
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                          <img src={inlineForm.attachment_data} alt="Preview lampiran" className="h-10 w-10 rounded border object-cover" />
+                                          <span className="truncate">{inlineForm.attachment_name}</span>
+                                        </div>
+                                      )}
                                     </div>
                                     <div className="flex gap-2">
                                       <Button

@@ -45,6 +45,7 @@ export default function BdReportAnalyticsPage() {
   const [tahun, setTahun] = useState("");
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [adsSource, setAdsSource] = useState<"actual" | "manual">("actual");
   const [printingAll, setPrintingAll] = useState(false);
 
   const params = useMemo(() => ({
@@ -52,7 +53,8 @@ export default function BdReportAnalyticsPage() {
     ...(endDate ? { end_date: endDate } : {}),
     ...(!startDate && !endDate && bulan ? { bulan } : {}),
     ...(!startDate && !endDate && tahun ? { tahun } : {}),
-  }), [bulan, tahun, startDate, endDate]);
+    ads_source: adsSource,
+  }), [bulan, tahun, startDate, endDate, adsSource]);
 
   const { data, isLoading } = useQuery({
     queryKey: ["bd-report-analytics", params],
@@ -123,6 +125,10 @@ export default function BdReportAnalyticsPage() {
         <div><label className="text-xs text-muted-foreground">Tanggal selesai</label><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
         <div><label className="text-xs text-muted-foreground">Bulan</label><Input type="number" min={1} max={12} value={bulan} onChange={(e) => setBulan(e.target.value)} placeholder="Semua" /></div>
         <div><label className="text-xs text-muted-foreground">Tahun</label><Input type="number" value={tahun} onChange={(e) => setTahun(e.target.value)} placeholder="Semua" /></div>
+        <div className="ml-auto flex rounded-md border bg-muted/30 p-1">
+          <button type="button" onClick={() => setAdsSource("actual")} className={`px-3 py-1.5 text-xs font-medium rounded ${adsSource === "actual" ? "bg-white shadow-sm" : "text-muted-foreground"}`}>Actual Meta</button>
+          <button type="button" onClick={() => setAdsSource("manual")} className={`px-3 py-1.5 text-xs font-medium rounded ${adsSource === "manual" ? "bg-white shadow-sm" : "text-muted-foreground"}`}>Manual</button>
+        </div>
       </div>
 
       <div className="flex gap-1 overflow-x-auto border-b print:hidden">
@@ -139,7 +145,7 @@ export default function BdReportAnalyticsPage() {
             <div className="space-y-4">
               <div>
                 <h3 className="text-sm font-semibold mb-2">
-                  Ads <span className="text-xs font-normal text-muted-foreground">({data?.ads_organik?.ads_data_source === "realtime" ? "sync Meta API realtime" : "fallback data lokal"})</span>
+                  Ads <span className="text-xs font-normal text-muted-foreground">({data?.ads_organik?.ads_data_source === "realtime" ? "sync Meta API realtime" : data?.ads_organik?.ads_data_source === "manual" ? "manual tanpa token Meta" : "fallback data lokal"})</span>
                 </h3>
                 <div className="grid md:grid-cols-5 gap-3">
                   <MetricCard label="Spend" value={IDR(adTotals.spend)} />

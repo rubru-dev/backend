@@ -4,6 +4,10 @@ import { requirePermission } from "../middleware/requireRole";
 
 const router = Router();
 
+function isSuperAdminReq(req: Request) {
+  return req.user?.roles.some((r) => r.role.name === "Super Admin") ?? false;
+}
+
 // ── META ADS ──────────────────────────────────────────────────────────────────
 
 // GET /golden/meta-ads/campaigns-select — minimal list for dropdown
@@ -293,6 +297,7 @@ router.post("/meta-ads/campaigns/:id/sync", requirePermission("golden", "edit"),
       frequency: parseFloat(row.frequency ?? "0"),
       cost_per_result: parseCPR(row.cost_per_result),
       conversions,
+      data_source: "api",
     };
 
     const existing = await prisma.goldenAdContentMetric.findFirst({
@@ -326,6 +331,7 @@ router.get("/meta-ads/campaigns/:id/content-metrics", requirePermission("golden"
     impressions: Number(m.impressions ?? 0), reach: Number(m.reach ?? 0),
     clicks: m.clicks, spend: parseFloat(String(m.spend ?? 0)),
     ctr: parseFloat(String(m.ctr ?? 0)), conversions: m.conversions,
+    data_source: (m as any).data_source ?? "api",
     likes: m.likes, comments: m.comments, shares: m.shares, video_views: m.video_views,
     cost_per_result: parseFloat(String(m.cost_per_result ?? 0)),
     created_at: m.created_at,
@@ -349,6 +355,7 @@ router.post("/meta-ads/campaigns/:id/content-metrics", requirePermission("golden
       clicks: clicksN, spend: spendN,
       likes: likes ?? 0, comments: comments ?? 0, shares: shares ?? 0,
       video_views: video_views ?? 0, conversions: conversionsN,
+      data_source: "manual",
       ctr, cost_per_result: costPerResult,
     },
   });
@@ -371,6 +378,7 @@ router.patch("/meta-ads/content-metrics/:id", requirePermission("golden", "edit"
   if (b.shares !== undefined) updates.shares = b.shares;
   if (b.video_views !== undefined) updates.video_views = b.video_views;
   if (b.conversions !== undefined) updates.conversions = b.conversions;
+  if (b.data_source !== undefined && isSuperAdminReq(req)) updates.data_source = b.data_source === "manual" ? "manual" : "api";
   const updated = await prisma.goldenAdContentMetric.update({ where: { id }, data: updates });
   const clicksN = Number(updated.clicks ?? 0);
   const impressionsN = Number(updated.impressions ?? 0);
@@ -395,6 +403,42 @@ router.delete("/meta-ads/content-metrics/:id", requirePermission("golden", "dele
 });
 
 // ── CHAT METRICS ──────────────────────────────────────────────────────────────
+
+router.post("/meta-ads/manual-metrics", requirePermission("golden", "view"), async (req: Request, res: Response) => {
+  if (!isSuperAdminReq(req)) return res.status(403).json({ detail: "Hanya Super Admin yang dapat input Ads manual Golden" });
+  const { campaign_id, date, impressions, reach, clicks, spend, conversions } = req.body;
+  if (!campaign_id || !date) return res.status(400).json({ detail: "campaign_id dan date wajib diisi" });
+  const campId = BigInt(campaign_id);
+  const metricDate = new Date(date);
+  const camp = await prisma.goldenMetaAdsCampaign.findUnique({ where: { id: campId } });
+  if (!camp) return res.status(404).json({ detail: "Campaign tidak ditemukan" });
+
+  const clicksN = Number(clicks ?? 0);
+  const impressionsN = Number(impressions ?? 0);
+  const spendN = Number(spend ?? 0);
+  const conversionsN = Number(conversions ?? 0);
+  const reachN = Number(reach ?? 0);
+  const ctr = impressionsN > 0 ? (clicksN / impressionsN) * 100 : 0;
+  const costPerResult = conversionsN > 0 ? spendN / conversionsN : 0;
+  const existing = await prisma.goldenAdContentMetric.findFirst({
+    where: { meta_ads_campaign_id: campId, date: metricDate, data_source: "manual" },
+  });
+  const data = {
+    impressions: BigInt(impressionsN),
+    reach: BigInt(reachN),
+    clicks: clicksN,
+    spend: spendN,
+    conversions: conversionsN,
+    ctr,
+    cost_per_result: costPerResult,
+    data_source: "manual",
+  };
+  const metric = existing
+    ? await prisma.goldenAdContentMetric.update({ where: { id: existing.id }, data })
+    : await prisma.goldenAdContentMetric.create({ data: { meta_ads_campaign_id: campId, date: metricDate, ...data } });
+
+  return res.json({ id: metric.id, message: existing ? "Metrik manual diupdate" : "Metrik manual ditambahkan" });
+});
 
 router.get("/meta-ads/campaigns/:id/chat-metrics", requirePermission("golden", "view"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
@@ -469,6 +513,7 @@ router.delete("/meta-ads/chat-metrics/:id", requirePermission("golden", "delete"
 
 router.get("/meta-ads/dashboard", requirePermission("golden", "view"), async (req: Request, res: Response) => {
   const { platform, campaign_id, bulan, tahun, start_date, end_date } = req.query;
+  const dataSource = isSuperAdminReq(req) && req.query.data_source !== "manual" ? "actual" : "manual";
 
   const now = new Date();
   let since: string;
@@ -499,11 +544,17 @@ router.get("/meta-ads/dashboard", requirePermission("golden", "view"), async (re
 
   const [contentMetrics, chatMetrics] = await Promise.all([
     prisma.goldenAdContentMetric.findMany({
-      where: { meta_ads_campaign_id: { in: campaignIds }, date: { gte: sinceDate, lte: untilDate } },
+      where: {
+        meta_ads_campaign_id: { in: campaignIds },
+        date: { gte: sinceDate, lte: untilDate },
+        ...(dataSource === "manual" ? { data_source: "manual" } : { data_source: { not: "manual" } }),
+      },
     }),
-    prisma.goldenWhatsappChatMetric.findMany({
-      where: { meta_ads_campaign_id: { in: campaignIds }, date: { gte: sinceDate, lte: untilDate } },
-    }),
+    dataSource === "manual"
+      ? Promise.resolve([])
+      : prisma.goldenWhatsappChatMetric.findMany({
+          where: { meta_ads_campaign_id: { in: campaignIds }, date: { gte: sinceDate, lte: untilDate } },
+        }),
   ]);
 
   const totalSpend = contentMetrics.reduce((s, m) => s + parseFloat(String(m.spend ?? 0)), 0);
@@ -550,6 +601,7 @@ router.get("/meta-ads/dashboard", requirePermission("golden", "view"), async (re
 
   return res.json({
     since, until,
+    data_source: dataSource,
     summary: {
       total_spend: totalSpend,
       total_impressions: totalImpressions,

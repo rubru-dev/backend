@@ -123,8 +123,20 @@ export const goldenMetaAdsApi = {
     await apiClient.delete(`/golden/meta-ads/chat-metrics/${id}`);
   },
 
-  getDashboard: async (params?: { bulan?: number; tahun?: number; campaign_id?: number }): Promise<GoldenDashboard> => {
+  getDashboard: async (params?: { bulan?: number; tahun?: number; campaign_id?: number; data_source?: "actual" | "manual" }): Promise<GoldenDashboard> => {
     const { data } = await apiClient.get("/golden/meta-ads/dashboard", { params });
+    return data;
+  },
+  upsertManualMetric: async (payload: {
+    campaign_id: number;
+    date: string;
+    impressions?: number;
+    reach?: number;
+    clicks?: number;
+    spend?: number;
+    conversions?: number;
+  }): Promise<{ id: number; message: string }> => {
+    const { data } = await apiClient.post("/golden/meta-ads/manual-metrics", payload);
     return data;
   },
   refreshToken: async (id: number): Promise<{ message: string; expires_in_days: number | null }> => {

@@ -1048,7 +1048,7 @@ router.post("/invoices/:id/sign-admin", requirePermission("finance", "sign_admin
 // ── Mark Paid ─────────────────────────────────────────────────────────────────
 router.post("/invoices/:id/mark-paid", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const inv = await prisma.invoice.findUnique({ where: { id }, include: { kwitansi: true } });
+  const inv = await prisma.invoice.findUnique({ where: { id }, include: { kwitansi: true, lead: { select: { nama: true, salutation: true } } } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
   if (inv.status === "Lunas") return res.status(400).json({ detail: "Invoice sudah Lunas" });
   if (inv.status !== "Terbit") return res.status(400).json({ detail: "Invoice harus berstatus Terbit (sudah ditandatangani) sebelum ditandai lunas" });
@@ -1093,12 +1093,14 @@ router.post("/invoices/:id/mark-paid", async (req: Request, res: Response) => {
       });
     } else {
       // Buat card baru di Closing
-      const lead = await prisma.lead.findUnique({ where: { id: inv.lead_id }, select: { nama: true } });
       const maxCard = await prisma.goldenKanbanSalesCard.findFirst({ where: { column_id: closingCol.id }, orderBy: { urutan: "desc" } });
+      const clientName = inv.lead
+        ? [inv.lead.salutation, inv.lead.nama].filter(Boolean).join(" ")
+        : inv.invoice_number ?? "Client Golden";
       await prisma.goldenKanbanSalesCard.create({
         data: {
           column_id: closingCol.id,
-          title: lead?.nama ?? "—",
+          title: clientName,
           lead_id: inv.lead_id,
           urutan: (maxCard?.urutan ?? 0) + 1,
         },

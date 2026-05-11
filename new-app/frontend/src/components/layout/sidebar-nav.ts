@@ -129,6 +129,19 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
+  {
+    title: "Penawaran",
+    color: "#0ea5e9",
+    permission: "sales.view",
+    roles: ["Sales", "Sales Admin"],
+    items: [
+      { label: "Penawaran Desain", href: "/penawaran/desain", icon: "FileText", permission: "sales.view" },
+      { label: "Penawaran RKR", href: "/penawaran/rkr", icon: "FileText", permission: "sales.view" },
+      { label: "Penawaran Golden", href: "/penawaran/golden", icon: "FileText", permission: "sales.view" },
+      { label: "Penawaran Filter Air", href: "/penawaran/filter-air", icon: "FileText", permission: "sales.view" },
+    ],
+  },
+
   // ── Projek ───────────────────────────────────────────────────────────────────
   // Group: projek_sipil.view | Items: projek_sipil.view, projek_interior.view, pic.kalender_visit, pic.dokumentasi
   {

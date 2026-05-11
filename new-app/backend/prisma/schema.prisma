@@ -546,6 +546,9 @@ model FollowUpClient {
   tanggal        DateTime? @db.Date
   catatan        String?
   next_follow_up DateTime? @db.Date
+  attachment_data String?   @db.Text
+  attachment_mime String?   @db.VarChar(100)
+  attachment_name String?   @db.VarChar(255)
   created_at     DateTime  @default(now()) @db.Timestamptz(6)
   updated_at     DateTime  @default(now()) @db.Timestamptz(6)
   lead          Lead     @relation(fields: [lead_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
@@ -3142,6 +3145,7 @@ model GoldenAdContentMetric {
   roas                 Decimal               @default(0) @db.Decimal(10, 4)
   frequency            Decimal               @default(0) @db.Decimal(10, 4)
   conversions          Int                   @default(0)
+  data_source          String                @default("api") @db.VarChar(50)
   created_at           DateTime              @default(now()) @db.Timestamptz(6)
   updated_at           DateTime              @default(now()) @db.Timestamptz(6)
   campaign             GoldenMetaAdsCampaign @relation(fields: [meta_ads_campaign_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
