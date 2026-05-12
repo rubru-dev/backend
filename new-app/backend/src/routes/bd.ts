@@ -17,6 +17,26 @@ function leadDisplayName(l: { salutation?: string | null; nama: string }) {
   return l.salutation ? `${l.salutation} ${l.nama}` : l.nama;
 }
 
+async function notifyPicAssignment(picName: string | null | undefined, message: string) {
+  if (!picName) return;
+  const picUser = await prisma.user.findFirst({
+    where: { name: picName },
+    select: { whatsapp_number: true },
+  });
+  if (picUser?.whatsapp_number) {
+    sendFonnte(picUser.whatsapp_number, message).catch(() => {});
+  }
+}
+
+function goldenCalendarPath(modul: string, type: "survey" | "after") {
+  if (type === "after") {
+    return modul === "golden" ? "golden/kalender-after" : "telemarketing/kalender-instalasi-filter-air";
+  }
+  return modul === "golden"
+    ? "golden/kalender-survey"
+    : modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
+}
+
 function normalizeLeadIdentity(value: unknown) {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -2220,7 +2240,11 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   if (b.jam_survey !== undefined) updates.jam_survey = b.jam_survey;
   if (b.projection !== undefined) updates.projection = b.projection;
   if (b.fu_call !== undefined) updates.fu_call = b.fu_call;
-  const updatedLead = await prisma.lead.update({ where: { id }, data: updates, select: { id: true, nama: true, bulan: true, tahun: true, tanggal_survey: true } });
+  const updatedLead = await prisma.lead.update({
+    where: { id },
+    data: updates,
+    select: { id: true, nama: true, bulan: true, tahun: true, tanggal_survey: true, jam_survey: true },
+  });
 
   // Auto-add ke Kanban jika projection diisi/berubah
   if (b.projection && (modul === "sales-admin" || modul === "telemarketing" || modul === "golden")) {
@@ -2248,15 +2272,25 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
     }
   }
 
-  // Notify PIC via WhatsApp if survey and pic_survey both set in this update
-  if (b.pic_survey && b.tanggal_survey) {
+  // Notify PIC via WhatsApp when a survey PIC is assigned/changed.
+  if (b.pic_survey) {
+    const effectiveSurveyDate = b.tanggal_survey ?? updatedLead.tanggal_survey;
+    if (effectiveSurveyDate) {
+      const calendarPath = goldenCalendarPath(modul, "survey");
+      const msg = `*Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${updatedLead.nama}\n*Tanggal:* ${String(effectiveSurveyDate).split("T")[0]}\n*Jam:* ${b.jam_survey ?? updatedLead.jam_survey ?? "-"}\n\n${FRONTEND_URL}/${calendarPath}`;
+      await notifyPicAssignment(b.pic_survey, msg);
+    }
+  }
+
+  // Legacy notification block disabled; covered by the normalized notification above.
+  if (false && b.pic_survey && b.tanggal_survey) {
     const picUser = await prisma.user.findFirst({ where: { name: b.pic_survey }, select: { whatsapp_number: true } });
     if (picUser?.whatsapp_number) {
       const calendarPath = modul === "golden"
         ? "golden/kalender-survey"
         : modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
       const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${updatedLead.nama}\n*Tanggal:* ${b.tanggal_survey}\n*Jam:* ${b.jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
-      sendFonnte(picUser.whatsapp_number, msg).catch(() => {});
+      sendFonnte(picUser!.whatsapp_number!, msg).catch(() => {});
     }
   }
 
@@ -2475,18 +2509,32 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
   }
   if (jam_survey !== undefined) updates.jam_survey = jam_survey;
   if (pic_survey !== undefined) updates.pic_survey = pic_survey;
-  await prisma.lead.update({ where: { id }, data: updates });
+  const updatedLead = await prisma.lead.update({
+    where: { id },
+    data: updates,
+    select: { tanggal_survey: true, jam_survey: true },
+  });
 
   // Notify PIC via WhatsApp when survey is assigned
-  if (pic_survey && tanggal_survey) {
+  if (pic_survey) {
+    const effectiveSurveyDate = tanggal_survey ?? updatedLead.tanggal_survey;
+    if (effectiveSurveyDate) {
+      const calendarPath = goldenCalendarPath(req.params.modul, "survey");
+      const msg = `*Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${lead.nama}\n*Tanggal:* ${String(effectiveSurveyDate).split("T")[0]}\n*Jam:* ${jam_survey ?? updatedLead.jam_survey ?? "-"}\n\n${FRONTEND_URL}/${calendarPath}`;
+      await notifyPicAssignment(pic_survey, msg);
+    }
+  }
+
+  // Legacy notification block disabled; covered by the normalized notification above.
+  if (false && pic_survey && tanggal_survey) {
     const picUser = await prisma.user.findFirst({ where: { name: pic_survey }, select: { whatsapp_number: true } });
     if (picUser?.whatsapp_number) {
       const modul = req.params.modul;
       const calendarPath = modul === "golden"
         ? "golden/kalender-survey"
         : modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
-      const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${lead.nama}\n*Tanggal:* ${tanggal_survey}\n*Jam:* ${jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
-      sendFonnte(picUser.whatsapp_number, msg).catch(() => {});
+      const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${lead!.nama}\n*Tanggal:* ${tanggal_survey}\n*Jam:* ${jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
+      sendFonnte(picUser!.whatsapp_number!, msg).catch(() => {});
     }
   }
 
@@ -2551,23 +2599,34 @@ router.patch("/:modul/leads/:id/pengerjaan-schedule", requireRole("Head Golden",
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
-  const { tanggal_pengerjaan } = req.body;
+  const { tanggal_pengerjaan, pic_survey } = req.body;
   if (!tanggal_pengerjaan) return res.status(400).json({ detail: "tanggal_pengerjaan wajib diisi" });
   const lead = await prisma.lead.findUnique({ where: { id } });
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
   if (lead.survey_approval_status !== "approved")
     return res.status(400).json({ detail: "Survey belum disetujui" });
+  const assignedPic = pic_survey ?? lead.pic_survey;
   await prisma.lead.update({
     where: { id },
-    data: { tanggal_pengerjaan: new Date(tanggal_pengerjaan) },
+    data: {
+      tanggal_pengerjaan: new Date(tanggal_pengerjaan),
+      ...(pic_survey !== undefined ? { pic_survey } : {}),
+    },
   });
 
-  if (lead.pic_survey) {
-    const picUser = await prisma.user.findFirst({ where: { name: lead.pic_survey }, select: { whatsapp_number: true } });
+  if (assignedPic) {
+    const calendarPath = goldenCalendarPath(modul, "after");
+    const msg = `*Assign After Pengerjaan Baru*\n\nAnda ditugaskan sebagai PIC After Pengerjaan:\n*Klien:* ${lead.nama}\n*Tanggal:* ${tanggal_pengerjaan}\n\n${FRONTEND_URL}/${calendarPath}`;
+    await notifyPicAssignment(assignedPic, msg);
+  }
+
+  // Legacy notification block disabled; covered by the normalized notification above.
+  if (false && lead!.pic_survey) {
+    const picUser = await prisma.user.findFirst({ where: { name: lead!.pic_survey as string }, select: { whatsapp_number: true } });
     if (picUser?.whatsapp_number) {
       const calendarPath = modul === "golden" ? "golden/kalender-after" : "telemarketing/kalender-instalasi-filter-air";
-      const msg = `🔨 *Assign After Pengerjaan Baru*\n\nAnda ditugaskan sebagai PIC After Pengerjaan:\n*Klien:* ${lead.nama}\n*Tanggal:* ${tanggal_pengerjaan}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
-      sendFonnte(picUser.whatsapp_number, msg).catch(() => {});
+      const msg = `🔨 *Assign After Pengerjaan Baru*\n\nAnda ditugaskan sebagai PIC After Pengerjaan:\n*Klien:* ${lead!.nama}\n*Tanggal:* ${tanggal_pengerjaan}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
+      sendFonnte(picUser!.whatsapp_number!, msg).catch(() => {});
     }
   }
   return res.json({ message: "Tanggal pengerjaan berhasil diset" });

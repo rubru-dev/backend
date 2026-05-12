@@ -11,6 +11,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -151,6 +152,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   // Dialog: set tanggal pengerjaan
   const [scheduleItem, setScheduleItem] = useState<any | null>(null);
   const [scheduleDate, setScheduleDate] = useState("");
+  const [schedulePic, setSchedulePic] = useState("");
 
   // Dialog: approve pengerjaan (upload foto) — only canApprove
   const [approveItem, setApproveItem] = useState<any | null>(null);
@@ -174,16 +176,37 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   });
   const items: any[] = Array.isArray(data) ? data : [];
 
+  const { data: picUsers } = useQuery({
+    queryKey: ["pengerjaan-pic-users", modul],
+    queryFn: () =>
+      apiClient
+        .get("/bd/survey-pic-users", {
+          params: modul === "golden" || modul === "filter-air" ? { sub_role: "Mitra" } : undefined,
+        })
+        .then((r) => r.data),
+  });
+  const picUserList: any[] = Array.isArray(picUsers) ? picUsers : [];
+
+  function openScheduleDialog(item: any) {
+    setScheduleItem(item);
+    setScheduleDate(item.tanggal_pengerjaan ? String(item.tanggal_pengerjaan).split("T")[0] : "");
+    setSchedulePic(item.pic_survey ?? "");
+  }
+
   // ── mutations ────────────────────────────────────────────────────────────────
 
   const scheduleMut = useMutation({
-    mutationFn: ({ id, tanggal }: { id: number; tanggal: string }) =>
-      apiClient.patch(`/bd/${modul}/leads/${id}/pengerjaan-schedule`, { tanggal_pengerjaan: tanggal }).then((r) => r.data),
+    mutationFn: ({ id, tanggal, pic }: { id: number; tanggal: string; pic?: string }) =>
+      apiClient.patch(`/bd/${modul}/leads/${id}/pengerjaan-schedule`, {
+        tanggal_pengerjaan: tanggal,
+        pic_survey: pic || null,
+      }).then((r) => r.data),
     onSuccess: () => {
       toast.success("Tanggal pengerjaan berhasil diset");
       qc.invalidateQueries({ queryKey: ["pengerjaan-kalender", modul] });
       setScheduleItem(null);
       setScheduleDate("");
+      setSchedulePic("");
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal set tanggal"),
   });
@@ -624,7 +647,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                               <Button
                                 size="sm"
                                 className="h-7 text-xs px-2 bg-amber-500 hover:bg-amber-600 text-white"
-                                onClick={() => { setScheduleItem(item); setScheduleDate(""); }}
+                                onClick={() => openScheduleDialog(item)}
                               >
                                 <CalendarDays className="h-3 w-3 mr-1" /> Set Jadwal
                               </Button>
@@ -728,7 +751,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 canApprove={canApprove}
                 canSchedule={canSchedule}
                 currentUserName={currentUserName}
-                onSchedule={() => { setScheduleItem(item); setScheduleDate(item.tanggal_pengerjaan ? String(item.tanggal_pengerjaan).split("T")[0] : ""); }}
+                onSchedule={() => openScheduleDialog(item)}
                 onApprove={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
                 onUploadBukti={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
                 onViewFoto={setViewFoto}
@@ -767,7 +790,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                   <Button
                     size="sm"
                     className="h-7 text-xs px-2 bg-amber-500 hover:bg-amber-600 text-white shrink-0"
-                    onClick={() => { setScheduleItem(item); setScheduleDate(""); }}
+                    onClick={() => openScheduleDialog(item)}
                   >
                     <CalendarDays className="h-3 w-3 mr-1" /> Set Jadwal
                   </Button>
@@ -816,7 +839,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                       <Button
                         size="sm" variant="ghost"
                         className="h-6 text-xs px-2 text-amber-700"
-                        onClick={() => { setScheduleItem(item); setScheduleDate(String(item.tanggal_pengerjaan).split("T")[0]); }}
+                        onClick={() => openScheduleDialog(item)}
                       >
                         Ubah tanggal
                       </Button>
@@ -886,7 +909,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       </>)}
 
       {/* ── Dialog: Set Tanggal Pengerjaan ── */}
-      <Dialog open={!!scheduleItem} onOpenChange={(v) => !v && setScheduleItem(null)}>
+      <Dialog open={!!scheduleItem} onOpenChange={(v) => { if (!v) { setScheduleItem(null); setSchedulePic(""); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -910,12 +933,33 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                   className="w-full"
                 />
               </div>
+              <div className="space-y-1.5">
+                <Label>PIC After Pengerjaan <span className="text-destructive">*</span></Label>
+                {picUserList.length > 0 ? (
+                  <Select value={schedulePic} onValueChange={setSchedulePic}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Pilih PIC" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {picUserList.map((u: any) => (
+                        <SelectItem key={u.id} value={u.name}>{u.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={schedulePic}
+                    onChange={(e) => setSchedulePic(e.target.value)}
+                    placeholder="Nama PIC"
+                  />
+                )}
+              </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setScheduleItem(null)}>Batal</Button>
+                <Button variant="outline" onClick={() => { setScheduleItem(null); setSchedulePic(""); }}>Batal</Button>
                 <Button
                   className="bg-amber-500 hover:bg-amber-600 text-white"
-                  disabled={!scheduleDate || scheduleMut.isPending}
-                  onClick={() => scheduleMut.mutate({ id: scheduleItem.id, tanggal: scheduleDate })}
+                  disabled={!scheduleDate || !schedulePic || scheduleMut.isPending}
+                  onClick={() => scheduleMut.mutate({ id: scheduleItem.id, tanggal: scheduleDate, pic: schedulePic })}
                 >
                   {scheduleMut.isPending ? "Menyimpan..." : "Simpan Jadwal"}
                 </Button>
