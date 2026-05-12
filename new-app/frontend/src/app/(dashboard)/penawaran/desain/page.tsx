@@ -54,14 +54,18 @@ export default function PenawaranDesainPage() {
 
   const { data } = useQuery({
     queryKey: ["penawaran-desain-clients"],
-    queryFn: () => apiClient.get("/bd/database-client/leads", { params: { limit: 10000 } }).then((r) => r.data),
+    queryFn: () => apiClient.get("/bd/sales-admin/leads", { params: { limit: 10000 } }).then((r) => r.data),
   });
   const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
     queryKey: ["penawaran-desain-employees"],
     queryFn: () => apiClient.get("/desain/employees").then((r) => r.data),
   });
 
-  const clients = Array.isArray(data) ? data : data?.items ?? [];
+  const clients = [...(Array.isArray(data) ? data : data?.items ?? [])].sort((a: any, b: any) =>
+    (rawClientName(a) || String(a?.nama ?? "")).localeCompare(rawClientName(b) || String(b?.nama ?? ""), "id", {
+      sensitivity: "base",
+    })
+  );
   const client = clients.find((c: any) => String(c.id) === clientId) ?? clients[0];
   const selectedRo = employees.find((e) => String(e.id) === roId);
   const pkg = PACKAGES[paketName];

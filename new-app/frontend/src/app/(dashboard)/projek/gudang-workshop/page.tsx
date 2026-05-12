@@ -125,17 +125,64 @@ export default function GudangWorkshopPage() {
     <div className="p-6 space-y-5 gudang-print-page">
       <style jsx global>{`
         @media print {
-          aside, header, .print-hidden { display: none !important; }
-          body { background: #fff !important; }
           @page { size: A4 portrait; margin: 14mm; }
-          .gudang-print-page { padding: 0 !important; color: #111827; }
+          html, body, body > div {
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            background: #fff !important;
+          }
+          .h-screen { height: auto !important; }
+          .overflow-hidden { overflow: visible !important; }
+          aside, header, .print-hidden { display: none !important; }
+          main, main > div {
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+          }
+          .gudang-print-page {
+            display: block !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            padding: 0 !important;
+            color: #111827;
+          }
           .gudang-print-title { display: none !important; }
-          .gudang-print-grid { display: block !important; }
-          .gudang-print-content { width: 100% !important; }
+          .gudang-print-grid {
+            display: block !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+          .gudang-print-content {
+            display: block !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
           .gudang-doc-header { display: flex !important; border-bottom: 2px solid #111827; padding-bottom: 14px; margin-bottom: 18px; }
           .gudang-summary { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; margin-bottom: 14px; }
           .gudang-summary > div { border: 1px solid #d1d5db !important; border-radius: 0 !important; padding: 10px !important; }
-          .gudang-table-wrap { border-radius: 0 !important; border: 1px solid #111827 !important; }
+          .gudang-table-wrap {
+            border-radius: 0 !important;
+            border: 1px solid #111827 !important;
+            overflow: visible !important;
+          }
+          .gudang-print-check { display: table-cell !important; }
+          .gudang-check-box {
+            display: inline-block !important;
+            width: 14px !important;
+            height: 14px !important;
+            border: 1.5px solid #111827 !important;
+            vertical-align: middle;
+          }
+          .gudang-table-wrap table,
+          .gudang-table-wrap thead,
+          .gudang-table-wrap tbody,
+          .gudang-table-wrap tr {
+            page-break-inside: auto;
+            break-inside: auto;
+          }
           .gudang-table-wrap table { font-size: 11px !important; }
           .gudang-table-wrap th { background: #111827 !important; color: #fff !important; padding: 8px !important; }
           .gudang-table-wrap td { padding: 8px !important; }
@@ -242,6 +289,7 @@ export default function GudangWorkshopPage() {
             <table className="w-full text-sm">
               <thead className="bg-gray-50 border-b">
                 <tr>
+                  <th className="hidden px-4 py-3 text-center font-medium text-gray-500 gudang-print-check">Checklist</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Item</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">Qty</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Satuan</th>
@@ -253,11 +301,12 @@ export default function GudangWorkshopPage() {
               </thead>
               <tbody className="divide-y">
                 {isLoading ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Memuat...</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Memuat...</td></tr>
                 ) : !detail || detail.stok.length === 0 ? (
-                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Belum ada item gudang/workshop.</td></tr>
+                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Belum ada item gudang/workshop.</td></tr>
                 ) : detail.stok.map((s) => editingStockId === s.id ? (
                   <tr key={s.id} className="bg-teal-50/50">
+                    <td className="hidden px-4 py-3 text-center gudang-print-check"><span className="gudang-check-box" /></td>
                     <td className="px-4 py-3"><Input value={editStockForm.nama_barang} onChange={(e) => setEditStockForm({ ...editStockForm, nama_barang: e.target.value })} /></td>
                     <td className="px-4 py-3"><Input type="number" value={editStockForm.quantity} onChange={(e) => setEditStockForm({ ...editStockForm, quantity: e.target.value })} className="text-right" /></td>
                     <td className="px-4 py-3"><Input value={editStockForm.satuan} onChange={(e) => setEditStockForm({ ...editStockForm, satuan: e.target.value })} /></td>
@@ -273,6 +322,7 @@ export default function GudangWorkshopPage() {
                   </tr>
                 ) : (
                   <tr key={s.id}>
+                    <td className="hidden px-4 py-3 text-center gudang-print-check"><span className="gudang-check-box" /></td>
                     <td className="px-4 py-3 font-medium">{s.nama_barang}</td>
                     <td className="px-4 py-3 text-right">{s.quantity}</td>
                     <td className="px-4 py-3">{s.satuan ?? "-"}</td>
