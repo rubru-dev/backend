@@ -160,7 +160,25 @@ export default function GudangWorkshopPage() {
             height: auto !important;
             overflow: visible !important;
           }
-          .gudang-doc-header { display: flex !important; border-bottom: 2px solid #111827; padding-bottom: 14px; margin-bottom: 18px; }
+          .gudang-doc-header {
+            display: flex !important;
+            align-items: flex-start !important;
+            justify-content: space-between !important;
+            gap: 24px !important;
+            border-bottom: 3px solid #f97316 !important;
+            padding-bottom: 16px !important;
+            margin-bottom: 0 !important;
+          }
+          .gudang-logo-block { display: flex !important; align-items: center !important; gap: 10px !important; }
+          .gudang-logo { width: 52px !important; height: 52px !important; object-fit: contain !important; }
+          .gudang-company-name { font-size: 16px !important; font-weight: 700 !important; color: #f97316 !important; line-height: 1.15 !important; }
+          .gudang-company-tagline { font-size: 8px !important; color: #78716c !important; margin-top: 2px !important; }
+          .gudang-company-contact { font-size: 7.5px !important; color: #78716c !important; margin-top: 2px !important; line-height: 1.35 !important; }
+          .gudang-title-block { text-align: right !important; }
+          .gudang-document-title { font-size: 24px !important; font-weight: 800 !important; color: #f97316 !important; letter-spacing: 2px !important; line-height: 1.1 !important; }
+          .gudang-document-number { font-size: 10px !important; color: #78716c !important; margin-top: 3px !important; }
+          .gudang-document-date { font-size: 8px !important; color: #78716c !important; margin-top: 3px !important; }
+          .gudang-accent-bar { display: block !important; height: 4px !important; background: #f97316 !important; border-radius: 2px !important; margin: 0 0 20px !important; }
           .gudang-summary { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; gap: 8px !important; margin-bottom: 14px; }
           .gudang-summary > div { border: 1px solid #d1d5db !important; border-radius: 0 !important; padding: 10px !important; }
           .gudang-table-wrap {
@@ -251,21 +269,23 @@ export default function GudangWorkshopPage() {
         </div>
 
         <div className="space-y-4 gudang-print-content">
-          <div className="hidden gudang-doc-header items-start justify-between gap-6">
-            <div className="flex items-start gap-3">
-              <div className="h-12 w-12 border-2 border-slate-900 flex items-center justify-center font-black text-sm">RR</div>
+          <div className="hidden gudang-doc-header">
+            <div className="gudang-logo-block">
+              <img src="/images/logo.png" alt="RubahRumah" className="gudang-logo" />
               <div>
-                <p className="text-base font-bold uppercase tracking-wide">PT. Rubah Rumah Inovasi Pemuda</p>
-                <p className="text-xs text-slate-600">Jl. Pandu II No. 420, Legenda Malaka, Batam Center</p>
-                <p className="text-xs text-slate-600">Telp: +62 813-7640-5550 | Website: rubahrumah.com</p>
+                <p className="gudang-company-name">RubahRumah</p>
+                <p className="gudang-company-tagline">Platform Desain and Build</p>
+                <p className="gudang-company-contact">Jl. Pandu II No.420. Sepanjang Jaya. Kec. Rawalumbu. Kota Bekasi. Jawa Barat 17116</p>
+                <p className="gudang-company-contact">0813-7640-5550 | info.rubahrumah@gmail.com</p>
               </div>
             </div>
-            <div className="text-right">
-              <p className="text-xl font-black uppercase">Daftar Gudang</p>
-              <p className="text-xs text-slate-600">No: {nomorDokumen}</p>
-              <p className="text-xs text-slate-600">Tanggal: {tanggalCetak}</p>
+            <div className="gudang-title-block">
+              <p className="gudang-document-title">DAFTAR GUDANG</p>
+              <p className="gudang-document-number">{nomorDokumen}</p>
+              <p className="gudang-document-date">Tanggal: {tanggalCetak}</p>
             </div>
           </div>
+          <div className="hidden gudang-accent-bar" />
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 gudang-summary">
             <div className="rounded-lg border bg-white p-4"><p className="text-xs text-muted-foreground">Lokasi</p><p className="text-xl font-bold">{detail?.nama ?? "-"}</p></div>
@@ -347,7 +367,7 @@ export default function GudangWorkshopPage() {
               <p>Dokumen ini merupakan rekap alat dan material in-house berdasarkan data Gudang/Workshop pada saat dicetak.</p>
             </div>
             <div className="text-center text-sm">
-              <p>Batam, {tanggalCetak}</p>
+              <p>Bekasi, {tanggalCetak}</p>
               <div className="h-20" />
               <p className="border-t border-slate-900 pt-1 font-semibold">Penanggung Jawab Workshop</p>
             </div>
