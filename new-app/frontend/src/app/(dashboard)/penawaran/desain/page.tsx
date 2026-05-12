@@ -34,9 +34,20 @@ const PACKAGES = {
 
 const IDR = (n: number) => `Rp. ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(n)}`;
 
-function displayName(c: any) {
-  if (!c) return "";
-  return c.display_name || [c.salutation, c.nama].filter(Boolean).join(" ") || c.nama || "";
+function rawClientName(c: any) {
+  const raw = String(c?.nama ?? "").trim();
+  return raw.replace(/^(Mr|Mrs)\.?\s+/i, "").trim();
+}
+
+function clientSalutation(c: any) {
+  if (c?.salutation) return c.salutation;
+  const m = String(c?.nama ?? "").trim().match(/^(Mr|Mrs)\.?\b/i);
+  return m?.[1] ?? "Mr/Mrs";
+}
+
+function clientFullName(c: any) {
+  if (!c) return "Mr/Mrs [Nama Client]";
+  return `${clientSalutation(c)} ${rawClientName(c) || "[Nama Client]"}`.trim();
 }
 
 function formatDateID(date: string) {
@@ -58,7 +69,9 @@ export default function PenawaranDesainPage() {
   const clients = Array.isArray(data) ? data : data?.items ?? [];
   const client = clients.find((c: any) => String(c.id) === clientId) ?? clients[0];
   const pkg = PACKAGES[paketName];
-  const name = displayName(client) || "Mr/Mrs [Nama Client]";
+  const salutation = client ? clientSalutation(client) : "Mr/Mrs";
+  const namaAsli = client ? rawClientName(client) : "[Nama Client]";
+  const name = client ? `${salutation} ${namaAsli}` : "Mr/Mrs [Nama Client]";
 
   const detailRows = useMemo(() => pkg.details.map((d) => <li key={d}>{d}</li>), [pkg]);
 
@@ -95,9 +108,13 @@ export default function PenawaranDesainPage() {
           <Select value={clientId || String(client?.id ?? "")} onValueChange={setClientId}>
             <SelectTrigger><SelectValue placeholder="Pilih client" /></SelectTrigger>
             <SelectContent>
-              {clients.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{displayName(c)}</SelectItem>)}
+              {clients.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{clientFullName(c)}</SelectItem>)}
             </SelectContent>
           </Select>
+          <div className="mt-2 grid grid-cols-[90px_1fr] gap-2">
+            <Input value={salutation} readOnly className="bg-slate-50" aria-label="Salutation" />
+            <Input value={namaAsli} readOnly className="bg-slate-50" aria-label="Nama asli client" />
+          </div>
         </div>
         <div>
           <Label>Tanggal/Bulan/Tahun</Label>
@@ -116,6 +133,19 @@ export default function PenawaranDesainPage() {
 
       {showPreview && (
         <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm font-serif text-[15px] leading-7 text-black">
+          <div className="mb-8 border-b-2 border-black pb-4 font-sans">
+            <div className="flex items-start gap-4">
+              <img src="/images/logo.png" alt="Rubah Rumah" className="h-20 w-20 object-contain" />
+              <div className="pt-1">
+                <p className="text-xl font-bold leading-tight">PT. Rubah Rumah</p>
+                <p className="text-xl font-bold leading-tight">Inovasi Pemuda</p>
+                <p className="mt-2 text-[12px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
+                <p className="text-[12px] leading-5">Telp: +62 813-7640-5550</p>
+                <p className="text-[12px] leading-5">Website: rubahrumah.com</p>
+              </div>
+            </div>
+          </div>
+
           <h2 className="text-center font-bold text-lg mb-5">FORM PENAWARAN JASA DESAIN</h2>
           <p>Lampiran :</p>
           <p className="ml-8 mb-5">Denah Eksisting dan Perubahan</p>
@@ -170,6 +200,9 @@ export default function PenawaranDesainPage() {
             <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
             <div className="h-28" />
             <p className="font-bold">[Nama RO]</p>
+          </div>
+          <div className="mt-10 border-t pt-2 text-center text-xs font-sans">
+            PT. Rubah Rumah Inovasi Pemuda
           </div>
         </div>
       )}
