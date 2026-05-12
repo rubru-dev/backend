@@ -203,7 +203,7 @@ export function ChecklistPDF({ data }: { data: ChecklistPdfData }) {
                   </View>
                   <Text style={s.itemNama}>{item.nama_pekerjaan}</Text>
                   {item.area_pekerjaan && (
-                    <Text style={s.itemArea}>📍 {item.area_pekerjaan}</Text>
+                    <Text style={s.itemArea}>Tahapan: {item.area_pekerjaan}</Text>
                   )}
                   <View style={{ marginLeft: 8 }}>
                     <View style={item.is_checked ? s.statusBadgeDone : s.statusBadgePending}>

@@ -30,8 +30,15 @@ interface FollowUpHistoryItem {
   attachment_data?: string | null;
   attachment_mime?: string | null;
   attachment_name?: string | null;
+  attachments?: FollowUpAttachment[];
   user: { id: number; name: string } | null;
   created_at: string;
+}
+
+interface FollowUpAttachment {
+  data: string;
+  mime?: string | null;
+  name?: string | null;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -139,7 +146,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const [importClientSearch, setImportClientSearch] = useState("");
   const [importClientPage, setImportClientPage] = useState(1);
   const [expandedId, setExpandedId] = useState<number | null>(null);
-  const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string; attachment_data?: string; attachment_mime?: string; attachment_name?: string }>>({});
+  const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string; attachments?: FollowUpAttachment[] }>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
@@ -260,29 +267,37 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   });
   const picUserList: any[] = Array.isArray(picUsersData) ? picUsersData : [];
 
-  function handleFollowUpAttachment(leadId: number, file?: File) {
+  function getFollowUpAttachments(item: FollowUpHistoryItem | any): FollowUpAttachment[] {
+    if (Array.isArray(item.attachments) && item.attachments.length > 0) return item.attachments;
+    if (item.attachment_data) {
+      return [{ data: item.attachment_data, mime: item.attachment_mime ?? null, name: item.attachment_name ?? "Lampiran gambar" }];
+    }
+    return [];
+  }
+
+  function handleFollowUpAttachment(leadId: number, files?: FileList | null) {
     const inlineForm = inlineFollowUpForm[leadId] ?? { catatan: "", next_follow_up: "" };
-    if (!file) {
-      setInlineFollowUpForm((prev) => ({ ...prev, [leadId]: { ...inlineForm, attachment_data: undefined, attachment_mime: undefined, attachment_name: undefined } }));
+    const selected = Array.from(files ?? []);
+    if (selected.length === 0) {
+      setInlineFollowUpForm((prev) => ({ ...prev, [leadId]: { ...inlineForm, attachments: [] } }));
       return;
     }
-    if (!["image/jpeg", "image/png"].includes(file.type)) {
+    const invalid = selected.find((file) => !["image/jpeg", "image/png"].includes(file.type));
+    if (invalid) {
       toast.error("Lampiran hanya JPG, JPEG, atau PNG");
       return;
     }
-    const reader = new FileReader();
-    reader.onload = () => {
+    Promise.all(selected.map((file) => new Promise<FollowUpAttachment>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ data: String(reader.result), mime: file.type, name: file.name });
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    }))).then((attachments) => {
       setInlineFollowUpForm((prev) => ({
         ...prev,
-        [leadId]: {
-          ...inlineForm,
-          attachment_data: String(reader.result),
-          attachment_mime: file.type,
-          attachment_name: file.name,
-        },
+        [leadId]: { ...inlineForm, attachments },
       }));
-    };
-    reader.readAsDataURL(file);
+    }).catch(() => toast.error("Gagal membaca lampiran gambar"));
   }
 
   const bulkImportMut = useMutation({
@@ -411,7 +426,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
         <td>${h.catatan ? h.catatan.replace(/</g, "&lt;") : "—"}</td>
         <td>${h.next_follow_up ? new Date(h.next_follow_up).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
         <td>${h.user?.name ?? "—"}</td>
-        <td>${h.attachment_data ? `<img class="fu-attachment" src="${h.attachment_data}" alt="${(h.attachment_name ?? "Lampiran").replace(/"/g, "&quot;")}"/>` : "-"}</td>
+        <td>${getFollowUpAttachments(h).length ? getFollowUpAttachments(h).map((att) => `<img class="fu-attachment" src="${att.data}" alt="${(att.name ?? "Lampiran").replace(/"/g, "&quot;")}"/>`).join("") : "-"}</td>
       </tr>`).join("");
 
     const html = `<!DOCTYPE html>
@@ -434,7 +449,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   th { background: #f1f5f9; padding: 7px 8px; text-align: left; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
   td { padding: 6px 8px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
   .num { text-align: center; color: #94a3b8; width: 24px; }
-  .fu-attachment { max-width: 110px; max-height: 85px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; }
+  .fu-attachment { max-width: 110px; max-height: 85px; object-fit: contain; border: 1px solid #e2e8f0; border-radius: 4px; margin: 0 4px 4px 0; }
   .empty { text-align: center; color: #94a3b8; padding: 24px; font-style: italic; }
   .footer { margin-top: 28px; padding-top: 10px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
   @media print { body { padding: 16px 20px; } }
@@ -529,7 +544,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
             <td class="fu-date">${new Date(f.tanggal).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
             <td class="fu-note">${f.catatan ? f.catatan.replace(/</g, "&lt;") : "—"}</td>
             <td class="fu-next">${f.next_follow_up ? new Date(f.next_follow_up).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—"} ${f.user?.name ? `<span class="fu-by">${f.user.name}</span>` : ""}</td>
-            <td class="fu-attach">${f.attachment_data ? `<img class="fu-attachment" src="${f.attachment_data}" alt="${(f.attachment_name ?? "Lampiran").replace(/"/g, "&quot;")}"/>` : "-"}</td>
+            <td class="fu-attach">${getFollowUpAttachments(f).length ? getFollowUpAttachments(f).map((att) => `<img class="fu-attachment" src="${att.data}" alt="${(att.name ?? "Lampiran").replace(/"/g, "&quot;")}"/>`).join("") : "-"}</td>
           </tr>`).join("");
 
       const statusClass = { Low: "s-low", Medium: "s-med", Hot: "s-hot", Client: "s-cli", Batal: "s-bat" }[lead.status as string] ?? "s-low";
@@ -1179,16 +1194,21 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                                               Next: {new Date(h.next_follow_up).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}
                                             </p>
                                           )}
-                                          {h.attachment_data && (
-                                            <a
-                                              href={h.attachment_data}
-                                              target="_blank"
-                                              rel="noreferrer"
-                                              className="mt-2 inline-flex items-center gap-2 text-xs text-primary hover:underline"
-                                            >
-                                              <img src={h.attachment_data} alt={h.attachment_name ?? "Lampiran follow up"} className="h-10 w-10 rounded border object-cover" />
-                                              {h.attachment_name ?? "Lampiran gambar"}
-                                            </a>
+                                          {getFollowUpAttachments(h).length > 0 && (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {getFollowUpAttachments(h).map((att, i) => (
+                                                <a
+                                                  key={`${h.id}-${i}`}
+                                                  href={att.data}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                  className="inline-flex items-center gap-2 text-xs text-primary hover:underline max-w-[180px]"
+                                                >
+                                                  <img src={att.data} alt={att.name ?? "Lampiran follow up"} className="h-10 w-10 rounded border object-cover shrink-0" />
+                                                  <span className="truncate">{att.name ?? `Lampiran ${i + 1}`}</span>
+                                                </a>
+                                              ))}
+                                            </div>
                                           )}
                                         </div>
                                       ))}
@@ -1227,9 +1247,7 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                                             data: {
                                               catatan: inlineForm.catatan,
                                               next_follow_up: inlineForm.next_follow_up || null,
-                                              attachment_data: inlineForm.attachment_data || null,
-                                              attachment_mime: inlineForm.attachment_mime || null,
-                                              attachment_name: inlineForm.attachment_name || null,
+                                              attachments: inlineForm.attachments ?? [],
                                             },
                                           });
                                         }}
@@ -1241,13 +1259,18 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                                       <Input
                                         type="file"
                                         accept="image/png,image/jpeg,.jpg,.jpeg,.png"
+                                        multiple
                                         className="h-8 text-xs bg-white"
-                                        onChange={(e) => handleFollowUpAttachment(item.id, e.target.files?.[0])}
+                                        onChange={(e) => handleFollowUpAttachment(item.id, e.target.files)}
                                       />
-                                      {inlineForm.attachment_data && (
-                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                          <img src={inlineForm.attachment_data} alt="Preview lampiran" className="h-10 w-10 rounded border object-cover" />
-                                          <span className="truncate">{inlineForm.attachment_name}</span>
+                                      {(inlineForm.attachments?.length ?? 0) > 0 && (
+                                        <div className="grid grid-cols-3 gap-2">
+                                          {inlineForm.attachments?.map((att, i) => (
+                                            <div key={i} className="min-w-0 text-xs text-muted-foreground">
+                                              <img src={att.data} alt={att.name ?? "Preview lampiran"} className="h-12 w-full rounded border object-cover" />
+                                              <span className="block truncate mt-1">{att.name}</span>
+                                            </div>
+                                          ))}
                                         </div>
                                       )}
                                     </div>

@@ -130,6 +130,11 @@ export function Sidebar({ className }: { className?: string }) {
       if (hasAnyRole("Head Golden") && mod === "golden") return true;
       if (hasPermission(mod, act)) return true;
     }
+    if (group.items.some((item) => {
+      if (!item.permission) return false;
+      const [mod, act] = item.permission.split(".");
+      return hasPermission(mod, act) || (hasAnyRole("Head Golden") && mod === "golden");
+    })) return true;
     // Fallback: role-based (for users without permissions loaded yet)
     if (group.roles.length === 0) return false;
     return hasAnyRole(...group.roles);

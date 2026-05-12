@@ -4,8 +4,20 @@ import { requirePermission } from "../middleware/requireRole";
 
 const router = Router();
 
+const FE_STATUS_FROM_DB: Record<string, string> = {
+  draft: "Draft",
+  sent: "Terkirim",
+  paid: "Lunas",
+  Lunas: "Lunas",
+};
+
 function isSuperAdminReq(req: Request) {
   return req.user?.roles.some((r) => r.role.name === "Super Admin") ?? false;
+}
+
+function leadDisplayName(lead: { salutation?: string | null; nama?: string | null } | null) {
+  if (!lead) return "-";
+  return [lead.salutation, lead.nama].filter(Boolean).join(" ") || lead.nama || "-";
 }
 
 // ── META ADS ──────────────────────────────────────────────────────────────────
@@ -28,6 +40,39 @@ router.get("/meta-ads/campaigns-select", async (req: Request, res: Response) => 
     campaign_name: c.campaign_name ?? "",
     platform: c.platform,
   })));
+});
+
+router.get("/ar-tagihan", requirePermission("golden", "ar"), async (_req: Request, res: Response) => {
+  const invoices = await prisma.invoice.findMany({
+    where: { kategori: "Payment Golden", lead_id: { not: null } },
+    select: {
+      id: true,
+      invoice_number: true,
+      lead_id: true,
+      tanggal: true,
+      grand_total: true,
+      status: true,
+      lead: { select: { nama: true, salutation: true } },
+      kwitansi: { select: { jumlah_diterima: true } },
+    },
+    orderBy: { tanggal: "desc" },
+  });
+
+  return res.json(invoices.map((inv) => {
+    const tagihan = parseFloat(String(inv.grand_total ?? 0));
+    const terbayar = inv.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
+    return {
+      invoice_id: Number(inv.id),
+      invoice_number: inv.invoice_number,
+      lead_id: inv.lead_id ? Number(inv.lead_id) : null,
+      nama_client: leadDisplayName(inv.lead),
+      tanggal: inv.tanggal ? new Date(inv.tanggal).toISOString().split("T")[0] : null,
+      status: FE_STATUS_FROM_DB[inv.status || "draft"] || inv.status,
+      total_tagihan: tagihan,
+      total_terbayar: terbayar,
+      outstanding: Math.max(0, tagihan - terbayar),
+    };
+  }));
 });
 
 // GET /golden/meta-ads/campaigns

@@ -1,7 +1,7 @@
 "use client";
 import { getLogoBase64 } from "@/lib/get-logo";
 
-import { useState, useRef } from "react";
+import { useMemo, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -209,13 +209,13 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
     setDonePreviews((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  async function handleDownloadChecklist() {
+  async function handleDownloadChecklist(sourceItems = items, stageLabel?: string) {
     setDownloadingPdf(true);
     try {
       const { ChecklistPDF } = await import("@/components/checklist-pdf");
       const logoUrl = await getLogoBase64();
 
-      const pdfItems = await Promise.all(items.map(async (item, idx) => {
+      const pdfItems = await Promise.all(sourceItems.map(async (item, idx) => {
         const gambarPaths = item.gambar_paths?.length > 0 ? item.gambar_paths : (item.gambar_path ? [item.gambar_path] : []);
         const gambarSelesaiPaths = item.gambar_selesai_paths?.length > 0 ? item.gambar_selesai_paths : (item.gambar_selesai_path ? [item.gambar_selesai_path] : []);
         return {
@@ -238,7 +238,7 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
           logoUrl,
         }} />
       ).toBlob();
-      saveAs(blob, `Checklist-${projekDetail?.nama_proyek ?? "Proyek"}.pdf`);
+      saveAs(blob, `Checklist-${stageLabel ? `${stageLabel}-` : ""}${projekDetail?.nama_proyek ?? "Proyek"}.pdf`);
     } catch (e) {
       toast.error("Gagal generate PDF");
       console.error(e);
@@ -249,6 +249,14 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
 
   const selesai = items.filter((i) => i.is_checked).length;
   const pct = items.length > 0 ? Math.round((selesai / items.length) * 100) : 0;
+  const stageGroups = useMemo(() => {
+    const map = new Map<string, ChecklistItem[]>();
+    for (const item of items) {
+      const key = item.area_pekerjaan?.trim() || "Tanpa Tahapan";
+      map.set(key, [...(map.get(key) ?? []), item]);
+    }
+    return Array.from(map.entries()).map(([name, stageItems]) => ({ name, items: stageItems }));
+  }, [items]);
 
   return (
     <div className="space-y-4">
@@ -265,7 +273,7 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
             </div>
           )}
         </div>
-        <Button variant="outline" size="sm" disabled={downloadingPdf || items.length === 0} onClick={handleDownloadChecklist}>
+        <Button variant="outline" size="sm" disabled={downloadingPdf || items.length === 0} onClick={() => handleDownloadChecklist()}>
           {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
           Download PDF
         </Button>
@@ -280,8 +288,8 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
             <Input placeholder="e.g. Cat Tembok Kurang Rapih" value={addForm.nama_pekerjaan} onChange={(e) => setAddForm({ ...addForm, nama_pekerjaan: e.target.value })} />
           </div>
           <div>
-            <Label className="text-xs">Area Pekerjaan</Label>
-            <Input placeholder="e.g. Ruang Tamu, Kamar 1" value={addForm.area_pekerjaan} onChange={(e) => setAddForm({ ...addForm, area_pekerjaan: e.target.value })} />
+            <Label className="text-xs">Tahapan Checklist</Label>
+            <Input placeholder="e.g. Tahap 1 - Struktur, Tahap 2 - Finishing" value={addForm.area_pekerjaan} onChange={(e) => setAddForm({ ...addForm, area_pekerjaan: e.target.value })} />
           </div>
         </div>
         <div>
@@ -319,8 +327,22 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
           <p className="text-sm">Belum ada item checklist.</p>
         </div>
       ) : (
-        <div className="space-y-3">
-          {items.map((item, idx) => {
+        <div className="space-y-5">
+          {stageGroups.map((stage) => {
+            const stageDone = stage.items.filter((i) => i.is_checked).length;
+            return (
+              <div key={stage.name} className="rounded-lg border bg-white">
+                <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-slate-50 px-4 py-3">
+                  <div>
+                    <p className="font-semibold text-sm">{stage.name}</p>
+                    <p className="text-xs text-muted-foreground">{stageDone}/{stage.items.length} checklist selesai</p>
+                  </div>
+                  <Button variant="outline" size="sm" disabled={downloadingPdf || stage.items.length === 0} onClick={() => handleDownloadChecklist(stage.items, stage.name)}>
+                    <FileDown className="h-3.5 w-3.5 mr-1" /> PDF Tahapan
+                  </Button>
+                </div>
+                <div className="space-y-3 p-3">
+          {stage.items.map((item, idx) => {
             const gambarPaths = item.gambar_paths?.length > 0 ? item.gambar_paths : (item.gambar_path ? [item.gambar_path] : []);
             const gambarSelesaiPaths = item.gambar_selesai_paths?.length > 0 ? item.gambar_selesai_paths : (item.gambar_selesai_path ? [item.gambar_selesai_path] : []);
             return (
@@ -370,6 +392,10 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
                     </div>
                   </div>
                 )}
+              </div>
+            );
+          })}
+                </div>
               </div>
             );
           })}

@@ -27,6 +27,7 @@ const MODULE_META: Record<string, { label: string; color: string }> = {
   telemarketing:   { label: "Sales Admin Product dan Mitra", color: "#10b981" },
   desain:          { label: "Desain",                    color: "#8b5cf6" },
   sales:           { label: "Sales",                     color: "#3b82f6" },
+  projek:          { label: "Projek",                    color: "#14b8a6" },
   projek_sipil:    { label: "Projek Sipil",              color: "#14b8a6" },
   projek_desain:   { label: "Projek Desain",             color: "#14b8a6" },
   projek_interior: { label: "Projek Interior",           color: "#14b8a6" },

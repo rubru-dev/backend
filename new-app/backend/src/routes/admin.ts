@@ -214,6 +214,7 @@ router.put("/roles/:id/permissions", requireRole("Super Admin"), async (req: Req
 // Permission yang harus selalu ada (auto-sync tanpa perlu re-run seeder)
 const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }> = [
   { name: "pic.kalender_visit", module: "pic", label: "Sub-menu: Kalender Visit PIC" },
+  { name: "projek.gudang_workshop", module: "projek", label: "Sub-menu: Gudang/Workshop" },
   { name: "bd.report_analytics", module: "bd", label: "Sub-menu: Report dan Analytics BD" },
   { name: "telemarketing.view",          module: "telemarketing", label: "Lihat Sales Admin Product dan Mitra" },
   { name: "telemarketing.create",        module: "telemarketing", label: "Buat Sales Admin Product dan Mitra" },
@@ -235,8 +236,14 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "golden.kalender",       module: "golden", label: "Sub-menu: Kalender Survey Golden" },
   { name: "golden.kalender_after", module: "golden", label: "Sub-menu: Kalender After Pengerjaan Golden" },
   { name: "golden.kanban_sales",   module: "golden", label: "Sub-menu: Kanban Sales Golden" },
+  { name: "golden.ar",             module: "golden", label: "Sub-menu: AR Golden" },
   { name: "finance.ar",            module: "finance", label: "Sub-menu: AR Tagihan Outstanding" },
   { name: "tutorial.sop",          module: "tutorial", label: "Sub-menu: SOP" },
+  { name: "penawaran.view",        module: "penawaran", label: "Lihat menu Penawaran" },
+  { name: "penawaran.desain",      module: "penawaran", label: "Sub-menu: Penawaran Desain" },
+  { name: "penawaran.rkr",         module: "penawaran", label: "Sub-menu: Penawaran RKR" },
+  { name: "penawaran.golden",      module: "penawaran", label: "Sub-menu: Penawaran Golden" },
+  { name: "penawaran.filter_air",  module: "penawaran", label: "Sub-menu: Penawaran Filter Air" },
 ];
 
 // GET /permissions — list all, grouped by module

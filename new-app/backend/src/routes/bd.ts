@@ -34,12 +34,11 @@ function leadDuplicateKeys(lead: { nama?: unknown; nomor_telepon?: unknown }) {
   return keys;
 }
 
-function normalizeFollowUpAttachment(body: any) {
-  const data = typeof body?.attachment_data === "string" ? body.attachment_data : null;
-  const mime = typeof body?.attachment_mime === "string" ? body.attachment_mime : null;
-  const name = typeof body?.attachment_name === "string" ? body.attachment_name : null;
+function normalizeFollowUpAttachmentItem(item: any) {
+  const data = typeof item?.data === "string" ? item.data : typeof item?.attachment_data === "string" ? item.attachment_data : null;
+  const mime = typeof item?.mime === "string" ? item.mime : typeof item?.attachment_mime === "string" ? item.attachment_mime : null;
+  const name = typeof item?.name === "string" ? item.name : typeof item?.attachment_name === "string" ? item.attachment_name : null;
   const allowed = new Set(["image/jpeg", "image/png", "image/jpg"]);
-  if (!data) return { attachment_data: null, attachment_mime: null, attachment_name: null };
   if (!mime || !allowed.has(mime)) {
     const err = new Error("Lampiran follow up hanya mendukung JPG, JPEG, atau PNG");
     (err as any).status = 400;
@@ -51,21 +50,73 @@ function normalizeFollowUpAttachment(body: any) {
     throw err;
   }
   return {
-    attachment_data: data,
-    attachment_mime: mime,
-    attachment_name: name?.slice(0, 255) ?? "lampiran-follow-up",
+    data,
+    mime,
+    name: name?.slice(0, 255) ?? "lampiran-follow-up",
   };
 }
 
+function normalizeFollowUpAttachment(body: any) {
+  const rawAttachments = Array.isArray(body?.attachments) ? body.attachments : [];
+  const attachments = rawAttachments
+    .map((item: any) => normalizeFollowUpAttachmentItem(item))
+    .filter((item: any) => item.data);
+
+  if (attachments.length > 0) {
+    return {
+      attachment_data: JSON.stringify(attachments),
+      attachment_mime: "application/json",
+      attachment_name: `${attachments.length} lampiran`,
+    };
+  }
+
+  const data = typeof body?.attachment_data === "string" ? body.attachment_data : null;
+  if (!data) return { attachment_data: null, attachment_mime: null, attachment_name: null };
+  const item = normalizeFollowUpAttachmentItem({
+    data,
+    mime: body?.attachment_mime,
+    name: body?.attachment_name,
+  });
+  return {
+    attachment_data: item.data,
+    attachment_mime: item.mime,
+    attachment_name: item.name,
+  };
+}
+
+function followUpAttachments(f: any) {
+  const data = f.attachment_data ?? null;
+  if (!data) return [];
+  if (f.attachment_mime === "application/json") {
+    try {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .filter((item) => typeof item?.data === "string")
+          .map((item) => ({
+            data: item.data,
+            mime: typeof item?.mime === "string" ? item.mime : null,
+            name: typeof item?.name === "string" ? item.name : "Lampiran gambar",
+          }));
+      }
+    } catch {
+      return [];
+    }
+  }
+  return [{ data, mime: f.attachment_mime ?? null, name: f.attachment_name ?? "Lampiran gambar" }];
+}
+
 function followUpDict(f: any) {
+  const attachments = followUpAttachments(f);
   return {
     id: f.id,
     tanggal: f.tanggal,
     catatan: f.catatan,
     next_follow_up: f.next_follow_up,
-    attachment_data: f.attachment_data ?? null,
-    attachment_mime: f.attachment_mime ?? null,
-    attachment_name: f.attachment_name ?? null,
+    attachment_data: attachments[0]?.data ?? null,
+    attachment_mime: attachments[0]?.mime ?? f.attachment_mime ?? null,
+    attachment_name: attachments[0]?.name ?? f.attachment_name ?? null,
+    attachments,
     user: f.user ? { id: f.user.id, name: f.user.name } : null,
     created_at: f.created_at,
   };
@@ -2059,16 +2110,7 @@ router.get("/:modul/leads/follow-up-report", async (req: Request, res: Response)
 
   return res.json(leads.map((l) => ({
     ...leadDict(l),
-    follow_ups: l.follow_ups.map((f) => ({
-      id: f.id,
-      tanggal: f.tanggal,
-      catatan: f.catatan,
-      next_follow_up: f.next_follow_up,
-      attachment_data: (f as any).attachment_data ?? null,
-      attachment_mime: (f as any).attachment_mime ?? null,
-      attachment_name: (f as any).attachment_name ?? null,
-      user: f.user ? { name: f.user.name } : null,
-    })),
+    follow_ups: l.follow_ups.map((f) => followUpDict(f)),
   })));
 });
 

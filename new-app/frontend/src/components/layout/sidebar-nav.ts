@@ -132,13 +132,13 @@ export const NAV_GROUPS: NavGroup[] = [
   {
     title: "Penawaran",
     color: "#0ea5e9",
-    permission: "sales.view",
+    permission: "penawaran.view",
     roles: ["Sales", "Sales Admin"],
     items: [
-      { label: "Penawaran Desain", href: "/penawaran/desain", icon: "FileText", permission: "sales.view" },
-      { label: "Penawaran RKR", href: "/penawaran/rkr", icon: "FileText", permission: "sales.view" },
-      { label: "Penawaran Golden", href: "/penawaran/golden", icon: "FileText", permission: "sales.view" },
-      { label: "Penawaran Filter Air", href: "/penawaran/filter-air", icon: "FileText", permission: "sales.view" },
+      { label: "Penawaran Desain", href: "/penawaran/desain", icon: "FileText", permission: "penawaran.desain" },
+      { label: "Penawaran RKR", href: "/penawaran/rkr", icon: "FileText", permission: "penawaran.rkr" },
+      { label: "Penawaran Golden", href: "/penawaran/golden", icon: "FileText", permission: "penawaran.golden" },
+      { label: "Penawaran Filter Air", href: "/penawaran/filter-air", icon: "FileText", permission: "penawaran.filter_air" },
     ],
   },
 
@@ -152,6 +152,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Projek Sipil",              href: "/projek/sipil",       icon: "Building2",   permission: "projek_sipil.view" },
       { label: "Projek Interior",           href: "/projek/interior",    icon: "Home",         permission: "projek_interior.view" },
+      { label: "Gudang/Workshop",           href: "/projek/gudang-workshop", icon: "Warehouse", permission: "projek.gudang_workshop" },
       { label: "Kalender Visit",            href: "/pic/kalender-visit", icon: "CalendarDays", permission: "pic.kalender_visit" },
       { label: "Upload Dokumentasi Projek", href: "/pic/dokumentasi",    icon: "Images",       permission: "pic.view" },
     ],
@@ -244,6 +245,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Kalender Survey",        href: "/golden/kalender-survey",  icon: "CalendarDays",    permission: "golden.kalender" },
       { label: "Kalender After Pengerjaan", href: "/golden/kalender-after", icon: "Hammer",         permission: "golden.kalender_after" },
       { label: "Kanban Sales",           href: "/golden/kanban-sales",     icon: "LayoutDashboard", permission: "golden.kanban_sales" },
+      { label: "AR Golden",              href: "/golden/ar",              icon: "Receipt",         permission: "golden.ar" },
     ],
   },
 
