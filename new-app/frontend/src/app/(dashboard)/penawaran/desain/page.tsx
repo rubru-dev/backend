@@ -39,17 +39,6 @@ function rawClientName(c: any) {
   return raw.replace(/^(Mr|Mrs)\.?\s+/i, "").trim();
 }
 
-function clientSalutation(c: any) {
-  if (c?.salutation) return c.salutation;
-  const m = String(c?.nama ?? "").trim().match(/^(Mr|Mrs)\.?\b/i);
-  return m?.[1] ?? "Mr/Mrs";
-}
-
-function clientFullName(c: any) {
-  if (!c) return "Mr/Mrs [Nama Client]";
-  return `${clientSalutation(c)} ${rawClientName(c) || "[Nama Client]"}`.trim();
-}
-
 function formatDateID(date: string) {
   if (!date) return "";
   return new Date(`${date}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
@@ -57,6 +46,8 @@ function formatDateID(date: string) {
 
 export default function PenawaranDesainPage() {
   const [clientId, setClientId] = useState("");
+  const [salutation, setSalutation] = useState<"Mr" | "Mrs">("Mr");
+  const [roId, setRoId] = useState("");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
@@ -65,11 +56,15 @@ export default function PenawaranDesainPage() {
     queryKey: ["penawaran-desain-clients"],
     queryFn: () => apiClient.get("/bd/database-client/leads", { params: { limit: 10000 } }).then((r) => r.data),
   });
+  const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
+    queryKey: ["penawaran-desain-employees"],
+    queryFn: () => apiClient.get("/desain/employees").then((r) => r.data),
+  });
 
   const clients = Array.isArray(data) ? data : data?.items ?? [];
   const client = clients.find((c: any) => String(c.id) === clientId) ?? clients[0];
+  const selectedRo = employees.find((e) => String(e.id) === roId);
   const pkg = PACKAGES[paketName];
-  const salutation = client ? clientSalutation(client) : "Mr/Mrs";
   const namaAsli = client ? rawClientName(client) : "[Nama Client]";
   const name = client ? `${salutation} ${namaAsli}` : "Mr/Mrs [Nama Client]";
 
@@ -102,23 +97,40 @@ export default function PenawaranDesainPage() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-3 rounded-lg border bg-white p-4 print:hidden">
+      <div className="grid md:grid-cols-5 gap-3 rounded-lg border bg-white p-4 print:hidden">
         <div>
           <Label>Nama Client</Label>
           <Select value={clientId || String(client?.id ?? "")} onValueChange={setClientId}>
             <SelectTrigger><SelectValue placeholder="Pilih client" /></SelectTrigger>
             <SelectContent>
-              {clients.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{clientFullName(c)}</SelectItem>)}
+              {clients.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{rawClientName(c) || c.nama}</SelectItem>)}
             </SelectContent>
           </Select>
-          <div className="mt-2 grid grid-cols-[90px_1fr] gap-2">
-            <Input value={salutation} readOnly className="bg-slate-50" aria-label="Salutation" />
-            <Input value={namaAsli} readOnly className="bg-slate-50" aria-label="Nama asli client" />
-          </div>
+          <Input value={namaAsli} readOnly className="mt-2 bg-slate-50" aria-label="Nama asli client" />
+        </div>
+        <div>
+          <Label>Salutation</Label>
+          <Select value={salutation} onValueChange={(v) => setSalutation(v as "Mr" | "Mrs")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="Mr">Mr</SelectItem>
+              <SelectItem value="Mrs">Mrs</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label>Tanggal/Bulan/Tahun</Label>
           <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+        </div>
+        <div>
+          <Label>Nama RO</Label>
+          <Select value={roId || "__none__"} onValueChange={(v) => setRoId(v === "__none__" ? "" : v)}>
+            <SelectTrigger><SelectValue placeholder="Pilih RO" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Pilih RO</SelectItem>
+              {employees.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.nama}</SelectItem>)}
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label>Nama Paket Desain</Label>
@@ -199,7 +211,7 @@ export default function PenawaranDesainPage() {
             <p className="font-bold">Hormat Kami,</p>
             <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
             <div className="h-28" />
-            <p className="font-bold">[Nama RO]</p>
+            <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
           </div>
           <div className="mt-10 border-t pt-2 text-center text-xs font-sans">
             PT. Rubah Rumah Inovasi Pemuda

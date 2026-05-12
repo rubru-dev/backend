@@ -167,11 +167,13 @@ router.patch("/warehouse/:wid/stok/:sid", async (req: Request, res: Response) =>
   const sid = BigInt(req.params.sid);
   const s = await prisma.stokWarehouse.findFirst({ where: { id: sid, warehouse_id: wid } });
   if (!s) return res.status(404).json({ detail: "Stok tidak ditemukan" });
-  const { quantity, price, satuan } = req.body;
+  const { nama_barang, quantity, price, satuan, supplier } = req.body;
   const updates: Record<string, unknown> = {};
+  if (nama_barang !== undefined) updates.nama_barang = nama_barang;
   if (quantity !== undefined) updates.quantity = quantity;
   if (price !== undefined) updates.price = price;
   if (satuan !== undefined) updates.satuan = satuan;
+  if (supplier !== undefined) updates.supplier = supplier;
   const updated = await prisma.stokWarehouse.update({ where: { id: sid }, data: updates });
   await prisma.stokWarehouse.update({
     where: { id: sid },

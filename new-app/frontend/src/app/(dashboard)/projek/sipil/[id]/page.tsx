@@ -136,6 +136,8 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
   const { data: items = [], isLoading } = useQuery<ChecklistItem[]>({ queryKey: qk, queryFn: () => api.getChecklist(projekId) });
 
   const [addForm, setAddForm] = useState({ nama_pekerjaan: "", area_pekerjaan: "", gambars: [] as File[] });
+  const [activeBatchName, setActiveBatchName] = useState<string | null>(null);
+  const [newBatchName, setNewBatchName] = useState("");
   const [addPreviews, setAddPreviews] = useState<string[]>([]);
   const addRef = useRef<HTMLInputElement>(null);
 
@@ -153,7 +155,7 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
     mutationFn: (d: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => api.addChecklistItem(projekId, d),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: qk });
-      setAddForm({ nama_pekerjaan: "", area_pekerjaan: "", gambars: [] });
+      setAddForm({ nama_pekerjaan: "", area_pekerjaan: activeBatchName ?? "", gambars: [] });
       setAddPreviews([]);
       toast.success("Item ditambahkan");
     },
@@ -249,21 +251,45 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
 
   const selesai = items.filter((i) => i.is_checked).length;
   const pct = items.length > 0 ? Math.round((selesai / items.length) * 100) : 0;
-  const stageGroups = useMemo(() => {
+  const batchGroups = useMemo(() => {
     const map = new Map<string, ChecklistItem[]>();
     for (const item of items) {
-      const key = item.area_pekerjaan?.trim() || "Tanpa Tahapan";
+      const key = item.area_pekerjaan?.trim() || "Tanpa Batch";
       map.set(key, [...(map.get(key) ?? []), item]);
     }
-    return Array.from(map.entries()).map(([name, stageItems]) => ({ name, items: stageItems }));
+    return Array.from(map.entries()).map(([name, batchItems]) => ({ name, items: batchItems }));
   }, [items]);
+  const activeBatchItems = activeBatchName
+    ? items.filter((item) => (item.area_pekerjaan?.trim() || "Tanpa Batch") === activeBatchName)
+    : [];
+  const activeBatchDone = activeBatchItems.filter((i) => i.is_checked).length;
+
+  function createBatch() {
+    const name = newBatchName.trim();
+    if (!name) return;
+    setActiveBatchName(name);
+    setAddForm((f) => ({ ...f, area_pekerjaan: name }));
+    setNewBatchName("");
+  }
+
+  function openBatch(name: string) {
+    setActiveBatchName(name);
+    setAddForm((f) => ({ ...f, area_pekerjaan: name }));
+  }
 
   return (
     <div className="space-y-4">
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-3">
-          <p className="text-sm font-semibold text-muted-foreground">{selesai}/{items.length} selesai</p>
+          {activeBatchName && (
+            <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => setActiveBatchName(null)}>
+              <ChevronLeft className="h-4 w-4 mr-1" />Semua Batch
+            </Button>
+          )}
+          <p className="text-sm font-semibold text-muted-foreground">
+            {activeBatchName ? `${activeBatchDone}/${activeBatchItems.length} selesai di ${activeBatchName}` : `${selesai}/${items.length} selesai`}
+          </p>
           {items.length > 0 && (
             <div className="flex items-center gap-2">
               <div className="w-24 h-2 rounded-full bg-muted overflow-hidden">
@@ -273,23 +299,61 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
             </div>
           )}
         </div>
-        <Button variant="outline" size="sm" disabled={downloadingPdf || items.length === 0} onClick={() => handleDownloadChecklist()}>
+        <Button variant="outline" size="sm" disabled={downloadingPdf || (activeBatchName ? activeBatchItems.length === 0 : items.length === 0)} onClick={() => handleDownloadChecklist(activeBatchName ? activeBatchItems : items, activeBatchName ?? undefined)}>
           {downloadingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
           Download PDF
         </Button>
       </div>
 
+      {!activeBatchName && (
+        <>
+          <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
+            <p className="text-sm font-semibold">Buat Batch Checklist</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <Input placeholder="e.g. Batch 1 - Struktur" value={newBatchName} onChange={(e) => setNewBatchName(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") createBatch(); }} />
+              <Button size="sm" className="sm:w-auto" disabled={!newBatchName.trim()} onClick={createBatch}>
+                <Plus className="h-3.5 w-3.5 mr-1" />Buat Batch
+              </Button>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+          ) : batchGroups.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
+              <CheckSquare className="h-10 w-10 mb-3 opacity-20" />
+              <p className="text-sm">Belum ada batch checklist.</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              {batchGroups.map((batch, idx) => {
+                const done = batch.items.filter((i) => i.is_checked).length;
+                return (
+                  <button key={batch.name} type="button" onClick={() => openBatch(batch.name)} className="text-left rounded-lg border bg-white p-4 hover:border-orange-300 hover:bg-orange-50/40 transition-colors">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold text-orange-600">Batch {idx + 1}</p>
+                        <p className="font-semibold text-sm mt-1">{batch.name}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{done}/{batch.items.length} checklist selesai</p>
+                      </div>
+                      <ChevronRight className="h-4 w-4 text-muted-foreground mt-1" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </>
+      )}
+
       {/* Add form */}
+      {activeBatchName && (
       <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
-        <p className="text-sm font-semibold">Tambah Item Checklist</p>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <p className="text-sm font-semibold">Tambah Checklist - {activeBatchName}</p>
+        <div className="grid grid-cols-1 gap-3">
           <div>
             <Label className="text-xs">Nama Pekerjaan *</Label>
             <Input placeholder="e.g. Cat Tembok Kurang Rapih" value={addForm.nama_pekerjaan} onChange={(e) => setAddForm({ ...addForm, nama_pekerjaan: e.target.value })} />
-          </div>
-          <div>
-            <Label className="text-xs">Tahapan Checklist</Label>
-            <Input placeholder="e.g. Tahap 1 - Struktur, Tahap 2 - Finishing" value={addForm.area_pekerjaan} onChange={(e) => setAddForm({ ...addForm, area_pekerjaan: e.target.value })} />
           </div>
         </div>
         <div>
@@ -312,37 +376,24 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
           )}
         </div>
         <div className="flex justify-end">
-          <Button size="sm" disabled={!addForm.nama_pekerjaan.trim() || addMut.isPending} onClick={() => addMut.mutate({ nama_pekerjaan: addForm.nama_pekerjaan, area_pekerjaan: addForm.area_pekerjaan || undefined, gambars: addForm.gambars.length > 0 ? addForm.gambars : undefined })}>
+          <Button size="sm" disabled={!addForm.nama_pekerjaan.trim() || addMut.isPending} onClick={() => addMut.mutate({ nama_pekerjaan: addForm.nama_pekerjaan, area_pekerjaan: activeBatchName, gambars: addForm.gambars.length > 0 ? addForm.gambars : undefined })}>
             {addMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />Menyimpan...</> : <><Plus className="h-3.5 w-3.5 mr-1" />Tambah</>}
           </Button>
         </div>
       </div>
+      )}
 
       {/* List */}
-      {isLoading ? (
+      {activeBatchName && (isLoading ? (
         <div className="flex items-center justify-center py-12"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
-      ) : items.length === 0 ? (
+      ) : activeBatchItems.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
           <CheckSquare className="h-10 w-10 mb-3 opacity-20" />
-          <p className="text-sm">Belum ada item checklist.</p>
+          <p className="text-sm">Belum ada item checklist di batch ini.</p>
         </div>
       ) : (
-        <div className="space-y-5">
-          {stageGroups.map((stage) => {
-            const stageDone = stage.items.filter((i) => i.is_checked).length;
-            return (
-              <div key={stage.name} className="rounded-lg border bg-white">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-slate-50 px-4 py-3">
-                  <div>
-                    <p className="font-semibold text-sm">{stage.name}</p>
-                    <p className="text-xs text-muted-foreground">{stageDone}/{stage.items.length} checklist selesai</p>
-                  </div>
-                  <Button variant="outline" size="sm" disabled={downloadingPdf || stage.items.length === 0} onClick={() => handleDownloadChecklist(stage.items, stage.name)}>
-                    <FileDown className="h-3.5 w-3.5 mr-1" /> PDF Tahapan
-                  </Button>
-                </div>
-                <div className="space-y-3 p-3">
-          {stage.items.map((item, idx) => {
+        <div className="space-y-3">
+          {activeBatchItems.map((item, idx) => {
             const gambarPaths = item.gambar_paths?.length > 0 ? item.gambar_paths : (item.gambar_path ? [item.gambar_path] : []);
             const gambarSelesaiPaths = item.gambar_selesai_paths?.length > 0 ? item.gambar_selesai_paths : (item.gambar_selesai_path ? [item.gambar_selesai_path] : []);
             return (
@@ -352,9 +403,6 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
                   <span className="shrink-0 mt-0.5 text-xs font-bold text-muted-foreground bg-muted rounded-full h-6 w-6 flex items-center justify-center">{idx + 1}</span>
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm leading-tight">{item.nama_pekerjaan}</p>
-                    {item.area_pekerjaan && (
-                      <p className="text-xs text-orange-600 font-medium mt-0.5">📍 {item.area_pekerjaan}</p>
-                    )}
                   </div>
                   <div className="shrink-0 flex items-center gap-2">
                     <div className="flex flex-col items-center gap-0.5">
@@ -395,12 +443,8 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
               </div>
             );
           })}
-                </div>
-              </div>
-            );
-          })}
         </div>
-      )}
+      ))}
 
       {/* Dialog: Tandai Selesai */}
       <Dialog open={!!doneDialog} onOpenChange={(v) => { if (!v) { setDoneDialog(null); setDoneFiles([]); setDonePreviews([]); } }}>

@@ -150,6 +150,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [selectedLeadIds, setSelectedLeadIds] = useState<number[]>([]);
   const [confirmBulkDelete, setConfirmBulkDelete] = useState(false);
+  const [previewAttachment, setPreviewAttachment] = useState<FollowUpAttachment | null>(null);
   const [page, setPage] = useState(1);
 
   // Resolve sumber filter value to actual sumber_leads string or campaign id
@@ -1197,16 +1198,18 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                                           {getFollowUpAttachments(h).length > 0 && (
                                             <div className="mt-2 flex flex-wrap gap-2">
                                               {getFollowUpAttachments(h).map((att, i) => (
-                                                <a
+                                                <button
+                                                  type="button"
                                                   key={`${h.id}-${i}`}
-                                                  href={att.data}
-                                                  target="_blank"
-                                                  rel="noreferrer"
-                                                  className="inline-flex items-center gap-2 text-xs text-primary hover:underline max-w-[180px]"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPreviewAttachment(att);
+                                                  }}
+                                                  className="inline-flex max-w-[180px] items-center gap-2 rounded border border-transparent p-1 text-left text-xs text-primary hover:border-amber-200 hover:bg-amber-50"
                                                 >
                                                   <img src={att.data} alt={att.name ?? "Lampiran follow up"} className="h-10 w-10 rounded border object-cover shrink-0" />
                                                   <span className="truncate">{att.name ?? `Lampiran ${i + 1}`}</span>
-                                                </a>
+                                                </button>
                                               ))}
                                             </div>
                                           )}
@@ -1620,6 +1623,24 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
               {deleteMut.isPending ? "Menghapus..." : "Hapus"}
             </Button>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Attachment Preview */}
+      <Dialog open={!!previewAttachment} onOpenChange={(v) => !v && setPreviewAttachment(null)}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>{previewAttachment?.name ?? "Lampiran follow up"}</DialogTitle>
+          </DialogHeader>
+          {previewAttachment && (
+            <div className="flex max-h-[75vh] items-center justify-center overflow-auto rounded-md bg-muted/30 p-2">
+              <img
+                src={previewAttachment.data}
+                alt={previewAttachment.name ?? "Lampiran follow up"}
+                className="max-h-[72vh] max-w-full rounded object-contain"
+              />
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>

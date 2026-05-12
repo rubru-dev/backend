@@ -809,25 +809,7 @@ async function main() {
 
   console.log(`  ✓ kategori & barang created`);
 
-  // Warehouse
-  const wh = await prisma.warehouse.create({ data: { nama: "Gudang Pusat Jakarta", lokasi: "Jakarta Selatan" } });
-
-  await prisma.stokWarehouse.create({
-    data: {
-      warehouse_id: wh.id, barang_id: barang1.id, nama_barang: barang1.nama,
-      is_custom: false, quantity: 50, price: 65000, satuan: "Sak",
-      supplier: "PT Semen Gresik", total_harga: 50 * 65000,
-    },
-  });
-  await prisma.stokWarehouse.create({
-    data: {
-      warehouse_id: wh.id, barang_id: barang2.id, nama_barang: barang2.nama,
-      is_custom: false, quantity: 20, price: 350000, satuan: "Ember",
-      supplier: "PT Nippon Paint", total_harga: 20 * 350000,
-    },
-  });
-
-  console.log(`  ✓ warehouse & stok created (id=${wh.id})`);
+  console.log("  ✓ master barang created (tanpa data dummy gudang/workshop)");
 
   // Projek
   const projek = await prisma.projek.create({
