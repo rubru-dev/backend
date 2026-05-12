@@ -36,6 +36,13 @@ export default function GudangWorkshopPage() {
   });
 
   const totalNilai = useMemo(() => (detail?.stok ?? []).reduce((s, i) => s + Number(i.total_harga ?? 0), 0), [detail]);
+  const sortedStok = useMemo(
+    () =>
+      [...(detail?.stok ?? [])].sort((a, b) =>
+        a.nama_barang.localeCompare(b.nama_barang, "id", { sensitivity: "base" })
+      ),
+    [detail]
+  );
   const tanggalCetak = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "long", year: "numeric" }).format(new Date());
   const nomorDokumen = `GW-${activeId ?? "000"}-${new Intl.DateTimeFormat("id-ID", { year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date()).replace(/\//g, "")}`;
 
@@ -322,9 +329,9 @@ export default function GudangWorkshopPage() {
               <tbody className="divide-y">
                 {isLoading ? (
                   <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Memuat...</td></tr>
-                ) : !detail || detail.stok.length === 0 ? (
+                ) : !detail || sortedStok.length === 0 ? (
                   <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Belum ada item gudang/workshop.</td></tr>
-                ) : detail.stok.map((s) => editingStockId === s.id ? (
+                ) : sortedStok.map((s) => editingStockId === s.id ? (
                   <tr key={s.id} className="bg-teal-50/50">
                     <td className="hidden px-4 py-3 text-center gudang-print-check"><span className="gudang-check-box" /></td>
                     <td className="px-4 py-3"><Input value={editStockForm.nama_barang} onChange={(e) => setEditStockForm({ ...editStockForm, nama_barang: e.target.value })} /></td>
