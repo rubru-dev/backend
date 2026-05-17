@@ -1042,6 +1042,10 @@ CREATE INDEX idx_leads_status ON leads(status);
 CREATE INDEX idx_leads_bulan_tahun ON leads(bulan, tahun);
 CREATE INDEX idx_leads_survey ON leads(rencana_survey, tanggal_survey) WHERE rencana_survey = 'Ya';
 CREATE INDEX idx_leads_tipe ON leads(tipe);
+CREATE INDEX idx_leads_modul_created_at ON leads(modul, created_at);
+CREATE INDEX idx_leads_modul_tanggal_survey ON leads(modul, tanggal_survey);
+CREATE INDEX idx_leads_modul_rencana_tanggal_survey ON leads(modul, rencana_survey, tanggal_survey);
+CREATE INDEX idx_leads_modul_survey_approval ON leads(modul, survey_approval_status, survey_approved_at);
 
 -- Termins
 CREATE INDEX idx_termins_projek ON termins(projek_id);

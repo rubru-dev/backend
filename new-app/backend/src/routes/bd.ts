@@ -17,15 +17,54 @@ function leadDisplayName(l: { salutation?: string | null; nama: string }) {
   return l.salutation ? `${l.salutation} ${l.nama}` : l.nama;
 }
 
-async function notifyPicAssignment(picName: string | null | undefined, message: string) {
-  if (!picName) return;
-  const picUser = await prisma.user.findFirst({
-    where: { name: picName },
-    select: { whatsapp_number: true },
+function formatDateOnly(value: string | Date | null | undefined) {
+  if (!value) return "-";
+  return String(value).split("T")[0];
+}
+
+function leadLocation(value: string | null | undefined) {
+  return value?.trim() || "-";
+}
+
+function surveyAssignmentMessage(args: {
+  title: string;
+  lead: { nama: string; alamat?: string | null };
+  tanggal: string | Date | null | undefined;
+  jamSurvey?: string | null;
+  calendarPath: string;
+}) {
+  return `*${args.title}*\n\n*Nama Client:* ${args.lead.nama}\n*Jam Survey:* ${args.jamSurvey || "-"}\n*Lokasi:* ${leadLocation(args.lead.alamat)}\n*Tanggal:* ${formatDateOnly(args.tanggal)}\n\n${FRONTEND_URL}/${args.calendarPath}`;
+}
+
+async function notifyCalendarAssignment(args: {
+  picName?: string | null;
+  roleNames?: string[];
+  message: string;
+}) {
+  const recipients = await prisma.user.findMany({
+    where: {
+      OR: [
+        ...(args.picName ? [{ name: args.picName }] : []),
+        ...((args.roleNames?.length ?? 0) > 0
+          ? [{ roles: { some: { role: { name: { in: args.roleNames } } } } }]
+          : []),
+      ],
+    },
+    select: { id: true, whatsapp_number: true },
   });
-  if (picUser?.whatsapp_number) {
-    sendFonnte(picUser.whatsapp_number, message).catch(() => {});
+
+  const sentTargets = new Set<string>();
+  for (const user of recipients) {
+    const target = user.whatsapp_number?.trim();
+    if (!target || sentTargets.has(target)) continue;
+    sentTargets.add(target);
+    sendFonnte(target, args.message).catch(() => {});
   }
+}
+
+function calendarNotificationRoles(modul: string) {
+  if (modul !== "golden") return [];
+  return ["Super Admin", "Head Golden", "HeadGolden"];
 }
 
 function goldenCalendarPath(modul: string, type: "survey" | "after") {
@@ -52,6 +91,19 @@ function leadDuplicateKeys(lead: { nama?: unknown; nomor_telepon?: unknown }) {
   if (nameKey) keys.push(`name_phone:${nameKey}|${phoneKey}`);
   if (phoneKey) keys.push(`phone:${phoneKey}`);
   return keys;
+}
+
+function leadSearchFilter(search: string | undefined) {
+  const q = search?.trim();
+  if (!q) return undefined;
+  const stringFilter = q.length === 1
+    ? { equals: q, mode: "insensitive" as const }
+    : { contains: q, mode: "insensitive" as const };
+  return [
+    { nama: stringFilter },
+    { nomor_telepon: stringFilter },
+    { alamat: stringFilter },
+  ];
 }
 
 function normalizeFollowUpAttachmentItem(item: any) {
@@ -224,7 +276,8 @@ router.get("/leads", requirePermission("bd", "view"), async (req: Request, res: 
   const jenis = req.query.jenis as string | undefined;
 
   const where: Record<string, unknown> = {};
-  if (search) where.nama = { contains: search, mode: "insensitive" };
+  const searchFilter = leadSearchFilter(search);
+  if (searchFilter) where.OR = searchFilter;
   if (status) where.status = status;
   if (bulan) where.bulan = bulan;
   if (tahun) where.tahun = tahun;
@@ -246,19 +299,15 @@ router.get("/leads", requirePermission("bd", "view"), async (req: Request, res: 
 
 // GET /bd/database-client/leads — accessible to sales_admin + telemarketing + BD (Super Admin bypass)
 router.get("/database-client/leads", async (req: Request, res: Response) => {
-  const { page, limit, skip } = getPagination(req.query, 20, 10000);
+  const { page, limit, skip } = getPagination(req.query, 20, 500);
   const search = req.query.search as string | undefined;
   const status = req.query.status as string | undefined;
   const jenis = req.query.jenis as string | undefined;
   const modul = req.query.modul as string | undefined;
 
   const where: Record<string, unknown> = {};
-  if (search) {
-    where.OR = [
-      { nama: { contains: search, mode: "insensitive" } },
-      { nomor_telepon: { contains: search, mode: "insensitive" } },
-    ];
-  }
+  const searchFilter = leadSearchFilter(search);
+  if (searchFilter) where.OR = searchFilter;
   if (status) where.status = status;
   if (jenis) where.jenis = jenis;
   if (modul) where.modul = modul;
@@ -1996,7 +2045,7 @@ router.get("/:modul/leads", async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
 
-  const { page, limit, skip } = getPagination(req.query, 20, 10000);
+  const { page, limit, skip } = getPagination(req.query, 20, 500);
   const search = req.query.search as string | undefined;
   const status = req.query.status as string | undefined;
   const jenis = req.query.jenis as string | undefined;
@@ -2012,12 +2061,8 @@ router.get("/:modul/leads", async (req: Request, res: Response) => {
   const tanggal_selesai = req.query.tanggal_selesai as string | undefined;
 
   const where: Record<string, unknown> = { modul };
-  if (search) {
-    where.OR = [
-      { nama: { contains: search, mode: "insensitive" } },
-      { nomor_telepon: { contains: search, mode: "insensitive" } },
-    ];
-  }
+  const searchFilter = leadSearchFilter(search);
+  if (searchFilter) where.OR = searchFilter;
   if (status) where.status = status;
   if (jenis) where.jenis = jenis;
   if (rencana_survey) where.rencana_survey = rencana_survey;
@@ -2097,7 +2142,8 @@ router.get("/:modul/leads/follow-up-report", async (req: Request, res: Response)
   const tahun = req.query.tahun as string | undefined;
   const tanggal_mulai = req.query.tanggal_mulai as string | undefined;
   const tanggal_selesai = req.query.tanggal_selesai as string | undefined;
-  if (search) where.nama = { contains: search, mode: "insensitive" };
+  const searchFilter = leadSearchFilter(search);
+  if (searchFilter) where.OR = searchFilter;
   if (status) where.status = status;
   if (jenis) where.jenis = jenis;
   if (sumber) where.sumber_leads = sumber;
@@ -2243,7 +2289,7 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   const updatedLead = await prisma.lead.update({
     where: { id },
     data: updates,
-    select: { id: true, nama: true, bulan: true, tahun: true, tanggal_survey: true, jam_survey: true },
+    select: { id: true, nama: true, alamat: true, bulan: true, tahun: true, tanggal_survey: true, jam_survey: true },
   });
 
   // Auto-add ke Kanban jika projection diisi/berubah
@@ -2277,8 +2323,18 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
     const effectiveSurveyDate = b.tanggal_survey ?? updatedLead.tanggal_survey;
     if (effectiveSurveyDate) {
       const calendarPath = goldenCalendarPath(modul, "survey");
-      const msg = `*Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${updatedLead.nama}\n*Tanggal:* ${String(effectiveSurveyDate).split("T")[0]}\n*Jam:* ${b.jam_survey ?? updatedLead.jam_survey ?? "-"}\n\n${FRONTEND_URL}/${calendarPath}`;
-      await notifyPicAssignment(b.pic_survey, msg);
+      const msg = surveyAssignmentMessage({
+        title: "Assign Survey Baru",
+        lead: updatedLead,
+        tanggal: effectiveSurveyDate,
+        jamSurvey: b.jam_survey ?? updatedLead.jam_survey,
+        calendarPath,
+      });
+      await notifyCalendarAssignment({
+        picName: b.pic_survey,
+        roleNames: calendarNotificationRoles(modul),
+        message: msg,
+      });
     }
   }
 
@@ -2520,8 +2576,18 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
     const effectiveSurveyDate = tanggal_survey ?? updatedLead.tanggal_survey;
     if (effectiveSurveyDate) {
       const calendarPath = goldenCalendarPath(req.params.modul, "survey");
-      const msg = `*Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${lead.nama}\n*Tanggal:* ${String(effectiveSurveyDate).split("T")[0]}\n*Jam:* ${jam_survey ?? updatedLead.jam_survey ?? "-"}\n\n${FRONTEND_URL}/${calendarPath}`;
-      await notifyPicAssignment(pic_survey, msg);
+      const msg = surveyAssignmentMessage({
+        title: "Assign Survey Baru",
+        lead,
+        tanggal: effectiveSurveyDate,
+        jamSurvey: jam_survey ?? updatedLead.jam_survey,
+        calendarPath,
+      });
+      await notifyCalendarAssignment({
+        picName: pic_survey,
+        roleNames: calendarNotificationRoles(modul),
+        message: msg,
+      });
     }
   }
 
@@ -2616,8 +2682,18 @@ router.patch("/:modul/leads/:id/pengerjaan-schedule", requireRole("Head Golden",
 
   if (assignedPic) {
     const calendarPath = goldenCalendarPath(modul, "after");
-    const msg = `*Assign After Pengerjaan Baru*\n\nAnda ditugaskan sebagai PIC After Pengerjaan:\n*Klien:* ${lead.nama}\n*Tanggal:* ${tanggal_pengerjaan}\n\n${FRONTEND_URL}/${calendarPath}`;
-    await notifyPicAssignment(assignedPic, msg);
+    const msg = surveyAssignmentMessage({
+      title: "Assign After Pengerjaan Baru",
+      lead,
+      tanggal: tanggal_pengerjaan,
+      jamSurvey: lead.jam_survey,
+      calendarPath,
+    });
+    await notifyCalendarAssignment({
+      picName: assignedPic,
+      roleNames: calendarNotificationRoles(modul),
+      message: msg,
+    });
   }
 
   // Legacy notification block disabled; covered by the normalized notification above.

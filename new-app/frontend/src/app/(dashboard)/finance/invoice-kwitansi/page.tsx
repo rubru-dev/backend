@@ -21,6 +21,7 @@ import { Switch } from "@/components/ui/switch";
 import {
   Plus, FileText, Receipt, CheckCircle2, ChevronDown, ChevronRight,
   Download, PenLine, AlertCircle, Upload, Trash2, Building2, Pencil,
+  Search,
 } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuthStore } from "@/store/authStore";
@@ -287,6 +288,7 @@ export default function InvoiceKwitansiPage() {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSalutation, setFilterSalutation] = useState("");
+  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
 
   // Signature dialog state (only Head Finance signing remains)
@@ -341,11 +343,12 @@ export default function InvoiceKwitansiPage() {
 
   // Invoice list
   const { data, isLoading } = useQuery({
-    queryKey: ["invoices", filterStatus, filterSalutation],
+    queryKey: ["invoices", filterStatus, filterSalutation, search],
     queryFn: () => api.list({
       per_page: 1000,
       ...(filterStatus ? { status: filterStatus } : {}),
       ...(filterSalutation ? { salutation: filterSalutation } : {}),
+      ...(search.trim() ? { search: search.trim() } : {}),
     }),
     retry: false,
   });
@@ -611,7 +614,16 @@ export default function InvoiceKwitansiPage() {
 
         <TabsContent value="invoices" className="space-y-4">
           {/* Filter & Add Invoice button */}
-          <div className="flex justify-end gap-2 items-center">
+          <div className="flex flex-wrap justify-end gap-2 items-center">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                className="pl-9 w-64"
+                placeholder="Cari invoice / klien / kwitansi..."
+                value={search}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              />
+            </div>
             <select className="border rounded-md px-3 py-2 text-sm" value={filterStatus}
               onChange={e => { setFilterStatus(e.target.value); setPage(1); }}>
               <option value="">Semua Status</option>

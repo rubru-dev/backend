@@ -948,6 +948,10 @@ model Lead {
   @@index([tipe], map: "idx_leads_tipe")
   @@index([user_id], map: "idx_leads_user_id")
   @@index([modul], map: "ix_leads_modul")
+  @@index([modul, created_at], map: "idx_leads_modul_created_at")
+  @@index([modul, tanggal_survey], map: "idx_leads_modul_tanggal_survey")
+  @@index([modul, rencana_survey, tanggal_survey], map: "idx_leads_modul_rencana_tanggal_survey")
+  @@index([modul, survey_approval_status, survey_approved_at], map: "idx_leads_modul_survey_approval")
   @@map("leads")
 }
 

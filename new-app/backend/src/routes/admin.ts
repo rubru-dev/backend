@@ -17,6 +17,10 @@ function userDict(u: { id: bigint; name: string; email: string; whatsapp_number:
   };
 }
 
+function uniqueRoleIds(roleIds: (number | string)[]) {
+  return Array.from(new Set(roleIds.map((rid) => BigInt(rid))));
+}
+
 // GET /users
 router.get("/users", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
@@ -56,7 +60,7 @@ router.post("/users", requireRole("Super Admin"), async (req: Request, res: Resp
       whatsapp_number: whatsapp_number ?? null,
       sub_role: sub_role ?? "Karyawan",
       roles: {
-        create: (role_ids as (number | string)[]).map((rid) => ({ role: { connect: { id: BigInt(rid) } } })),
+        create: uniqueRoleIds(role_ids as (number | string)[]).map((rid) => ({ role: { connect: { id: rid } } })),
       },
     },
   });
@@ -84,9 +88,15 @@ router.patch("/users/:id", requireRole("Super Admin"), async (req: Request, res:
   await prisma.user.update({ where: { id: userId }, data: updates });
 
   if (Array.isArray(role_ids)) {
-    await prisma.userRole.deleteMany({ where: { user_id: userId } });
-    await prisma.userRole.createMany({
-      data: (role_ids as (number | string)[]).map((rid) => ({ user_id: userId, role_id: BigInt(rid) })),
+    const uniqueRoles = uniqueRoleIds(role_ids as (number | string)[]);
+    await prisma.$transaction(async (tx) => {
+      await tx.userRole.deleteMany({ where: { user_id: userId } });
+      if (uniqueRoles.length > 0) {
+        await tx.userRole.createMany({
+          data: uniqueRoles.map((rid) => ({ user_id: userId, role_id: rid })),
+          skipDuplicates: true,
+        });
+      }
     });
   }
 

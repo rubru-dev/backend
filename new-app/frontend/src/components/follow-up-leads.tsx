@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, Fragment } from "react";
+import { useEffect, useState, useRef, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -40,6 +40,10 @@ interface FollowUpAttachment {
   mime?: string | null;
   name?: string | null;
 }
+
+const PAGE_SIZE = 20;
+const IMPORT_CLIENT_PAGE_SIZE = 100;
+const DATA_KLIEN_SOURCE = "Data Klien";
 
 const STATUS_COLORS: Record<string, string> = {
   "Low":    "bg-gray-100 text-gray-700",
@@ -153,6 +157,10 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const [previewAttachment, setPreviewAttachment] = useState<FollowUpAttachment | null>(null);
   const [page, setPage] = useState(1);
 
+  useEffect(() => {
+    setPage(1);
+  }, [modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai, filterHasFollowUp, filterFuCall, filterDataKlien]);
+
   // Resolve sumber filter value to actual sumber_leads string or campaign id
   const resolvedSumberFilter = filterSumber !== "all" && filterSumber.startsWith("campaign:")
     ? filterSumber.split(":").slice(2).join(":") // campaign name (preserving colons in name)
@@ -162,9 +170,10 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     : undefined;
 
   const { data, isLoading } = useQuery({
-    queryKey: ["follow-up-leads", modul, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai, filterHasFollowUp, filterFuCall, filterDataKlien],
+    queryKey: ["follow-up-leads", modul, page, search, filterStatus, filterJenis, filterSurvey, filterSumber, filterBulan, filterTahun, filterTanggalMulai, filterTanggalSelesai, filterHasFollowUp, filterFuCall, filterDataKlien],
     queryFn: () =>
       followUpApi.list({
+        page,
         search: search || undefined,
         status: filterStatus !== "all" ? filterStatus : undefined,
         jenis: filterJenis !== "all" ? filterJenis : undefined,
@@ -178,7 +187,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
         tahun: filterTahun !== "all" ? filterTahun : undefined,
         tanggal_mulai: filterTanggalMulai || undefined,
         tanggal_selesai: filterTanggalSelesai || undefined,
-        limit: 10000,
+        limit: PAGE_SIZE,
       }),
   });
 
@@ -628,15 +637,12 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
   const pending = createMut.isPending || updateMut.isPending;
 
-const PAGE_SIZE = 20;
-const IMPORT_CLIENT_PAGE_SIZE = 100;
-const DATA_KLIEN_SOURCE = "Data Klien";
-
 function isDataKlienLead(item: { sumber_leads?: string | null }) {
   return item.sumber_leads === DATA_KLIEN_SOURCE || item.sumber_leads === "Database Client";
 }
-  const totalPages = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
-  const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  const totalItems = Array.isArray(data) ? items.length : data?.total ?? items.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const pagedItems = items;
   const selectedLeadSet = new Set(selectedLeadIds);
   const pagedLeadIds = pagedItems.map((item: any) => Number(item.id));
   const selectedOnPage = pagedLeadIds.filter((id) => selectedLeadSet.has(id));
@@ -1317,7 +1323,7 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
           {/* Pagination */}
           {totalPages > 1 && (
             <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
-              <span>{((page - 1) * PAGE_SIZE) + 1}–{Math.min(page * PAGE_SIZE, items.length)} dari {items.length} leads</span>
+              <span>{((page - 1) * PAGE_SIZE) + 1} - {Math.min(page * PAGE_SIZE, totalItems)} dari {totalItems} leads</span>
               <div className="flex items-center gap-1">
                 <Button variant="outline" size="sm" className="h-7 px-2" disabled={page === 1} onClick={() => setPage(1)}>«</Button>
                 <Button variant="outline" size="sm" className="h-7 px-2" disabled={page === 1} onClick={() => setPage((p) => p - 1)}>‹</Button>

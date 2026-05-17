@@ -18,6 +18,24 @@ function leadDisplayName(lead?: { salutation?: string | null; nama?: string | nu
   return lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama;
 }
 
+function exactForSingleCharSearch(search: string | undefined) {
+  const q = search?.trim();
+  if (!q) return undefined;
+  return q.length === 1
+    ? { equals: q, mode: "insensitive" as const }
+    : { contains: q, mode: "insensitive" as const };
+}
+
+function invoiceSearchFilter(search: string | undefined) {
+  const filter = exactForSingleCharSearch(search);
+  if (!filter) return undefined;
+  return [
+    { invoice_number: filter },
+    { lead: { is: { nama: filter } } },
+    { kwitansi: { is: { nomor_kwitansi: filter } } },
+  ];
+}
+
 function invoiceDict(inv: {
   id: bigint; invoice_number: string | null; tanggal: Date | null; lead_id: bigint | null; catatan: string | null;
   ppn_percentage: unknown; subtotal: unknown; ppn_amount: unknown; grand_total: unknown; status: string | null;
@@ -106,7 +124,8 @@ router.get("/invoice", async (req: Request, res: Response) => {
 
   const where: Record<string, unknown> = {};
   if (status) where.status = status;
-  if (search) where.invoice_number = { contains: search, mode: "insensitive" };
+  const searchFilter = invoiceSearchFilter(search);
+  if (searchFilter) where.OR = searchFilter;
 
   const [total, items] = await Promise.all([
     prisma.invoice.count({ where }),
@@ -772,8 +791,9 @@ router.delete("/tukang/kwitansi/:id", async (req: Request, res: Response) => {
 // ── /leads-dropdown – for invoice form lead picker ────────────────────────────
 router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const search = (req.query.search as string) || "";
+  const searchFilter = exactForSingleCharSearch(search);
   const leads = await prisma.lead.findMany({
-    where: search ? { nama: { contains: search, mode: "insensitive" } } : {},
+    where: searchFilter ? { nama: searchFilter } : {},
     select: { id: true, salutation: true, nama: true, jenis: true, nomor_telepon: true, alamat: true },
     orderBy: { nama: "asc" },
   });
@@ -822,7 +842,8 @@ router.get("/invoices", requirePermission("finance", "view"), async (req: Reques
   const where: Record<string, unknown> = {};
   if (feStatus && DB_STATUS_FROM_FE[feStatus]) where.status = DB_STATUS_FROM_FE[feStatus];
   else if (feStatus) where.status = feStatus;
-  if (search) where.invoice_number = { contains: search, mode: "insensitive" };
+  const searchFilter = invoiceSearchFilter(search);
+  if (searchFilter) where.OR = searchFilter;
   if (salutation) where.lead = { is: { salutation } };
   const [total, invs] = await Promise.all([
     prisma.invoice.count({ where }),
