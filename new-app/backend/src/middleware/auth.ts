@@ -47,7 +47,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       where: { id: userId },
       include: { roles: { include: { role: true } } },
     });
-    if (!user) {
+    if (!user || user.email.startsWith("deleted+")) {
       res.status(401).json({ detail: "User not found" });
       return;
     }

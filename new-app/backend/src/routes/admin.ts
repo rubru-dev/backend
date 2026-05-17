@@ -21,15 +21,43 @@ function uniqueRoleIds(roleIds: (number | string)[]) {
   return Array.from(new Set(roleIds.map((rid) => BigInt(rid))));
 }
 
+function isSoftDeletedEmail(email: string) {
+  return email.startsWith("deleted+");
+}
+
+async function softDeleteUser(user: { id: bigint; name: string }) {
+  const deletedAt = Date.now();
+  await prisma.$transaction([
+    prisma.userRole.deleteMany({ where: { user_id: user.id } }),
+    prisma.user.update({
+      where: { id: user.id },
+      data: {
+        name: `[Dihapus] ${user.name}`.slice(0, 255),
+        email: `deleted+${user.id}-${deletedAt}@rubahrumah.local`,
+        password: hashPassword(`deleted-${user.id}-${deletedAt}-${Math.random()}`),
+        whatsapp_number: null,
+        sub_role: "Nonaktif",
+        updated_at: new Date(),
+      },
+    }),
+  ]);
+}
+
 // GET /users
 router.get("/users", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const page = parseInt(req.query.page as string) || 1;
   const perPage = Math.min(parseInt(req.query.per_page as string) || 20, 100);
   const search = req.query.search as string | undefined;
 
+  const activeUsersOnly = { NOT: { email: { startsWith: "deleted+" } } };
   const where = search
-    ? { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { email: { contains: search, mode: "insensitive" as const } }] }
-    : {};
+    ? {
+        AND: [
+          activeUsersOnly,
+          { OR: [{ name: { contains: search, mode: "insensitive" as const } }, { email: { contains: search, mode: "insensitive" as const } }] },
+        ],
+      }
+    : activeUsersOnly;
 
   const [total, users] = await Promise.all([
     prisma.user.count({ where }),
@@ -114,12 +142,21 @@ router.delete("/users/:id", requireRole("Super Admin"), async (req: Request, res
     include: { roles: { include: { role: true } } },
   });
   if (!user) return res.status(404).json({ detail: "User tidak ditemukan" });
+  if (isSoftDeletedEmail(user.email)) return res.status(404).json({ detail: "User tidak ditemukan" });
   const isSuperAdmin = user.roles.some((ur) => ur.role.name === "Super Admin");
   if (isSuperAdmin) {
     return res.status(400).json({ detail: "User dengan role Super Admin tidak bisa dihapus" });
   }
-  await prisma.user.delete({ where: { id: userId } });
-  return res.json({ message: "User berhasil dihapus" });
+  try {
+    await prisma.user.delete({ where: { id: userId } });
+    return res.json({ message: "User berhasil dihapus" });
+  } catch (err: any) {
+    if (err?.code !== "P2003") throw err;
+    await softDeleteUser(user);
+    return res.json({
+      message: "User dinonaktifkan karena masih memiliki riwayat data. Role dicabut dan akun tidak bisa login lagi.",
+    });
+  }
 });
 
 // POST /users/:id/reset-password

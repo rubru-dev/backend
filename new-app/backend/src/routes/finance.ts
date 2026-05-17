@@ -795,11 +795,13 @@ router.delete("/tukang/kwitansi/:id", async (req: Request, res: Response) => {
 // ── /leads-dropdown – for invoice form lead picker ────────────────────────────
 router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const search = (req.query.search as string) || "";
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 50);
   const searchFilter = exactForSingleCharSearch(search);
   const leads = await prisma.lead.findMany({
     where: searchFilter ? { nama: searchFilter } : {},
     select: { id: true, salutation: true, nama: true, jenis: true, nomor_telepon: true, alamat: true },
     orderBy: { nama: "asc" },
+    take: limit,
   });
   return res.json({ items: leads.map((lead) => ({ ...lead, display_name: leadDisplayName(lead) })) });
 });

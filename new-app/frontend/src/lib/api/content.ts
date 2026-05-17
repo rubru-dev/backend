@@ -58,7 +58,8 @@ export const desainApi = {
   getGantt: (id: string) => apiClient.get(`/desain/timeline/${id}/gantt`).then((r) => r.data),
   exportData: (id: string) => apiClient.get(`/desain/timeline/${id}/export`).then((r) => r.data),
   listEmployees: () => apiClient.get("/desain/employees").then((r) => r.data),
-  listLeads: () => apiClient.get("/finance/leads-dropdown").then((r) => r.data?.items ?? []),
+  listLeads: (search?: string) =>
+    apiClient.get("/finance/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
   uploadFileBukti: (itemId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -96,7 +97,8 @@ export const interiorApi = {
   deleteItem: (itemId: string) => apiClient.delete(`/interior/timeline/items/${itemId}`).then((r) => r.data),
   exportData: (id: string) => apiClient.get(`/interior/timeline/${id}/export`).then((r) => r.data),
   listEmployees: () => apiClient.get("/interior/employees").then((r) => r.data),
-  listLeads: () => apiClient.get("/finance/leads-dropdown").then((r) => r.data?.items ?? []),
+  listLeads: (search?: string) =>
+    apiClient.get("/finance/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
   uploadFileBukti: (itemId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);
@@ -140,7 +142,8 @@ export const sipilApi = {
   updateTask: (taskId: string, data: any) => apiClient.patch(`/sipil/tasks/${taskId}`, data).then((r) => r.data),
   deleteTask: (taskId: string) => apiClient.delete(`/sipil/tasks/${taskId}`).then((r) => r.data),
   listEmployees: () => apiClient.get("/sipil/employees").then((r) => r.data),
-  listLeads: () => apiClient.get("/finance/leads-dropdown").then((r) => r.data?.items ?? []),
+  listLeads: (search?: string) =>
+    apiClient.get("/finance/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
   // RAPP
   getRapp: (terminId: string) => apiClient.get(`/sipil/termins/${terminId}/rapp`).then((r) => r.data),
   addMaterialKategori: (terminId: string, data: any) => apiClient.post(`/sipil/termins/${terminId}/rapp/material-kategori`, data).then((r) => r.data),
@@ -225,7 +228,8 @@ export const interiorProjekApi = {
   updateTask: (taskId: string, data: any) => apiClient.patch(`/interior/projeks/tasks/${taskId}`, data).then((r) => r.data),
   deleteTask: (taskId: string) => apiClient.delete(`/interior/projeks/tasks/${taskId}`).then((r) => r.data),
   listEmployees: () => apiClient.get("/interior/employees").then((r) => r.data),
-  listLeads: () => apiClient.get("/finance/leads-dropdown").then((r) => r.data?.items ?? []),
+  listLeads: (search?: string) =>
+    apiClient.get("/finance/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
   // RAPP (same shape as sipilApi)
   getRapp: (terminId: string) => apiClient.get(`/interior/projeks/termins/${terminId}/rapp`).then((r) => r.data),
   addMaterialKategori: (terminId: string, data: any) => apiClient.post(`/interior/projeks/termins/${terminId}/rapp/material-kategori`, data).then((r) => r.data),

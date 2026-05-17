@@ -1,7 +1,7 @@
 "use client";
 import { getLogoBase64 } from "@/lib/get-logo";
 
-import { useState, useRef } from "react";
+import { useDeferredValue, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
@@ -417,6 +417,7 @@ export default function ProyekDesainPage() {
   const [tlForm, setTlForm] = useState(EMPTY_TIMELINE);
   const [confirmDeleteTl, setConfirmDeleteTl] = useState<string | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const deferredLeadSearch = useDeferredValue(leadSearch);
 
   const [itemDialog, setItemDialog] = useState(false);
   const [editItem, setEditItem] = useState<DesainItem | null>(null);
@@ -446,11 +447,19 @@ export default function ProyekDesainPage() {
   });
 
   const { data: leads = [] } = useQuery<{ id: string; nama: string; jenis?: string }[]>({
-    queryKey: ["finance-leads-dropdown"],
-    queryFn: () => desainApi.listLeads(),
+    queryKey: ["finance-leads-dropdown", deferredLeadSearch],
+    queryFn: () => desainApi.listLeads(deferredLeadSearch),
+    enabled: tlDialog,
     staleTime: 5 * 60_000,
     retry: false,
   });
+
+  const leadOptionsMap = new Map<string, { id: string; nama: string; jenis?: string }>();
+  if (tlForm.lead_id && editTl?.lead) {
+    leadOptionsMap.set(String(editTl.lead.id), { id: String(editTl.lead.id), nama: editTl.lead.nama });
+  }
+  leads.forEach((l) => leadOptionsMap.set(String(l.id), { ...l, id: String(l.id) }));
+  const leadOptions = Array.from(leadOptionsMap.values());
 
   // ── Timeline Mutations ────────────────────────────────────────────────────────
   const createTl = useMutation({
@@ -1378,7 +1387,7 @@ export default function ProyekDesainPage() {
                     <Input placeholder="Cari nama klien..." value={leadSearch} onChange={(e) => setLeadSearch(e.target.value)} className="h-8 text-sm" />
                   </div>
                   <SelectItem value="__none__">— Tanpa klien —</SelectItem>
-                  {(leads as any[]).filter((l: any) => !leadSearch || l.nama?.toLowerCase().includes(leadSearch.toLowerCase())).map((l: any) => (
+                  {leadOptions.map((l: any) => (
                     <SelectItem key={l.id} value={String(l.id)}>
                       {l.nama}
                     </SelectItem>

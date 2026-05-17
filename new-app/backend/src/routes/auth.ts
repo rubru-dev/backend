@@ -11,6 +11,10 @@ import {
 
 const router = Router();
 
+function isSoftDeletedUser(email: string) {
+  return email.startsWith("deleted+");
+}
+
 // POST /login
 router.post("/login", async (req: Request, res: Response) => {
   const { email, password } = req.body;
@@ -18,7 +22,7 @@ router.post("/login", async (req: Request, res: Response) => {
     where: { email },
     include: { roles: { include: { role: true } } },
   });
-  if (!user || !verifyPassword(password, user.password)) {
+  if (!user || isSoftDeletedUser(user.email) || !verifyPassword(password, user.password)) {
     return res.status(401).json({ detail: "Email atau password salah." });
   }
   // Load permissions
@@ -68,7 +72,7 @@ router.post("/refresh", async (req: Request, res: Response) => {
     }
     const userId = BigInt(payload.sub as string);
     const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
+    if (!user || isSoftDeletedUser(user.email)) {
       return res.status(401).json({ detail: "Refresh token tidak valid atau sudah kedaluwarsa." });
     }
     return res.json({ access_token: createAccessToken(Number(user.id)) });

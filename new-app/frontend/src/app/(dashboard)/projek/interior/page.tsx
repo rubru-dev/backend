@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useDeferredValue, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -41,6 +41,7 @@ export default function ProyekInteriorListPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const deferredLeadSearch = useDeferredValue(leadSearch);
 
   const { data: projeks = [], isLoading } = useQuery<Projek[]>({
     queryKey: ["interior-projeks"],
@@ -49,8 +50,9 @@ export default function ProyekInteriorListPage() {
   });
 
   const { data: leads = [] } = useQuery<{ id: string; nama: string }[]>({
-    queryKey: ["finance-leads-dropdown"],
-    queryFn: () => interiorProjekApi.listLeads(),
+    queryKey: ["finance-leads-dropdown", deferredLeadSearch],
+    queryFn: () => interiorProjekApi.listLeads(deferredLeadSearch),
+    enabled: dialog,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -119,6 +121,12 @@ export default function ProyekInteriorListPage() {
   }
 
   const isPending = createMut.isPending || updateMut.isPending;
+  const leadOptionsMap = new Map<string, { id: string; nama: string }>();
+  if (form.lead_id && editProjek?.lead) {
+    leadOptionsMap.set(String(editProjek.lead.id), { id: String(editProjek.lead.id), nama: editProjek.lead.nama });
+  }
+  leads.forEach((l) => leadOptionsMap.set(String(l.id), { ...l, id: String(l.id) }));
+  const leadOptions = Array.from(leadOptionsMap.values());
 
   return (
     <div className="space-y-6">
@@ -234,7 +242,7 @@ export default function ProyekInteriorListPage() {
                     <Input placeholder="Cari nama klien..." value={leadSearch} onChange={(e) => setLeadSearch(e.target.value)} className="h-8 text-sm" />
                   </div>
                   <SelectItem value="__none__">— Tanpa klien —</SelectItem>
-                  {(leads as any[]).filter((l: any) => !leadSearch || l.nama?.toLowerCase().includes(leadSearch.toLowerCase())).map((l: any) => <SelectItem key={l.id} value={String(l.id)}>{l.nama}</SelectItem>)}
+                  {leadOptions.map((l: any) => <SelectItem key={l.id} value={String(l.id)}>{l.nama}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>
