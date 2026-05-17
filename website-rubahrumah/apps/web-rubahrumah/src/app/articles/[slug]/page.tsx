@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { publicApi } from "@/lib/api";
+import { mediaUrl } from "@/lib/media";
 import { formatDate } from "@rubahrumah/utils";
 import { HeroCarousel } from "@/components/sections/hero-carousel";
 import { ChevronRight, Calendar, User } from "lucide-react";
@@ -21,7 +22,7 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   try {
     const data = await publicApi.rb.artikelBySlug(params.slug);
     const a = data?.data as { judul?: string; excerpt?: string; cover_url?: string } | null;
-    const coverUrl = a?.cover_url ? `${STORAGE}${a.cover_url}` : undefined;
+    const coverUrl = mediaUrl(a?.cover_url) ?? undefined;
     return {
       title: a?.judul ?? "Artikel",
       description: a?.excerpt ?? "",
@@ -34,8 +35,6 @@ export async function generateMetadata({ params }: { params: { slug: string } })
     return { title: "Artikel" };
   }
 }
-
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
 
 export default async function ArtikelDetailPage({ params }: { params: { slug: string } }) {
   let artikel: any = null;
@@ -56,7 +55,7 @@ export default async function ArtikelDetailPage({ params }: { params: { slug: st
 
   if (!artikel) notFound();
 
-  const cover = artikel.cover_url ? `${STORAGE}${artikel.cover_url}` : null;
+  const cover = mediaUrl(artikel.cover_url);
 
   return (
     <main className="min-h-screen bg-white">
@@ -144,7 +143,7 @@ export default async function ArtikelDetailPage({ params }: { params: { slug: st
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {related.map((r: any) => {
-                const rCover = r.cover_url ? `${STORAGE}${r.cover_url}` : null;
+                const rCover = mediaUrl(r.cover_url);
                 return (
                   <Link key={r.id} href={`/articles/${r.slug}`} className="card group flex flex-col">
                     <div className="relative h-44 bg-slate-100 overflow-hidden flex-shrink-0">

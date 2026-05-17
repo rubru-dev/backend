@@ -3,10 +3,10 @@
 // Konfigurasi koneksi ke database MySQL
 // ============================================
 
-// Setting koneksi - pakai env variable kalau ada, fallback ke default lokal
+// Setting koneksi - pakai env variable kalau ada, fallback ke default VPS
 define('DB_HOST', getenv('DB_HOST') ?: 'localhost');
-define('DB_USER', getenv('DB_USER') ?: 'root');
-define('DB_PASS', getenv('DB_PASS') ?: '');
+define('DB_USER', getenv('DB_USER') ?: 'rental_user');
+define('DB_PASS', getenv('DB_PASS') ?: 'rental2026');
 define('DB_NAME', getenv('DB_NAME') ?: 'rental_db');
 
 // Buat koneksi ke database MySQL

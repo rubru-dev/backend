@@ -260,10 +260,11 @@ function BankAccountTab({ accounts, onAdd, onEdit, onDelete, onToggle, canDelete
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function InvoiceKwitansiPage() {
   const qc = useQueryClient();
-  const { isSuperAdmin, hasPermission, hasAnyRole } = useAuthStore();
+  const { user, isSuperAdmin, hasPermission, hasAnyRole } = useAuthStore();
   const canDelete = isSuperAdmin() || hasPermission("finance", "delete");
   const canSeeProyek = isSuperAdmin() || hasAnyRole("Admin Finance", "Head Finance");
   const canEditNominal = isSuperAdmin() || hasAnyRole("Sales Admin");
+  const canEditInvoiceFully = user?.email?.toLowerCase() === "jerry@rubahrumah.com";
   const canDeleteAll = isSuperAdmin();
   const canSign = isSuperAdmin() || hasPermission("finance", "sign_head");
   const salesAdminOnly = !isSuperAdmin() && !hasAnyRole("Head Finance", "Admin Finance") && hasAnyRole("Sales Admin");
@@ -769,7 +770,7 @@ export default function InvoiceKwitansiPage() {
                                     <Trash2 className="h-3 w-3 mr-1" /> Hapus
                                   </Button>
                                 )}
-                                {inv.status === "Draft" && !inv.head_finance && !inv.admin_finance && (
+                                {(canEditInvoiceFully || (inv.status === "Draft" && !inv.head_finance && !inv.admin_finance)) && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs"
                                     onClick={() => {
                                       setEditId(inv.id);

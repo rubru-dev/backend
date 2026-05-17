@@ -18,6 +18,10 @@ function leadDisplayName(lead?: { salutation?: string | null; nama?: string | nu
   return lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama;
 }
 
+function canFullyEditInvoice(req: Request) {
+  return req.user?.email?.toLowerCase() === "jerry@rubahrumah.com";
+}
+
 function exactForSingleCharSearch(search: string | undefined) {
   const q = search?.trim();
   if (!q) return undefined;
@@ -966,8 +970,9 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
-  if (inv.status !== "draft") return res.status(400).json({ detail: "Hanya invoice Draft yang bisa diubah" });
-  if (inv.head_finance_id || inv.admin_finance_id) {
+  const hasFullEditAccess = canFullyEditInvoice(req);
+  if (!hasFullEditAccess && inv.status !== "draft") return res.status(400).json({ detail: "Hanya invoice Draft yang bisa diubah" });
+  if (!hasFullEditAccess && (inv.head_finance_id || inv.admin_finance_id)) {
     return res.status(400).json({ detail: "Invoice yang sudah ditandatangani tidak bisa diubah" });
   }
   const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, jenis_filter_air, rab_item_id, items } = req.body;
@@ -1010,7 +1015,13 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
     updates.grand_total = sub + (sub * pct / 100);
   }
 
-  await prisma.invoice.update({ where: { id }, data: updates });
+  const updated = await prisma.invoice.update({ where: { id }, data: updates });
+  if (hasFullEditAccess && updates.grand_total !== undefined) {
+    await prisma.kwitansi.updateMany({
+      where: { invoice_id: id },
+      data: { jumlah_diterima: updated.grand_total },
+    });
+  }
   return res.json({ message: "Invoice diupdate" });
 });
 

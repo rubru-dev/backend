@@ -4,24 +4,24 @@ import { formatDate } from "@rubahrumah/utils";
 import type { RbArtikelListItem } from "@rubahrumah/types";
 import { ArrowRight } from "lucide-react";
 import { CardSlider } from "@/components/ui/card-slider";
+import { mediaUrl } from "@/lib/media";
 
 interface Props { artikels: RbArtikelListItem[] }
-
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
 
 export function ArtikelPreview({ artikels }: Props) {
   if (!artikels.length) return null;
 
   const cards = artikels.map((a) => {
     const coverUrl = (a as unknown as { cover_url?: string }).cover_url;
+    const coverSrc = mediaUrl(coverUrl);
     const excerpt  = (a as unknown as { excerpt?: string }).excerpt;
     return (
       <Link key={a.id} href={`/articles/${a.slug}`} className="card flex flex-col group h-full">
         {/* Gambar */}
         <div className="relative h-44 bg-slate-100 overflow-hidden flex-shrink-0">
-          {coverUrl && (
+          {coverSrc && (
             <Image
-              src={`${STORAGE}${coverUrl}`}
+              src={coverSrc}
               alt={a.judul}
               fill
               className="object-cover group-hover:scale-105 transition-transform duration-300"

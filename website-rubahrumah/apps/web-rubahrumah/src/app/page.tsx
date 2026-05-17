@@ -10,9 +10,8 @@ import { Kalkulator } from "@/components/sections/kalkulator";
 import { StatsBanner } from "@/components/sections/stats-banner";
 import { ArtikelPreview } from "@/components/sections/artikel-preview";
 import { TestimoniSection } from "@/components/sections/testimoni";
+import { mediaUrl } from "@/lib/media";
 import type { RbSiteConfig, RbProjectListItem, RbPortfolioListItem, RbArtikelListItem } from "@rubahrumah/types";
-
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
 
 export default async function BerandaPage() {
   const [configRes, projectsRes, portfolioRes, artikelsRes, bannersRes, testimoniRes, kalkulatorRes] = await Promise.allSettled([
@@ -34,8 +33,8 @@ export default async function BerandaPage() {
   const rawBanners = bannersRes.status === "fulfilled" ? (bannersRes.value.data ?? []) : [];
   const banners = rawBanners.map((b) => ({
     ...b,
-    image_url: b.image_url ? `${STORAGE}${b.image_url}` : null,
-    mobile_image_url: b.mobile_image_url ? `${STORAGE}${b.mobile_image_url}` : null,
+    image_url: mediaUrl(b.image_url),
+    mobile_image_url: mediaUrl(b.mobile_image_url),
   }));
 
   return (

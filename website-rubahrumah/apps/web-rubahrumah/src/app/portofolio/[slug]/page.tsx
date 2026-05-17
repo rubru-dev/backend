@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { publicApi } from "@/lib/api";
+import { mediaUrl } from "@/lib/media";
 import { formatRupiah, formatDate } from "@rubahrumah/utils";
 import { HeroBanner } from "@/components/sections/hero-banner";
 import { ImageLightbox, CoverLightbox } from "@/components/ui/image-lightbox";
@@ -35,8 +36,6 @@ const JENIS_LABELS: Record<string, string> = {
   INTERIOR:     "Interior Rumah",
 };
 
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
-
 export default async function PortofolioDetailPage({ params }: { params: { slug: string } }) {
   let portfolio: any = null;
   let related: any[] = [];
@@ -56,6 +55,7 @@ export default async function PortofolioDetailPage({ params }: { params: { slug:
   );
 
   const coverImg = images.find((i: any) => i.is_cover) ?? images.find((i: any) => i.group === "cover") ?? images[0] ?? null;
+  const coverSrc = mediaUrl(coverImg?.image_url);
   const imagesByGroup: Record<string, any[]> = (portfolio as any).images_by_group ?? {};
 
   const TERMIN_LABELS: Record<string, string> = {
@@ -163,11 +163,11 @@ export default async function PortofolioDetailPage({ params }: { params: { slug:
         {images.length > 0 ? (
           <>
             {/* Cover / header photo — clickable for lightbox */}
-            {coverImg?.image_url && (
-              <CoverLightbox src={`${STORAGE}${coverImg.image_url}`} alt={portfolio.nama_klien}>
+            {coverSrc && (
+              <CoverLightbox src={coverSrc} alt={portfolio.nama_klien}>
                 <div className="relative w-full rounded-xl overflow-hidden mb-6 bg-slate-100" style={{ height: "460px" }}>
                   <Image
-                    src={`${STORAGE}${coverImg.image_url}`}
+                    src={coverSrc}
                     alt={portfolio.nama_klien}
                     fill
                     className="object-cover hover:opacity-95 transition-opacity"
@@ -185,9 +185,9 @@ export default async function PortofolioDetailPage({ params }: { params: { slug:
               const grpImages: any[] = imagesByGroup[grp] ?? [];
               if (grpImages.length === 0) return null;
               const lbImages = grpImages.map((img: any) => ({
-                src: `${STORAGE}${img.image_url}`,
+                src: mediaUrl(img.image_url) ?? "",
                 alt: img.caption ?? `${TERMIN_LABELS[grp]}`,
-              }));
+              })).filter((img) => img.src);
               return (
                 <div key={grp} className="mb-6">
                   <p className="text-sm font-semibold text-slate-600 mb-3">{TERMIN_LABELS[grp]}</p>
@@ -268,7 +268,7 @@ export default async function PortofolioDetailPage({ params }: { params: { slug:
                 const rCoverPath = r.images?.find((i: any) => i.is_cover)?.image_url
                             ?? r.images?.[0]?.image_url
                             ?? (r as any).cover?.image_url ?? null;
-                const rCover = rCoverPath ? `${STORAGE}${rCoverPath}` : null;
+                const rCover = mediaUrl(rCoverPath);
                 return (
                   <Link key={r.id} href={`/portofolio/${r.slug}`} className="card group">
                     <div className="relative h-44 bg-slate-100 overflow-hidden">

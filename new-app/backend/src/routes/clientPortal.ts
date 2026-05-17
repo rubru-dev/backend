@@ -11,6 +11,62 @@ const router = Router();
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toNum(v: unknown) { return parseFloat(String(v ?? 0)); }
 
+function progressFromCounts(done: number, total: number) {
+  return total > 0 ? Math.round((done / total) * 100) : null;
+}
+
+async function getLiveProjectProgress(leadId: bigint | null | undefined) {
+  if (!leadId) return { progress: null as number | null, totalItems: 0, doneItems: 0 };
+
+  const [sipilProyeks, interiorProyeks] = await Promise.all([
+    prisma.proyekBerjalan.findMany({
+      where: { lead_id: leadId },
+      select: {
+        id: true,
+        termins: { select: { tasks: { select: { status: true } } } },
+      },
+    }),
+    prisma.proyekInterior.findMany({
+      where: { lead_id: leadId },
+      select: {
+        id: true,
+        termins: { select: { tasks: { select: { status: true } } } },
+      },
+    }),
+  ]);
+
+  const sipilIds = sipilProyeks.map((p) => p.id);
+  const interiorIds = interiorProyeks.map((p) => p.id);
+
+  const [checklistSipilTotal, checklistSipilDone, checklistInteriorTotal, checklistInteriorDone] = await Promise.all([
+    sipilIds.length ? prisma.checklistSipil.count({ where: { proyek_id: { in: sipilIds } } }) : 0,
+    sipilIds.length ? prisma.checklistSipil.count({ where: { proyek_id: { in: sipilIds }, is_checked: true } }) : 0,
+    interiorIds.length ? prisma.checklistInterior.count({ where: { proyek_id: { in: interiorIds } } }) : 0,
+    interiorIds.length ? prisma.checklistInterior.count({ where: { proyek_id: { in: interiorIds }, is_checked: true } }) : 0,
+  ]);
+
+  const checklistTotal = checklistSipilTotal + checklistInteriorTotal;
+  const checklistDone = checklistSipilDone + checklistInteriorDone;
+  if (checklistTotal > 0) {
+    return {
+      progress: progressFromCounts(checklistDone, checklistTotal),
+      totalItems: checklistTotal,
+      doneItems: checklistDone,
+    };
+  }
+
+  const taskStatuses = [
+    ...sipilProyeks.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status))),
+    ...interiorProyeks.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status))),
+  ];
+  const taskDone = taskStatuses.filter((status) => status === "Selesai").length;
+  return {
+    progress: progressFromCounts(taskDone, taskStatuses.length),
+    totalItems: taskStatuses.length,
+    doneItems: taskDone,
+  };
+}
+
 // ── POST /login ───────────────────────────────────────────────────────────────
 router.post("/login", async (req: Request, res: Response) => {
   const { username, password } = req.body;
@@ -66,6 +122,8 @@ router.get("/me", async (req: Request, res: Response) => {
   });
   if (!project) { res.status(404).json({ detail: "Project tidak ditemukan" }); return; }
 
+  const liveProgress = await getLiveProjectProgress(project.lead_id);
+
   // Hitung summary
   const [paymentCount, paidCount, galeriCount, dokumenCount, aktivitasCount, invCount, invLunasCount] = await Promise.all([
     prisma.clientPortalPayment.count({ where: { project_id: projectId } }),
@@ -86,7 +144,7 @@ router.get("/me", async (req: Request, res: Response) => {
     tanggal_mulai: project.tanggal_mulai,
     tanggal_selesai: project.tanggal_selesai,
     status_proyek: project.status_proyek,
-    progress_persen: project.progress_persen,
+    progress_persen: liveProgress.progress ?? project.progress_persen,
     catatan: project.catatan,
     jenis: project.lead?.jenis ?? null,
     summary: {
@@ -94,7 +152,8 @@ router.get("/me", async (req: Request, res: Response) => {
       termin_lunas: paidCount + invLunasCount,
       total_foto: galeriCount,
       total_dokumen: dokumenCount,
-      total_aktivitas: aktivitasCount,
+      total_aktivitas: liveProgress.totalItems || aktivitasCount,
+      aktivitas_selesai: liveProgress.doneItems,
     },
   });
 });

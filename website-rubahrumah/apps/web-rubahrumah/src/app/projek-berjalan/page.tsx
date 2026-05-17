@@ -3,6 +3,7 @@ export const dynamic = "force-dynamic";
 import Link from "next/link";
 import Image from "next/image";
 import { publicApi } from "@/lib/api";
+import { mediaUrl } from "@/lib/media";
 import { formatRupiah } from "@rubahrumah/utils";
 import type { RbProjectListItem } from "@rubahrumah/types";
 import { HeroBanner } from "@/components/sections/hero-banner";
@@ -32,8 +33,6 @@ const STATUS_COLOR: Record<string, string> = {
 interface PageProps {
   searchParams: { page?: string };
 }
-
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
 
 export default async function GalleryPage({ searchParams }: PageProps) {
   const page = parseInt(searchParams.page ?? "1");
@@ -70,15 +69,16 @@ export default async function GalleryPage({ searchParams }: PageProps) {
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-6">
             {projects.map((p, idx) => {
               const coverUrl = (p as unknown as { cover?: { image_url?: string } }).cover?.image_url;
+              const coverSrc = mediaUrl(coverUrl);
               const lokasi = (p as unknown as { lokasi?: string }).lokasi;
               const deskripsi = (p as unknown as { deskripsi?: string }).deskripsi;
               return (
                 <div key={p.id} className={`card flex flex-col${idx >= 4 ? " hidden sm:flex" : ""}`}>
                   {/* Gambar */}
                   <div className="relative h-48 bg-slate-100 overflow-hidden flex-shrink-0">
-                    {coverUrl ? (
+                    {coverSrc ? (
                       <Image
-                        src={`${STORAGE}${coverUrl}`}
+                        src={coverSrc}
                         alt={p.nama_klien}
                         fill
                         className="object-cover hover:scale-105 transition-transform duration-300"

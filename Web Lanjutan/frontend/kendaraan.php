@@ -5,6 +5,7 @@
 // ============================================
 
 require_once 'includes/db.php';
+require_once 'includes/media.php';
 
 // Ambil filter kategori dari URL, misal: ?kategori=1 (Mobil), ?kategori=2 (Motor)
 $filterKategori = isset($_GET['kategori']) ? (int)$_GET['kategori'] : 0;
@@ -74,10 +75,14 @@ $kategoriList = $conn->query("SELECT * FROM kategori ORDER BY nama");
             <?php while ($row = $list->fetch_assoc()): ?>
             <div class="col-md-4 col-sm-6">
                 <div class="card card-kendaraan h-100">
-                    <!-- Gambar icon kendaraan -->
                     <div class="text-center py-4" style="background:#f8f9fa;">
-                        <?php $icon = ($row['nama_kategori']=='Mobil') ? 'bi-car-front-fill' : 'bi-bicycle'; ?>
-                        <i class="bi <?= $icon ?>" style="font-size:5rem; color:#f0a500;"></i>
+                        <?php $gambarKendaraan = kendaraan_image_url($row['gambar'] ?? null); ?>
+                        <?php if ($gambarKendaraan): ?>
+                            <img src="<?= htmlspecialchars($gambarKendaraan) ?>" style="width:100%;height:200px;object-fit:cover;">
+                        <?php else: ?>
+                            <?php $icon = ($row['nama_kategori']=='Mobil') ? 'bi-car-front-fill' : 'bi-bicycle'; ?>
+                            <i class="bi <?= $icon ?>" style="font-size:5rem; color:#f0a500;"></i>
+                        <?php endif; ?>
                     </div>
                     <div class="card-body">
                         <span class="badge mb-2" style="background:#f0a500;"><?= $row['nama_kategori'] ?></span>

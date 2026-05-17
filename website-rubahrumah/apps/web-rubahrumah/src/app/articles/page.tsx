@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Suspense } from "react";
 import { publicApi } from "@/lib/api";
+import { mediaUrl } from "@/lib/media";
 import { formatDate } from "@rubahrumah/utils";
 import type { RbArtikelListItem } from "@rubahrumah/types";
 import { HeroBanner } from "@/components/sections/hero-banner";
@@ -18,8 +19,6 @@ export const metadata = {
 interface PageProps {
   searchParams: { kategori?: string; q?: string; page?: string };
 }
-
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
 
 export default async function ArticlesPage({ searchParams }: PageProps) {
   const { kategori, q, page: pageStr } = searchParams;
@@ -70,14 +69,15 @@ export default async function ArticlesPage({ searchParams }: PageProps) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {artikels.map((a, idx) => {
               const coverUrl = (a as unknown as { cover_url?: string }).cover_url;
+              const coverSrc = mediaUrl(coverUrl);
               const excerpt = (a as unknown as { excerpt?: string }).excerpt;
               return (
                 <div key={a.id} className={`card flex flex-col md:flex-row overflow-hidden${idx >= 4 ? " hidden md:flex" : ""}`}>
                   {/* Gambar */}
                   <div className="relative h-48 md:h-auto md:w-56 bg-slate-100 flex-shrink-0">
-                    {coverUrl ? (
+                    {coverSrc ? (
                       <Image
-                        src={`${STORAGE}${coverUrl}`}
+                        src={coverSrc}
                         alt={a.judul}
                         fill
                         className="object-cover hover:scale-105 transition-transform duration-300"

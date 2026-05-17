@@ -4,6 +4,7 @@ import { formatRupiah, formatDate } from "@rubahrumah/utils";
 import type { RbProjectListItem } from "@rubahrumah/types";
 import { ArrowRight } from "lucide-react";
 import { CardSlider } from "@/components/ui/card-slider";
+import { mediaUrl } from "@/lib/media";
 
 interface Props { projects: RbProjectListItem[] }
 
@@ -23,13 +24,12 @@ const STATUS_COLOR: Record<string, string> = {
   Ditunda:  "bg-yellow-500 text-white",
 };
 
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
-
 export function ProjectCarousel({ projects }: Props) {
   if (!projects.length) return null;
 
   const cards = projects.map((p) => {
     const coverUrl = (p as unknown as { cover?: { image_url?: string } }).cover?.image_url;
+    const coverSrc = mediaUrl(coverUrl);
     const luas     = (p as unknown as { luas?: number }).luas;
     const tanggal  = (p as unknown as { tanggal_mulai?: string; created_at?: string }).tanggal_mulai
                   ?? (p as unknown as { created_at?: string }).created_at;
@@ -38,9 +38,9 @@ export function ProjectCarousel({ projects }: Props) {
       <div key={p.id} className="card flex flex-col h-full">
         {/* Gambar */}
         <div className="relative h-44 bg-slate-100 overflow-hidden flex-shrink-0">
-          {coverUrl && (
+          {coverSrc && (
             <Image
-              src={`${STORAGE}${coverUrl}`}
+              src={coverSrc}
               alt={p.nama_klien}
               fill
               className="object-cover hover:scale-105 transition-transform duration-300"

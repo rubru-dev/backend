@@ -4,6 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { notFound } from "next/navigation";
 import { publicApi } from "@/lib/api";
+import { mediaUrl } from "@/lib/media";
 import { formatRupiah, formatDate } from "@rubahrumah/utils";
 import { HeroBanner } from "@/components/sections/hero-banner";
 import { ImageLightbox, CoverLightbox } from "@/components/ui/image-lightbox";
@@ -35,8 +36,6 @@ const JENIS_LABELS: Record<string, string> = {
   INTERIOR:     "Interior Rumah",
 };
 
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
-
 export default async function ProjectDetailPage({ params }: { params: { slug: string } }) {
   let project: any = null;
   let related: any[] = [];
@@ -55,7 +54,7 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
     (a: any, b: any) => a.sort_order - b.sort_order
   );
   const coverImagePath = images.find((i: any) => i.is_cover)?.image_url ?? images.find((i: any) => i.group === "cover")?.image_url ?? images[0]?.image_url ?? null;
-  const coverImage     = coverImagePath ? `${STORAGE}${coverImagePath}` : null;
+  const coverImage     = mediaUrl(coverImagePath);
 
   const imagesByGroup: Record<string, any[]> = (project as any).images_by_group ?? {};
   const TERMIN_LABELS: Record<string, string> = {
@@ -145,9 +144,9 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
               const grpImages: any[] = imagesByGroup[grp] ?? [];
               if (grpImages.length === 0) return null;
               const lbImages = grpImages.map((img: any, i: number) => ({
-                src: `${STORAGE}${img.image_url}`,
+                src: mediaUrl(img.image_url) ?? "",
                 alt: `${project.nama_klien} ${TERMIN_LABELS[grp]} ${i + 1}`,
-              }));
+              })).filter((img) => img.src);
               return (
                 <div key={grp} className="mb-6">
                   <p className="text-sm font-semibold text-slate-600 mb-3">{TERMIN_LABELS[grp]}</p>
@@ -210,7 +209,7 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
               {related.map((r: any) => {
                 const rCoverPath = r.images?.find((i: any) => i.is_cover)?.image_url
                             ?? r.images?.[0]?.image_url ?? null;
-                const rCover = rCoverPath ? `${STORAGE}${rCoverPath}` : null;
+                const rCover = mediaUrl(rCoverPath);
                 return (
                   <Link key={r.id} href={`/projek-berjalan/${r.slug}`} className="card group">
                     <div className="relative h-44 bg-slate-100 overflow-hidden">

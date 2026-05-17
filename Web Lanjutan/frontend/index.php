@@ -5,6 +5,7 @@
 
 $pageTitle = 'Beranda';
 require_once 'includes/db.php'; // Koneksi database
+require_once 'includes/media.php';
 
 // Ambil semua kendaraan yang tersedia untuk ditampilkan (6 saja di beranda)
 $kendaraanFeatured = $conn->query("
@@ -121,13 +122,14 @@ $totalSewa   = $conn->query("SELECT COUNT(*) as c FROM penyewaan WHERE status='s
             <div class="col-md-4">
                 <!-- Kartu kendaraan -->
                 <div class="card card-kendaraan h-100">
-                    <!-- Gambar placeholder kendaraan -->
                     <div class="text-center py-4" style="background: #f0f2f5;">
-                        <?php
-                        // Tampilkan icon berbeda untuk mobil dan motor
-                        $icon = ($row['nama_kategori'] == 'Mobil') ? 'bi-car-front-fill' : 'bi-bicycle';
-                        ?>
-                        <i class="bi <?= $icon ?>" style="font-size:5rem; color:#f0a500;"></i>
+                        <?php $gambarKendaraan = kendaraan_image_url($row['gambar'] ?? null); ?>
+                        <?php if ($gambarKendaraan): ?>
+                            <img src="<?= htmlspecialchars($gambarKendaraan) ?>" style="width:100%;height:200px;object-fit:cover;">
+                        <?php else: ?>
+                            <?php $icon = ($row['nama_kategori'] == 'Mobil') ? 'bi-car-front-fill' : 'bi-bicycle'; ?>
+                            <i class="bi <?= $icon ?>" style="font-size:5rem; color:#f0a500;"></i>
+                        <?php endif; ?>
                     </div>
                     <div class="card-body">
                         <span class="badge mb-2" style="background:#f0a500;"><?= $row['nama_kategori'] ?></span>

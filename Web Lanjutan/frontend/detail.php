@@ -4,6 +4,7 @@
 // ============================================
 
 require_once 'includes/db.php';
+require_once 'includes/media.php';
 
 // Ambil ID kendaraan dari URL
 $id = isset($_GET['id']) ? (int)$_GET['id'] : 0;
@@ -81,8 +82,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <div class="card border-0 shadow-sm">
                 <!-- Gambar kendaraan -->
                 <div class="text-center py-5" style="background:#f8f9fa; border-radius:12px 12px 0 0;">
-                    <?php $icon = ($kendaraan['nama_kategori']=='Mobil') ? 'bi-car-front-fill' : 'bi-bicycle'; ?>
-                    <i class="bi <?= $icon ?>" style="font-size:8rem; color:#f0a500;"></i>
+                    <?php $gambarKendaraan = kendaraan_image_url($kendaraan['gambar'] ?? null); ?>
+                    <?php if ($gambarKendaraan): ?>
+                        <img src="<?= htmlspecialchars($gambarKendaraan) ?>" style="width:100%;height:300px;object-fit:cover;">
+                    <?php else: ?>
+                        <?php $icon = ($kendaraan['nama_kategori']=='Mobil') ? 'bi-car-front-fill' : 'bi-bicycle'; ?>
+                        <i class="bi <?= $icon ?>" style="font-size:8rem; color:#f0a500;"></i>
+                    <?php endif; ?>
                 </div>
                 <div class="card-body p-4">
                     <span class="badge mb-2" style="background:#f0a500;"><?= $kendaraan['nama_kategori'] ?></span>

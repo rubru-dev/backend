@@ -1,7 +1,6 @@
 import { publicApi } from "@/lib/api";
+import { mediaUrl } from "@/lib/media";
 import { HeroCarousel } from "@/components/sections/hero-carousel";
-
-const STORAGE = process.env.NEXT_PUBLIC_STORAGE_URL ?? "http://localhost:8000";
 
 /**
  * Hero banner untuk halaman selain homepage.
@@ -22,8 +21,8 @@ export async function HeroBanner(_props?: Record<string, unknown>) {
     const data = await publicApi.rb.banners();
     banners = (data?.data ?? []).map((b) => ({
       ...b,
-      image_url: b.image_url ? `${STORAGE}${b.image_url}` : null,
-      mobile_image_url: b.mobile_image_url ? `${STORAGE}${b.mobile_image_url}` : null,
+      image_url: mediaUrl(b.image_url),
+      mobile_image_url: mediaUrl(b.mobile_image_url),
     }));
   } catch {
     // silently fail — carousel hides itself when banners is empty
