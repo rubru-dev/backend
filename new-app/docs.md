@@ -15,6 +15,7 @@
 - **Kalender Golden:** Assign Kalender Survey Golden dan Kalender After Pengerjaan Golden mengirim notifikasi WhatsApp ke PIC yang ditunjuk.
 - **Menu Penawaran:** Tambah menu baru `Penawaran` setelah menu Sales, berisi `Penawaran Desain`, `Penawaran RKR`, `Penawaran Golden`, dan `Penawaran Filter Air`.
 - **Penawaran Desain:** Form memilih client, tanggal, dan paket Basic/Standart/Premium/Deluxe; preview mengikuti template `Form Template Penawaran Jasa Desain.docx` dan dapat di-download sebagai PDF via print browser.
+- **Penawaran Desain:** Field `Salutation` ditampilkan sebelum `Nama Client`; pencarian client memakai input filter eksplisit yang mencocokkan seluruh bagian nama/alamat/telepon, bukan hanya typeahead huruf awal select.
 
 ---
 

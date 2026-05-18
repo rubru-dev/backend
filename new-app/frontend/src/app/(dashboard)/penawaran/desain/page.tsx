@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Eye } from "lucide-react";
+import { Download, Eye, Search } from "lucide-react";
 
 const PACKAGES = {
   "Paket Desain Basic": {
@@ -39,6 +39,17 @@ function rawClientName(c: any) {
   return raw.replace(/^(Mr|Mrs)\.?\s+/i, "").trim();
 }
 
+function clientSalutation(c: any) {
+  const salutation = String(c?.salutation ?? "").trim();
+  if (/^mrs$/i.test(salutation)) return "Mrs";
+  if (/^mr$/i.test(salutation)) return "Mr";
+  return null;
+}
+
+function normalizeSearch(value: string) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 function formatDateID(date: string) {
   if (!date) return "";
   return new Date(`${date}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
@@ -51,6 +62,7 @@ export default function PenawaranDesainPage() {
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
+  const [clientSearch, setClientSearch] = useState("");
 
   const { data } = useQuery({
     queryKey: ["penawaran-desain-clients"],
@@ -67,6 +79,19 @@ export default function PenawaranDesainPage() {
     })
   );
   const client = clients.find((c: any) => String(c.id) === clientId) ?? clients[0];
+  const searchNeedle = normalizeSearch(clientSearch);
+  const filteredClients = searchNeedle
+    ? clients.filter((c: any) => {
+        const searchable = [
+          rawClientName(c),
+          c?.nama,
+          c?.display_name,
+          c?.nomor_telepon,
+          c?.alamat,
+        ].filter(Boolean).join(" ");
+        return normalizeSearch(searchable).includes(searchNeedle);
+      })
+    : clients;
   const selectedRo = employees.find((e) => String(e.id) === roId);
   const pkg = PACKAGES[paketName];
   const namaAsli = client ? rawClientName(client) : "[Nama Client]";
@@ -103,16 +128,6 @@ export default function PenawaranDesainPage() {
 
       <div className="grid md:grid-cols-5 gap-3 rounded-lg border bg-white p-4 print:hidden">
         <div>
-          <Label>Nama Client</Label>
-          <Select value={clientId || String(client?.id ?? "")} onValueChange={setClientId}>
-            <SelectTrigger><SelectValue placeholder="Pilih client" /></SelectTrigger>
-            <SelectContent>
-              {clients.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{rawClientName(c) || c.nama}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Input value={namaAsli} readOnly className="mt-2 bg-slate-50" aria-label="Nama asli client" />
-        </div>
-        <div>
           <Label>Salutation</Label>
           <Select value={salutation} onValueChange={(v) => setSalutation(v as "Mr" | "Mrs")}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -121,6 +136,38 @@ export default function PenawaranDesainPage() {
               <SelectItem value="Mrs">Mrs</SelectItem>
             </SelectContent>
           </Select>
+        </div>
+        <div>
+          <Label>Nama Client</Label>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={clientSearch}
+              onChange={(e) => setClientSearch(e.target.value)}
+              placeholder="Cari nama client"
+              className="pl-9"
+              aria-label="Cari nama client"
+            />
+          </div>
+          <Select
+            value={clientId || String(client?.id ?? "")}
+            onValueChange={(value) => {
+              setClientId(value);
+              const picked = clients.find((c: any) => String(c.id) === value);
+              const pickedSalutation = clientSalutation(picked);
+              if (pickedSalutation) setSalutation(pickedSalutation);
+            }}
+          >
+            <SelectTrigger className="mt-2"><SelectValue placeholder="Pilih client" /></SelectTrigger>
+            <SelectContent>
+              {filteredClients.length ? (
+                filteredClients.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{rawClientName(c) || c.nama}</SelectItem>)
+              ) : (
+                <div className="px-3 py-2 text-sm text-muted-foreground">Client tidak ditemukan</div>
+              )}
+            </SelectContent>
+          </Select>
+          <Input value={namaAsli} readOnly className="mt-2 bg-slate-50" aria-label="Nama asli client" />
         </div>
         <div>
           <Label>Tanggal/Bulan/Tahun</Label>
