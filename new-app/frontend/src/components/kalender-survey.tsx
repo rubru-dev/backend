@@ -97,6 +97,7 @@ async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number
 interface KalenderSurveyProps {
   modul: "sales-admin" | "telemarketing" | "golden" | "filter-air";
   showAll?: boolean;
+  useGoldenSurveyReportTemplate?: boolean;
 }
 
 const MONTH_NAMES = [
@@ -105,7 +106,7 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 
-export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
+export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }: KalenderSurveyProps) {
   const qc = useQueryClient();
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [filterUserId, setFilterUserId] = useState<string>("_all");
@@ -391,6 +392,162 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
     setPdfOpen(true);
   }
 
+  function escapeHtml(value: unknown) {
+    return String(value ?? "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;");
+  }
+
+  function handleDownloadGoldenSurveyPdf(filtered: any[], dari?: string, sampai?: string, pics?: string[]) {
+    const periodeLabel = dari && sampai
+      ? `${dari} s/d ${sampai}`
+      : `${MONTH_NAMES_ID[bulan - 1]} ${tahun}`;
+    const picLabel = pics?.length ? ` - PIC: ${pics.join(", ")}` : "";
+    const today = new Date();
+    const printedAt = today.toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    const fallbackItems = filtered.length ? filtered : [{
+      nama: "",
+      tanggal_survey: "",
+      jam_survey: "",
+      alamat: "",
+      pic_survey: "",
+      luasan_tanah: "",
+      foto_survey: null,
+    }];
+
+    const pestRows = ["Rayap", "Tikus", "Nyamuk", "Semut", "Lalat", "Kecoa", "Kutu"].map((name) => `
+      <tr><td>${name}</td><td>Ditemukan / Tidak Ditemukan</td><td></td></tr>
+    `).join("");
+    const emptyRows2 = Array.from({ length: 4 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td></tr>`).join("");
+    const emptyRows3 = Array.from({ length: 4 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td></tr>`).join("");
+    const shortRows3 = Array.from({ length: 2 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td></tr>`).join("");
+
+    const docsRows = (item: any, prefix: string) => {
+      const fotos = parseFotos(item.foto_survey);
+      return Array.from({ length: 4 }, (_, i) => {
+        const src = fotos[i] ? `<img src="${fotos[i]}" class="doc-img" />` : `${prefix} ${i + 1}`;
+        return `<tr><td>${i + 1}</td><td>${src}</td><td></td></tr>`;
+      }).join("");
+    };
+
+    const sections = fallbackItems.map((item: any, idx: number) => {
+      const dateKeyValue = item.tanggal_survey ? String(item.tanggal_survey).split("T")[0] : "";
+      const tgl = dateKeyValue
+        ? new Date(`${dateKeyValue}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+        : "";
+      const nomor = `RB-GL-SVR/${String(idx + 1).padStart(3, "0")}/${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+      const lokasi = escapeHtml(item.alamat || "");
+      return `
+        <section class="report">
+          <div class="page">
+            ${letterheadHtml()}
+            <h1>Laporan Hasil Survey Rubru Pest</h1>
+            <p class="number">Nomor : ${nomor}</p>
+            <h2>1. Informasi Survey</h2>
+            <table>
+              <tbody>
+                <tr><th>Keterangan</th><th>Detail</th></tr>
+                <tr><td>Nama Customer / Project</td><td>${escapeHtml(item.nama || "")}</td></tr>
+                <tr><td>Tanggal Survey</td><td>${escapeHtml(tgl)}</td></tr>
+                <tr><td>Waktu Survey</td><td>${escapeHtml(item.jam_survey || "")}</td></tr>
+                <tr><td>Lokasi</td><td>${lokasi}</td></tr>
+                <tr><td>Surveyor</td><td>${escapeHtml(item.pic_survey || "")}</td></tr>
+                <tr><td>Jenis Bangunan</td><td>Rumah / Kantor / Pabrik / Tempat Usaha</td></tr>
+                <tr><td>Luas Area</td><td>${escapeHtml(item.luasan_tanah || "")}</td></tr>
+              </tbody>
+            </table>
+            <h2>2. Area yang Disurvey</h2>
+            <p>Area yang menjadi cakupan survey meliputi:</p>
+            <table><thead><tr><th>No</th><th>Area</th><th>Keterangan</th></tr></thead><tbody>${emptyRows2}</tbody></table>
+          </div>
+
+          <div class="page">
+            ${letterheadHtml()}
+            <h2>3. Jenis Hama yang Ditemukan</h2>
+            <table><thead><tr><th>Jenis Hama</th><th>Status Temuan</th><th>Keterangan</th></tr></thead><tbody>${pestRows}</tbody></table>
+            <h2>5. Detail Temuan Lapangan</h2>
+            <table><thead><tr><th>No</th><th>Area Temuan</th><th>Jenis Temuan</th><th>Keterangan</th></tr></thead><tbody>${emptyRows3}</tbody></table>
+            <h2>6. Rekomendasi Treatment</h2>
+            <p>Berdasarkan hasil temuan di lapangan, metode treatment yang direkomendasikan adalah:</p>
+            <table><thead><tr><th>No</th><th>Metode Treatment</th><th>Area Penerapan</th><th>Keterangan</th></tr></thead><tbody>${shortRows3}</tbody></table>
+          </div>
+
+          <div class="page">
+            ${letterheadHtml()}
+            <h2>7. Kebutuhan Alat / Material</h2>
+            <table><thead><tr><th>No</th><th>Item</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${shortRows3}</tbody></table>
+            <h2>8. Dokumentasi Foto</h2>
+            <h3>A. Foto Area Survey</h3>
+            <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${docsRows(item, "Foto Area")}</tbody></table>
+            <h3>B. Foto Temuan Hama</h3>
+            <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${docsRows({ foto_survey: null }, "Foto Temuan")}</tbody></table>
+            <p class="signature-place">${lokasi || "[Nama Lokasi]"}, ${printedAt}</p>
+            <p class="signature-title">Hormat Kami</p>
+            <div class="signature-space"></div>
+            <p class="signature-title">Rubrupest Manajemen</p>
+          </div>
+        </section>
+      `;
+    }).join("");
+
+    const html = `<!DOCTYPE html>
+<html lang="id"><head><meta charset="UTF-8"/><title>Laporan Survey Golden - ${periodeLabel}${picLabel}</title>
+<style>
+  * { box-sizing:border-box; }
+  body { margin:0; background:#fff; color:#111827; font-family:'Times New Roman',serif; font-size:12px; line-height:1.5; }
+  .page { min-height:1122px; padding:42px 52px; page-break-after:always; break-after:page; }
+  .page:last-child { page-break-after:auto; break-after:auto; }
+  .letterhead { display:flex; gap:14px; align-items:flex-start; border-bottom:2px solid #111827; padding-bottom:12px; margin-bottom:18px; font-family:Arial,sans-serif; }
+  .letterhead img { width:58px; height:58px; object-fit:contain; }
+  .company { font-weight:700; font-size:15px; margin-bottom:4px; }
+  .company-detail { font-size:11px; line-height:1.45; }
+  h1 { text-align:center; font-size:18px; margin:10px 0 4px; }
+  h2 { font-size:14px; margin:16px 0 8px; }
+  h3 { font-size:13px; margin:12px 0 6px; }
+  .number { margin:0 0 12px; }
+  table { width:100%; border-collapse:collapse; margin:6px 0 12px; }
+  th, td { border:1px solid #111827; padding:6px 8px; vertical-align:top; min-height:26px; }
+  th { font-weight:700; text-align:left; background:#f8fafc; }
+  .doc-img { width:145px; height:105px; object-fit:cover; border:1px solid #d1d5db; display:block; }
+  .signature-place { margin-top:20px; }
+  .signature-title { font-weight:700; margin:12px 0 0; }
+  .signature-space { height:82px; }
+  @media print { @page { size:A4 portrait; margin:0; } body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+</style></head><body>
+${sections}
+<script>
+  window.onload = function() {
+    var imgs = document.querySelectorAll('img');
+    if (!imgs.length) { setTimeout(window.print, 300); return; }
+    var n = 0, total = imgs.length;
+    function done() { n++; if (n >= total) setTimeout(window.print, 300); }
+    imgs.forEach(function(img) { if (img.complete) done(); else { img.onload = done; img.onerror = done; } });
+  };
+</script>
+</body></html>`;
+
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) { alert("Popup diblokir. Izinkan popup untuk mencetak."); return; }
+    w.document.write(html);
+    w.document.close();
+  }
+
+  function letterheadHtml() {
+    return `
+      <div class="letterhead">
+        <img src="${window.location.origin}/images/logo.png" alt="Logo" onerror="this.style.display='none'"/>
+        <div>
+          <div class="company">PT. Rubah Rumah Inovasi Pemuda</div>
+          <div class="company-detail">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</div>
+          <div class="company-detail">Telp : +62 813 - 7640 - 5550</div>
+          <div class="company-detail">Website : rubahrumah.com</div>
+        </div>
+      </div>
+    `;
+  }
+
   function handleDownloadPdf(dari?: string, sampai?: string, pics?: string[]) {
     // Filter items berdasarkan range tanggal & PIC
     const filtered = items.filter((item: any) => {
@@ -400,6 +557,11 @@ export function KalenderSurvey({ modul, showAll }: KalenderSurveyProps) {
       if (pics?.length && !pics.includes(item.pic_survey)) return false;
       return true;
     });
+
+    if (useGoldenSurveyReportTemplate) {
+      handleDownloadGoldenSurveyPdf(filtered, dari, sampai, pics);
+      return;
+    }
 
     const modulLabel = showAll ? "Semua Modul" : modul === "sales-admin" ? "Sales Admin" : modul === "golden" ? "GoldenxRubahrumah" : "Telemarketing";
     const periodeLabel = dari && sampai

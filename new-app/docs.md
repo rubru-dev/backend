@@ -1,7 +1,15 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-05-11 (Penawaran + Follow Up Attachment)
+> Last updated: 2026-05-19 (Template Penawaran & Survey Golden)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-05-19)
+
+### Template Golden
+- **Penawaran > Penawaran Golden:** Placeholder diganti menjadi form penawaran jasa anti rayap Rubrupest by Golden sesuai referensi `Penawaran Golden.pdf`; mendukung pilih client Golden, nomor surat, tanggal, cakupan area/hama, metode pekerjaan, biaya, visit, kontrak treatment, syarat ketentuan, preview, dan print/download PDF.
+- **RubahrumahxGolden > Kalender Survey:** Tombol Download PDF khusus route `/golden/kalender-survey` memakai template `Template Laporan Survey Golden.pdf` berisi laporan hasil survey 3 halaman per survey. Route Golden di menu Telemarketing tetap memakai export kalender survey standar.
 
 ---
 
