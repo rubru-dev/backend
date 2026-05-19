@@ -110,6 +110,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   const qc = useQueryClient();
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [filterUserId, setFilterUserId] = useState<string>("_all");
+  const pdfLabel = useGoldenSurveyReportTemplate ? "Laporan Survey Golden" : "Kalender Survey";
 
   // PDF options dialog
   const [pdfOpen, setPdfOpen] = useState(false);
@@ -417,20 +418,16 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       foto_survey: null,
     }];
 
+    const manual = "Isi manual";
     const pestRows = ["Rayap", "Tikus", "Nyamuk", "Semut", "Lalat", "Kecoa", "Kutu"].map((name) => `
-      <tr><td>${name}</td><td>Ditemukan / Tidak Ditemukan</td><td></td></tr>
+      <tr><td>${name}</td><td>Ditemukan / Tidak Ditemukan</td><td>${manual}</td></tr>
     `).join("");
-    const emptyRows2 = Array.from({ length: 4 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td></tr>`).join("");
-    const emptyRows3 = Array.from({ length: 4 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td></tr>`).join("");
-    const shortRows3 = Array.from({ length: 2 }, (_, i) => `<tr><td>${i + 1}</td><td></td><td></td><td></td></tr>`).join("");
-
-    const docsRows = (item: any, prefix: string) => {
-      const fotos = parseFotos(item.foto_survey);
-      return Array.from({ length: 4 }, (_, i) => {
-        const src = fotos[i] ? `<img src="${fotos[i]}" class="doc-img" />` : `${prefix} ${i + 1}`;
-        return `<tr><td>${i + 1}</td><td>${src}</td><td></td></tr>`;
-      }).join("");
-    };
+    const areaRows = Array.from({ length: 4 }, (_, i) => `<tr><td>${i + 1}</td><td>${manual}</td><td>${manual}</td></tr>`).join("");
+    const findingRows = Array.from({ length: 4 }, (_, i) => `<tr><td>${i + 1}</td><td>${manual}</td><td>${manual}</td><td>${manual}</td></tr>`).join("");
+    const treatmentRows = Array.from({ length: 2 }, (_, i) => `<tr><td>${i + 1}</td><td>${manual}</td><td>${manual}</td><td>${manual}</td></tr>`).join("");
+    const materialRows = Array.from({ length: 2 }, (_, i) => `<tr><td>${i + 1}</td><td>${manual}</td><td>${manual}</td><td>${manual}</td></tr>`).join("");
+    const docsRows = (prefix: string) =>
+      Array.from({ length: 4 }, (_, i) => `<tr><td>${i + 1}</td><td>${prefix} ${i + 1}</td><td>${manual}</td></tr>`).join("");
 
     const sections = fallbackItems.map((item: any, idx: number) => {
       const dateKeyValue = item.tanggal_survey ? String(item.tanggal_survey).split("T")[0] : "";
@@ -453,14 +450,14 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
                 <tr><td>Tanggal Survey</td><td>${escapeHtml(tgl)}</td></tr>
                 <tr><td>Waktu Survey</td><td>${escapeHtml(item.jam_survey || "")}</td></tr>
                 <tr><td>Lokasi</td><td>${lokasi}</td></tr>
-                <tr><td>Surveyor</td><td>${escapeHtml(item.pic_survey || "")}</td></tr>
-                <tr><td>Jenis Bangunan</td><td>Rumah / Kantor / Pabrik / Tempat Usaha</td></tr>
-                <tr><td>Luas Area</td><td>${escapeHtml(item.luasan_tanah || "")}</td></tr>
+                <tr><td>Surveyor</td><td>${escapeHtml(item.pic_survey || manual)}</td></tr>
+                <tr><td>Jenis Bangunan</td><td>Pilih salah satu: 1. Rumah 2. Kantor 3. Pabrik 4. Tempat Usaha</td></tr>
+                <tr><td>Luas Area</td><td>${escapeHtml(item.luasan_tanah || manual)}</td></tr>
               </tbody>
             </table>
             <h2>2. Area yang Disurvey</h2>
-            <p>Area yang menjadi cakupan survey meliputi:</p>
-            <table><thead><tr><th>No</th><th>Area</th><th>Keterangan</th></tr></thead><tbody>${emptyRows2}</tbody></table>
+            <p>Area yang menjadi cakupan survey meliputi (isi bebas lebih dari satu):</p>
+            <table><thead><tr><th>No</th><th>Area</th><th>Keterangan</th></tr></thead><tbody>${areaRows}</tbody></table>
           </div>
 
           <div class="page">
@@ -468,21 +465,21 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
             <h2>3. Jenis Hama yang Ditemukan</h2>
             <table><thead><tr><th>Jenis Hama</th><th>Status Temuan</th><th>Keterangan</th></tr></thead><tbody>${pestRows}</tbody></table>
             <h2>5. Detail Temuan Lapangan</h2>
-            <table><thead><tr><th>No</th><th>Area Temuan</th><th>Jenis Temuan</th><th>Keterangan</th></tr></thead><tbody>${emptyRows3}</tbody></table>
+            <table><thead><tr><th>No</th><th>Area Temuan</th><th>Jenis Temuan</th><th>Keterangan</th></tr></thead><tbody>${findingRows}</tbody></table>
             <h2>6. Rekomendasi Treatment</h2>
             <p>Berdasarkan hasil temuan di lapangan, metode treatment yang direkomendasikan adalah:</p>
-            <table><thead><tr><th>No</th><th>Metode Treatment</th><th>Area Penerapan</th><th>Keterangan</th></tr></thead><tbody>${shortRows3}</tbody></table>
+            <table><thead><tr><th>No</th><th>Metode Treatment</th><th>Area Penerapan</th><th>Keterangan</th></tr></thead><tbody>${treatmentRows}</tbody></table>
           </div>
 
           <div class="page">
             ${letterheadHtml()}
             <h2>7. Kebutuhan Alat / Material</h2>
-            <table><thead><tr><th>No</th><th>Item</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${shortRows3}</tbody></table>
+            <table><thead><tr><th>No</th><th>Item</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${materialRows}</tbody></table>
             <h2>8. Dokumentasi Foto</h2>
             <h3>A. Foto Area Survey</h3>
-            <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${docsRows(item, "Foto Area")}</tbody></table>
+            <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${docsRows("Foto Area")}</tbody></table>
             <h3>B. Foto Temuan Hama</h3>
-            <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${docsRows({ foto_survey: null }, "Foto Temuan")}</tbody></table>
+            <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${docsRows("Foto Temuan")}</tbody></table>
             <p class="signature-place">${lokasi || "[Nama Lokasi]"}, ${printedAt}</p>
             <p class="signature-title">Hormat Kami</p>
             <div class="signature-space"></div>
@@ -730,7 +727,7 @@ ${sections}
             </button>
           </div>
           <Button variant="outline" size="sm" onClick={openPdfDialog} disabled={isLoading || items.length === 0}>
-            <FileDown className="h-4 w-4 mr-1.5" /> Download PDF
+            <FileDown className="h-4 w-4 mr-1.5" /> Download PDF {useGoldenSurveyReportTemplate ? "Laporan" : ""}
           </Button>
         </div>
       </div>
@@ -1645,7 +1642,7 @@ ${sections}
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <FileDown className="h-5 w-5 text-amber-500" /> Download PDF Kalender Survey
+              <FileDown className="h-5 w-5 text-amber-500" /> Download PDF {pdfLabel}
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
@@ -1705,7 +1702,7 @@ ${sections}
                 className="bg-amber-500 hover:bg-amber-600 text-white"
                 onClick={() => { setPdfOpen(false); handleDownloadPdf(pdfDari || undefined, pdfSampai || undefined, pdfPics.length ? pdfPics : undefined); }}
               >
-                <FileDown className="h-4 w-4 mr-1.5" /> Download PDF
+                <FileDown className="h-4 w-4 mr-1.5" /> Download PDF {useGoldenSurveyReportTemplate ? "Laporan" : ""}
               </Button>
             </div>
           </div>
