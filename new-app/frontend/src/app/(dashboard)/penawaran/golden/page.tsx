@@ -284,7 +284,7 @@ function Letterhead() {
   return (
     <div className="mb-6 border-b-2 border-black pb-4 font-sans">
       <div className="flex items-start gap-4">
-        <img src="/images/logo.png" alt="Rubah Rumah" className="h-16 w-16 object-contain" />
+        <img src="/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" className="h-16 w-16 object-contain" />
         <div>
           <p className="text-lg font-bold leading-tight">PT. Rubah Rumah Inovasi Pemuda</p>
           <p className="mt-2 text-[12px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>

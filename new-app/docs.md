@@ -9,7 +9,9 @@
 
 ### Template Golden
 - **Penawaran > Penawaran Golden:** Placeholder diganti menjadi form penawaran jasa anti rayap Rubrupest by Golden sesuai referensi `Penawaran Golden.pdf`; mendukung pilih client Golden, nomor surat, tanggal, cakupan area/hama, metode pekerjaan, biaya, visit, kontrak treatment, syarat ketentuan, preview, dan print/download PDF.
-- **RubahrumahxGolden > Kalender Survey:** Tombol Download PDF khusus route `/golden/kalender-survey` memakai template `Template Laporan Survey Golden.pdf` berisi laporan hasil survey 3 halaman per survey. Route Golden di menu Telemarketing tetap memakai export kalender survey standar.
+- **RubahrumahxGolden > Kalender Survey:** Dialog detail/review survey khusus route `/golden/kalender-survey` memakai isian `Template Laporan Survey Golden.pdf` (Informasi Survey, Area Disurvey, Jenis Hama, Detail Temuan, Treatment, Material, Dokumentasi Foto). Data lengkap disimpan sebagai JSON di `catatan_survey`; download PDF merender ulang isian yang sama. Route Golden di menu Telemarketing tetap memakai form/export kalender survey standar.
+- **Penawaran > Penawaran RKR:** Placeholder diganti menjadi form penawaran Interior/Eksterior Ruangkeruang sesuai `Template Penawaran Ruangkeruang.pdf`; data client diambil dari Follow Up Leads RKR (`/bd/telemarketing/leads`).
+- **Logo Template:** Penawaran Golden dan Laporan Survey Golden memakai `/images/offer-logos/rubru-pest-logo.jpeg`; Penawaran RKR memakai `/images/offer-logos/rkr-logo.jpeg`.
 
 ---
 
