@@ -3,13 +3,14 @@
 import { useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Eye, Search } from "lucide-react";
+import { Download, Eye, Save, Search, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const HAMA_OPTIONS = [
   "Rayap Tanah (Rhinotermitidae)",
@@ -26,6 +27,28 @@ const METODE_OPTIONS = [
   "Baiting",
   "Injection & Spraying dan Baiting",
 ];
+const STORAGE_KEY = "rubahrumah.penawaran.golden";
+
+type SavedOffer = {
+  id: string;
+  createdAt: string;
+  clientId: string;
+  salutation: "Mr" | "Mrs";
+  roId: string;
+  tanggal: string;
+  nomorSurat: string;
+  lokasiSurat: string;
+  cakupanArea: string;
+  selectedHama: string[];
+  selectedMetode: string[];
+  jumlahUnit: string;
+  biaya: string;
+  jumlahVisit: string;
+  kontrakTreatment: string;
+  syaratKetentuan: string;
+  clientName: string;
+  roName: string;
+};
 
 function rawClientName(c: any) {
   return String(c?.nama ?? "").replace(/^(Mr|Mrs)\.?\s+/i, "").trim();
@@ -60,8 +83,10 @@ function lines(value: string, fallbackCount = 4) {
 
 export default function PenawaranGoldenPage() {
   const today = new Date().toISOString().slice(0, 10);
+  const [activeTab, setActiveTab] = useState("generate");
   const [clientId, setClientId] = useState("");
   const [salutation, setSalutation] = useState<"Mr" | "Mrs">("Mr");
+  const [roId, setRoId] = useState("");
   const [clientSearch, setClientSearch] = useState("");
   const [tanggal, setTanggal] = useState(today);
   const [nomorSurat, setNomorSurat] = useState(`RB-GL/001/${today.slice(8, 10)}/${today.slice(5, 7)}/${today.slice(0, 4)}`);
@@ -75,10 +100,22 @@ export default function PenawaranGoldenPage() {
   const [kontrakTreatment, setKontrakTreatment] = useState("");
   const [syaratKetentuan, setSyaratKetentuan] = useState("");
   const [showPreview, setShowPreview] = useState(true);
+  const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
 
   const { data } = useQuery({
     queryKey: ["penawaran-golden-clients"],
     queryFn: () => apiClient.get("/bd/golden/leads", { params: { limit: 10000 } }).then((r) => r.data),
+  });
+  const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
+    queryKey: ["penawaran-golden-employees"],
+    queryFn: () => apiClient.get("/desain/employees").then((r) => r.data),
   });
 
   const clients = [...(Array.isArray(data) ? data : data?.items ?? [])].sort((a: any, b: any) =>
@@ -91,6 +128,7 @@ export default function PenawaranGoldenPage() {
     : clients;
   const namaAsli = client ? rawClientName(client) : "[Nama Client]";
   const name = client ? `${salutation} ${namaAsli}` : "Mr/Mrs. [Nama Client]";
+  const selectedRo = employees.find((e) => String(e.id) === roId);
 
   const areaRows = useMemo(() => lines(cakupanArea, 5), [cakupanArea]);
   const syaratRows = useMemo(() => lines(syaratKetentuan, 5), [syaratKetentuan]);
@@ -106,6 +144,60 @@ export default function PenawaranGoldenPage() {
   function downloadPdf() {
     setShowPreview(true);
     requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+
+  function persistOffers(next: SavedOffer[]) {
+    setSavedOffers(next);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+
+  function saveOffer() {
+    const offer: SavedOffer = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      clientId: String(client?.id ?? clientId),
+      salutation,
+      roId,
+      tanggal,
+      nomorSurat,
+      lokasiSurat,
+      cakupanArea,
+      selectedHama,
+      selectedMetode,
+      jumlahUnit,
+      biaya,
+      jumlahVisit,
+      kontrakTreatment,
+      syaratKetentuan,
+      clientName: namaAsli,
+      roName: selectedRo?.nama || "[Nama RO]",
+    };
+    persistOffers([offer, ...savedOffers]);
+    setActiveTab("list");
+  }
+
+  function loadOffer(offer: SavedOffer, shouldPrint = false) {
+    setClientId(offer.clientId);
+    setSalutation(offer.salutation);
+    setRoId(offer.roId);
+    setTanggal(offer.tanggal);
+    setNomorSurat(offer.nomorSurat);
+    setLokasiSurat(offer.lokasiSurat);
+    setCakupanArea(offer.cakupanArea);
+    setSelectedHama(offer.selectedHama);
+    setSelectedMetode(offer.selectedMetode);
+    setJumlahUnit(offer.jumlahUnit);
+    setBiaya(offer.biaya);
+    setJumlahVisit(offer.jumlahVisit);
+    setKontrakTreatment(offer.kontrakTreatment);
+    setSyaratKetentuan(offer.syaratKetentuan);
+    setShowPreview(true);
+    setActiveTab("generate");
+    if (shouldPrint) requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+
+  function deleteOffer(id: string) {
+    persistOffers(savedOffers.filter((offer) => offer.id !== id));
   }
 
   return (
@@ -127,12 +219,19 @@ export default function PenawaranGoldenPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowPreview((v) => !v)}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
+          <Button variant="outline" onClick={saveOffer}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
           <Button onClick={downloadPdf}><Download className="h-4 w-4 mr-2" /> Download PDF</Button>
         </div>
       </div>
 
-      <div className="grid gap-4 rounded-lg border bg-white p-4 print:hidden">
-        <div className="grid md:grid-cols-5 gap-3">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="print:hidden">
+        <TabsList>
+          <TabsTrigger value="generate">Generate</TabsTrigger>
+          <TabsTrigger value="list">List Penawaran</TabsTrigger>
+        </TabsList>
+        <TabsContent value="generate" className="mt-4">
+      <div className="grid gap-4 rounded-lg border bg-white p-4">
+        <div className="grid md:grid-cols-6 gap-3">
           <div>
             <Label>Nomor Surat</Label>
             <Input value={nomorSurat} onChange={(e) => setNomorSurat(e.target.value)} />
@@ -150,6 +249,16 @@ export default function PenawaranGoldenPage() {
             <Select value={salutation} onValueChange={(v) => setSalutation(v as "Mr" | "Mrs")}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent><SelectItem value="Mr">Mr</SelectItem><SelectItem value="Mrs">Mrs</SelectItem></SelectContent>
+            </Select>
+          </div>
+          <div>
+            <Label>Nama RO</Label>
+            <Select value={roId || "__none__"} onValueChange={(v) => setRoId(v === "__none__" ? "" : v)}>
+              <SelectTrigger><SelectValue placeholder="Pilih RO" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">Pilih RO</SelectItem>
+                {employees.map((e) => <SelectItem key={e.id} value={String(e.id)}>{e.nama}</SelectItem>)}
+              </SelectContent>
             </Select>
           </div>
           <div>
@@ -220,11 +329,35 @@ export default function PenawaranGoldenPage() {
           </div>
         </div>
       </div>
+        </TabsContent>
+        <TabsContent value="list" className="mt-4">
+          <div className="rounded-lg border bg-white">
+            <div className="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_150px] gap-3 border-b px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
+              <span>Client</span><span>Tanggal</span><span>Nomor Surat</span><span>Biaya</span><span className="text-right">Aksi</span>
+            </div>
+            {savedOffers.length ? savedOffers.map((offer) => (
+              <div key={offer.id} className="grid grid-cols-[1.2fr_1fr_1.2fr_1fr_150px] items-center gap-3 border-b px-4 py-3 text-sm last:border-b-0">
+                <span className="font-medium">{offer.salutation} {offer.clientName}</span>
+                <span>{formatDateID(offer.tanggal)}</span>
+                <span>{offer.nomorSurat}</span>
+                <span>{formatMoney(offer.biaya)}</span>
+                <div className="flex justify-end gap-1">
+                  <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
+                  <Button size="sm" onClick={() => loadOffer(offer, true)}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                </div>
+              </div>
+            )) : (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada penawaran tersimpan.</div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] border bg-white p-10 shadow-sm font-serif text-[14px] leading-7 text-black">
+        <div className="offer-page mx-auto max-w-[794px] border bg-white p-10 shadow-sm font-serif text-[10px] leading-5 text-black">
           <Letterhead />
-          <h2 className="mb-2 text-center text-lg font-bold">Penawaran Jasa Anti Rayap</h2>
+          <h2 className="mb-2 text-center text-[12px] font-bold">Penawaran Jasa Anti Rayap</h2>
           <p>Nomor : {nomorSurat || "RB-GL/[Nomor]/[Tanggal]/[Bulan]/[Tahun]"}</p>
           <p>Lampiran:</p>
           <p className="ml-8 mb-5">- Laporan Hasil Survey</p>
@@ -240,7 +373,7 @@ export default function PenawaranGoldenPage() {
             Melalui surat ini, kami Rubrupest by Golden (PT. RUBAH RUMAH INOVASI PEMUDA) telah melakukan serangkaian survey (laporan hasil survey terlampir) bermaksud untuk menawarkan pekerjaan pengendalian hama sebagai berikut:
           </p>
 
-          <table className="my-4 w-full border-collapse text-sm">
+          <table className="my-4 w-full border-collapse text-[10px]">
             <tbody>
               <TemplateRow label="Cakupan Area">
                 <ol className="ml-5 list-decimal">{areaRows.map((row, i) => <li key={i}>{row || "[Isi manual]"}</li>)}</ol>
@@ -270,9 +403,12 @@ export default function PenawaranGoldenPage() {
             <p>Atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
 
             <p className="mt-8">{lokasiSurat || "[Nama Lokasi]"}, {formatDateID(tanggal) || "[Tanggal/Bulan/Tahun]"}</p>
-            <p className="mt-8 font-bold">Hormat Kami</p>
-            <div className="h-28" />
-            <p className="font-bold">Rubrupest Manajemen</p>
+            <div className="mt-8 ml-auto w-[260px] text-left">
+              <p className="font-bold">Hormat Kami,</p>
+              <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+              <div className="h-28" />
+              <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
+            </div>
           </div>
         </div>
       )}
@@ -284,7 +420,7 @@ function Letterhead() {
   return (
     <div className="mb-6 border-b-2 border-black pb-4 font-sans">
       <div className="flex items-start gap-4">
-        <img src="/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" className="h-16 w-16 object-contain" />
+        <img src="/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" className="h-36 w-44 object-contain" />
         <div>
           <p className="text-lg font-bold leading-tight">PT. Rubah Rumah Inovasi Pemuda</p>
           <p className="mt-2 text-[12px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>

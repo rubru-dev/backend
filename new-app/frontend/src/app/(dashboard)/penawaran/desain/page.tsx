@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Eye, Search } from "lucide-react";
+import { Download, Eye, Save, Search, Trash2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const PACKAGES = {
   "Paket Desain Basic": {
@@ -33,6 +34,20 @@ const PACKAGES = {
 } as const;
 
 const IDR = (n: number) => `Rp. ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(n)}`;
+const STORAGE_KEY = "rubahrumah.penawaran.desain";
+
+type SavedOffer = {
+  id: string;
+  createdAt: string;
+  clientId: string;
+  salutation: "Mr" | "Mrs";
+  roId: string;
+  tanggal: string;
+  paketName: keyof typeof PACKAGES;
+  clientName: string;
+  roName: string;
+  total: number;
+};
 
 function rawClientName(c: any) {
   const raw = String(c?.nama ?? "").trim();
@@ -56,6 +71,7 @@ function formatDateID(date: string) {
 }
 
 export default function PenawaranDesainPage() {
+  const [activeTab, setActiveTab] = useState("generate");
   const [clientId, setClientId] = useState("");
   const [salutation, setSalutation] = useState<"Mr" | "Mrs">("Mr");
   const [roId, setRoId] = useState("");
@@ -63,6 +79,14 @@ export default function PenawaranDesainPage() {
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
   const [clientSearch, setClientSearch] = useState("");
+  const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
 
   const { data } = useQuery({
     queryKey: ["penawaran-desain-clients"],
@@ -104,6 +128,43 @@ export default function PenawaranDesainPage() {
     requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
   }
 
+  function persistOffers(next: SavedOffer[]) {
+    setSavedOffers(next);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+
+  function saveOffer() {
+    const offer: SavedOffer = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      clientId: String(client?.id ?? clientId),
+      salutation,
+      roId,
+      tanggal,
+      paketName,
+      clientName: namaAsli,
+      roName: selectedRo?.nama || "[Nama RO]",
+      total: pkg.price,
+    };
+    persistOffers([offer, ...savedOffers]);
+    setActiveTab("list");
+  }
+
+  function loadOffer(offer: SavedOffer, shouldPrint = false) {
+    setClientId(offer.clientId);
+    setSalutation(offer.salutation);
+    setRoId(offer.roId);
+    setTanggal(offer.tanggal);
+    setPaketName(offer.paketName);
+    setShowPreview(true);
+    setActiveTab("generate");
+    if (shouldPrint) requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+  }
+
+  function deleteOffer(id: string) {
+    persistOffers(savedOffers.filter((offer) => offer.id !== id));
+  }
+
   return (
     <div className="p-6 space-y-5">
       <style jsx global>{`
@@ -122,11 +183,18 @@ export default function PenawaranDesainPage() {
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowPreview((v) => !v)}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
+          <Button variant="outline" onClick={saveOffer}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
           <Button onClick={downloadPdf}><Download className="h-4 w-4 mr-2" /> Download PDF</Button>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-5 gap-3 rounded-lg border bg-white p-4 print:hidden">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="print:hidden">
+        <TabsList>
+          <TabsTrigger value="generate">Generate</TabsTrigger>
+          <TabsTrigger value="list">List Penawaran</TabsTrigger>
+        </TabsList>
+        <TabsContent value="generate" className="mt-4">
+      <div className="grid md:grid-cols-5 gap-3 rounded-lg border bg-white p-4">
         <div>
           <Label>Salutation</Label>
           <Select value={salutation} onValueChange={(v) => setSalutation(v as "Mr" | "Mrs")}>
@@ -193,12 +261,36 @@ export default function PenawaranDesainPage() {
           </Select>
         </div>
       </div>
+        </TabsContent>
+        <TabsContent value="list" className="mt-4">
+          <div className="rounded-lg border bg-white">
+            <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr_150px] gap-3 border-b px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
+              <span>Client</span><span>Tanggal</span><span>Paket</span><span>Total</span><span className="text-right">Aksi</span>
+            </div>
+            {savedOffers.length ? savedOffers.map((offer) => (
+              <div key={offer.id} className="grid grid-cols-[1.2fr_1fr_1fr_1fr_150px] items-center gap-3 border-b px-4 py-3 text-sm last:border-b-0">
+                <span className="font-medium">{offer.salutation} {offer.clientName}</span>
+                <span>{formatDateID(offer.tanggal)}</span>
+                <span>{offer.paketName}</span>
+                <span>{IDR(offer.total)}</span>
+                <div className="flex justify-end gap-1">
+                  <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
+                  <Button size="sm" onClick={() => loadOffer(offer, true)}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                </div>
+              </div>
+            )) : (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada penawaran tersimpan.</div>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm font-serif text-[15px] leading-7 text-black">
+        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm font-serif text-[10px] leading-5 text-black">
           <div className="mb-8 border-b-2 border-black pb-4 font-sans">
             <div className="flex items-start gap-4">
-              <img src="/images/logo.png" alt="Rubah Rumah" className="h-20 w-20 object-contain" />
+              <img src="/images/logo.png" alt="Rubah Rumah" className="h-36 w-44 object-contain" />
               <div className="pt-1">
                 <p className="text-xl font-bold leading-tight">PT. Rubah Rumah</p>
                 <p className="text-xl font-bold leading-tight">Inovasi Pemuda</p>
@@ -209,7 +301,7 @@ export default function PenawaranDesainPage() {
             </div>
           </div>
 
-          <h2 className="text-center font-bold text-lg mb-5">FORM PENAWARAN JASA DESAIN</h2>
+          <h2 className="text-center font-bold text-[12px] mb-5">FORM PENAWARAN JASA DESAIN</h2>
           <p>Lampiran :</p>
           <p className="ml-8 mb-5">Denah Eksisting dan Perubahan</p>
 
@@ -228,7 +320,7 @@ export default function PenawaranDesainPage() {
           </p>
           <p className="mt-3">Adapun rincian penawaran jasa desain adalah sebagai berikut:</p>
 
-          <table className="my-4 w-full border-collapse text-sm">
+          <table className="my-4 w-full border-collapse text-[10px]">
             <thead>
               <tr>
                 <th className="border border-black p-2 text-left">Keterangan</th>
@@ -258,7 +350,7 @@ export default function PenawaranDesainPage() {
           <p>Atas perhatian dan kepercayaannya, kami ucapkan terima kasih.</p>
           <p className="mt-4">Bekasi, {formatDateID(tanggal)}</p>
 
-          <div className="mt-6 w-1/2">
+          <div className="mt-6 ml-auto w-[260px] text-left">
             <p className="font-bold">Hormat Kami,</p>
             <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
             <div className="h-28" />
