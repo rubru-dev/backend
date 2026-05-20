@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
+import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 
 const HAMA_OPTIONS = [
   "Rayap Tanah (Rhinotermitidae)",
@@ -107,6 +108,7 @@ export default function PenawaranGoldenPage() {
   const [kontrakTreatment, setKontrakTreatment] = useState("");
   const [syaratKetentuan, setSyaratKetentuan] = useState("");
   const [showPreview, setShowPreview] = useState(true);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
     if (typeof window === "undefined") return [];
     try {
@@ -148,20 +150,15 @@ export default function PenawaranGoldenPage() {
     setSelectedMetode((prev) => checked ? [...prev, value] : prev.filter((item) => item !== value));
   }
 
-  function downloadPdf() {
+  async function downloadPdf() {
     setShowPreview(true);
-    printWithTitle(`Penawaran Ruangkeruang - ${name} - ${formatDateFile(tanggal)}`);
-  }
-
-  function printWithTitle(title: string) {
-    const previousTitle = document.title;
-    document.title = title;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      window.print();
-      setTimeout(() => {
-        document.title = previousTitle;
-      }, 500);
-    }));
+    setDownloadingPdf(true);
+    try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await downloadOfferPdf(".offer-page", `Penawaran Ruangkeruang - ${name} - ${formatDateFile(tanggal)}`);
+    } finally {
+      setDownloadingPdf(false);
+    }
   }
 
   function persistOffers(next: SavedOffer[]) {
@@ -212,9 +209,14 @@ export default function PenawaranGoldenPage() {
     setShowPreview(true);
     setActiveTab("generate");
     if (shouldPrint) {
-      setTimeout(() => {
-        printWithTitle(`Penawaran Ruangkeruang - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
-      }, 0);
+      setDownloadingPdf(true);
+      setTimeout(async () => {
+        try {
+          await downloadOfferPdf(".offer-page", `Penawaran Ruangkeruang - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
+        } finally {
+          setDownloadingPdf(false);
+        }
+      }, 100);
     }
   }
 
@@ -245,7 +247,7 @@ export default function PenawaranGoldenPage() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowPreview((v) => !v)}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
           <Button variant="outline" onClick={saveOffer}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
-          <Button onClick={downloadPdf}><Download className="h-4 w-4 mr-2" /> Download PDF</Button>
+          <Button onClick={downloadPdf} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
         </div>
       </div>
 
@@ -368,7 +370,7 @@ export default function PenawaranGoldenPage() {
                 <span>{formatMoney(offer.biaya)}</span>
                 <div className="flex justify-end gap-1">
                   <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
-                  <Button size="sm" onClick={() => loadOffer(offer, true)}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="sm" onClick={() => loadOffer(offer, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
                   {isSuperAdmin && (
                     <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                   )}
@@ -382,7 +384,7 @@ export default function PenawaranGoldenPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] border bg-white p-10 shadow-sm text-[10px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] border bg-white px-8 pb-6 pt-3 shadow-sm text-[10px] leading-5 text-black">
           <Letterhead />
           <h2 className="mb-2 text-center text-[10px] font-bold">Penawaran Jasa Anti Rayap</h2>
           <p>Nomor : {nomorSurat || "RB-GL/[Nomor]/[Tanggal]/[Bulan]/[Tahun]"}</p>

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Download, Eye, Save, Search, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
+import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 
 const PACKAGES = {
   "Paket Desain Basic": {
@@ -86,6 +87,7 @@ export default function PenawaranDesainPage() {
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
   const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
     if (typeof window === "undefined") return [];
@@ -131,20 +133,15 @@ export default function PenawaranDesainPage() {
 
   const detailRows = useMemo(() => pkg.details.map((d) => <li key={d}>{d}</li>), [pkg]);
 
-  function downloadPdf() {
+  async function downloadPdf() {
     setShowPreview(true);
-    printWithTitle(`Penawaran ${paketName} - ${name} - ${formatDateFile(tanggal)}`);
-  }
-
-  function printWithTitle(title: string) {
-    const previousTitle = document.title;
-    document.title = title;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      window.print();
-      setTimeout(() => {
-        document.title = previousTitle;
-      }, 500);
-    }));
+    setDownloadingPdf(true);
+    try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await downloadOfferPdf(".offer-page", `Penawaran ${paketName} - ${name} - ${formatDateFile(tanggal)}`);
+    } finally {
+      setDownloadingPdf(false);
+    }
   }
 
   function persistOffers(next: SavedOffer[]) {
@@ -178,9 +175,14 @@ export default function PenawaranDesainPage() {
     setShowPreview(true);
     setActiveTab("generate");
     if (shouldPrint) {
-      setTimeout(() => {
-        printWithTitle(`Penawaran ${offer.paketName} - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
-      }, 0);
+      setDownloadingPdf(true);
+      setTimeout(async () => {
+        try {
+          await downloadOfferPdf(".offer-page", `Penawaran ${offer.paketName} - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
+        } finally {
+          setDownloadingPdf(false);
+        }
+      }, 100);
     }
   }
 
@@ -210,7 +212,7 @@ export default function PenawaranDesainPage() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowPreview((v) => !v)}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
           <Button variant="outline" onClick={saveOffer}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
-          <Button onClick={downloadPdf}><Download className="h-4 w-4 mr-2" /> Download PDF</Button>
+          <Button onClick={downloadPdf} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
         </div>
       </div>
 
@@ -301,7 +303,7 @@ export default function PenawaranDesainPage() {
                 <span>{IDR(offer.total)}</span>
                 <div className="flex justify-end gap-1">
                   <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
-                  <Button size="sm" onClick={() => loadOffer(offer, true)}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="sm" onClick={() => loadOffer(offer, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
                   {isSuperAdmin && (
                     <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                   )}
@@ -315,7 +317,7 @@ export default function PenawaranDesainPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm text-[10px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white px-8 pb-6 pt-3 shadow-sm text-[10px] leading-5 text-black">
           <div className="offer-header mb-8 border-b-2 border-black pb-4 text-[10px]">
             <div className="flex items-center gap-4">
               <img src="/images/logo.png" alt="Rubah Rumah" className="h-36 w-44 object-contain" />

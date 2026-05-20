@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
+import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 
 type OfferRow = { uraian: string; qty: string; satuan: string; harga: string };
 const STORAGE_KEY = "rubahrumah.penawaran.rkr";
@@ -72,6 +73,7 @@ export default function PenawaranRkrPage() {
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [jenisPenawaran, setJenisPenawaran] = useState("Interior");
   const [showPreview, setShowPreview] = useState(true);
+  const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [rows, setRows] = useState<OfferRow[]>([
     { uraian: "", qty: "", satuan: "", harga: "" },
     { uraian: "", qty: "", satuan: "", harga: "" },
@@ -119,20 +121,15 @@ export default function PenawaranRkrPage() {
     return String(Math.max(0, number));
   }
 
-  function downloadPdf() {
+  async function downloadPdf() {
     setShowPreview(true);
-    printWithTitle(`Penawaran Ruangkeruang - ${name} - ${formatDateFile(tanggal)}`);
-  }
-
-  function printWithTitle(title: string) {
-    const previousTitle = document.title;
-    document.title = title;
-    requestAnimationFrame(() => requestAnimationFrame(() => {
-      window.print();
-      setTimeout(() => {
-        document.title = previousTitle;
-      }, 500);
-    }));
+    setDownloadingPdf(true);
+    try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await downloadOfferPdf(".offer-page", `Penawaran Ruangkeruang - ${name} - ${formatDateFile(tanggal)}`);
+    } finally {
+      setDownloadingPdf(false);
+    }
   }
 
   function persistOffers(next: SavedOffer[]) {
@@ -168,9 +165,14 @@ export default function PenawaranRkrPage() {
     setShowPreview(true);
     setActiveTab("generate");
     if (shouldPrint) {
-      setTimeout(() => {
-        printWithTitle(`Penawaran Ruangkeruang - ${offer.salutation}. ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
-      }, 0);
+      setDownloadingPdf(true);
+      setTimeout(async () => {
+        try {
+          await downloadOfferPdf(".offer-page", `Penawaran Ruangkeruang - ${offer.salutation}. ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
+        } finally {
+          setDownloadingPdf(false);
+        }
+      }, 100);
     }
   }
 
@@ -200,7 +202,7 @@ export default function PenawaranRkrPage() {
         <div className="flex gap-2">
           <Button variant="outline" onClick={() => setShowPreview((v) => !v)}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
           <Button variant="outline" onClick={saveOffer}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
-          <Button onClick={downloadPdf}><Download className="h-4 w-4 mr-2" /> Download PDF</Button>
+          <Button onClick={downloadPdf} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
         </div>
       </div>
 
@@ -305,7 +307,7 @@ export default function PenawaranRkrPage() {
                 <span>{offer.total ? fmtMoney(offer.total) : "-"}</span>
                 <div className="flex justify-end gap-1">
                   <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
-                  <Button size="sm" onClick={() => loadOffer(offer, true)}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="sm" onClick={() => loadOffer(offer, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
                   {isSuperAdmin && (
                     <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                   )}
@@ -319,7 +321,7 @@ export default function PenawaranRkrPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm text-[10px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white px-8 pb-6 pt-3 shadow-sm text-[10px] leading-5 text-black">
           <Letterhead />
           <h2 className="mb-8 text-center text-[10px] font-bold">Penawaran {jenisPenawaran} Ruangkeruang</h2>
 
