@@ -636,7 +636,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
             <h3>B. Foto Temuan Hama</h3>
             <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${fotoTemuanRowsHtml}</tbody></table>
             <div class="signature-block">
-              <p class="signature-place">${lokasi || "[Nama Lokasi]"}, ${printedAt}</p>
+              <p class="signature-place">Bekasi, ${printedAt}</p>
               <p class="signature-title">Hormat Kami</p>
               <img class="signature-logo" src="${window.location.origin}/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" onerror="this.style.display='none'"/>
               <p class="signature-title signature-name">Rubrupest Manajemen</p>
