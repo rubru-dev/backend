@@ -14,6 +14,7 @@
 - **RubahrumahxGolden > Kalender Survey > Detail Survey:** Section `Foto Bukti Survey` paling bawah disembunyikan untuk template Golden karena dokumentasi sudah dipisah ke `Foto Area Survey` dan `Foto Temuan Hama`; tombol simpan/setujui Golden memakai gabungan foto dari dua section dokumentasi tersebut.
 - **RubahrumahxGolden > Kalender Survey > PDF Laporan:** Export laporan Golden merender foto dokumentasi aktual pada tabel `Foto Area Survey` dan `Foto Temuan Hama`; PDF tetap menampilkan kolom `Status Temuan`.
 - **RubahrumahxGolden > Kalender Survey > PDF Laporan:** Dialog download PDF laporan Golden memiliki filter `Filter Client Survey`, sehingga user bisa memilih satu atau lebih client survey yang akan masuk ke PDF agar laporan bisa diunduh per client dengan rapi.
+- **RubahrumahxGolden > Kalender Survey > PDF Laporan:** Blok tanda tangan laporan diposisikan di pojok kanan, mulai dari lokasi/tanggal sampai `Rubrupest Manajemen`; setelah `Hormat Kami` ditambahkan logo Rubru Pest dari header dengan ukuran lebih besar dan jarak rapat ke nama manajemen.
 - **RubahrumahxGolden > Kalender Survey > UX:** Placeholder `Isi manual` pada form Golden diganti menjadi contoh sesuai konteks, misalnya area survey, kondisi area, jenis temuan, metode treatment, kebutuhan material, dan keterangan dokumentasi.
 
 ### Projek Sipil/Interior Checklist PDF

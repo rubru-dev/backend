@@ -635,10 +635,12 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
             <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${fotoAreaRowsHtml}</tbody></table>
             <h3>B. Foto Temuan Hama</h3>
             <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${fotoTemuanRowsHtml}</tbody></table>
-            <p class="signature-place">${lokasi || "[Nama Lokasi]"}, ${printedAt}</p>
-            <p class="signature-title">Hormat Kami</p>
-            <div class="signature-space"></div>
-            <p class="signature-title">Rubrupest Manajemen</p>
+            <div class="signature-block">
+              <p class="signature-place">${lokasi || "[Nama Lokasi]"}, ${printedAt}</p>
+              <p class="signature-title">Hormat Kami</p>
+              <img class="signature-logo" src="${window.location.origin}/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" onerror="this.style.display='none'"/>
+              <p class="signature-title signature-name">Rubrupest Manajemen</p>
+            </div>
           </div>
         </section>
       `;
@@ -665,9 +667,11 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   .doc-grid { display:flex; flex-wrap:wrap; gap:6px; }
   .doc-img { width:145px; height:105px; object-fit:cover; border:1px solid #d1d5db; display:block; }
   .muted { color:#6b7280; font-style:italic; }
-  .signature-place { margin-top:20px; }
-  .signature-title { font-weight:700; margin:12px 0 0; }
-  .signature-space { height:82px; }
+  .signature-block { width:230px; margin:20px 0 0 auto; text-align:left; }
+  .signature-place { margin:0 0 10px; }
+  .signature-title { font-weight:700; margin:0; }
+  .signature-logo { width:150px; height:70px; object-fit:contain; display:block; margin:8px 0 6px; }
+  .signature-name { margin-top:0; }
   @media print { @page { size:A4 portrait; margin:0; } body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
 </style></head><body>
 ${sections}
