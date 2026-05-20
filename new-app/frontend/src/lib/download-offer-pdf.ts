@@ -61,7 +61,7 @@ export async function downloadOfferPdf(selector: string, filename: string) {
         width: 210mm !important;
         min-height: 297mm !important;
         margin: 0 !important;
-        padding: 0.5cm !important;
+        padding: 0.5cm 1.5cm !important;
         border: 0 !important;
         box-shadow: none !important;
         background: #ffffff !important;

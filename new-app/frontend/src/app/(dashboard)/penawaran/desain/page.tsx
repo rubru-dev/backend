@@ -295,7 +295,7 @@ export default function PenawaranDesainPage() {
           @page { size: A4 portrait; margin: 0; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 0.5cm !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 0.5cm 1.5cm !important; }
           .offer-header { margin-bottom: 0 !important; padding-bottom: 8px !important; }
           .offer-page table, .offer-page tr, .offer-page p, .offer-page ul { break-inside: avoid; page-break-inside: avoid; }
           .page-break { break-before: page; page-break-before: always; }
@@ -426,7 +426,7 @@ export default function PenawaranDesainPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white px-[1.5cm] py-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
           <div className="offer-header mb-0 border-b-2 border-black pb-4 text-[12px]">
             <div className="flex items-center gap-4">
               <div className="flex h-36 w-44 shrink-0 items-center justify-center">
@@ -507,7 +507,7 @@ export default function PenawaranDesainPage() {
             <p>Atas perhatian dan kepercayaannya, kami ucapkan terima kasih.</p>
             <p className="text-right">Bekasi, {formatDateID(tanggal)}</p>
 
-            <div className="mt-6 ml-auto mr-[2.5cm] w-[300px] text-left">
+            <div className="mt-6 ml-auto w-[300px] text-left">
               <p className="font-bold">Hormat Kami,</p>
               <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
               <div className="mt-3 flex h-20 w-40 items-center">
