@@ -41,30 +41,16 @@ export async function downloadOfferPdf(selector: string, filename: string) {
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = 210;
   const pageHeight = 297;
-  const pageCanvasHeight = Math.floor((canvas.width * pageHeight) / pageWidth);
+  const imageRatio = canvas.height / canvas.width;
+  let imageWidth = pageWidth;
+  let imageHeight = pageWidth * imageRatio;
 
-  let sourceY = 0;
-  let pageIndex = 0;
-
-  while (sourceY < canvas.height) {
-    const sliceHeight = Math.min(pageCanvasHeight, canvas.height - sourceY);
-    const pageCanvas = document.createElement("canvas");
-    pageCanvas.width = canvas.width;
-    pageCanvas.height = sliceHeight;
-
-    const ctx = pageCanvas.getContext("2d");
-    if (!ctx) throw new Error("Gagal membuat canvas PDF.");
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-    ctx.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, canvas.width, sliceHeight);
-
-    if (pageIndex > 0) pdf.addPage();
-    const imageHeight = (sliceHeight * pageWidth) / canvas.width;
-    pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", 0, 0, pageWidth, imageHeight, undefined, "FAST");
-
-    sourceY += sliceHeight;
-    pageIndex += 1;
+  if (imageHeight > pageHeight) {
+    imageHeight = pageHeight;
+    imageWidth = pageHeight / imageRatio;
   }
 
+  const x = (pageWidth - imageWidth) / 2;
+  pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, 0, imageWidth, imageHeight, undefined, "FAST");
   pdf.save(`${safeFileName(filename)}.pdf`);
 }
