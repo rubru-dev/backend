@@ -507,7 +507,7 @@ export default function PenawaranDesainPage() {
             <p>Atas perhatian dan kepercayaannya, kami ucapkan terima kasih.</p>
             <p className="text-right">Bekasi, {formatDateID(tanggal)}</p>
 
-            <div className="mt-6 ml-auto w-[300px] text-left">
+            <div className="-mx-[1.5cm] mt-6 ml-auto w-[300px] text-left">
               <p className="font-bold">Hormat Kami,</p>
               <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
               <div className="mt-3 flex h-20 w-40 items-center">
