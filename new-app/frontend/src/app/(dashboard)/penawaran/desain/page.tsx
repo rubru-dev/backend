@@ -194,11 +194,11 @@ export default function PenawaranDesainPage() {
     <div className="p-6 space-y-5">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 7mm 14mm 10mm; }
+          @page { size: A4 portrait; margin: 0.75in; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 3mm 8mm 6mm !important; }
-          .offer-header { margin-bottom: 12px !important; padding-bottom: 8px !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 0 !important; }
+          .offer-header { margin-bottom: 0 !important; padding-bottom: 8px !important; }
           .offer-page table, .offer-page tr, .offer-page p, .offer-page ul { break-inside: avoid; page-break-inside: avoid; }
         }
         .offer-page { font-family: Arial, Helvetica, sans-serif !important; }
@@ -332,7 +332,7 @@ export default function PenawaranDesainPage() {
             </div>
           </div>
 
-          <h2 className="mb-5 mt-1 text-center text-[10px] font-bold">PENAWARAN JASA DESAIN</h2>
+          <h2 className="mb-5 mt-0 text-center text-[10px] font-bold leading-none">PENAWARAN JASA DESAIN</h2>
           <p>Lampiran :</p>
           <p className="ml-8 mb-5">Denah Eksisting dan Perubahan</p>
 

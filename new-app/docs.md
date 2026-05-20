@@ -1,7 +1,15 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-05-19 (Template Penawaran & Survey Golden)
+> Last updated: 2026-05-20 (Template Penawaran Desain/RKR)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-05-20)
+
+### Template Penawaran Desain/RKR
+- **Penawaran > Penawaran Desain:** Print style disesuaikan ke margin A4 `0.75in`; helper download PDF juga menempatkan preview di dalam margin 0.75 inch atas/kiri/kanan/bawah.
+- **Penawaran > Penawaran RKR:** Print style disesuaikan ke margin A4 `0.75in`; hasil download PDF mengikuti margin 0.75 inch yang sama melalui helper penawaran bersama.
 
 ---
 

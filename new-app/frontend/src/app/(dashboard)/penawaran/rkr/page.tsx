@@ -184,10 +184,10 @@ export default function PenawaranRkrPage() {
     <div className="p-6 space-y-5">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 7mm 14mm 10mm; }
+          @page { size: A4 portrait; margin: 0.75in; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 3mm 8mm 6mm !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 0 !important; }
           .offer-header { margin-bottom: 12px !important; padding-bottom: 8px !important; }
           .offer-page table, .offer-page tr, .offer-page p { break-inside: avoid; page-break-inside: avoid; }
         }

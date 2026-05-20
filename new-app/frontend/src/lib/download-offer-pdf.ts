@@ -41,16 +41,23 @@ export async function downloadOfferPdf(selector: string, filename: string) {
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = 210;
   const pageHeight = 297;
+  const margin = 19.05; // 0.75 inch
+  const contentWidth = pageWidth - margin * 2;
+  const contentHeight = pageHeight - margin * 2;
   const imageRatio = canvas.height / canvas.width;
-  let imageWidth = pageWidth;
-  let imageHeight = pageWidth * imageRatio;
+  let imageWidth = contentWidth;
+  let imageHeight = contentWidth * imageRatio;
 
-  if (imageHeight > pageHeight) {
-    imageHeight = pageHeight;
-    imageWidth = pageHeight / imageRatio;
+  if (imageHeight > contentHeight) {
+    imageHeight = contentHeight;
+    imageWidth = contentHeight / imageRatio;
   }
 
-  const x = (pageWidth - imageWidth) / 2;
-  pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, 0, imageWidth, imageHeight, undefined, "FAST");
+  const x = margin + (contentWidth - imageWidth) / 2;
+  const y = margin;
+  pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, y, imageWidth, imageHeight, undefined, "FAST");
+  while (pdf.getNumberOfPages() > 1) {
+    pdf.deletePage(pdf.getNumberOfPages());
+  }
   pdf.save(`${safeFileName(filename)}.pdf`);
 }
