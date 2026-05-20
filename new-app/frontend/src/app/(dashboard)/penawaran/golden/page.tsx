@@ -150,7 +150,7 @@ export default function PenawaranGoldenPage() {
 
   function downloadPdf() {
     setShowPreview(true);
-    printWithTitle(`Penawaran Ruangkeruang - ${name} - ${formatDateFile(tanggal)} dicetak`);
+    printWithTitle(`Penawaran Ruangkeruang - ${name} - ${formatDateFile(tanggal)}`);
   }
 
   function printWithTitle(title: string) {
@@ -213,7 +213,7 @@ export default function PenawaranGoldenPage() {
     setActiveTab("generate");
     if (shouldPrint) {
       setTimeout(() => {
-        printWithTitle(`Penawaran Ruangkeruang - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)} dicetak`);
+        printWithTitle(`Penawaran Ruangkeruang - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
       }, 0);
     }
   }
@@ -226,10 +226,11 @@ export default function PenawaranGoldenPage() {
     <div className="p-6 space-y-5">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 14mm; }
+          @page { size: A4 portrait; margin: 7mm 14mm 10mm; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 3mm 8mm 6mm !important; }
+          .offer-header { margin-bottom: 12px !important; padding-bottom: 8px !important; }
           .offer-page table, .offer-page tr, .offer-page p, .offer-page ol { break-inside: avoid; page-break-inside: avoid; }
           .page-break { break-before: page; page-break-before: always; }
         }
@@ -446,7 +447,7 @@ export default function PenawaranGoldenPage() {
 
 function Letterhead() {
   return (
-    <div className="mb-6 border-b-2 border-black pb-4 text-[10px]">
+    <div className="offer-header mb-6 border-b-2 border-black pb-4 text-[10px]">
       <div className="flex items-center gap-4">
         <img src="/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" className="h-36 w-44 object-contain" />
         <div>

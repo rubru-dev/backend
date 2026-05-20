@@ -133,7 +133,7 @@ export default function PenawaranDesainPage() {
 
   function downloadPdf() {
     setShowPreview(true);
-    printWithTitle(`Penawaran ${paketName} - ${name} - ${formatDateFile(tanggal)} dicetak`);
+    printWithTitle(`Penawaran ${paketName} - ${name} - ${formatDateFile(tanggal)}`);
   }
 
   function printWithTitle(title: string) {
@@ -179,7 +179,7 @@ export default function PenawaranDesainPage() {
     setActiveTab("generate");
     if (shouldPrint) {
       setTimeout(() => {
-        printWithTitle(`Penawaran ${offer.paketName} - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)} dicetak`);
+        printWithTitle(`Penawaran ${offer.paketName} - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
       }, 0);
     }
   }
@@ -192,10 +192,11 @@ export default function PenawaranDesainPage() {
     <div className="p-6 space-y-5">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 18mm; }
+          @page { size: A4 portrait; margin: 7mm 14mm 10mm; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 3mm 8mm 6mm !important; }
+          .offer-header { margin-bottom: 12px !important; padding-bottom: 8px !important; }
           .offer-page table, .offer-page tr, .offer-page p, .offer-page ul { break-inside: avoid; page-break-inside: avoid; }
         }
         .offer-page { font-family: Arial, Helvetica, sans-serif !important; }
