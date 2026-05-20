@@ -322,7 +322,7 @@ export default function PenawaranRkrPage() {
       {showPreview && (
         <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
           <Letterhead />
-          <h2 className="mb-8 text-center text-[12px] font-bold">Penawaran {jenisPenawaran} Ruangkeruang</h2>
+          <h2 className="mb-8 text-center text-[14px] font-bold">Penawaran {jenisPenawaran} Ruangkeruang</h2>
 
           <div className="mb-5">
             <p>Kepada Yth.</p>
@@ -372,10 +372,11 @@ export default function PenawaranRkrPage() {
 
           <p className="mt-8 text-right">Bekasi, {formatDateID(tanggal)}</p>
           <div className="mt-8 ml-auto w-[260px] text-left">
-            <div className="mb-3 flex h-12 w-24 items-center">
-              <img src="/images/offer-logos/rkr-logo.jpeg" alt="Ruangkeruang" className="max-h-12 max-w-24 object-contain" />
-            </div>
             <p className="font-bold">Hormat Kami</p>
+            <p className="font-bold">Ruangkeruang by PT.RUBAH RUMAH INOVASI PEMUDA</p>
+            <div className="mt-3 flex h-20 w-40 items-center">
+              <img src="/images/offer-logos/rkr-logo.jpeg" alt="Ruangkeruang" className="max-h-20 max-w-40 object-contain" />
+            </div>
             <div className="h-28" />
             <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
             <p>Relation Officer</p>

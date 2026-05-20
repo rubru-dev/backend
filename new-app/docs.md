@@ -9,10 +9,11 @@
 
 ### Kalender Survey Golden
 - **RubahrumahxGolden > Kalender Survey > Detail Survey:** `Area yang Disurvey`, `Detail Temuan Lapangan`, `Rekomendasi Treatment`, dan `Kebutuhan Alat / Material` sekarang memakai baris dinamis; user bisa tambah/hapus baris sesuai kebutuhan, tidak dibatasi 4 baris.
-- **RubahrumahxGolden > Kalender Survey > Detail Survey:** `Jenis Hama yang Ditemukan` tidak lagi memakai opsi status `Ditemukan/Tidak Ditemukan`; tabel hanya menyimpan `Jenis Hama` dan `Keterangan`, dengan baris yang tetap bisa ditambah/hapus.
-- **RubahrumahxGolden > Kalender Survey > Detail Survey:** `Foto Area Survey` dan `Foto Temuan Hama` sekarang berupa upload gambar per baris, mendukung lebih dari satu gambar pada setiap baris, dengan timestamp otomatis seperti upload foto survey lain.
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** `Jenis Hama yang Ditemukan` memakai kolom `Jenis Hama`, `Status Temuan`, dan `Keterangan`; pilihan status hanya `Ditemukan` dan `Tidak Ditemukan`, dengan baris yang tetap bisa ditambah/hapus.
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** `Foto Area Survey` dan `Foto Temuan Hama` sekarang berupa upload gambar per baris, mendukung lebih dari satu gambar pada setiap baris, dan khusus dua section ini upload gambar biasa tanpa GPS/timestamp otomatis.
 - **RubahrumahxGolden > Kalender Survey > Detail Survey:** Section `Foto Bukti Survey` paling bawah disembunyikan untuk template Golden karena dokumentasi sudah dipisah ke `Foto Area Survey` dan `Foto Temuan Hama`; tombol simpan/setujui Golden memakai gabungan foto dari dua section dokumentasi tersebut.
-- **RubahrumahxGolden > Kalender Survey > PDF Laporan:** Export laporan Golden merender foto dokumentasi aktual pada tabel `Foto Area Survey` dan `Foto Temuan Hama`; kolom status temuan hama dihapus dari PDF.
+- **RubahrumahxGolden > Kalender Survey > PDF Laporan:** Export laporan Golden merender foto dokumentasi aktual pada tabel `Foto Area Survey` dan `Foto Temuan Hama`; PDF tetap menampilkan kolom `Status Temuan`.
+- **RubahrumahxGolden > Kalender Survey > PDF Laporan:** Dialog download PDF laporan Golden memiliki filter `Pilih Client Survey`, sehingga user bisa download laporan per client survey agar hasilnya lebih rapi.
 - **RubahrumahxGolden > Kalender Survey > UX:** Placeholder `Isi manual` pada form Golden diganti menjadi contoh sesuai konteks, misalnya area survey, kondisi area, jenis temuan, metode treatment, kebutuhan material, dan keterangan dokumentasi.
 
 ### Projek Sipil/Interior Checklist PDF
@@ -24,8 +25,11 @@
 - **Penawaran > Penawaran Desain:** Detail paket memakai referensi `Detail Paket Desain refrence.pdf`; Basic `4 - 7 Hari`, Standart `7 - 14 Hari`, Premium `14 - 21 Hari`, Deluxe `21 - 28 Hari`, dengan rincian item kerja termin masing-masing.
 - **Penawaran > Penawaran RKR:** Form dan preview disesuaikan ke `Template Penawaran Ruangkeruang.pdf`: rincian memakai kolom `Uraian Pekerjaan`, `Qty`, `Harga Satuan`, dan `Total`; kolom `Satuan` dihilangkan.
 - **Penawaran > Penawaran Golden:** Style dokumen diseragamkan dengan penawaran lain: font dokumen 12px, padding konten `0.5cm`, margin print/PDF `0`, dan tanda tangan RO memakai logo Rubru Pest sesuai header.
-- **Style Semua Penawaran:** Preview dokumen memakai font 12px; area halaman memakai padding `0.5cm` atas/kiri/kanan/bawah; blok tanda tangan RO tetap di sisi kanan bawah seperti sebelumnya dan sekarang menampilkan logo sesuai header (`/images/logo.png`, `/images/offer-logos/rkr-logo.jpeg`, `/images/offer-logos/rubru-pest-logo.jpeg`).
-- **PDF Penawaran:** Helper `src/lib/download-offer-pdf.ts` tidak lagi memakai screenshot `html2canvas`/`jsPDF` karena hasilnya blur. Tombol download membuka print window berisi HTML asli, sehingga teks/tabel tetap vector saat user memilih `Save as PDF` dari dialog print browser.
+- **Style Semua Penawaran:** Preview dokumen memakai font 12px; judul utama penawaran memakai font 14px. Area halaman memakai padding `0.5cm` atas/kiri/kanan/bawah; blok tanda tangan RO tetap di sisi kanan bawah seperti sebelumnya dan sekarang menampilkan logo sesuai header dengan ukuran lebih besar (`/images/logo.png`, `/images/offer-logos/rkr-logo.jpeg`, `/images/offer-logos/rubru-pest-logo.jpeg`).
+- **Penawaran > Penawaran Desain:** Judul `PENAWARAN JASA DESAIN` diberi jarak dari header dan ukuran font 14px; logo tanda tangan dipindah setelah `Hormat Kami, PT. RUBAH RUMAH INOVASI PEMUDA`.
+- **Penawaran > Penawaran RKR:** Judul penawaran ukuran font 14px; blok tanda tangan menampilkan teks `Hormat Kami`, `Ruangkeruang by PT.RUBAH RUMAH INOVASI PEMUDA`, lalu logo RKR ukuran lebih besar.
+- **Penawaran > Penawaran Golden:** Judul `Penawaran Jasa Anti Rayap` ukuran font 14px; blok tanda tangan menampilkan teks `Hormat Kami`, `Rubrupest by PT.RUBAH RUMAH INOVASI PEMUDA`, lalu logo Rubru Pest ukuran lebih besar.
+- **PDF Penawaran:** Helper `src/lib/download-offer-pdf.ts` tidak lagi memakai screenshot `html2canvas`/`jsPDF` karena hasilnya blur. Tombol download membuka print window berisi HTML asli, sehingga teks/tabel tetap vector saat user memilih `Save as PDF` dari dialog print browser. Helper juga tidak lagi memakai fitur `noopener/noreferrer` pada `window.open` agar dokumen print tidak berhenti di `about:blank`.
 - **PDF Penawaran:** Print window memakai `@page { size: A4 portrait; margin: 0; }`, `.offer-page` width `210mm`, min-height `297mm`, padding `0.5cm`, dan `print-color-adjust: exact`.
 - **Build:** Frontend sudah diverifikasi dengan `npm run type-check` dan `npm run build`; jika perubahan belum terlihat di browser/dev server, restart `npm run dev` atau jalankan production bundle dengan `npm run start`, lalu hard refresh (`Ctrl+F5`).
 

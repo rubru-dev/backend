@@ -37,7 +37,7 @@ export async function downloadOfferPdf(selector: string, filename: string) {
 
   await waitForImages(element);
 
-  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
+  const printWindow = window.open("", "_blank", "width=900,height=1200");
   if (!printWindow) {
     throw new Error("Popup print diblokir browser.");
   }
@@ -83,11 +83,22 @@ export async function downloadOfferPdf(selector: string, filename: string) {
   </body>
 </html>`);
   printWindow.document.close();
+  try {
+    printWindow.opener = null;
+  } catch {
+    // Browser may block writing opener; printing can continue.
+  }
 
-  await waitForImages(printWindow.document);
+  const printWhenReady = async () => {
+    await waitForImages(printWindow.document);
+    printWindow.focus();
+    printWindow.setTimeout(() => printWindow.print(), 300);
+  };
 
-  printWindow.focus();
-  window.setTimeout(() => {
-    printWindow.print();
-  }, 250);
+  if (printWindow.document.readyState === "complete") {
+    await printWhenReady();
+  } else {
+    printWindow.addEventListener("load", () => void printWhenReady(), { once: true });
+    window.setTimeout(() => void printWhenReady(), 1000);
+  }
 }

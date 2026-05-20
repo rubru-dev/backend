@@ -113,7 +113,7 @@ type GoldenSurveyReportForm = {
   jenis_bangunan: string;
   luas_area: string;
   area_disurvey: { area: string; keterangan: string }[];
-  hama: { jenis: string; keterangan: string }[];
+  hama: { jenis: string; status: string; keterangan: string }[];
   temuan: { area: string; jenis: string; keterangan: string }[];
   treatment: { metode: string; area: string; keterangan: string }[];
   material: { item: string; jumlah: string; keterangan: string }[];
@@ -127,7 +127,7 @@ function defaultGoldenSurveyReportForm(item?: any): GoldenSurveyReportForm {
     jenis_bangunan: "",
     luas_area: item?.luasan_tanah != null ? String(item.luasan_tanah) : "",
     area_disurvey: [{ area: "", keterangan: "" }],
-    hama: GOLDEN_PEST_TYPES.map((jenis) => ({ jenis, keterangan: "" })),
+    hama: GOLDEN_PEST_TYPES.map((jenis) => ({ jenis, status: "Ditemukan", keterangan: "" })),
     temuan: [{ area: "", jenis: "", keterangan: "" }],
     treatment: [{ metode: "", area: "", keterangan: "" }],
     material: [{ item: "", jumlah: "", keterangan: "" }],
@@ -159,7 +159,7 @@ function parseGoldenSurveyReportForm(raw: string | null | undefined, item?: any)
       ...fallback,
       ...data,
       area_disurvey: Array.isArray(data.area_disurvey) && data.area_disurvey.length ? data.area_disurvey : fallback.area_disurvey,
-      hama: Array.isArray(data.hama) && data.hama.length ? data.hama.map((row: any) => ({ jenis: row?.jenis ?? "", keterangan: row?.keterangan ?? "" })) : fallback.hama,
+      hama: Array.isArray(data.hama) && data.hama.length ? data.hama.map((row: any) => ({ jenis: row?.jenis ?? "", status: row?.status === "Tidak Ditemukan" ? "Tidak Ditemukan" : "Ditemukan", keterangan: row?.keterangan ?? "" })) : fallback.hama,
       temuan: Array.isArray(data.temuan) && data.temuan.length ? data.temuan : fallback.temuan,
       treatment: Array.isArray(data.treatment) && data.treatment.length ? data.treatment : fallback.treatment,
       material: Array.isArray(data.material) && data.material.length ? data.material : fallback.material,
@@ -186,6 +186,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   const [pdfDari, setPdfDari] = useState("");
   const [pdfSampai, setPdfSampai] = useState("");
   const [pdfPics, setPdfPics] = useState<string[]>([]);
+  const [pdfClientIds, setPdfClientIds] = useState<string[]>([]);
   const canApprove = useAuthStore((s) =>
     s.isSuperAdmin() || s.hasAnyRole("Head Golden")
   );
@@ -494,13 +495,11 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setListFotoProcessing(true);
-    const coords = await getLocation();
     const raws = await Promise.all(files.map(readFileAsDataUrl));
-    const stamped = await Promise.all(raws.map((r) => addTimestamp(r, coords)));
     setGoldenReportForm((prev) => {
       const rows = [...prev[key]];
       const current = rows[index] ?? { dokumentasi: [], keterangan: "" };
-      rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...stamped] };
+      rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...raws] };
       return { ...prev, [key]: rows };
     });
     setListFotoProcessing(false);
@@ -533,6 +532,9 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
 
   // Unique PIC names from current items
   const uniquePics: string[] = Array.from(new Set(items.map((i: any) => i.pic_survey).filter(Boolean)));
+  const uniqueSurveyClients: { id: string; nama: string }[] = Array.from(
+    new Map(items.filter((i: any) => i.tanggal_survey).map((i: any) => [String(i.id), { id: String(i.id), nama: String(i.nama ?? "Tanpa Nama") }])).values()
+  );
 
   function openPdfDialog() {
     // Pre-fill dengan bulan aktif
@@ -541,6 +543,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     setPdfDari(`${tahun}-${pad(bulan)}-01`);
     setPdfSampai(`${tahun}-${pad(bulan)}-${pad(lastDay)}`);
     setPdfPics([]);
+    setPdfClientIds([]);
     setPdfOpen(true);
   }
 
@@ -582,7 +585,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
         ? `<div class="doc-grid">${images.map((src) => `<img src="${escapeHtml(src)}" class="doc-img" />`).join("")}</div>`
         : `<span class="muted">Belum ada dokumentasi</span>`;
       const areaRowsHtml = report.area_disurvey.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const pestRowsHtml = report.hama.map((row) => `<tr><td>${reportValue(row.jenis)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
+      const pestRowsHtml = report.hama.map((row) => `<tr><td>${reportValue(row.jenis)}</td><td>${reportValue(row.status)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
       const findingRowsHtml = report.temuan.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.jenis)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
       const treatmentRowsHtml = report.treatment.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.metode)}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
       const materialRowsHtml = report.material.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.item)}</td><td>${reportValue(row.jumlah)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
@@ -615,7 +618,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
           <div class="page">
             ${letterheadHtml()}
             <h2>3. Jenis Hama yang Ditemukan</h2>
-            <table><thead><tr><th>Jenis Hama</th><th>Keterangan</th></tr></thead><tbody>${pestRowsHtml}</tbody></table>
+            <table><thead><tr><th>Jenis Hama</th><th>Status Temuan</th><th>Keterangan</th></tr></thead><tbody>${pestRowsHtml}</tbody></table>
             <h2>5. Detail Temuan Lapangan</h2>
             <table><thead><tr><th>No</th><th>Area Temuan</th><th>Jenis Temuan</th><th>Keterangan</th></tr></thead><tbody>${findingRowsHtml}</tbody></table>
             <h2>6. Rekomendasi Treatment</h2>
@@ -699,13 +702,14 @@ ${sections}
     `;
   }
 
-  function handleDownloadPdf(dari?: string, sampai?: string, pics?: string[]) {
+  function handleDownloadPdf(dari?: string, sampai?: string, pics?: string[], clientIds?: string[]) {
     // Filter items berdasarkan range tanggal & PIC
     const filtered = items.filter((item: any) => {
       const tgl = item.tanggal_survey ? String(item.tanggal_survey).split("T")[0] : null;
       if (dari && tgl && tgl < dari) return false;
       if (sampai && tgl && tgl > sampai) return false;
       if (pics?.length && !pics.includes(item.pic_survey)) return false;
+      if (clientIds?.length && !clientIds.includes(String(item.id))) return false;
       return true;
     });
 
@@ -1754,6 +1758,48 @@ ${sections}
                 />
               </div>
             </div>
+            {useGoldenSurveyReportTemplate && (
+              <div className="space-y-1">
+                <Label className="text-xs">Pilih Client Survey <span className="text-muted-foreground font-normal">(opsional, bisa lebih dari satu)</span></Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full h-8 text-sm justify-between font-normal">
+                      {pdfClientIds.length === 0
+                        ? <span className="text-muted-foreground">— Semua client survey —</span>
+                        : <span className="truncate">{pdfClientIds.length} client dipilih</span>}
+                      <ChevronRight className="h-3.5 w-3.5 rotate-90 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2" align="start">
+                    {uniqueSurveyClients.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-2">Tidak ada client survey pada periode ini</p>
+                    ) : (
+                      <div className="space-y-1 max-h-56 overflow-y-auto">
+                        {uniqueSurveyClients.map((client) => (
+                          <label key={client.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer">
+                            <Checkbox
+                              checked={pdfClientIds.includes(client.id)}
+                              onCheckedChange={(checked) =>
+                                setPdfClientIds((prev) => checked ? [...prev, client.id] : prev.filter((id) => id !== client.id))
+                              }
+                            />
+                            <span className="text-sm truncate">{client.nama}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {pdfClientIds.length > 0 && (
+                      <button
+                        className="mt-1 w-full text-xs text-center text-muted-foreground hover:text-foreground py-1"
+                        onClick={() => setPdfClientIds([])}
+                      >
+                        Reset pilihan client
+                      </button>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Foto Bukti Survey <span className="text-destructive">*</span> <span className="text-muted-foreground font-normal">(timestamp otomatis)</span></Label>
               {approveDialog.fotos.length > 0 && (
@@ -1867,7 +1913,7 @@ ${sections}
               <Button variant="outline" onClick={() => setPdfOpen(false)}>Batal</Button>
               <Button
                 className="bg-amber-500 hover:bg-amber-600 text-white"
-                onClick={() => { setPdfOpen(false); handleDownloadPdf(pdfDari || undefined, pdfSampai || undefined, pdfPics.length ? pdfPics : undefined); }}
+                onClick={() => { setPdfOpen(false); handleDownloadPdf(pdfDari || undefined, pdfSampai || undefined, pdfPics.length ? pdfPics : undefined, pdfClientIds.length ? pdfClientIds : undefined); }}
               >
                 <FileDown className="h-4 w-4 mr-1.5" /> Download PDF {useGoldenSurveyReportTemplate ? "Laporan" : ""}
               </Button>
@@ -1982,17 +2028,24 @@ function GoldenSurveyReportFields({
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("area_disurvey", { area: "", keterangan: "" })}>Tambah Area</Button>}
       </GoldenRows>
 
-      <GoldenRows title="3. Jenis Hama yang Ditemukan" headers={["Jenis Hama", "Keterangan"]}>
+      <GoldenRows title="3. Jenis Hama yang Ditemukan" headers={["Jenis Hama", "Status Temuan", "Keterangan"]}>
         {form.hama.map((row, i) => (
-          <div key={`${row.jenis}-${i}`} className="grid grid-cols-[1fr_1.5fr_34px] gap-2 items-center">
+          <div key={`${row.jenis}-${i}`} className="grid grid-cols-[1fr_160px_1.5fr_34px] gap-2 items-center">
             <Input value={row.jenis} onChange={(e) => updateRow("hama", i, { jenis: e.target.value })} placeholder="Contoh: Rayap / Tikus / Kecoa" disabled={disabled} />
+            <Select value={row.status || "Ditemukan"} onValueChange={(v) => updateRow("hama", i, { status: v })} disabled={disabled}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Ditemukan">Ditemukan</SelectItem>
+                <SelectItem value="Tidak Ditemukan">Tidak Ditemukan</SelectItem>
+              </SelectContent>
+            </Select>
             <Input value={row.keterangan} onChange={(e) => updateRow("hama", i, { keterangan: e.target.value })} placeholder="Keterangan indikasi atau lokasi temuan" disabled={disabled} />
             <Button type="button" variant="ghost" size="icon" disabled={disabled || form.hama.length <= 1} onClick={() => removeRow("hama", i)}>
               <X className="h-4 w-4 text-red-500" />
             </Button>
           </div>
         ))}
-        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("hama", { jenis: "", keterangan: "" })}>Tambah Jenis Hama</Button>}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("hama", { jenis: "", status: "Ditemukan", keterangan: "" })}>Tambah Jenis Hama</Button>}
       </GoldenRows>
 
       <GoldenRows title="5. Detail Temuan Lapangan" headers={["Area Temuan", "Jenis Temuan", "Keterangan"]}>

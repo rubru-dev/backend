@@ -440,7 +440,7 @@ export default function PenawaranDesainPage() {
             </div>
           </div>
 
-          <h2 className="mb-5 mt-0 text-center text-[12px] font-bold leading-none">PENAWARAN JASA DESAIN</h2>
+          <h2 className="mb-5 mt-6 text-center text-[14px] font-bold leading-none">PENAWARAN JASA DESAIN</h2>
           <p>Lampiran :</p>
           <p className="ml-8 mb-5">-</p>
 
@@ -506,11 +506,11 @@ export default function PenawaranDesainPage() {
           <p className="text-right">Bekasi, {formatDateID(tanggal)}</p>
 
           <div className="mt-6 ml-auto w-[260px] text-left">
-            <div className="mb-3 flex h-12 w-24 items-center">
-              <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-12 max-w-24 object-contain" />
-            </div>
             <p className="font-bold">Hormat Kami,</p>
             <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+            <div className="mt-3 flex h-20 w-40 items-center">
+              <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-20 max-w-40 object-contain" />
+            </div>
             <div className="h-28" />
             <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
             <p>Relation Officer</p>
