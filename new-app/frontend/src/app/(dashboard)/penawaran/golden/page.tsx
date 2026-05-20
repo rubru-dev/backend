@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuthStore } from "@/store/authStore";
 
 const HAMA_OPTIONS = [
   "Rayap Tanah (Rhinotermitidae)",
@@ -25,7 +26,6 @@ const HAMA_OPTIONS = [
 const METODE_OPTIONS = [
   "Injection dan Spraying",
   "Baiting",
-  "Injection & Spraying dan Baiting",
 ];
 const STORAGE_KEY = "rubahrumah.penawaran.golden";
 
@@ -70,6 +70,12 @@ function formatDateID(date: string) {
   return new Date(`${date}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
 
+function formatDateFile(date: string) {
+  if (!date) return "";
+  const [year, month, day] = date.split("-");
+  return [day, month, year].filter(Boolean).join("-");
+}
+
 function formatMoney(value: string) {
   const n = Number(String(value).replace(/[^\d]/g, ""));
   if (!n) return value || "[Isi manual]";
@@ -82,6 +88,7 @@ function lines(value: string, fallbackCount = 4) {
 }
 
 export default function PenawaranGoldenPage() {
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
   const today = new Date().toISOString().slice(0, 10);
   const [activeTab, setActiveTab] = useState("generate");
   const [clientId, setClientId] = useState("");
@@ -143,7 +150,18 @@ export default function PenawaranGoldenPage() {
 
   function downloadPdf() {
     setShowPreview(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+    printWithTitle(`Penawaran Ruangkeruang - ${name} - ${formatDateFile(tanggal)} dicetak`);
+  }
+
+  function printWithTitle(title: string) {
+    const previousTitle = document.title;
+    document.title = title;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.print();
+      setTimeout(() => {
+        document.title = previousTitle;
+      }, 500);
+    }));
   }
 
   function persistOffers(next: SavedOffer[]) {
@@ -185,7 +203,7 @@ export default function PenawaranGoldenPage() {
     setLokasiSurat(offer.lokasiSurat);
     setCakupanArea(offer.cakupanArea);
     setSelectedHama(offer.selectedHama);
-    setSelectedMetode(offer.selectedMetode);
+    setSelectedMetode(offer.selectedMetode.filter((item) => METODE_OPTIONS.includes(item)));
     setJumlahUnit(offer.jumlahUnit);
     setBiaya(offer.biaya);
     setJumlahVisit(offer.jumlahVisit);
@@ -193,7 +211,11 @@ export default function PenawaranGoldenPage() {
     setSyaratKetentuan(offer.syaratKetentuan);
     setShowPreview(true);
     setActiveTab("generate");
-    if (shouldPrint) requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+    if (shouldPrint) {
+      setTimeout(() => {
+        printWithTitle(`Penawaran Ruangkeruang - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)} dicetak`);
+      }, 0);
+    }
   }
 
   function deleteOffer(id: string) {
@@ -207,9 +229,11 @@ export default function PenawaranGoldenPage() {
           @page { size: A4 portrait; margin: 14mm; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; }
+          .offer-page table, .offer-page tr, .offer-page p, .offer-page ol { break-inside: avoid; page-break-inside: avoid; }
           .page-break { break-before: page; page-break-before: always; }
         }
+        .offer-page { font-family: Arial, Helvetica, sans-serif !important; }
       `}</style>
 
       <div className="flex items-start justify-between gap-4 print:hidden">
@@ -344,7 +368,9 @@ export default function PenawaranGoldenPage() {
                 <div className="flex justify-end gap-1">
                   <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
                   <Button size="sm" onClick={() => loadOffer(offer, true)}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
-                  <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                  {isSuperAdmin && (
+                    <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                  )}
                 </div>
               </div>
             )) : (
@@ -355,7 +381,7 @@ export default function PenawaranGoldenPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] border bg-white p-10 shadow-sm font-serif text-[10px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] border bg-white p-10 shadow-sm text-[12px] leading-5 text-black">
           <Letterhead />
           <h2 className="mb-2 text-center text-[12px] font-bold">Penawaran Jasa Anti Rayap</h2>
           <p>Nomor : {nomorSurat || "RB-GL/[Nomor]/[Tanggal]/[Bulan]/[Tahun]"}</p>
@@ -373,7 +399,7 @@ export default function PenawaranGoldenPage() {
             Melalui surat ini, kami Rubrupest by Golden (PT. RUBAH RUMAH INOVASI PEMUDA) telah melakukan serangkaian survey (laporan hasil survey terlampir) bermaksud untuk menawarkan pekerjaan pengendalian hama sebagai berikut:
           </p>
 
-          <table className="my-4 w-full border-collapse text-[10px]">
+          <table className="my-4 w-full border-collapse text-[12px]">
             <tbody>
               <TemplateRow label="Cakupan Area">
                 <ol className="ml-5 list-decimal">{areaRows.map((row, i) => <li key={i}>{row || "[Isi manual]"}</li>)}</ol>
@@ -399,15 +425,17 @@ export default function PenawaranGoldenPage() {
             <p className="mt-8 text-justify">
               Besar harapan kami dapat menjalin kerja sama yang baik dengan perusahaan Bapak/Ibu, dan bila Bapak/Ibu memerlukan informasi lebih detail, dapat segera hubungi:
             </p>
-            <p className="mt-5">Admin Rubrupest - Dengan Senang Hati petugas kami akan menjelaskannya kembali.</p>
-            <p>Atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
+            <p className="mt-5">Admin Rubrupest - 082812172</p>
+            <p>Dengan Senang Hati kami akan menjelaskannya kembali.</p>
+            <p className="mt-5">Atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
 
-            <p className="mt-8">{lokasiSurat || "[Nama Lokasi]"}, {formatDateID(tanggal) || "[Tanggal/Bulan/Tahun]"}</p>
+            <p className="mt-8 text-right">{lokasiSurat || "[Nama Lokasi]"}, {formatDateID(tanggal) || "[Tanggal/Bulan/Tahun]"}</p>
             <div className="mt-8 ml-auto w-[260px] text-left">
               <p className="font-bold">Hormat Kami,</p>
               <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
               <div className="h-28" />
               <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
+              <p>Relation Officer</p>
             </div>
           </div>
         </div>
@@ -418,14 +446,14 @@ export default function PenawaranGoldenPage() {
 
 function Letterhead() {
   return (
-    <div className="mb-6 border-b-2 border-black pb-4 font-sans">
-      <div className="flex items-start gap-4">
+    <div className="mb-6 border-b-2 border-black pb-4 text-[10px]">
+      <div className="flex items-center gap-4">
         <img src="/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" className="h-36 w-44 object-contain" />
         <div>
-          <p className="text-lg font-bold leading-tight">PT. Rubah Rumah Inovasi Pemuda</p>
-          <p className="mt-2 text-[12px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
-          <p className="text-[12px] leading-5">Telp : +62 813 - 7640 - 5550</p>
-          <p className="text-[12px] leading-5">Website : rubahrumah.com</p>
+          <p className="text-[10px] font-bold leading-tight">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+          <p className="mt-2 text-[10px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
+          <p className="text-[10px] leading-5">Telp : +62 813 - 7640 - 5550</p>
+          <p className="text-[10px] leading-5">Website : rubahrumah.com</p>
         </div>
       </div>
     </div>

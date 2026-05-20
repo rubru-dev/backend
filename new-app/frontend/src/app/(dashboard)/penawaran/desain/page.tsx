@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Download, Eye, Save, Search, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useAuthStore } from "@/store/authStore";
 
 const PACKAGES = {
   "Paket Desain Basic": {
@@ -70,7 +71,14 @@ function formatDateID(date: string) {
   return new Date(`${date}T00:00:00`).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
 
+function formatDateFile(date: string) {
+  if (!date) return "";
+  const [year, month, day] = date.split("-");
+  return [day, month, year].filter(Boolean).join("-");
+}
+
 export default function PenawaranDesainPage() {
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
   const [activeTab, setActiveTab] = useState("generate");
   const [clientId, setClientId] = useState("");
   const [salutation, setSalutation] = useState<"Mr" | "Mrs">("Mr");
@@ -125,7 +133,18 @@ export default function PenawaranDesainPage() {
 
   function downloadPdf() {
     setShowPreview(true);
-    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+    printWithTitle(`Penawaran ${paketName} - ${name} - ${formatDateFile(tanggal)} dicetak`);
+  }
+
+  function printWithTitle(title: string) {
+    const previousTitle = document.title;
+    document.title = title;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      window.print();
+      setTimeout(() => {
+        document.title = previousTitle;
+      }, 500);
+    }));
   }
 
   function persistOffers(next: SavedOffer[]) {
@@ -158,7 +177,11 @@ export default function PenawaranDesainPage() {
     setPaketName(offer.paketName);
     setShowPreview(true);
     setActiveTab("generate");
-    if (shouldPrint) requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
+    if (shouldPrint) {
+      setTimeout(() => {
+        printWithTitle(`Penawaran ${offer.paketName} - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)} dicetak`);
+      }, 0);
+    }
   }
 
   function deleteOffer(id: string) {
@@ -172,8 +195,10 @@ export default function PenawaranDesainPage() {
           @page { size: A4 portrait; margin: 18mm; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; }
+          .offer-page table, .offer-page tr, .offer-page p, .offer-page ul { break-inside: avoid; page-break-inside: avoid; }
         }
+        .offer-page { font-family: Arial, Helvetica, sans-serif !important; }
       `}</style>
 
       <div className="flex items-start justify-between gap-4 print:hidden">
@@ -276,7 +301,9 @@ export default function PenawaranDesainPage() {
                 <div className="flex justify-end gap-1">
                   <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
                   <Button size="sm" onClick={() => loadOffer(offer, true)}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
-                  <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                  {isSuperAdmin && (
+                    <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                  )}
                 </div>
               </div>
             )) : (
@@ -287,16 +314,15 @@ export default function PenawaranDesainPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm font-serif text-[10px] leading-5 text-black">
-          <div className="mb-8 border-b-2 border-black pb-4 font-sans">
-            <div className="flex items-start gap-4">
+        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm text-[12px] leading-5 text-black">
+          <div className="offer-header mb-8 border-b-2 border-black pb-4 text-[10px]">
+            <div className="flex items-center gap-4">
               <img src="/images/logo.png" alt="Rubah Rumah" className="h-36 w-44 object-contain" />
-              <div className="pt-1">
-                <p className="text-xl font-bold leading-tight">PT. Rubah Rumah</p>
-                <p className="text-xl font-bold leading-tight">Inovasi Pemuda</p>
-                <p className="mt-2 text-[12px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
-                <p className="text-[12px] leading-5">Telp: +62 813-7640-5550</p>
-                <p className="text-[12px] leading-5">Website: rubahrumah.com</p>
+              <div>
+                <p className="text-[10px] font-bold leading-tight">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+                <p className="mt-2 text-[10px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
+                <p className="text-[10px] leading-5">Telp: +62 813-7640-5550</p>
+                <p className="text-[10px] leading-5">Website: rubahrumah.com</p>
               </div>
             </div>
           </div>
@@ -320,7 +346,7 @@ export default function PenawaranDesainPage() {
           </p>
           <p className="mt-3">Adapun rincian penawaran jasa desain adalah sebagai berikut:</p>
 
-          <table className="my-4 w-full border-collapse text-[10px]">
+          <table className="my-4 w-full border-collapse text-[12px]">
             <thead>
               <tr>
                 <th className="border border-black p-2 text-left">Keterangan</th>
@@ -344,19 +370,20 @@ export default function PenawaranDesainPage() {
           <p>Keterangan Paket Desain {paketName} :</p>
           <ul className="ml-8 list-disc">{detailRows}</ul>
 
-          <p className="mt-5 text-justify">
+          <p className="text-justify">
             Demikian form penawaran ini kami sampaikan. Besar harapan kami dapat membantu {name} dalam mewujudkan desain hunian yang nyaman, fungsional, dan sesuai kebutuhan.
           </p>
           <p>Atas perhatian dan kepercayaannya, kami ucapkan terima kasih.</p>
-          <p className="mt-4">Bekasi, {formatDateID(tanggal)}</p>
+          <p className="text-right">Bekasi, {formatDateID(tanggal)}</p>
 
           <div className="mt-6 ml-auto w-[260px] text-left">
             <p className="font-bold">Hormat Kami,</p>
             <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
             <div className="h-28" />
             <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
+            <p>Relation Officer</p>
           </div>
-          <div className="mt-10 border-t pt-2 text-center text-xs font-sans">
+          <div className="mt-10 border-t pt-2 text-center text-[12px]">
             PT. Rubah Rumah Inovasi Pemuda
           </div>
         </div>
