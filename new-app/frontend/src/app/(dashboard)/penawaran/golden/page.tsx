@@ -433,13 +433,13 @@ export default function PenawaranGoldenPage() {
             <p className="mt-5">Atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
 
             <p className="mt-8 text-right">{lokasiSurat || "[Nama Lokasi]"}, {formatDateID(tanggal) || "[Tanggal/Bulan/Tahun]"}</p>
-            <div className="mt-8 ml-auto w-[260px] text-left">
+            <div className="mt-8 ml-auto mr-[2.5cm] w-[300px] text-left">
               <p className="font-bold">Hormat Kami,</p>
               <p className="font-bold">Rubrupest by PT.RUBAH RUMAH INOVASI PEMUDA</p>
               <div className="mt-3 flex h-20 w-40 items-center">
                 <img src="/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" className="max-h-20 max-w-40 object-contain" />
               </div>
-              <div className="h-28" />
+              <div className="h-8" />
               <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
               <p>Relation Officer</p>
             </div>

@@ -1758,48 +1758,6 @@ ${sections}
                 />
               </div>
             </div>
-            {useGoldenSurveyReportTemplate && (
-              <div className="space-y-1">
-                <Label className="text-xs">Pilih Client Survey <span className="text-muted-foreground font-normal">(opsional, bisa lebih dari satu)</span></Label>
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button variant="outline" className="w-full h-8 text-sm justify-between font-normal">
-                      {pdfClientIds.length === 0
-                        ? <span className="text-muted-foreground">— Semua client survey —</span>
-                        : <span className="truncate">{pdfClientIds.length} client dipilih</span>}
-                      <ChevronRight className="h-3.5 w-3.5 rotate-90 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-72 p-2" align="start">
-                    {uniqueSurveyClients.length === 0 ? (
-                      <p className="text-xs text-muted-foreground text-center py-2">Tidak ada client survey pada periode ini</p>
-                    ) : (
-                      <div className="space-y-1 max-h-56 overflow-y-auto">
-                        {uniqueSurveyClients.map((client) => (
-                          <label key={client.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer">
-                            <Checkbox
-                              checked={pdfClientIds.includes(client.id)}
-                              onCheckedChange={(checked) =>
-                                setPdfClientIds((prev) => checked ? [...prev, client.id] : prev.filter((id) => id !== client.id))
-                              }
-                            />
-                            <span className="text-sm truncate">{client.nama}</span>
-                          </label>
-                        ))}
-                      </div>
-                    )}
-                    {pdfClientIds.length > 0 && (
-                      <button
-                        className="mt-1 w-full text-xs text-center text-muted-foreground hover:text-foreground py-1"
-                        onClick={() => setPdfClientIds([])}
-                      >
-                        Reset pilihan client
-                      </button>
-                    )}
-                  </PopoverContent>
-                </Popover>
-              </div>
-            )}
             <div className="space-y-1">
               <Label className="text-xs">Foto Bukti Survey <span className="text-destructive">*</span> <span className="text-muted-foreground font-normal">(timestamp otomatis)</span></Label>
               {approveDialog.fotos.length > 0 && (
@@ -1869,6 +1827,48 @@ ${sections}
                 <Input type="date" value={pdfSampai} onChange={(e) => setPdfSampai(e.target.value)} className="h-8 text-sm" />
               </div>
             </div>
+            {useGoldenSurveyReportTemplate && (
+              <div className="space-y-1">
+                <Label className="text-xs">Filter Client Survey <span className="text-muted-foreground font-normal">(opsional, bisa lebih dari satu)</span></Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button variant="outline" className="w-full h-8 text-sm justify-between font-normal">
+                      {pdfClientIds.length === 0
+                        ? <span className="text-muted-foreground">Semua client survey</span>
+                        : <span className="truncate">{pdfClientIds.length} client dipilih</span>}
+                      <ChevronRight className="h-3.5 w-3.5 rotate-90 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-72 p-2" align="start">
+                    {uniqueSurveyClients.length === 0 ? (
+                      <p className="text-xs text-muted-foreground text-center py-2">Tidak ada client survey pada periode ini</p>
+                    ) : (
+                      <div className="space-y-1 max-h-56 overflow-y-auto">
+                        {uniqueSurveyClients.map((client) => (
+                          <label key={client.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer">
+                            <Checkbox
+                              checked={pdfClientIds.includes(client.id)}
+                              onCheckedChange={(checked) =>
+                                setPdfClientIds((prev) => checked ? [...prev, client.id] : prev.filter((id) => id !== client.id))
+                              }
+                            />
+                            <span className="text-sm truncate">{client.nama}</span>
+                          </label>
+                        ))}
+                      </div>
+                    )}
+                    {pdfClientIds.length > 0 && (
+                      <button
+                        className="mt-1 w-full text-xs text-center text-muted-foreground hover:text-foreground py-1"
+                        onClick={() => setPdfClientIds([])}
+                      >
+                        Reset pilihan client
+                      </button>
+                    )}
+                  </PopoverContent>
+                </Popover>
+              </div>
+            )}
             <div className="space-y-1">
               <Label className="text-xs">Filter PIC <span className="text-muted-foreground font-normal">(opsional, bisa lebih dari satu)</span></Label>
               <Popover>

@@ -72,6 +72,10 @@ export async function downloadOfferPdf(selector: string, filename: string) {
         break-inside: avoid;
         page-break-inside: avoid;
       }
+      .page-break {
+        break-before: page;
+        page-break-before: always;
+      }
       @media screen {
         body { background: #e5e7eb; }
         .offer-page { margin: 24px auto !important; }

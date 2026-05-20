@@ -298,6 +298,7 @@ export default function PenawaranDesainPage() {
           .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 0.5cm !important; }
           .offer-header { margin-bottom: 0 !important; padding-bottom: 8px !important; }
           .offer-page table, .offer-page tr, .offer-page p, .offer-page ul { break-inside: avoid; page-break-inside: avoid; }
+          .page-break { break-before: page; page-break-before: always; }
         }
         .offer-page { font-family: Arial, Helvetica, sans-serif !important; }
       `}</style>
@@ -499,21 +500,23 @@ export default function PenawaranDesainPage() {
             <li>Timeline desain berlaku sejak client melakukan pembayaran DP 50%.</li>
           </ol>
 
-          <p className="text-justify">
-            Demikian form penawaran ini kami sampaikan. Besar harapan kami dapat membantu {name} dalam mewujudkan desain hunian yang nyaman, fungsional, dan sesuai kebutuhan.
-          </p>
-          <p>Atas perhatian dan kepercayaannya, kami ucapkan terima kasih.</p>
-          <p className="text-right">Bekasi, {formatDateID(tanggal)}</p>
+          <div className="page-break pt-10">
+            <p className="text-justify">
+              Demikian form penawaran ini kami sampaikan. Besar harapan kami dapat membantu {name} dalam mewujudkan desain hunian yang nyaman, fungsional, dan sesuai kebutuhan.
+            </p>
+            <p>Atas perhatian dan kepercayaannya, kami ucapkan terima kasih.</p>
+            <p className="text-right">Bekasi, {formatDateID(tanggal)}</p>
 
-          <div className="mt-6 ml-auto w-[260px] text-left">
-            <p className="font-bold">Hormat Kami,</p>
-            <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
-            <div className="mt-3 flex h-20 w-40 items-center">
-              <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-20 max-w-40 object-contain" />
+            <div className="mt-6 ml-auto mr-[2.5cm] w-[300px] text-left">
+              <p className="font-bold">Hormat Kami,</p>
+              <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+              <div className="mt-3 flex h-20 w-40 items-center">
+                <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-20 max-w-40 object-contain" />
+              </div>
+              <div className="h-8" />
+              <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
+              <p>Relation Officer</p>
             </div>
-            <div className="h-28" />
-            <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
-            <p>Relation Officer</p>
           </div>
         </div>
       )}
