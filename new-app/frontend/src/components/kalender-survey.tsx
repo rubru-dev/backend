@@ -113,12 +113,12 @@ type GoldenSurveyReportForm = {
   jenis_bangunan: string;
   luas_area: string;
   area_disurvey: { area: string; keterangan: string }[];
-  hama: { jenis: string; status: string; keterangan: string }[];
+  hama: { jenis: string; keterangan: string }[];
   temuan: { area: string; jenis: string; keterangan: string }[];
   treatment: { metode: string; area: string; keterangan: string }[];
   material: { item: string; jumlah: string; keterangan: string }[];
-  foto_area: { dokumentasi: string; keterangan: string }[];
-  foto_temuan: { dokumentasi: string; keterangan: string }[];
+  foto_area: { dokumentasi: string[]; keterangan: string }[];
+  foto_temuan: { dokumentasi: string[]; keterangan: string }[];
 };
 
 function defaultGoldenSurveyReportForm(item?: any): GoldenSurveyReportForm {
@@ -126,14 +126,26 @@ function defaultGoldenSurveyReportForm(item?: any): GoldenSurveyReportForm {
     surveyor: item?.pic_survey ?? "",
     jenis_bangunan: "",
     luas_area: item?.luasan_tanah != null ? String(item.luasan_tanah) : "",
-    area_disurvey: Array.from({ length: 4 }, () => ({ area: "", keterangan: "" })),
-    hama: GOLDEN_PEST_TYPES.map((jenis) => ({ jenis, status: "Ditemukan / Tidak Ditemukan", keterangan: "" })),
-    temuan: Array.from({ length: 4 }, () => ({ area: "", jenis: "", keterangan: "" })),
-    treatment: Array.from({ length: 2 }, () => ({ metode: "", area: "", keterangan: "" })),
-    material: Array.from({ length: 2 }, () => ({ item: "", jumlah: "", keterangan: "" })),
-    foto_area: Array.from({ length: 4 }, (_, i) => ({ dokumentasi: `Foto Area ${i + 1}`, keterangan: "" })),
-    foto_temuan: Array.from({ length: 4 }, (_, i) => ({ dokumentasi: `Foto Temuan ${i + 1}`, keterangan: "" })),
+    area_disurvey: [{ area: "", keterangan: "" }],
+    hama: GOLDEN_PEST_TYPES.map((jenis) => ({ jenis, keterangan: "" })),
+    temuan: [{ area: "", jenis: "", keterangan: "" }],
+    treatment: [{ metode: "", area: "", keterangan: "" }],
+    material: [{ item: "", jumlah: "", keterangan: "" }],
+    foto_area: [{ dokumentasi: [], keterangan: "" }],
+    foto_temuan: [{ dokumentasi: [], keterangan: "" }],
   };
+}
+
+function normalizeGoldenPhotoRows(rows: any[], fallback: { dokumentasi: string[]; keterangan: string }[]) {
+  if (!Array.isArray(rows)) return fallback;
+  return rows.length ? rows.map((row) => ({
+    dokumentasi: Array.isArray(row?.dokumentasi)
+      ? row.dokumentasi
+      : row?.dokumentasi
+        ? [String(row.dokumentasi)]
+        : [],
+    keterangan: row?.keterangan ?? "",
+  })) : fallback;
 }
 
 function parseGoldenSurveyReportForm(raw: string | null | undefined, item?: any): GoldenSurveyReportForm {
@@ -146,13 +158,13 @@ function parseGoldenSurveyReportForm(raw: string | null | undefined, item?: any)
     return {
       ...fallback,
       ...data,
-      area_disurvey: Array.isArray(data.area_disurvey) ? data.area_disurvey : fallback.area_disurvey,
-      hama: Array.isArray(data.hama) ? data.hama : fallback.hama,
-      temuan: Array.isArray(data.temuan) ? data.temuan : fallback.temuan,
-      treatment: Array.isArray(data.treatment) ? data.treatment : fallback.treatment,
-      material: Array.isArray(data.material) ? data.material : fallback.material,
-      foto_area: Array.isArray(data.foto_area) ? data.foto_area : fallback.foto_area,
-      foto_temuan: Array.isArray(data.foto_temuan) ? data.foto_temuan : fallback.foto_temuan,
+      area_disurvey: Array.isArray(data.area_disurvey) && data.area_disurvey.length ? data.area_disurvey : fallback.area_disurvey,
+      hama: Array.isArray(data.hama) && data.hama.length ? data.hama.map((row: any) => ({ jenis: row?.jenis ?? "", keterangan: row?.keterangan ?? "" })) : fallback.hama,
+      temuan: Array.isArray(data.temuan) && data.temuan.length ? data.temuan : fallback.temuan,
+      treatment: Array.isArray(data.treatment) && data.treatment.length ? data.treatment : fallback.treatment,
+      material: Array.isArray(data.material) && data.material.length ? data.material : fallback.material,
+      foto_area: normalizeGoldenPhotoRows(data.foto_area, fallback.foto_area),
+      foto_temuan: normalizeGoldenPhotoRows(data.foto_temuan, fallback.foto_temuan),
     };
   } catch {
     return fallback;
@@ -399,13 +411,34 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   function updateGoldenReportRow<K extends keyof GoldenSurveyReportForm>(
     key: K,
     index: number,
-    patch: Record<string, string>
+    patch: Record<string, any>
   ) {
     setGoldenReportForm((prev) => {
       const rows = Array.isArray(prev[key]) ? ([...(prev[key] as any[])] as any[]) : [];
       rows[index] = { ...(rows[index] ?? {}), ...patch };
       return { ...prev, [key]: rows };
     });
+  }
+
+  function addGoldenReportRow<K extends keyof GoldenSurveyReportForm>(key: K, row: any) {
+    setGoldenReportForm((prev) => {
+      const rows = Array.isArray(prev[key]) ? ([...(prev[key] as any[])] as any[]) : [];
+      return { ...prev, [key]: [...rows, row] };
+    });
+  }
+
+  function removeGoldenReportRow<K extends keyof GoldenSurveyReportForm>(key: K, index: number) {
+    setGoldenReportForm((prev) => {
+      const rows = Array.isArray(prev[key]) ? ([...(prev[key] as any[])] as any[]) : [];
+      if (rows.length <= 1) return prev;
+      return { ...prev, [key]: rows.filter((_, i) => i !== index) };
+    });
+  }
+
+  function goldenReportPhotos() {
+    return [...goldenReportForm.foto_area, ...goldenReportForm.foto_temuan]
+      .flatMap((row) => Array.isArray(row.dokumentasi) ? row.dokumentasi : [])
+      .filter(Boolean);
   }
 
   function listDetailPayload() {
@@ -449,6 +482,27 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     const raws = await Promise.all(files.map(readFileAsDataUrl));
     const stamped = await Promise.all(raws.map((r) => addTimestamp(r, coords)));
     setListDetailFotos((prev) => [...prev, ...stamped]);
+    setListFotoProcessing(false);
+    e.target.value = "";
+  }
+
+  async function handleGoldenReportPhotoChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+    key: "foto_area" | "foto_temuan",
+    index: number
+  ) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setListFotoProcessing(true);
+    const coords = await getLocation();
+    const raws = await Promise.all(files.map(readFileAsDataUrl));
+    const stamped = await Promise.all(raws.map((r) => addTimestamp(r, coords)));
+    setGoldenReportForm((prev) => {
+      const rows = [...prev[key]];
+      const current = rows[index] ?? { dokumentasi: [], keterangan: "" };
+      rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...stamped] };
+      return { ...prev, [key]: rows };
+    });
     setListFotoProcessing(false);
     e.target.value = "";
   }
@@ -515,8 +569,6 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       foto_survey: null,
     }];
 
-    const manual = "Isi manual";
-
     const sections = fallbackItems.map((item: any, idx: number) => {
       const dateKeyValue = item.tanggal_survey ? String(item.tanggal_survey).split("T")[0] : "";
       const tgl = dateKeyValue
@@ -525,14 +577,17 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       const nomor = `RB-GL-SVR/${String(idx + 1).padStart(3, "0")}/${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
       const lokasi = escapeHtml(item.alamat || "");
       const report = parseGoldenSurveyReportForm(item.catatan_survey, item);
-      const reportValue = (value: unknown, fallback = manual) => escapeHtml(value || fallback);
+      const reportValue = (value: unknown, fallback = "") => escapeHtml(value || fallback);
+      const docImagesHtml = (images: string[]) => images.length
+        ? `<div class="doc-grid">${images.map((src) => `<img src="${escapeHtml(src)}" class="doc-img" />`).join("")}</div>`
+        : `<span class="muted">Belum ada dokumentasi</span>`;
       const areaRowsHtml = report.area_disurvey.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const pestRowsHtml = report.hama.map((row) => `<tr><td>${reportValue(row.jenis)}</td><td>${reportValue(row.status, "Ditemukan / Tidak Ditemukan")}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
+      const pestRowsHtml = report.hama.map((row) => `<tr><td>${reportValue(row.jenis)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
       const findingRowsHtml = report.temuan.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.jenis)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
       const treatmentRowsHtml = report.treatment.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.metode)}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
       const materialRowsHtml = report.material.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.item)}</td><td>${reportValue(row.jumlah)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const fotoAreaRowsHtml = report.foto_area.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.dokumentasi, `Foto Area ${i + 1}`)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const fotoTemuanRowsHtml = report.foto_temuan.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.dokumentasi, `Foto Temuan ${i + 1}`)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
+      const fotoAreaRowsHtml = report.foto_area.map((row, i) => `<tr><td>${i + 1}</td><td>${docImagesHtml(row.dokumentasi)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
+      const fotoTemuanRowsHtml = report.foto_temuan.map((row, i) => `<tr><td>${i + 1}</td><td>${docImagesHtml(row.dokumentasi)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
       return `
         <section class="report">
           <div class="page">
@@ -560,7 +615,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
           <div class="page">
             ${letterheadHtml()}
             <h2>3. Jenis Hama yang Ditemukan</h2>
-            <table><thead><tr><th>Jenis Hama</th><th>Status Temuan</th><th>Keterangan</th></tr></thead><tbody>${pestRowsHtml}</tbody></table>
+            <table><thead><tr><th>Jenis Hama</th><th>Keterangan</th></tr></thead><tbody>${pestRowsHtml}</tbody></table>
             <h2>5. Detail Temuan Lapangan</h2>
             <table><thead><tr><th>No</th><th>Area Temuan</th><th>Jenis Temuan</th><th>Keterangan</th></tr></thead><tbody>${findingRowsHtml}</tbody></table>
             <h2>6. Rekomendasi Treatment</h2>
@@ -604,7 +659,9 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   table { width:100%; border-collapse:collapse; margin:6px 0 12px; }
   th, td { border:1px solid #111827; padding:6px 8px; vertical-align:top; min-height:26px; }
   th { font-weight:700; text-align:left; background:#f8fafc; }
+  .doc-grid { display:flex; flex-wrap:wrap; gap:6px; }
   .doc-img { width:145px; height:105px; object-fit:cover; border:1px solid #d1d5db; display:block; }
+  .muted { color:#6b7280; font-style:italic; }
   .signature-place { margin-top:20px; }
   .signature-title { font-weight:700; margin:12px 0 0; }
   .signature-space { height:82px; }
@@ -1513,6 +1570,11 @@ ${sections}
                   disabled={listDetailItem.survey_approval_status === "approved"}
                   updateField={updateGoldenReport}
                   updateRow={updateGoldenReportRow}
+                  addRow={addGoldenReportRow}
+                  removeRow={removeGoldenReportRow}
+                  onPhotoChange={handleGoldenReportPhotoChange}
+                  onPreviewPhoto={setLightboxSrc}
+                  photoProcessing={listFotoProcessing}
                 />
               )}
 
@@ -1546,6 +1608,7 @@ ${sections}
               )}
 
               {/* Foto Bukti Survey */}
+              {!useGoldenSurveyReportTemplate && (
               <div className="space-y-1.5">
                 <Label>Foto Bukti Survey {!canApprove && listDetailItem.survey_approval_status !== "approved" && <span className="text-destructive">*</span>}</Label>
 
@@ -1594,12 +1657,13 @@ ${sections}
                 )}
                 <input ref={listFotoRef} type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={handleListFotoChange} />
               </div>
+              )}
 
               {/* Actions */}
               {listDetailItem.survey_approval_status !== "approved" && (
                 <div className="flex gap-2 pt-1">
                   {canApprove ? (
-                    listDetailFotos.length > 0 ? (
+                    (useGoldenSurveyReportTemplate ? goldenReportPhotos().length > 0 : listDetailFotos.length > 0) ? (
                       <>
                         <Button
                           variant="outline"
@@ -1614,7 +1678,7 @@ ${sections}
                           disabled={approveMut.isPending}
                           onClick={() => approveMut.mutate({
                             id: listDetailItem.id,
-                            foto_survey: listDetailFotos,
+                            foto_survey: useGoldenSurveyReportTemplate ? goldenReportPhotos() : listDetailFotos,
                             ...listDetailPayload(),
                           })}
                         >
@@ -1625,16 +1689,16 @@ ${sections}
                     ) : (
                       <div className="w-full text-center py-3 text-sm text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
                         <Clock className="h-5 w-5 mx-auto mb-1.5 text-amber-500" />
-                        Menunggu PIC upload bukti foto survey
+                        {useGoldenSurveyReportTemplate ? "Menunggu PIC upload dokumentasi foto area survey atau temuan hama" : "Menunggu PIC upload bukti foto survey"}
                       </div>
                     )
                   ) : currentUserName === listDetailItem.pic_survey ? (
                     <Button
                       className="w-full"
-                      disabled={listDetailFotos.length === 0 || buktimut.isPending || listFotoProcessing}
+                      disabled={(useGoldenSurveyReportTemplate ? goldenReportPhotos().length === 0 : listDetailFotos.length === 0) || buktimut.isPending || listFotoProcessing}
                       onClick={() => buktimut.mutate({
                         id: listDetailItem.id,
-                        foto_survey: listDetailFotos,
+                        foto_survey: useGoldenSurveyReportTemplate ? goldenReportPhotos() : listDetailFotos,
                         ...listDetailPayload(),
                       })}
                     >
@@ -1855,12 +1919,27 @@ function GoldenSurveyReportFields({
   disabled,
   updateField,
   updateRow,
+  addRow,
+  removeRow,
+  onPhotoChange,
+  onPreviewPhoto,
+  photoProcessing,
 }: {
   form: GoldenSurveyReportForm;
   disabled: boolean;
   updateField: <K extends keyof GoldenSurveyReportForm>(key: K, value: GoldenSurveyReportForm[K]) => void;
-  updateRow: <K extends keyof GoldenSurveyReportForm>(key: K, index: number, patch: Record<string, string>) => void;
+  updateRow: <K extends keyof GoldenSurveyReportForm>(key: K, index: number, patch: Record<string, any>) => void;
+  addRow: <K extends keyof GoldenSurveyReportForm>(key: K, row: any) => void;
+  removeRow: <K extends keyof GoldenSurveyReportForm>(key: K, index: number) => void;
+  onPhotoChange: (e: React.ChangeEvent<HTMLInputElement>, key: "foto_area" | "foto_temuan", index: number) => void;
+  onPreviewPhoto: (src: string) => void;
+  photoProcessing: boolean;
 }) {
+  const removePhoto = (key: "foto_area" | "foto_temuan", rowIndex: number, photoIndex: number) => {
+    const row = form[key][rowIndex];
+    updateRow(key, rowIndex, { dokumentasi: row.dokumentasi.filter((_, i) => i !== photoIndex) });
+  };
+
   return (
     <div className="space-y-4 rounded-lg border bg-amber-50/30 p-3">
       <div>
@@ -1871,7 +1950,7 @@ function GoldenSurveyReportFields({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <div className="space-y-1.5">
           <Label>Surveyor</Label>
-          <Input value={form.surveyor} onChange={(e) => updateField("surveyor", e.target.value)} disabled={disabled} placeholder="Isi manual" />
+          <Input value={form.surveyor} onChange={(e) => updateField("surveyor", e.target.value)} disabled={disabled} placeholder="Nama petugas survey" />
         </div>
         <div className="space-y-1.5">
           <Label>Jenis Bangunan</Label>
@@ -1885,88 +1964,156 @@ function GoldenSurveyReportFields({
         </div>
         <div className="space-y-1.5">
           <Label>Luas Area</Label>
-          <Input value={form.luas_area} onChange={(e) => updateField("luas_area", e.target.value)} disabled={disabled} placeholder="Isi manual" />
+          <Input value={form.luas_area} onChange={(e) => updateField("luas_area", e.target.value)} disabled={disabled} placeholder="Contoh: 120 m2 / 2 lantai" />
         </div>
       </div>
 
       <GoldenRows title="2. Area yang Disurvey" headers={["Area", "Keterangan"]}>
         {form.area_disurvey.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr] gap-2 items-center">
+          <div key={i} className="grid grid-cols-[28px_1fr_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
-            <Input value={row.area} onChange={(e) => updateRow("area_disurvey", i, { area: e.target.value })} placeholder="Isi manual" disabled={disabled} />
-            <Input value={row.keterangan} onChange={(e) => updateRow("area_disurvey", i, { keterangan: e.target.value })} placeholder="Isi manual" disabled={disabled} />
+            <Input value={row.area} onChange={(e) => updateRow("area_disurvey", i, { area: e.target.value })} placeholder="Contoh: Dapur / Gudang / Taman" disabled={disabled} />
+            <Input value={row.keterangan} onChange={(e) => updateRow("area_disurvey", i, { keterangan: e.target.value })} placeholder="Kondisi area yang diperiksa" disabled={disabled} />
+            <Button type="button" variant="ghost" size="icon" disabled={disabled || form.area_disurvey.length <= 1} onClick={() => removeRow("area_disurvey", i)}>
+              <X className="h-4 w-4 text-red-500" />
+            </Button>
           </div>
         ))}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("area_disurvey", { area: "", keterangan: "" })}>Tambah Area</Button>}
       </GoldenRows>
 
-      <GoldenRows title="3. Jenis Hama yang Ditemukan" headers={["Jenis Hama", "Status Temuan", "Keterangan"]}>
+      <GoldenRows title="3. Jenis Hama yang Ditemukan" headers={["Jenis Hama", "Keterangan"]}>
         {form.hama.map((row, i) => (
-          <div key={row.jenis} className="grid grid-cols-[80px_1fr_1fr] gap-2 items-center">
-            <span className="text-sm font-medium">{row.jenis}</span>
-            <Select value={row.status} onValueChange={(v) => updateRow("hama", i, { status: v })} disabled={disabled}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Ditemukan">Ditemukan</SelectItem>
-                <SelectItem value="Tidak Ditemukan">Tidak Ditemukan</SelectItem>
-                <SelectItem value="Ditemukan / Tidak Ditemukan">Ditemukan / Tidak Ditemukan</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input value={row.keterangan} onChange={(e) => updateRow("hama", i, { keterangan: e.target.value })} placeholder="Isi manual" disabled={disabled} />
+          <div key={`${row.jenis}-${i}`} className="grid grid-cols-[1fr_1.5fr_34px] gap-2 items-center">
+            <Input value={row.jenis} onChange={(e) => updateRow("hama", i, { jenis: e.target.value })} placeholder="Contoh: Rayap / Tikus / Kecoa" disabled={disabled} />
+            <Input value={row.keterangan} onChange={(e) => updateRow("hama", i, { keterangan: e.target.value })} placeholder="Keterangan indikasi atau lokasi temuan" disabled={disabled} />
+            <Button type="button" variant="ghost" size="icon" disabled={disabled || form.hama.length <= 1} onClick={() => removeRow("hama", i)}>
+              <X className="h-4 w-4 text-red-500" />
+            </Button>
           </div>
         ))}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("hama", { jenis: "", keterangan: "" })}>Tambah Jenis Hama</Button>}
       </GoldenRows>
 
       <GoldenRows title="5. Detail Temuan Lapangan" headers={["Area Temuan", "Jenis Temuan", "Keterangan"]}>
         {form.temuan.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr] gap-2 items-center">
+          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
-            <Input value={row.area} onChange={(e) => updateRow("temuan", i, { area: e.target.value })} placeholder="Isi manual" disabled={disabled} />
-            <Input value={row.jenis} onChange={(e) => updateRow("temuan", i, { jenis: e.target.value })} placeholder="Isi manual" disabled={disabled} />
-            <Input value={row.keterangan} onChange={(e) => updateRow("temuan", i, { keterangan: e.target.value })} placeholder="Isi manual" disabled={disabled} />
+            <Input value={row.area} onChange={(e) => updateRow("temuan", i, { area: e.target.value })} placeholder="Contoh: Plafon kamar" disabled={disabled} />
+            <Input value={row.jenis} onChange={(e) => updateRow("temuan", i, { jenis: e.target.value })} placeholder="Contoh: Jalur rayap aktif" disabled={disabled} />
+            <Input value={row.keterangan} onChange={(e) => updateRow("temuan", i, { keterangan: e.target.value })} placeholder="Detail kondisi di lapangan" disabled={disabled} />
+            <Button type="button" variant="ghost" size="icon" disabled={disabled || form.temuan.length <= 1} onClick={() => removeRow("temuan", i)}>
+              <X className="h-4 w-4 text-red-500" />
+            </Button>
           </div>
         ))}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("temuan", { area: "", jenis: "", keterangan: "" })}>Tambah Temuan</Button>}
       </GoldenRows>
 
       <GoldenRows title="6. Rekomendasi Treatment" headers={["Metode Treatment", "Area Penerapan", "Keterangan"]}>
         {form.treatment.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr] gap-2 items-center">
+          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
-            <Input value={row.metode} onChange={(e) => updateRow("treatment", i, { metode: e.target.value })} placeholder="Isi manual" disabled={disabled} />
-            <Input value={row.area} onChange={(e) => updateRow("treatment", i, { area: e.target.value })} placeholder="Isi manual" disabled={disabled} />
-            <Input value={row.keterangan} onChange={(e) => updateRow("treatment", i, { keterangan: e.target.value })} placeholder="Isi manual" disabled={disabled} />
+            <Input value={row.metode} onChange={(e) => updateRow("treatment", i, { metode: e.target.value })} placeholder="Contoh: Spraying / Baiting / Injection" disabled={disabled} />
+            <Input value={row.area} onChange={(e) => updateRow("treatment", i, { area: e.target.value })} placeholder="Area penerapan treatment" disabled={disabled} />
+            <Input value={row.keterangan} onChange={(e) => updateRow("treatment", i, { keterangan: e.target.value })} placeholder="Catatan metode atau frekuensi" disabled={disabled} />
+            <Button type="button" variant="ghost" size="icon" disabled={disabled || form.treatment.length <= 1} onClick={() => removeRow("treatment", i)}>
+              <X className="h-4 w-4 text-red-500" />
+            </Button>
           </div>
         ))}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("treatment", { metode: "", area: "", keterangan: "" })}>Tambah Treatment</Button>}
       </GoldenRows>
 
       <GoldenRows title="7. Kebutuhan Alat / Material" headers={["Item", "Jumlah", "Keterangan"]}>
         {form.material.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr] gap-2 items-center">
+          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
-            <Input value={row.item} onChange={(e) => updateRow("material", i, { item: e.target.value })} placeholder="Isi manual" disabled={disabled} />
-            <Input value={row.jumlah} onChange={(e) => updateRow("material", i, { jumlah: e.target.value })} placeholder="Isi manual" disabled={disabled} />
-            <Input value={row.keterangan} onChange={(e) => updateRow("material", i, { keterangan: e.target.value })} placeholder="Isi manual" disabled={disabled} />
+            <Input value={row.item} onChange={(e) => updateRow("material", i, { item: e.target.value })} placeholder="Contoh: Termitisida / Bait station" disabled={disabled} />
+            <Input value={row.jumlah} onChange={(e) => updateRow("material", i, { jumlah: e.target.value })} placeholder="Contoh: 2 liter / 4 unit" disabled={disabled} />
+            <Input value={row.keterangan} onChange={(e) => updateRow("material", i, { keterangan: e.target.value })} placeholder="Catatan kebutuhan alat/material" disabled={disabled} />
+            <Button type="button" variant="ghost" size="icon" disabled={disabled || form.material.length <= 1} onClick={() => removeRow("material", i)}>
+              <X className="h-4 w-4 text-red-500" />
+            </Button>
           </div>
         ))}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("material", { item: "", jumlah: "", keterangan: "" })}>Tambah Material</Button>}
       </GoldenRows>
 
       <GoldenRows title="8A. Foto Area Survey" headers={["Dokumentasi", "Keterangan"]}>
         {form.foto_area.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr] gap-2 items-center">
+          <div key={i} className="grid grid-cols-[28px_1.4fr_1fr_34px] gap-2 items-start">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
-            <Input value={row.dokumentasi} onChange={(e) => updateRow("foto_area", i, { dokumentasi: e.target.value })} placeholder={`Foto Area ${i + 1}`} disabled={disabled} />
-            <Input value={row.keterangan} onChange={(e) => updateRow("foto_area", i, { keterangan: e.target.value })} placeholder="Isi manual" disabled={disabled} />
+            <div className="space-y-2">
+              {row.dokumentasi.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {row.dokumentasi.map((src, photoIndex) => (
+                    <div key={photoIndex} className="relative group cursor-pointer" onClick={() => onPreviewPhoto(src)}>
+                      <img src={src} alt={`area survey ${i + 1}-${photoIndex + 1}`} className="h-16 w-20 rounded border object-cover" />
+                      {!disabled && (
+                        <button
+                          type="button"
+                          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+                          onClick={(e) => { e.stopPropagation(); removePhoto("foto_area", i, photoIndex); }}
+                        >×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!disabled && (
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground hover:border-primary/60">
+                  <Upload className="h-3.5 w-3.5" /> Upload dokumentasi area
+                  <input type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={(e) => onPhotoChange(e, "foto_area", i)} />
+                </label>
+              )}
+            </div>
+            <Input value={row.keterangan} onChange={(e) => updateRow("foto_area", i, { keterangan: e.target.value })} placeholder="Contoh: Area dapur sebelum treatment" disabled={disabled} />
+            <Button type="button" variant="ghost" size="icon" disabled={disabled || form.foto_area.length <= 1} onClick={() => removeRow("foto_area", i)}>
+              <X className="h-4 w-4 text-red-500" />
+            </Button>
           </div>
         ))}
+        {photoProcessing && <p className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Memproses dokumentasi...</p>}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("foto_area", { dokumentasi: [], keterangan: "" })}>Tambah Baris Foto Area</Button>}
       </GoldenRows>
 
       <GoldenRows title="8B. Foto Temuan Hama" headers={["Dokumentasi", "Keterangan"]}>
         {form.foto_temuan.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr] gap-2 items-center">
+          <div key={i} className="grid grid-cols-[28px_1.4fr_1fr_34px] gap-2 items-start">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
-            <Input value={row.dokumentasi} onChange={(e) => updateRow("foto_temuan", i, { dokumentasi: e.target.value })} placeholder={`Foto Temuan ${i + 1}`} disabled={disabled} />
-            <Input value={row.keterangan} onChange={(e) => updateRow("foto_temuan", i, { keterangan: e.target.value })} placeholder="Isi manual" disabled={disabled} />
+            <div className="space-y-2">
+              {row.dokumentasi.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {row.dokumentasi.map((src, photoIndex) => (
+                    <div key={photoIndex} className="relative group cursor-pointer" onClick={() => onPreviewPhoto(src)}>
+                      <img src={src} alt={`temuan hama ${i + 1}-${photoIndex + 1}`} className="h-16 w-20 rounded border object-cover" />
+                      {!disabled && (
+                        <button
+                          type="button"
+                          className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+                          onClick={(e) => { e.stopPropagation(); removePhoto("foto_temuan", i, photoIndex); }}
+                        >×</button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {!disabled && (
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground hover:border-primary/60">
+                  <Upload className="h-3.5 w-3.5" /> Upload dokumentasi temuan
+                  <input type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={(e) => onPhotoChange(e, "foto_temuan", i)} />
+                </label>
+              )}
+            </div>
+            <Input value={row.keterangan} onChange={(e) => updateRow("foto_temuan", i, { keterangan: e.target.value })} placeholder="Contoh: Jalur rayap aktif di kusen" disabled={disabled} />
+            <Button type="button" variant="ghost" size="icon" disabled={disabled || form.foto_temuan.length <= 1} onClick={() => removeRow("foto_temuan", i)}>
+              <X className="h-4 w-4 text-red-500" />
+            </Button>
           </div>
         ))}
+        {photoProcessing && <p className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Memproses dokumentasi...</p>}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("foto_temuan", { dokumentasi: [], keterangan: "" })}>Tambah Baris Foto Temuan</Button>}
       </GoldenRows>
     </div>
   );

@@ -7,11 +7,27 @@
 
 ## 0. Changelog Fitur Terbaru (2026-05-20)
 
-### Template Penawaran Desain/RKR
-- **Penawaran > Penawaran Desain:** Form dan preview disesuaikan ke `Template Penawaran Desain New.pdf`: tambah input Luas Tanah, tabel Keterangan/Estimasi/Luas Tanah/Nominal, Total Harga, Terbilang, rincian Termin 1/Termin 2 per paket, dan Syarat Ketentuan.
-- **Penawaran > Penawaran RKR:** Form dan preview disesuaikan ke `Template Penawaran Ruangkeruang.pdf`: rincian memakai kolom Uraian Pekerjaan, Qty, Harga Satuan, dan Total.
-- **PDF Penawaran:** Helper download penawaran mendukung multi-page A4 dengan margin browser/PDF `0`; padding konten penawaran memakai `0.5cm` atas/kiri/kanan/bawah, font dokumen 12px, dan blok tanda tangan RO menampilkan logo sesuai header.
-- **PDF Penawaran:** Download penawaran tidak lagi memakai screenshot `html2canvas`/`jsPDF`; helper membuka print window berisi HTML asli agar teks/tabel tetap vector dan tidak blur saat disimpan sebagai PDF dari browser.
+### Kalender Survey Golden
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** `Area yang Disurvey`, `Detail Temuan Lapangan`, `Rekomendasi Treatment`, dan `Kebutuhan Alat / Material` sekarang memakai baris dinamis; user bisa tambah/hapus baris sesuai kebutuhan, tidak dibatasi 4 baris.
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** `Jenis Hama yang Ditemukan` tidak lagi memakai opsi status `Ditemukan/Tidak Ditemukan`; tabel hanya menyimpan `Jenis Hama` dan `Keterangan`, dengan baris yang tetap bisa ditambah/hapus.
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** `Foto Area Survey` dan `Foto Temuan Hama` sekarang berupa upload gambar per baris, mendukung lebih dari satu gambar pada setiap baris, dengan timestamp otomatis seperti upload foto survey lain.
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** Section `Foto Bukti Survey` paling bawah disembunyikan untuk template Golden karena dokumentasi sudah dipisah ke `Foto Area Survey` dan `Foto Temuan Hama`; tombol simpan/setujui Golden memakai gabungan foto dari dua section dokumentasi tersebut.
+- **RubahrumahxGolden > Kalender Survey > PDF Laporan:** Export laporan Golden merender foto dokumentasi aktual pada tabel `Foto Area Survey` dan `Foto Temuan Hama`; kolom status temuan hama dihapus dari PDF.
+- **RubahrumahxGolden > Kalender Survey > UX:** Placeholder `Isi manual` pada form Golden diganti menjadi contoh sesuai konteks, misalnya area survey, kondisi area, jenis temuan, metode treatment, kebutuhan material, dan keterangan dokumentasi.
+
+### Projek Sipil/Interior Checklist PDF
+- **Projek > Projek Sipil > Form Checklist:** Foto pekerjaan dan foto selesai pada PDF checklist tidak lagi di-crop; render gambar memakai `objectFit: contain` dalam frame 120x120 agar gambar portrait/landscape terlihat utuh sesuai aspek asli.
+- **Projek > Projek Interior > Form Checklist:** Mengikuti komponen PDF checklist yang sama, sehingga foto checklist interior juga tampil penuh tanpa terpotong saat download PDF.
+
+### Template Penawaran Desain/RKR/Golden
+- **Penawaran > Penawaran Desain:** Form dan preview disesuaikan ke `Template Penawaran Desain New.pdf`: tambah input `Luas Tanah (Meter)`, narasi konsultasi sesuai tanggal user, tabel `Keterangan / Estimasi Pengerjaan / Luas Tanah / Nominal`, baris `Total Harga`, `Terbilang`, rincian `Termin 1` dan `Termin 2` per paket, serta `Syarat dan Ketentuan`.
+- **Penawaran > Penawaran Desain:** Detail paket memakai referensi `Detail Paket Desain refrence.pdf`; Basic `4 - 7 Hari`, Standart `7 - 14 Hari`, Premium `14 - 21 Hari`, Deluxe `21 - 28 Hari`, dengan rincian item kerja termin masing-masing.
+- **Penawaran > Penawaran RKR:** Form dan preview disesuaikan ke `Template Penawaran Ruangkeruang.pdf`: rincian memakai kolom `Uraian Pekerjaan`, `Qty`, `Harga Satuan`, dan `Total`; kolom `Satuan` dihilangkan.
+- **Penawaran > Penawaran Golden:** Style dokumen diseragamkan dengan penawaran lain: font dokumen 12px, padding konten `0.5cm`, margin print/PDF `0`, dan tanda tangan RO memakai logo Rubru Pest sesuai header.
+- **Style Semua Penawaran:** Preview dokumen memakai font 12px; area halaman memakai padding `0.5cm` atas/kiri/kanan/bawah; blok tanda tangan RO tetap di sisi kanan bawah seperti sebelumnya dan sekarang menampilkan logo sesuai header (`/images/logo.png`, `/images/offer-logos/rkr-logo.jpeg`, `/images/offer-logos/rubru-pest-logo.jpeg`).
+- **PDF Penawaran:** Helper `src/lib/download-offer-pdf.ts` tidak lagi memakai screenshot `html2canvas`/`jsPDF` karena hasilnya blur. Tombol download membuka print window berisi HTML asli, sehingga teks/tabel tetap vector saat user memilih `Save as PDF` dari dialog print browser.
+- **PDF Penawaran:** Print window memakai `@page { size: A4 portrait; margin: 0; }`, `.offer-page` width `210mm`, min-height `297mm`, padding `0.5cm`, dan `print-color-adjust: exact`.
+- **Build:** Frontend sudah diverifikasi dengan `npm run type-check` dan `npm run build`; jika perubahan belum terlihat di browser/dev server, restart `npm run dev` atau jalankan production bundle dengan `npm run start`, lalu hard refresh (`Ctrl+F5`).
 
 ---
 

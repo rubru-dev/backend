@@ -92,9 +92,9 @@ const s = StyleSheet.create({
   imageSectionLabel: { fontSize: 7, fontWeight: "bold", color: GRAY, marginBottom: 5 },
   imageSectionLabelDone: { fontSize: 7, fontWeight: "bold", color: GREEN, marginBottom: 5 },
   imageGrid: { flexDirection: "row", flexWrap: "wrap", gap: 4 },
-  cellImg: { width: 120, height: 90, objectFit: "cover", borderRadius: 4 },
+  cellImg: { width: 120, height: 120, objectFit: "contain", borderRadius: 4, borderWidth: 1, borderColor: "#e7e5e4", backgroundColor: "#ffffff" },
   cellImgPlaceholder: {
-    width: 120, height: 90, backgroundColor: "#e7e5e4", borderRadius: 4,
+    width: 120, height: 120, backgroundColor: "#e7e5e4", borderRadius: 4,
     alignItems: "center", justifyContent: "center",
   },
   placeholderText: { fontSize: 7, color: "#a8a29e" },
