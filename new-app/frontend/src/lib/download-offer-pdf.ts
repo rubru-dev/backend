@@ -5,7 +5,7 @@ function safeFileName(value: string) {
     .trim();
 }
 
-async function waitForImages(element: HTMLElement) {
+async function waitForImages(element: ParentNode) {
   const images = Array.from(element.querySelectorAll("img"));
   await Promise.all(
     images.map((img) => {
@@ -18,6 +18,17 @@ async function waitForImages(element: HTMLElement) {
   );
 }
 
+function collectDocumentStyles() {
+  const links = Array.from(document.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]'))
+    .map((link) => `<link rel="stylesheet" href="${link.href}">`)
+    .join("\n");
+  const styles = Array.from(document.querySelectorAll<HTMLStyleElement>("style"))
+    .map((style) => `<style>${style.textContent ?? ""}</style>`)
+    .join("\n");
+
+  return `${links}\n${styles}`;
+}
+
 export async function downloadOfferPdf(selector: string, filename: string) {
   const element = document.querySelector(selector);
   if (!(element instanceof HTMLElement)) {
@@ -26,46 +37,57 @@ export async function downloadOfferPdf(selector: string, filename: string) {
 
   await waitForImages(element);
 
-  const [{ default: html2canvas }, { default: jsPDF }] = await Promise.all([
-    import("html2canvas"),
-    import("jspdf"),
-  ]);
-
-  const renderScale = Math.min(4, Math.max(3, (window.devicePixelRatio || 1) * 2));
-  const canvas = await html2canvas(element, {
-    backgroundColor: "#ffffff",
-    scale: renderScale,
-    useCORS: true,
-    logging: false,
-  });
-
-  const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-  const pageWidth = 210;
-  const pageHeight = 297;
-  const margin = 0;
-  const contentWidth = pageWidth - margin * 2;
-  const contentHeight = pageHeight - margin * 2;
-  const pageSliceHeight = Math.floor(canvas.width * (contentHeight / contentWidth));
-  const pageCanvas = document.createElement("canvas");
-  const pageContext = pageCanvas.getContext("2d");
-
-  if (!pageContext) {
-    throw new Error("Gagal membuat canvas PDF.");
+  const printWindow = window.open("", "_blank", "noopener,noreferrer,width=900,height=1200");
+  if (!printWindow) {
+    throw new Error("Popup print diblokir browser.");
   }
 
-  pageCanvas.width = canvas.width;
+  const title = safeFileName(filename);
+  printWindow.document.open();
+  printWindow.document.write(`<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <base href="${window.location.origin}">
+    <title>${title}</title>
+    ${collectDocumentStyles()}
+    <style>
+      @page { size: A4 portrait; margin: 0; }
+      * { box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      html, body { margin: 0; padding: 0; background: #ffffff; }
+      body { font-family: Arial, Helvetica, sans-serif; }
+      .offer-page {
+        width: 210mm !important;
+        min-height: 297mm !important;
+        margin: 0 !important;
+        padding: 0.5cm !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        background: #ffffff !important;
+        color: #000000 !important;
+        font-size: 12px !important;
+      }
+      .offer-page table, .offer-page tr, .offer-page p, .offer-page ul, .offer-page ol {
+        break-inside: avoid;
+        page-break-inside: avoid;
+      }
+      @media screen {
+        body { background: #e5e7eb; }
+        .offer-page { margin: 24px auto !important; }
+      }
+    </style>
+  </head>
+  <body>
+    ${element.outerHTML}
+  </body>
+</html>`);
+  printWindow.document.close();
 
-  for (let sourceY = 0, pageIndex = 0; sourceY < canvas.height; sourceY += pageSliceHeight, pageIndex += 1) {
-    const sliceHeight = Math.min(pageSliceHeight, canvas.height - sourceY);
-    pageCanvas.height = sliceHeight;
-    pageContext.clearRect(0, 0, pageCanvas.width, pageCanvas.height);
-    pageContext.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, pageCanvas.width, sliceHeight);
+  await waitForImages(printWindow.document);
 
-    if (pageIndex > 0) pdf.addPage();
-
-    const imageHeight = contentWidth * (sliceHeight / canvas.width);
-    pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", margin, margin, contentWidth, imageHeight, undefined, "SLOW");
-  }
-
-  pdf.save(`${safeFileName(filename)}.pdf`);
+  printWindow.focus();
+  window.setTimeout(() => {
+    printWindow.print();
+  }, 250);
 }

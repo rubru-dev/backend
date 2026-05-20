@@ -11,7 +11,7 @@
 - **Penawaran > Penawaran Desain:** Form dan preview disesuaikan ke `Template Penawaran Desain New.pdf`: tambah input Luas Tanah, tabel Keterangan/Estimasi/Luas Tanah/Nominal, Total Harga, Terbilang, rincian Termin 1/Termin 2 per paket, dan Syarat Ketentuan.
 - **Penawaran > Penawaran RKR:** Form dan preview disesuaikan ke `Template Penawaran Ruangkeruang.pdf`: rincian memakai kolom Uraian Pekerjaan, Qty, Harga Satuan, dan Total.
 - **PDF Penawaran:** Helper download penawaran mendukung multi-page A4 dengan margin browser/PDF `0`; padding konten penawaran memakai `0.5cm` atas/kiri/kanan/bawah, font dokumen 12px, dan blok tanda tangan RO menampilkan logo sesuai header.
-- **PDF Penawaran:** Render `html2canvas` dinaikkan ke skala 3x-4x dan kompresi gambar PDF memakai mode kualitas lebih tinggi agar teks/tabel tidak blur saat di-download.
+- **PDF Penawaran:** Download penawaran tidak lagi memakai screenshot `html2canvas`/`jsPDF`; helper membuka print window berisi HTML asli agar teks/tabel tetap vector dan tidak blur saat disimpan sebagai PDF dari browser.
 
 ---
 
