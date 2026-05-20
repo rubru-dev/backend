@@ -8,8 +8,9 @@
 ## 0. Changelog Fitur Terbaru (2026-05-20)
 
 ### Template Penawaran Desain/RKR
-- **Penawaran > Penawaran Desain:** Print style disesuaikan ke margin A4 `0.75in`; helper download PDF juga menempatkan preview di dalam margin 0.75 inch atas/kiri/kanan/bawah.
-- **Penawaran > Penawaran RKR:** Print style disesuaikan ke margin A4 `0.75in`; hasil download PDF mengikuti margin 0.75 inch yang sama melalui helper penawaran bersama.
+- **Penawaran > Penawaran Desain:** Form dan preview disesuaikan ke `Template Penawaran Desain New.pdf`: tambah input Luas Tanah, tabel Keterangan/Estimasi/Luas Tanah/Nominal, Total Harga, Terbilang, rincian Termin 1/Termin 2 per paket, dan Syarat Ketentuan.
+- **Penawaran > Penawaran RKR:** Form dan preview disesuaikan ke `Template Penawaran Ruangkeruang.pdf`: rincian memakai kolom Uraian Pekerjaan, Qty, Harga Satuan, dan Total.
+- **PDF Penawaran:** Helper download penawaran mendukung multi-page A4 dengan margin `0.75in` atas/kiri/kanan/bawah; konten panjang tidak lagi dipaksa mengecil ke satu halaman.
 
 ---
 

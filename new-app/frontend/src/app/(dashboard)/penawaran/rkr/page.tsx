@@ -12,7 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 
-type OfferRow = { uraian: string; qty: string; satuan: string; harga: string };
+type OfferRow = { uraian: string; qty: string; hargaSatuan: string; satuan?: string; harga?: string };
 const STORAGE_KEY = "rubahrumah.penawaran.rkr";
 
 type SavedOffer = {
@@ -75,9 +75,9 @@ export default function PenawaranRkrPage() {
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [rows, setRows] = useState<OfferRow[]>([
-    { uraian: "", qty: "", satuan: "", harga: "" },
-    { uraian: "", qty: "", satuan: "", harga: "" },
-    { uraian: "", qty: "", satuan: "", harga: "" },
+    { uraian: "", qty: "", hargaSatuan: "" },
+    { uraian: "", qty: "", hargaSatuan: "" },
+    { uraian: "", qty: "", hargaSatuan: "" },
   ]);
   const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
     if (typeof window === "undefined") return [];
@@ -109,7 +109,7 @@ export default function PenawaranRkrPage() {
   const name = client ? `${salutation}. ${namaAsli}` : "Mr/Mrs. [Nama Client]";
   const selectedRo = employees.find((e) => String(e.id) === roId);
 
-  const total = useMemo(() => rows.reduce((sum, row) => sum + ((Number(row.qty) || 0) * parseMoney(row.harga)), 0), [rows]);
+  const total = useMemo(() => rows.reduce((sum, row) => sum + ((Number(row.qty) || 0) * parseMoney(row.hargaSatuan || row.harga || "")), 0), [rows]);
 
   function updateRow(index: number, patch: Partial<OfferRow>) {
     setRows((prev) => prev.map((row, i) => i === index ? { ...row, ...patch } : row));
@@ -146,7 +146,7 @@ export default function PenawaranRkrPage() {
       roId,
       tanggal,
       jenisPenawaran,
-      rows: rows.map((row) => ({ ...row, satuan: row.satuan ?? "" })),
+      rows: rows.map((row) => ({ ...row, hargaSatuan: row.hargaSatuan || row.harga || "" })),
       clientName: namaAsli,
       roName: selectedRo?.nama || "[Nama RO]",
       total,
@@ -161,7 +161,7 @@ export default function PenawaranRkrPage() {
     setRoId(offer.roId);
     setTanggal(offer.tanggal);
     setJenisPenawaran(offer.jenisPenawaran);
-    setRows(offer.rows.map((row) => ({ ...row, satuan: row.satuan ?? "" })));
+    setRows(offer.rows.map((row) => ({ ...row, hargaSatuan: row.hargaSatuan || row.harga || "" })));
     setShowPreview(true);
     setActiveTab("generate");
     if (shouldPrint) {
@@ -274,17 +274,16 @@ export default function PenawaranRkrPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Rincian Penawaran</Label>
-            <Button type="button" variant="outline" size="sm" onClick={() => setRows((prev) => [...prev, { uraian: "", qty: "", satuan: "", harga: "" }])}>
+            <Button type="button" variant="outline" size="sm" onClick={() => setRows((prev) => [...prev, { uraian: "", qty: "", hargaSatuan: "" }])}>
               <Plus className="h-4 w-4 mr-1" /> Tambah Baris
             </Button>
           </div>
           <div className="space-y-2">
             {rows.map((row, i) => (
-              <div key={i} className="grid md:grid-cols-[1fr_90px_110px_150px_40px] gap-2">
+              <div key={i} className="grid md:grid-cols-[1fr_90px_150px_40px] gap-2">
                 <Input value={row.uraian} onChange={(e) => updateRow(i, { uraian: e.target.value })} placeholder="Uraian pekerjaan" />
                 <Input type="number" min={0} value={row.qty} onChange={(e) => updateRow(i, { qty: nonNegativeNumber(e.target.value) })} placeholder="Qty" />
-                <Input value={row.satuan ?? ""} onChange={(e) => updateRow(i, { satuan: e.target.value.replace(/[^a-zA-Z\s]/g, "") })} placeholder="Satuan" />
-                <Input type="number" min={0} value={row.harga} onChange={(e) => updateRow(i, { harga: nonNegativeNumber(e.target.value) })} placeholder="Harga satuan" />
+                <Input type="number" min={0} value={row.hargaSatuan || row.harga || ""} onChange={(e) => updateRow(i, { hargaSatuan: nonNegativeNumber(e.target.value) })} placeholder="Harga satuan" />
                 <Button type="button" variant="ghost" size="icon" disabled={rows.length <= 1} onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))}>
                   <Trash2 className="h-4 w-4 text-red-500" />
                 </Button>
@@ -342,20 +341,20 @@ export default function PenawaranRkrPage() {
                 <th className="w-10 border border-black p-2 text-center">No</th>
                 <th className="border border-black p-2 text-left">Uraian Pekerjaan</th>
                 <th className="w-20 border border-black p-2 text-center">Qty</th>
-                <th className="w-24 border border-black p-2 text-center">Satuan</th>
+                <th className="w-36 border border-black p-2 text-right">Harga Satuan</th>
                 <th className="w-36 border border-black p-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
               {rows.map((row, i) => {
                 const qty = Number(row.qty) || 0;
-                const harga = parseMoney(row.harga);
+                const harga = parseMoney(row.hargaSatuan || row.harga || "");
                 return (
                   <tr key={i}>
                     <td className="border border-black p-2 text-center">{i + 1}</td>
                     <td className="border border-black p-2">{row.uraian || "[Isi manual]"}</td>
                     <td className="border border-black p-2 text-center">{row.qty || "[Isi]"}</td>
-                    <td className="border border-black p-2 text-center">{row.satuan || "[Isi]"}</td>
+                    <td className="border border-black p-2 text-right">{harga ? fmtMoney(harga) : "[Isi]"}</td>
                     <td className="border border-black p-2 text-right">{harga && qty ? fmtMoney(qty * harga) : "[Isi manual]"}</td>
                   </tr>
                 );
@@ -373,11 +372,9 @@ export default function PenawaranRkrPage() {
 
           <p className="mt-8 text-right">Bekasi, {formatDateID(tanggal)}</p>
           <div className="mt-8 ml-auto w-[260px] text-left">
-            <p className="font-bold">Hormat Kami,</p>
-            <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+            <p className="font-bold">Hormat Kami</p>
             <div className="h-28" />
-            <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
-            <p>Relation Officer</p>
+            <p className="font-bold">{selectedRo?.nama || "Management Ruangkeruang"}</p>
           </div>
         </div>
       )}

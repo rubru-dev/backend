@@ -44,20 +44,27 @@ export async function downloadOfferPdf(selector: string, filename: string) {
   const margin = 19.05; // 0.75 inch
   const contentWidth = pageWidth - margin * 2;
   const contentHeight = pageHeight - margin * 2;
-  const imageRatio = canvas.height / canvas.width;
-  let imageWidth = contentWidth;
-  let imageHeight = contentWidth * imageRatio;
+  const pageSliceHeight = Math.floor(canvas.width * (contentHeight / contentWidth));
+  const pageCanvas = document.createElement("canvas");
+  const pageContext = pageCanvas.getContext("2d");
 
-  if (imageHeight > contentHeight) {
-    imageHeight = contentHeight;
-    imageWidth = contentHeight / imageRatio;
+  if (!pageContext) {
+    throw new Error("Gagal membuat canvas PDF.");
   }
 
-  const x = margin + (contentWidth - imageWidth) / 2;
-  const y = margin;
-  pdf.addImage(canvas.toDataURL("image/png"), "PNG", x, y, imageWidth, imageHeight, undefined, "FAST");
-  while (pdf.getNumberOfPages() > 1) {
-    pdf.deletePage(pdf.getNumberOfPages());
+  pageCanvas.width = canvas.width;
+
+  for (let sourceY = 0, pageIndex = 0; sourceY < canvas.height; sourceY += pageSliceHeight, pageIndex += 1) {
+    const sliceHeight = Math.min(pageSliceHeight, canvas.height - sourceY);
+    pageCanvas.height = sliceHeight;
+    pageContext.clearRect(0, 0, pageCanvas.width, pageCanvas.height);
+    pageContext.drawImage(canvas, 0, sourceY, canvas.width, sliceHeight, 0, 0, pageCanvas.width, sliceHeight);
+
+    if (pageIndex > 0) pdf.addPage();
+
+    const imageHeight = contentWidth * (sliceHeight / canvas.width);
+    pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", margin, margin, contentWidth, imageHeight, undefined, "FAST");
   }
+
   pdf.save(`${safeFileName(filename)}.pdf`);
 }

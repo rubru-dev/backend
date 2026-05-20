@@ -14,24 +14,101 @@ import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 
 const PACKAGES = {
   "Paket Desain Basic": {
-    timeline: "3 Hari",
+    timeline: "4 - 7 Hari",
     price: 2500000,
-    details: ["Layout 2D - 2 View", "Desain 3D - 1 View", "RAB"],
+    termin1: {
+      days: "4 Hari Kerja",
+      items: ["Desain 3D Eksterior/Fasad - 2 View", "Gambar Kerja 2D - Layout Eksisting", "Gambar Kerja 2D - Layout Perubahan"],
+    },
+    termin2: {
+      days: "3 Hari Kerja",
+      items: ["Gambar Interior 3D", "RAB (Rencana Anggaran Biaya)"],
+    },
   },
   "Paket Desain Standart": {
     timeline: "7 - 14 Hari",
     price: 6800000,
-    details: ["Layout 2D - 2 View", "Desain 3D - 7 View", "Gambar Kerja 2D - 11 View", "RAB"],
+    termin1: {
+      days: "7 Hari Kerja",
+      items: [
+        "Desain 3D Eksterior/Fasad - 2 View",
+        "Gambar Kerja 2D - Detail Fasad",
+        "Gambar Kerja 2D - Layout Struktur Pondasi",
+        "Gambar Kerja 2D - Layout Struktur Kolom",
+        "Gambar Kerja 2D - Layout Struktur Balokan",
+        "Gambar Kerja 2D - Layout Electrical (Lampu, Stop Kontak, Saklar)",
+        "Gambar Kerja 2D - Layout Plumbing (Air Bersih, Air Tinja dan Air Kotor)",
+        "Gambar Kerja 2D - Potongan Bujur (A-A)",
+        "Gambar Kerja 2D - Potongan Melintang (B-B)",
+      ],
+    },
+    termin2: {
+      days: "7 Hari Kerja",
+      items: ["Gambar Interior 3D - 7 View", "RAB (Rencana Anggaran Biaya)"],
+    },
   },
   "Paket Desain Premium": {
     timeline: "14 - 21 Hari",
     price: 8500000,
-    details: ["Layout 2D - 2 View", "Desain 3D - 16 View", "Gambar Kerja 2D - 21 View", "RAB"],
+    termin1: {
+      days: "10 Hari Kerja",
+      items: [
+        "Desain 3D Eksterior/Fasad - 3 View",
+        "Gambar Kerja 2D - Detail Fasad",
+        "Gambar Kerja 2D - Layout Struktur Pondasi",
+        "Gambar Kerja 2D - Layout Struktur Kolom",
+        "Gambar Kerja 2D - Layout Struktur Balokan",
+        "Gambar Kerja 2D - Layout Electrical (Lampu, Stop Kontak, Saklar)",
+        "Gambar Kerja 2D - Layout Plumbing (Air Bersih, Air Tinja dan Air Kotor)",
+        "Gambar Kerja 2D - Layout Pintu dan Jendela",
+        "Gambar Kerja 2D - Layout Finishing Plafond",
+        "Gambar Kerja 2D - Layout Finishing Lantai",
+        "Gambar Kerja 2D - Layout Finishing Dinding",
+        "Gambar Kerja 2D - Detail Struktur",
+        "Gambar Kerja 2D - Detail Pintu dan Jendela",
+        "Gambar Kerja 2D - Detail Finishing Plafond",
+        "Gambar Kerja 2D - Detail Finishing Lantai",
+        "Gambar Kerja 2D - Detail Arsitektur",
+        "Gambar Kerja 2D - Potongan Bujur (A-A)",
+        "Gambar Kerja 2D - Potongan Melintang (B-B)",
+      ],
+    },
+    termin2: {
+      days: "11 Hari Kerja",
+      items: ["Gambar Interior 3D - 13 View", "RAB (Rencana Anggaran Biaya)"],
+    },
   },
   "Paket Desain Deluxe": {
-    timeline: "18 - 26 Hari",
+    timeline: "21 - 28 Hari",
     price: 15800000,
-    details: ["Layout 2D - 2 View", "Desain 3D - 18 View", "Gambar Kerja 2D - 30 View", "RAB"],
+    termin1: {
+      days: "14 Hari Kerja",
+      items: [
+        "Desain 3D Eksterior/Fasad - 4 View",
+        "Gambar Kerja 2D - Detail Fasad",
+        "Gambar Kerja 2D - Layout Struktur Pondasi",
+        "Gambar Kerja 2D - Layout Struktur Kolom",
+        "Gambar Kerja 2D - Layout Struktur Balokan",
+        "Gambar Kerja 2D - Layout Sloof",
+        "Gambar Kerja 2D - Layout Electrical (Lampu, Stop Kontak, Saklar)",
+        "Gambar Kerja 2D - Layout Plumbing (Air Bersih, Air Tinja dan Air Kotor)",
+        "Gambar Kerja 2D - Layout Pintu dan Jendela",
+        "Gambar Kerja 2D - Layout Finishing Plafond",
+        "Gambar Kerja 2D - Layout Finishing Lantai",
+        "Gambar Kerja 2D - Layout Finishing Dinding",
+        "Gambar Kerja 2D - Detail Struktur",
+        "Gambar Kerja 2D - Detail Pintu dan Jendela",
+        "Gambar Kerja 2D - Detail Finishing Plafond",
+        "Gambar Kerja 2D - Detail Finishing Lantai",
+        "Gambar Kerja 2D - Detail Arsitektur",
+        "Gambar Kerja 2D - Potongan Bujur (A-A)",
+        "Gambar Kerja 2D - Potongan Melintang (B-B)",
+      ],
+    },
+    termin2: {
+      days: "14 Hari Kerja",
+      items: ["Gambar Interior 3D - 16 View", "RAB (Rencana Anggaran Biaya)"],
+    },
   },
 } as const;
 
@@ -45,6 +122,7 @@ type SavedOffer = {
   salutation: "Mr" | "Mrs";
   roId: string;
   tanggal: string;
+  luasTanah: string;
   paketName: keyof typeof PACKAGES;
   clientName: string;
   roName: string;
@@ -78,6 +156,22 @@ function formatDateFile(date: string) {
   return [day, month, year].filter(Boolean).join("-");
 }
 
+function terbilang(value: number) {
+  const satuan = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
+  const read = (n: number): string => {
+    if (n < 12) return satuan[n];
+    if (n < 20) return `${read(n - 10)} Belas`;
+    if (n < 100) return `${read(Math.floor(n / 10))} Puluh ${read(n % 10)}`.trim();
+    if (n < 200) return `Seratus ${read(n - 100)}`.trim();
+    if (n < 1000) return `${read(Math.floor(n / 100))} Ratus ${read(n % 100)}`.trim();
+    if (n < 2000) return `Seribu ${read(n - 1000)}`.trim();
+    if (n < 1000000) return `${read(Math.floor(n / 1000))} Ribu ${read(n % 1000)}`.trim();
+    if (n < 1000000000) return `${read(Math.floor(n / 1000000))} Juta ${read(n % 1000000)}`.trim();
+    return `${read(Math.floor(n / 1000000000))} Miliar ${read(n % 1000000000)}`.trim();
+  };
+  return `${read(value).replace(/\s+/g, " ")} Rupiah`;
+}
+
 export default function PenawaranDesainPage() {
   const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
   const [activeTab, setActiveTab] = useState("generate");
@@ -85,6 +179,7 @@ export default function PenawaranDesainPage() {
   const [salutation, setSalutation] = useState<"Mr" | "Mrs">("Mr");
   const [roId, setRoId] = useState("");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
+  const [luasTanah, setLuasTanah] = useState("");
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -131,7 +226,8 @@ export default function PenawaranDesainPage() {
   const namaAsli = client ? rawClientName(client) : "[Nama Client]";
   const name = client ? `${salutation} ${namaAsli}` : "Mr/Mrs [Nama Client]";
 
-  const detailRows = useMemo(() => pkg.details.map((d) => <li key={d}>{d}</li>), [pkg]);
+  const termin1Rows = useMemo(() => pkg.termin1.items.map((d) => <li key={d}>{d}</li>), [pkg]);
+  const termin2Rows = useMemo(() => pkg.termin2.items.map((d) => <li key={d}>{d}</li>), [pkg]);
 
   async function downloadPdf() {
     setShowPreview(true);
@@ -157,6 +253,7 @@ export default function PenawaranDesainPage() {
       salutation,
       roId,
       tanggal,
+      luasTanah,
       paketName,
       clientName: namaAsli,
       roName: selectedRo?.nama || "[Nama RO]",
@@ -171,6 +268,7 @@ export default function PenawaranDesainPage() {
     setSalutation(offer.salutation);
     setRoId(offer.roId);
     setTanggal(offer.tanggal);
+    setLuasTanah(offer.luasTanah ?? "");
     setPaketName(offer.paketName);
     setShowPreview(true);
     setActiveTab("generate");
@@ -222,7 +320,7 @@ export default function PenawaranDesainPage() {
           <TabsTrigger value="list">List Penawaran</TabsTrigger>
         </TabsList>
         <TabsContent value="generate" className="mt-4">
-      <div className="grid md:grid-cols-5 gap-3 rounded-lg border bg-white p-4">
+      <div className="grid md:grid-cols-6 gap-3 rounded-lg border bg-white p-4">
         <div>
           <Label>Salutation</Label>
           <Select value={salutation} onValueChange={(v) => setSalutation(v as "Mr" | "Mrs")}>
@@ -268,6 +366,16 @@ export default function PenawaranDesainPage() {
         <div>
           <Label>Tanggal/Bulan/Tahun</Label>
           <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+        </div>
+        <div>
+          <Label>Luas Tanah (Meter)</Label>
+          <Input
+            type="number"
+            min={0}
+            value={luasTanah}
+            onChange={(e) => setLuasTanah(e.target.value)}
+            placeholder="Contoh: 120"
+          />
         </div>
         <div>
           <Label>Nama RO</Label>
@@ -334,7 +442,7 @@ export default function PenawaranDesainPage() {
 
           <h2 className="mb-5 mt-0 text-center text-[10px] font-bold leading-none">PENAWARAN JASA DESAIN</h2>
           <p>Lampiran :</p>
-          <p className="ml-8 mb-5">Denah Eksisting dan Perubahan</p>
+          <p className="ml-8 mb-5">-</p>
 
           <div className="mb-5">
             <p>Kepada Yth.</p>
@@ -344,7 +452,7 @@ export default function PenawaranDesainPage() {
 
           <p>Dengan Hormat,</p>
           <p className="text-justify">
-            Berdasarkan hasil survey lokasi yang telah dilakukan oleh tim PT. Rubah Rumah Inovasi Pemuda dengan maksimal 1x Revisi, bersama ini kami menyampaikan penawaran jasa desain untuk kebutuhan Renovasi Rumah milik {name}.
+            Berdasarkan hasil konsultasi yang telah dilakukan oleh tim PT. Rubah Rumah Inovasi Pemuda pada {formatDateID(tanggal)}, bersama ini kami menyampaikan penawaran jasa desain untuk kebutuhan pembangunan Rumah Hunian dengan luas {luasTanah || "[Isi luas]"} meter milik {name}.
           </p>
           <p className="text-justify mt-3">
             Penawaran ini dibuat sebagai tahap awal perencanaan agar desain yang dihasilkan sesuai dengan kondisi lapangan, kebutuhan ruang, serta estimasi pekerjaan yang akan dilakukan.
@@ -356,6 +464,7 @@ export default function PenawaranDesainPage() {
               <tr>
                 <th className="border border-black p-2 text-left">Keterangan</th>
                 <th className="border border-black p-2 text-left">Estimasi Pengerjaan</th>
+                <th className="border border-black p-2 text-center">Luas Tanah (Meter)</th>
                 <th className="border border-black p-2 text-right">Nominal</th>
               </tr>
             </thead>
@@ -363,17 +472,32 @@ export default function PenawaranDesainPage() {
               <tr>
                 <td className="border border-black p-2">Jasa Desain {paketName}</td>
                 <td className="border border-black p-2">{pkg.timeline}</td>
+                <td className="border border-black p-2 text-center">{luasTanah || "[Isi]"}</td>
                 <td className="border border-black p-2 text-right">{IDR(pkg.price)}</td>
               </tr>
               <tr>
-                <td className="border border-black p-2 font-bold" colSpan={2}>Total</td>
+                <td className="border border-black p-2 font-bold" colSpan={3}>Total Harga</td>
                 <td className="border border-black p-2 text-right font-bold">{IDR(pkg.price)}</td>
+              </tr>
+              <tr>
+                <td className="border border-black p-2 font-bold" colSpan={4}>Terbilang : {terbilang(pkg.price)}</td>
               </tr>
             </tbody>
           </table>
 
           <p>Keterangan Paket Desain {paketName} :</p>
-          <ul className="ml-8 list-disc">{detailRows}</ul>
+          <p className="mt-2 font-bold">Lingkup Pekerjaan :</p>
+          <p className="mt-2 font-bold">Termin 1 (50%) - {pkg.termin1.days} :</p>
+          <ul className="ml-8 list-disc">{termin1Rows}</ul>
+          <p className="mt-2 font-bold">Termin 2 (Pelunasan 50%) - {pkg.termin2.days} :</p>
+          <ul className="ml-8 list-disc">{termin2Rows}</ul>
+
+          <p className="mt-3 font-bold">Syarat dan Ketentuan :</p>
+          <ol className="ml-7 list-decimal">
+            <li>Pada Termin 1 dan Termin 2 revisi bersifat major maksimal 3x.</li>
+            <li>Waktu desain bisa bertambah tergantung dari berapa lama umpan balik dari klien untuk revisi di tiap fase termin.</li>
+            <li>Timeline desain berlaku sejak client melakukan pembayaran DP 50%.</li>
+          </ol>
 
           <p className="text-justify">
             Demikian form penawaran ini kami sampaikan. Besar harapan kami dapat membantu {name} dalam mewujudkan desain hunian yang nyaman, fungsional, dan sesuai kebutuhan.
@@ -382,11 +506,9 @@ export default function PenawaranDesainPage() {
           <p className="text-right">Bekasi, {formatDateID(tanggal)}</p>
 
           <div className="mt-6 ml-auto w-[260px] text-left">
-            <p className="font-bold">Hormat Kami,</p>
             <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
             <div className="h-28" />
-            <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
-            <p>Relation Officer</p>
+            <p className="font-bold">{selectedRo?.nama || "Manajemen Rubah Rumah"}</p>
           </div>
         </div>
       )}
