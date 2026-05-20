@@ -228,10 +228,10 @@ export default function PenawaranGoldenPage() {
     <div className="p-6 space-y-5">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 7mm 14mm 10mm; }
+          @page { size: A4 portrait; margin: 0; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 3mm 8mm 6mm !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 0.5cm !important; }
           .offer-header { margin-bottom: 12px !important; padding-bottom: 8px !important; }
           .offer-page table, .offer-page tr, .offer-page p, .offer-page ol { break-inside: avoid; page-break-inside: avoid; }
           .page-break { break-before: page; page-break-before: always; }
@@ -384,9 +384,9 @@ export default function PenawaranGoldenPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] border bg-white px-8 pb-6 pt-3 shadow-sm text-[10px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] border bg-white p-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
           <Letterhead />
-          <h2 className="mb-2 text-center text-[10px] font-bold">Penawaran Jasa Anti Rayap</h2>
+          <h2 className="mb-2 text-center text-[12px] font-bold">Penawaran Jasa Anti Rayap</h2>
           <p>Nomor : {nomorSurat || "RB-GL/[Nomor]/[Tanggal]/[Bulan]/[Tahun]"}</p>
           <p>Lampiran:</p>
           <p className="ml-8 mb-5">- Laporan Hasil Survey</p>
@@ -402,7 +402,7 @@ export default function PenawaranGoldenPage() {
             Melalui surat ini, kami Rubrupest by Golden (PT. RUBAH RUMAH INOVASI PEMUDA) telah melakukan serangkaian survey (laporan hasil survey terlampir) bermaksud untuk menawarkan pekerjaan pengendalian hama sebagai berikut:
           </p>
 
-          <table className="my-4 w-full border-collapse text-[10px]">
+          <table className="my-4 w-full border-collapse text-[12px]">
             <tbody>
               <TemplateRow label="Cakupan Area">
                 <ol className="ml-5 list-decimal">{areaRows.map((row, i) => <li key={i}>{row || "[Isi manual]"}</li>)}</ol>
@@ -434,6 +434,9 @@ export default function PenawaranGoldenPage() {
 
             <p className="mt-8 text-right">{lokasiSurat || "[Nama Lokasi]"}, {formatDateID(tanggal) || "[Tanggal/Bulan/Tahun]"}</p>
             <div className="mt-8 ml-auto w-[260px] text-left">
+              <div className="mb-3 flex h-12 w-24 items-center">
+                <img src="/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" className="max-h-12 max-w-24 object-contain" />
+              </div>
               <p className="font-bold">Hormat Kami,</p>
               <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
               <div className="h-28" />
@@ -449,16 +452,16 @@ export default function PenawaranGoldenPage() {
 
 function Letterhead() {
   return (
-    <div className="offer-header mb-6 border-b-2 border-black pb-4 text-[10px]">
+    <div className="offer-header mb-6 border-b-2 border-black pb-4 text-[12px]">
       <div className="flex items-center gap-4">
         <div className="flex h-36 w-44 shrink-0 items-center justify-center">
           <img src="/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" className="max-h-36 max-w-44 object-contain" />
         </div>
         <div>
-          <p className="text-[10px] font-bold leading-tight">PT. RUBAH RUMAH INOVASI PEMUDA</p>
-          <p className="mt-2 text-[10px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
-          <p className="text-[10px] leading-5">Telp : +62 813 - 7640 - 5550</p>
-          <p className="text-[10px] leading-5">Website : rubahrumah.com</p>
+          <p className="text-[12px] font-bold leading-tight">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+          <p className="mt-2 text-[12px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
+          <p className="text-[12px] leading-5">Telp : +62 813 - 7640 - 5550</p>
+          <p className="text-[12px] leading-5">Website : rubahrumah.com</p>
         </div>
       </div>
     </div>

@@ -292,10 +292,10 @@ export default function PenawaranDesainPage() {
     <div className="p-6 space-y-5">
       <style jsx global>{`
         @media print {
-          @page { size: A4 portrait; margin: 0.75in; }
+          @page { size: A4 portrait; margin: 0; }
           aside, header, .print\\:hidden { display: none !important; }
           body { background: #fff !important; }
-          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 0 !important; }
+          .offer-page { box-shadow: none !important; border: 0 !important; margin: 0 !important; width: 100% !important; min-height: auto !important; overflow: visible !important; page-break-inside: auto !important; padding: 0.5cm !important; }
           .offer-header { margin-bottom: 0 !important; padding-bottom: 8px !important; }
           .offer-page table, .offer-page tr, .offer-page p, .offer-page ul { break-inside: avoid; page-break-inside: avoid; }
         }
@@ -425,22 +425,22 @@ export default function PenawaranDesainPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white px-8 pb-6 pt-3 shadow-sm text-[10px] leading-5 text-black">
-          <div className="offer-header mb-0 border-b-2 border-black pb-4 text-[10px]">
+        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
+          <div className="offer-header mb-0 border-b-2 border-black pb-4 text-[12px]">
             <div className="flex items-center gap-4">
               <div className="flex h-36 w-44 shrink-0 items-center justify-center">
                 <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-36 max-w-44 object-contain" />
               </div>
               <div>
-                <p className="text-[10px] font-bold leading-tight">PT. RUBAH RUMAH INOVASI PEMUDA</p>
-                <p className="mt-2 text-[10px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
-                <p className="text-[10px] leading-5">Telp: +62 813-7640-5550</p>
-                <p className="text-[10px] leading-5">Website: rubahrumah.com</p>
+                <p className="text-[12px] font-bold leading-tight">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+                <p className="mt-2 text-[12px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
+                <p className="text-[12px] leading-5">Telp: +62 813-7640-5550</p>
+                <p className="text-[12px] leading-5">Website: rubahrumah.com</p>
               </div>
             </div>
           </div>
 
-          <h2 className="mb-5 mt-0 text-center text-[10px] font-bold leading-none">PENAWARAN JASA DESAIN</h2>
+          <h2 className="mb-5 mt-0 text-center text-[12px] font-bold leading-none">PENAWARAN JASA DESAIN</h2>
           <p>Lampiran :</p>
           <p className="ml-8 mb-5">-</p>
 
@@ -459,7 +459,7 @@ export default function PenawaranDesainPage() {
           </p>
           <p className="mt-3">Adapun rincian penawaran jasa desain adalah sebagai berikut:</p>
 
-          <table className="my-4 w-full border-collapse text-[10px]">
+          <table className="my-4 w-full border-collapse text-[12px]">
             <thead>
               <tr>
                 <th className="border border-black p-2 text-left">Keterangan</th>
@@ -506,12 +506,18 @@ export default function PenawaranDesainPage() {
           <p className="text-right">Bekasi, {formatDateID(tanggal)}</p>
 
           <div className="mt-6 ml-auto w-[260px] text-left">
+            <div className="mb-3 flex h-12 w-24 items-center">
+              <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-12 max-w-24 object-contain" />
+            </div>
+            <p className="font-bold">Hormat Kami,</p>
             <p className="font-bold">PT. RUBAH RUMAH INOVASI PEMUDA</p>
             <div className="h-28" />
-            <p className="font-bold">{selectedRo?.nama || "Manajemen Rubah Rumah"}</p>
+            <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
+            <p>Relation Officer</p>
           </div>
         </div>
       )}
     </div>
   );
 }
+

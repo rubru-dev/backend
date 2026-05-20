@@ -31,9 +31,10 @@ export async function downloadOfferPdf(selector: string, filename: string) {
     import("jspdf"),
   ]);
 
+  const renderScale = Math.min(4, Math.max(3, (window.devicePixelRatio || 1) * 2));
   const canvas = await html2canvas(element, {
     backgroundColor: "#ffffff",
-    scale: Math.min(2, window.devicePixelRatio || 1.5),
+    scale: renderScale,
     useCORS: true,
     logging: false,
   });
@@ -41,7 +42,7 @@ export async function downloadOfferPdf(selector: string, filename: string) {
   const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
   const pageWidth = 210;
   const pageHeight = 297;
-  const margin = 19.05; // 0.75 inch
+  const margin = 0;
   const contentWidth = pageWidth - margin * 2;
   const contentHeight = pageHeight - margin * 2;
   const pageSliceHeight = Math.floor(canvas.width * (contentHeight / contentWidth));
@@ -63,7 +64,7 @@ export async function downloadOfferPdf(selector: string, filename: string) {
     if (pageIndex > 0) pdf.addPage();
 
     const imageHeight = contentWidth * (sliceHeight / canvas.width);
-    pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", margin, margin, contentWidth, imageHeight, undefined, "FAST");
+    pdf.addImage(pageCanvas.toDataURL("image/png"), "PNG", margin, margin, contentWidth, imageHeight, undefined, "SLOW");
   }
 
   pdf.save(`${safeFileName(filename)}.pdf`);
