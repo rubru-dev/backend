@@ -28,6 +28,7 @@ const METODE_OPTIONS = [
   "Injection dan Spraying",
   "Baiting",
 ];
+const TREATMENT_OPTIONS = ["Pra-Konstruksi", "Pasca-Konstruksi"];
 const STORAGE_KEY = "rubahrumah.penawaran.golden";
 
 type SavedOffer = {
@@ -42,6 +43,7 @@ type SavedOffer = {
   cakupanArea: string;
   selectedHama: string[];
   selectedMetode: string[];
+  jenisTreatment: string;
   jumlahUnit: string;
   biaya: string;
   jumlahVisit: string;
@@ -102,6 +104,7 @@ export default function PenawaranGoldenPage() {
   const [cakupanArea, setCakupanArea] = useState("");
   const [selectedHama, setSelectedHama] = useState<string[]>(["Rayap Tanah (Rhinotermitidae)"]);
   const [selectedMetode, setSelectedMetode] = useState<string[]>(["Injection dan Spraying"]);
+  const [jenisTreatment, setJenisTreatment] = useState("Pra-Konstruksi");
   const [jumlahUnit, setJumlahUnit] = useState("");
   const [biaya, setBiaya] = useState("");
   const [jumlahVisit, setJumlahVisit] = useState("");
@@ -179,6 +182,7 @@ export default function PenawaranGoldenPage() {
       cakupanArea,
       selectedHama,
       selectedMetode,
+      jenisTreatment,
       jumlahUnit,
       biaya,
       jumlahVisit,
@@ -201,6 +205,7 @@ export default function PenawaranGoldenPage() {
     setCakupanArea(offer.cakupanArea);
     setSelectedHama(offer.selectedHama);
     setSelectedMetode(offer.selectedMetode.filter((item) => METODE_OPTIONS.includes(item)));
+    setJenisTreatment(offer.jenisTreatment || "Pra-Konstruksi");
     setJumlahUnit(offer.jumlahUnit);
     setBiaya(offer.biaya);
     setJumlahVisit(offer.jumlahVisit);
@@ -313,7 +318,16 @@ export default function PenawaranGoldenPage() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-4 gap-3">
+        <div className="grid md:grid-cols-5 gap-3">
+          <div>
+            <Label>Jenis Treatment</Label>
+            <Select value={jenisTreatment} onValueChange={setJenisTreatment}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {TREATMENT_OPTIONS.map((item) => <SelectItem key={item} value={item}>{item}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           <div><Label>Jumlah Unit</Label><Input value={jumlahUnit} onChange={(e) => setJumlahUnit(e.target.value)} placeholder="Isi manual" /></div>
           <div><Label>Biaya</Label><Input value={biaya} onChange={(e) => setBiaya(e.target.value)} placeholder="Contoh: 2500000" /></div>
           <div><Label>Jumlah Visit</Label><Input value={jumlahVisit} onChange={(e) => setJumlahVisit(e.target.value)} placeholder="Isi manual" /></div>
@@ -413,6 +427,7 @@ export default function PenawaranGoldenPage() {
               <TemplateRow label="Metode Pekerjaan">
                 <ol className="ml-5 list-decimal">{(selectedMetode.length ? selectedMetode : METODE_OPTIONS).map((row) => <li key={row}>{row}</li>)}</ol>
               </TemplateRow>
+              <TemplateRow label="Jenis Treatment">{jenisTreatment}</TemplateRow>
               <TemplateRow label="Jumlah Unit">{jumlahUnit || "[Isi manual]"}</TemplateRow>
               <TemplateRow label="Biaya">{formatMoney(biaya)}</TemplateRow>
               <TemplateRow label="Jumlah Visit">{jumlahVisit || "[Isi manual]"}</TemplateRow>
