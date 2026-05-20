@@ -314,7 +314,7 @@ export default function PenawaranDesainPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm text-[12px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm text-[10px] leading-5 text-black">
           <div className="offer-header mb-8 border-b-2 border-black pb-4 text-[10px]">
             <div className="flex items-center gap-4">
               <img src="/images/logo.png" alt="Rubah Rumah" className="h-36 w-44 object-contain" />
@@ -327,7 +327,7 @@ export default function PenawaranDesainPage() {
             </div>
           </div>
 
-          <h2 className="text-center font-bold text-[12px] mb-5">FORM PENAWARAN JASA DESAIN</h2>
+          <h2 className="text-center font-bold text-[10px] mb-5">FORM PENAWARAN JASA DESAIN</h2>
           <p>Lampiran :</p>
           <p className="ml-8 mb-5">Denah Eksisting dan Perubahan</p>
 
@@ -346,7 +346,7 @@ export default function PenawaranDesainPage() {
           </p>
           <p className="mt-3">Adapun rincian penawaran jasa desain adalah sebagai berikut:</p>
 
-          <table className="my-4 w-full border-collapse text-[12px]">
+          <table className="my-4 w-full border-collapse text-[10px]">
             <thead>
               <tr>
                 <th className="border border-black p-2 text-left">Keterangan</th>
@@ -383,7 +383,7 @@ export default function PenawaranDesainPage() {
             <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
             <p>Relation Officer</p>
           </div>
-          <div className="mt-10 border-t pt-2 text-center text-[12px]">
+          <div className="mt-10 border-t pt-2 text-center text-[10px]">
             PT. Rubah Rumah Inovasi Pemuda
           </div>
         </div>

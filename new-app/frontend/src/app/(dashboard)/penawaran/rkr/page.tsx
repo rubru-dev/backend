@@ -318,9 +318,9 @@ export default function PenawaranRkrPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm text-[12px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white p-10 shadow-sm text-[10px] leading-5 text-black">
           <Letterhead />
-          <h2 className="mb-8 text-center text-[12px] font-bold">Penawaran {jenisPenawaran} Ruangkeruang</h2>
+          <h2 className="mb-8 text-center text-[10px] font-bold">Penawaran {jenisPenawaran} Ruangkeruang</h2>
 
           <div className="mb-5">
             <p>Kepada Yth.</p>
@@ -333,7 +333,7 @@ export default function PenawaranRkrPage() {
             Bersama surat ini kami Ruangkeruang by PT. RUBAH RUMAH INOVASI PEMUDA mengajukan penawaran jasa {jenisPenawaran.toLowerCase()} kepada {name} dengan rincian sebagai berikut :
           </p>
 
-          <table className="my-5 w-full border-collapse text-[12px]">
+          <table className="my-5 w-full border-collapse text-[10px]">
             <thead>
               <tr>
                 <th className="w-10 border border-black p-2 text-center">No</th>

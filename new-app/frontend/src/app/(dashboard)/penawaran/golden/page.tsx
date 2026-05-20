@@ -381,9 +381,9 @@ export default function PenawaranGoldenPage() {
       </Tabs>
 
       {showPreview && (
-        <div className="offer-page mx-auto max-w-[794px] border bg-white p-10 shadow-sm text-[12px] leading-5 text-black">
+        <div className="offer-page mx-auto max-w-[794px] border bg-white p-10 shadow-sm text-[10px] leading-5 text-black">
           <Letterhead />
-          <h2 className="mb-2 text-center text-[12px] font-bold">Penawaran Jasa Anti Rayap</h2>
+          <h2 className="mb-2 text-center text-[10px] font-bold">Penawaran Jasa Anti Rayap</h2>
           <p>Nomor : {nomorSurat || "RB-GL/[Nomor]/[Tanggal]/[Bulan]/[Tahun]"}</p>
           <p>Lampiran:</p>
           <p className="ml-8 mb-5">- Laporan Hasil Survey</p>
@@ -399,7 +399,7 @@ export default function PenawaranGoldenPage() {
             Melalui surat ini, kami Rubrupest by Golden (PT. RUBAH RUMAH INOVASI PEMUDA) telah melakukan serangkaian survey (laporan hasil survey terlampir) bermaksud untuk menawarkan pekerjaan pengendalian hama sebagai berikut:
           </p>
 
-          <table className="my-4 w-full border-collapse text-[12px]">
+          <table className="my-4 w-full border-collapse text-[10px]">
             <tbody>
               <TemplateRow label="Cakupan Area">
                 <ol className="ml-5 list-decimal">{areaRows.map((row, i) => <li key={i}>{row || "[Isi manual]"}</li>)}</ol>
