@@ -561,7 +561,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       : `${MONTH_NAMES_ID[bulan - 1]} ${tahun}`;
     const picLabel = pics?.length ? ` - PIC: ${pics.join(", ")}` : "";
     const today = new Date();
-    const printedAt = today.toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric" });
+    const printedAt = today.toLocaleDateString("id-ID", { year: "numeric", month: "long", day: "numeric" });
     const fallbackItems = filtered.length ? filtered : [{
       nama: "",
       tanggal_survey: "",
@@ -611,7 +611,6 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
               </tbody>
             </table>
             <h2>2. Area yang Disurvey</h2>
-            <p>Area yang menjadi cakupan survey meliputi (isi bebas lebih dari satu):</p>
             <table><thead><tr><th>No</th><th>Area</th><th>Keterangan</th></tr></thead><tbody>${areaRowsHtml}</tbody></table>
           </div>
 
@@ -650,22 +649,26 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
 <html lang="id"><head><meta charset="UTF-8"/><title>Laporan Survey Golden - ${periodeLabel}${picLabel}</title>
 <style>
   * { box-sizing:border-box; }
-  body { margin:0; background:#fff; color:#111827; font-family:'Times New Roman',serif; font-size:12px; line-height:1.5; }
-  .page { min-height:1122px; padding:42px 52px; page-break-after:always; break-after:page; }
+  body { margin:0; background:#fff; color:#111827; font-family:Arial,Helvetica,sans-serif; font-size:12px; line-height:1.5; }
+  .page { min-height:1122px; padding:38px 50px 44px; page-break-after:always; break-after:page; position:relative; overflow:hidden; }
+  .page::before { content:""; position:absolute; left:0; top:0; width:100%; height:8px; background:#d8a21b; }
   .page:last-child { page-break-after:auto; break-after:auto; }
-  .letterhead { display:flex; gap:14px; align-items:flex-start; border-bottom:2px solid #111827; padding-bottom:12px; margin-bottom:18px; font-family:Arial,sans-serif; }
-  .letterhead img { width:58px; height:58px; object-fit:contain; }
-  .company { font-weight:700; font-size:15px; margin-bottom:4px; }
-  .company-detail { font-size:11px; line-height:1.45; }
-  h1 { text-align:center; font-size:18px; margin:10px 0 4px; }
-  h2 { font-size:14px; margin:16px 0 8px; }
-  h3 { font-size:13px; margin:12px 0 6px; }
-  .number { margin:0 0 12px; }
+  .letterhead { display:flex; gap:18px; align-items:center; border-bottom:2px solid #111827; padding:0 0 14px; margin-bottom:18px; }
+  .letterhead img { width:96px; height:78px; object-fit:contain; flex:0 0 auto; }
+  .letterhead-text { display:flex; min-height:78px; flex-direction:column; justify-content:center; }
+  .company { font-weight:800; font-size:17px; margin-bottom:5px; letter-spacing:.2px; text-transform:uppercase; }
+  .company-detail { font-size:11px; line-height:1.45; color:#374151; }
+  h1 { text-align:center; font-size:19px; line-height:1.25; margin:10px 0 5px; padding:10px 14px; border:1px solid #111827; border-left:8px solid #d8a21b; background:#fff8e1; text-transform:uppercase; }
+  h2 { font-size:13px; margin:16px 0 8px; padding:6px 9px; border-left:5px solid #d8a21b; background:#f8fafc; color:#111827; }
+  h3 { font-size:12px; margin:12px 0 6px; color:#111827; }
+  .number { margin:0 0 14px; text-align:center; font-weight:700; }
   table { width:100%; border-collapse:collapse; margin:6px 0 12px; }
   th, td { border:1px solid #111827; padding:6px 8px; vertical-align:top; min-height:26px; }
-  th { font-weight:700; text-align:left; background:#f8fafc; }
-  .doc-grid { display:flex; flex-wrap:wrap; gap:6px; }
-  .doc-img { width:145px; height:105px; object-fit:cover; border:1px solid #d1d5db; display:block; }
+  th { font-weight:700; text-align:left; background:#111827; color:#fff; }
+  tr:nth-child(even) td { background:#fcfcfd; }
+  .doc-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; }
+  .doc-img { width:190px; max-width:100%; height:auto; max-height:150px; object-fit:contain; border:1px solid #d1d5db; display:block; background:#fff; padding:3px; }
+  .doc-grid, .doc-img, tr, table { break-inside:avoid; page-break-inside:avoid; }
   .muted { color:#6b7280; font-style:italic; }
   .signature-block { width:230px; margin:20px 0 0 auto; text-align:left; }
   .signature-place { margin:0 0 10px; }
@@ -696,7 +699,7 @@ ${sections}
     return `
       <div class="letterhead">
         <img src="${window.location.origin}/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" onerror="this.style.display='none'"/>
-        <div>
+        <div class="letterhead-text">
           <div class="company">PT. Rubah Rumah Inovasi Pemuda</div>
           <div class="company-detail">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</div>
           <div class="company-detail">Telp : +62 813 - 7640 - 5550</div>
