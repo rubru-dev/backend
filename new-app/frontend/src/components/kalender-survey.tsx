@@ -896,6 +896,69 @@ ${sections}
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
+  if (useGoldenSurveyReportTemplate && listDetailItem) {
+    return (
+      <div className="space-y-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h1 className="text-2xl font-bold">Detail Survey Golden</h1>
+            <p className="text-sm text-muted-foreground">{listDetailItem.nama} - Laporan hasil survey Rubru Pest</p>
+          </div>
+          <Button variant="outline" onClick={closeListDetail}>Kembali</Button>
+        </div>
+        <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5 text-sm">
+          <div className="flex items-center justify-between"><span className="text-muted-foreground">Status</span><span>{statusBadge(listDetailItem.survey_approval_status)}</span></div>
+          {listDetailItem.tanggal_survey && <div className="flex items-center justify-between"><span className="text-muted-foreground">Tanggal Survey</span><span className="font-medium">{formatDate(String(listDetailItem.tanggal_survey).split("T")[0])}</span></div>}
+          {listDetailItem.jam_survey && <div className="flex items-center justify-between"><span className="text-muted-foreground">Jam</span><span className="font-medium">{listDetailItem.jam_survey}</span></div>}
+          {listDetailItem.pic_survey && <div className="flex items-center justify-between"><span className="text-muted-foreground">PIC</span><span className="font-medium">{listDetailItem.pic_survey}</span></div>}
+          {listDetailItem.alamat && <div className="flex items-start justify-between gap-4"><span className="text-muted-foreground shrink-0">Alamat</span><span className="font-medium text-right">{listDetailItem.alamat}</span></div>}
+        </div>
+        <GoldenSurveyReportFields
+          form={goldenReportForm}
+          disabled={listDetailItem.survey_approval_status === "approved"}
+          updateField={updateGoldenReport}
+          updateRow={updateGoldenReportRow}
+          addRow={addGoldenReportRow}
+          removeRow={removeGoldenReportRow}
+          onPhotoChange={handleGoldenReportPhotoChange}
+          onPreviewPhoto={setLightboxSrc}
+          photoProcessing={listFotoProcessing}
+          canAssignSignature={canApprove}
+        />
+        {listDetailItem.survey_approval_status !== "approved" && (
+          <div className="flex gap-2 justify-end">
+            {canApprove ? (
+              <>
+                <Button variant="outline" className="border-red-300 text-red-600 hover:bg-red-50" disabled={rejectMut.isPending || approveMut.isPending} onClick={() => setRejectId(listDetailItem.id)}>
+                  <XCircle className="h-4 w-4 mr-1.5" /> Tolak Survey
+                </Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  disabled={approveMut.isPending || goldenReportPhotos().length === 0}
+                  onClick={() => approveMut.mutate({ id: listDetailItem.id, foto_survey: goldenReportPhotos(), ...listDetailPayload() })}
+                >
+                  <CheckCircle className="h-4 w-4 mr-1.5" /> {approveMut.isPending ? "Menyimpan..." : "Setujui Survey"}
+                </Button>
+              </>
+            ) : currentUserName === listDetailItem.pic_survey ? (
+              <Button
+                disabled={goldenReportPhotos().length === 0 || buktimut.isPending || listFotoProcessing}
+                onClick={() => buktimut.mutate({ id: listDetailItem.id, foto_survey: goldenReportPhotos(), ...listDetailPayload() })}
+              >
+                <Upload className="h-4 w-4 mr-1.5" /> {buktimut.isPending ? "Menyimpan..." : "Simpan Bukti Survey"}
+              </Button>
+            ) : null}
+          </div>
+        )}
+        {lightboxSrc && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setLightboxSrc(null)}>
+            <img src={lightboxSrc} alt="foto" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 

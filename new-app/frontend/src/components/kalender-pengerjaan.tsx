@@ -118,6 +118,12 @@ function parseFotos(raw: string | null | undefined): string[] {
   } catch { return [raw]; }
 }
 
+function hasPengerjaanPayload(raw: string | null | undefined) {
+  if (!raw) return false;
+  const value = String(raw).trim();
+  return value.length > 2 && value !== "[]";
+}
+
 type AfterReport = {
   technician: string;
   luas_bangunan: string;
@@ -223,6 +229,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 
   // Lightbox
   const [viewFoto, setViewFoto] = useState<string | null>(null);
+  const [detailMode, setDetailMode] = useState<"approve" | "bukti" | null>(null);
 
   // Fetch all approved-survey leads
   const { data, isLoading } = useQuery({
@@ -275,6 +282,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       setApproveItem(null);
       setApproveFotos([]);
       setApproveReport(defaultAfterReport());
+      setDetailMode(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal approve pengerjaan"),
   });
@@ -288,6 +296,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       setBuktiFotoItem(null);
       setBuktiFotos([]);
       setBuktiReport(defaultAfterReport());
+      setDetailMode(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan foto"),
   });
@@ -403,6 +412,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     setApproveItem(item);
     setApproveReport(report);
     setApproveFotos(report.dokumentasi.map((row) => row.src).filter(Boolean));
+    setDetailMode("approve");
   }
 
   function openBuktiDialog(item: any) {
@@ -410,6 +420,17 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     setBuktiFotoItem(item);
     setBuktiReport(report);
     setBuktiFotos(report.dokumentasi.map((row) => row.src).filter(Boolean));
+    setDetailMode("bukti");
+  }
+
+  function closeAfterDetail() {
+    setDetailMode(null);
+    setApproveItem(null);
+    setApproveFotos([]);
+    setApproveReport(defaultAfterReport());
+    setBuktiFotoItem(null);
+    setBuktiFotos([]);
+    setBuktiReport(defaultAfterReport());
   }
 
   function syncReportPhotos(report: AfterReport, fotos: string[]) {
@@ -610,6 +631,88 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 
   // ── render ───────────────────────────────────────────────────────────────────
 
+  if (detailMode && (approveItem || buktiFotoItem)) {
+    const activeItem = detailMode === "approve" ? approveItem : buktiFotoItem;
+    const activeReport = detailMode === "approve" ? approveReport : buktiReport;
+    const setActiveReport = detailMode === "approve" ? setApproveReport : setBuktiReport;
+    const activeFotos = detailMode === "approve" ? approveFotos : buktiFotos;
+    const setActiveFotos = detailMode === "approve" ? setApproveFotos : setBuktiFotos;
+    const processing = detailMode === "approve" ? approveProcessing : buktiProcessing;
+    const inputRef = detailMode === "approve" ? fotoInputRef : buktiFotoRef;
+    const handleChange = detailMode === "approve" ? handleFotoChange : handleBuktiFotoChange;
+    const pending = detailMode === "approve" ? approveMut.isPending : buktimut.isPending;
+    return (
+      <div className="space-y-5">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="text-2xl font-bold">Detail After Pengerjaan</h2>
+            <p className="text-sm text-muted-foreground">{activeItem?.nama} - Rubru Pest service report</p>
+          </div>
+          <Button variant="outline" onClick={closeAfterDetail}>Kembali</Button>
+        </div>
+        <Card>
+          <CardContent className="space-y-4 pt-4">
+            <div className="rounded-lg bg-muted/40 px-3 py-2 text-sm">
+              <p className="font-semibold">{activeItem?.nama}</p>
+              {activeItem?.tanggal_pengerjaan && <p className="text-xs text-amber-700 font-medium mt-0.5"><Hammer className="h-3 w-3 inline mr-1" />{fmtDate(activeItem.tanggal_pengerjaan)}</p>}
+              {activeItem?.alamat && <p className="text-xs text-muted-foreground">{activeItem.alamat}</p>}
+              {activeItem?.luasan_tanah && <p className="text-xs text-blue-700 mt-0.5">{activeItem.luasan_tanah} m2</p>}
+            </div>
+            <AfterReportFields report={activeReport} setReport={setActiveReport} canAssignSignature={detailMode === "approve" && canApprove} />
+            <div className="space-y-2">
+              <Label>Dokumentasi After Pengerjaan</Label>
+              {activeFotos.length > 0 && (
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {activeFotos.map((f, idx) => (
+                    <div key={idx} className="relative group aspect-[4/3] overflow-hidden rounded-lg border bg-muted/20">
+                      <img src={f} alt={`foto-${idx}`} className="h-full w-full object-cover" onClick={() => setViewFoto(f)} />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setActiveFotos((prev) => prev.filter((_, i) => i !== idx));
+                          setActiveReport((prev) => ({ ...prev, dokumentasi: prev.dokumentasi.filter((_, i) => i !== idx) }));
+                        }}
+                        className="absolute right-1 top-1 rounded-full bg-red-500 p-0.5 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {processing && <div className="flex items-center gap-1.5 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" /> Menambahkan timestamp...</div>}
+              <div className="rounded-lg border-2 border-dashed p-4 text-center cursor-pointer hover:border-amber-400 transition-colors" onClick={() => inputRef.current?.click()}>
+                <ImageIcon className="mx-auto mb-1 h-7 w-7 text-gray-300" />
+                <p className="text-xs text-gray-400">Klik untuk tambah foto dokumentasi</p>
+              </div>
+              <input ref={inputRef} type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={handleChange} />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={closeAfterDetail}>Batal</Button>
+              <Button
+                className={detailMode === "approve" ? "bg-blue-600 hover:bg-blue-700 text-white" : "bg-amber-500 hover:bg-amber-600 text-white"}
+                disabled={activeFotos.length === 0 || pending || processing}
+                onClick={() => {
+                  if (!activeItem) return;
+                  const report = syncReportPhotos(activeReport, activeFotos);
+                  if (detailMode === "approve") approveMut.mutate({ id: activeItem.id, report });
+                  else buktimut.mutate({ id: activeItem.id, report });
+                }}
+              >
+                {pending ? "Menyimpan..." : detailMode === "approve" ? "Konfirmasi Selesai" : "Simpan Detail"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+        {viewFoto && (
+          <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center" onClick={() => setViewFoto(null)}>
+            <img src={viewFoto} alt="foto" className="max-w-[90vw] max-h-[90vh] object-contain rounded-lg" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
 
@@ -692,7 +795,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                     const tglPengerjaan = item.tanggal_pengerjaan
                       ? new Date(String(item.tanggal_pengerjaan).split("T")[0] + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
                       : null;
-                    const fotos = parseFotos(item.foto_pengerjaan);
+                    const hasDetail = hasPengerjaanPayload(item.foto_pengerjaan);
                     return (
                       <div key={item.id} className="flex items-start gap-3 py-3 px-2 -mx-2 rounded-lg hover:bg-muted/30 transition-colors">
                         <div className="text-xs text-muted-foreground w-6 shrink-0 mt-1 font-mono">{i + 1}</div>
@@ -741,16 +844,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                           {item.catatan_survey && (
                             <p className="text-xs text-muted-foreground mt-0.5 italic">"{item.catatan_survey}"</p>
                           )}
-                          {fotos.length > 0 && (
-                            <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                              {fotos.map((f: string, fi: number) => (
-                                <button key={fi} onClick={() => setViewFoto(f)}>
-                                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                                  <img src={f} alt="foto" className="w-12 h-10 object-cover rounded border hover:opacity-80 transition-opacity" />
-                                </button>
-                              ))}
-                            </div>
-                          )}
+                          {hasDetail && <p className="mt-1.5 text-xs text-blue-700 font-medium">Dokumentasi/detail tersimpan</p>}
                         </div>
                         {!isSelesai && (
                           <div className="flex flex-col gap-1 shrink-0">
@@ -786,7 +880,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                             ) : null}
                           </div>
                         )}
-                        {isSelesai && fotos.length > 0 && (
+                        {isSelesai && hasDetail && (
                           <Button size="sm" variant="outline" className="h-7 text-xs px-2 shrink-0" onClick={() => handleDownloadDetailPdf(item)}>
                             <FileDown className="h-3 w-3 mr-1" /> PDF Detail
                           </Button>
@@ -1007,7 +1101,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
             </CardHeader>
             <CardContent className="pt-0 space-y-2 max-h-64 overflow-y-auto">
               {selesai.map((item: any) => {
-                const fotos = parseFotos(item.foto_pengerjaan);
+                const hasDetail = hasPengerjaanPayload(item.foto_pengerjaan);
                 return (
                   <div key={item.id} className="flex items-start gap-2 border rounded-lg p-2.5 bg-blue-50/50">
                     <div className="w-1 self-stretch rounded-full bg-blue-500 shrink-0" />
@@ -1025,20 +1119,13 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                         {item.alamat && <span className="flex items-center gap-1"><MapPin className="h-3 w-3 shrink-0" /><span className="truncate max-w-[120px]">{item.alamat}</span></span>}
                         {item.luasan_tanah && <span className="text-blue-700 font-medium">{item.luasan_tanah} m²</span>}
                       </div>
-                      {fotos.length > 0 && (
-                        <div className="flex gap-1.5 mt-1.5 flex-wrap">
-                          {fotos.map((f, i) => (
-                            <button key={i} onClick={() => setViewFoto(f)}>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img src={f} alt="foto" className="w-12 h-10 object-cover rounded border hover:opacity-80 transition-opacity" />
-                            </button>
-                          ))}
-                        </div>
-                      )}
+                      {hasDetail && <p className="mt-1.5 text-xs text-blue-700 font-medium">Dokumentasi/detail tersimpan</p>}
                     </div>
-                    <Button size="sm" variant="outline" className="h-7 text-xs px-2 shrink-0" onClick={() => handleDownloadDetailPdf(item)}>
-                      <FileDown className="h-3 w-3 mr-1" /> PDF Detail
-                    </Button>
+                    {hasDetail && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs px-2 shrink-0" onClick={() => handleDownloadDetailPdf(item)}>
+                        <FileDown className="h-3 w-3 mr-1" /> PDF Detail
+                      </Button>
+                    )}
                   </div>
                 );
               })}
@@ -1469,7 +1556,7 @@ function ItemCard({ item, canApprove, canSchedule, currentUserName, onSchedule, 
   onViewFoto: (f: string) => void;
 }) {
   const isSelesai = item.pengerjaan_approval_status === "approved";
-  const fotos = parseFotos(item.foto_pengerjaan);
+  const hasDetail = hasPengerjaanPayload(item.foto_pengerjaan);
   return (
     <div className="flex items-start gap-3 bg-white rounded-lg p-3 border shadow-sm">
       <div className={`w-1 self-stretch rounded-full shrink-0 ${isSelesai ? "bg-blue-500" : "bg-amber-400"}`} />
@@ -1486,16 +1573,7 @@ function ItemCard({ item, canApprove, canSchedule, currentUserName, onSchedule, 
           {item.nomor_telepon && <span className="flex items-center gap-1"><Phone className="h-3 w-3" />{item.nomor_telepon}</span>}
           {item.luasan_tanah && <span className="text-blue-700 font-medium">{item.luasan_tanah} m²</span>}
         </div>
-        {fotos.length > 0 && (
-          <div className="flex gap-1.5 mt-1.5 flex-wrap">
-            {fotos.map((f: string, i: number) => (
-              <button key={i} onClick={() => onViewFoto(f)}>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={f} alt="foto" className="w-12 h-10 object-cover rounded border hover:opacity-80 transition-opacity" />
-              </button>
-            ))}
-          </div>
-        )}
+        {hasDetail && <p className="mt-1.5 text-xs text-blue-700 font-medium">Dokumentasi/detail tersimpan</p>}
       </div>
       {!isSelesai && (
         <div className="flex flex-col gap-1 shrink-0">
