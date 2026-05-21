@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef } from "react";
+import type { Dispatch, SetStateAction } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -108,8 +109,60 @@ function parseFotos(raw: string | null | undefined): string[] {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
+    if (parsed?.type === "golden_after_report") {
+      return Array.isArray(parsed.data?.dokumentasi)
+        ? parsed.data.dokumentasi.map((row: any) => row?.src).filter(Boolean)
+        : [];
+    }
     return Array.isArray(parsed) ? parsed : [raw];
   } catch { return [raw]; }
+}
+
+type AfterReport = {
+  technician: string;
+  luas_bangunan: string;
+  status: string;
+  detail: { area: string; treatment: string; status: string; keterangan: string }[];
+  material: { item: string; jumlah: string; keterangan: string }[];
+  dokumentasi: { src: string; label: string; keterangan: string; badge?: string }[];
+  catatan_teknisi: string;
+  tanda_tangan: string;
+};
+
+function defaultAfterReport(item?: any, fotos: string[] = []): AfterReport {
+  return {
+    technician: item?.pic_survey ?? "",
+    luas_bangunan: item?.luasan_tanah != null ? `${item.luasan_tanah} m2` : "",
+    status: "Selesai",
+    detail: [{ area: "", treatment: "", status: "Teratasi", keterangan: "" }],
+    material: [{ item: "", jumlah: "", keterangan: "" }],
+    dokumentasi: fotos.map((src, i) => ({ src, label: i === 0 ? "Area Pengerjaan" : `Dokumentasi ${i + 1}`, keterangan: "" })),
+    catatan_teknisi: "",
+    tanda_tangan: "",
+  };
+}
+
+function parseAfterReport(raw: string | null | undefined, item?: any): AfterReport {
+  const legacyFotos = parseFotos(raw);
+  if (!raw) return defaultAfterReport(item);
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.type === "golden_after_report") {
+      const data = parsed.data ?? {};
+      return {
+        ...defaultAfterReport(item),
+        ...data,
+        detail: Array.isArray(data.detail) && data.detail.length ? data.detail : defaultAfterReport(item).detail,
+        material: Array.isArray(data.material) && data.material.length ? data.material : defaultAfterReport(item).material,
+        dokumentasi: Array.isArray(data.dokumentasi) ? data.dokumentasi.filter((row: any) => row?.src) : [],
+      };
+    }
+  } catch {}
+  return defaultAfterReport(item, legacyFotos);
+}
+
+function serializeAfterReport(report: AfterReport) {
+  return { type: "golden_after_report", data: report };
 }
 
 function fmtDate(s: string | null | undefined) {
@@ -157,12 +210,14 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   // Dialog: approve pengerjaan (upload foto) — only canApprove
   const [approveItem, setApproveItem] = useState<any | null>(null);
   const [approveFotos, setApproveFotos] = useState<string[]>([]);
+  const [approveReport, setApproveReport] = useState<AfterReport>(() => defaultAfterReport());
   const [approveProcessing, setApproveProcessing] = useState(false);
   const fotoInputRef = useRef<HTMLInputElement>(null);
 
   // Dialog: upload bukti foto saja (tanpa approve) — semua user
   const [buktiFotoItem, setBuktiFotoItem] = useState<any | null>(null);
   const [buktiFotos, setBuktiFotos] = useState<string[]>([]);
+  const [buktiReport, setBuktiReport] = useState<AfterReport>(() => defaultAfterReport());
   const [buktiProcessing, setBuktiProcessing] = useState(false);
   const buktiFotoRef = useRef<HTMLInputElement>(null);
 
@@ -212,25 +267,27 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   });
 
   const approveMut = useMutation({
-    mutationFn: ({ id, fotos }: { id: number; fotos: string[] }) =>
-      apiClient.post(`/bd/${modul}/leads/${id}/approve-pengerjaan`, { foto_pengerjaan: fotos }).then((r) => r.data),
+    mutationFn: ({ id, report }: { id: number; report: AfterReport }) =>
+      apiClient.post(`/bd/${modul}/leads/${id}/approve-pengerjaan`, { foto_pengerjaan: serializeAfterReport(report) }).then((r) => r.data),
     onSuccess: () => {
       toast.success("Pengerjaan selesai disetujui");
       qc.invalidateQueries({ queryKey: ["pengerjaan-kalender", modul] });
       setApproveItem(null);
       setApproveFotos([]);
+      setApproveReport(defaultAfterReport());
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal approve pengerjaan"),
   });
 
   const buktimut = useMutation({
-    mutationFn: ({ id, fotos }: { id: number; fotos: string[] }) =>
-      apiClient.patch(`/bd/${modul}/leads/${id}/bukti-pengerjaan`, { foto_pengerjaan: fotos }).then((r) => r.data),
+    mutationFn: ({ id, report }: { id: number; report: AfterReport }) =>
+      apiClient.patch(`/bd/${modul}/leads/${id}/bukti-pengerjaan`, { foto_pengerjaan: serializeAfterReport(report) }).then((r) => r.data),
     onSuccess: () => {
       toast.success("Foto pengerjaan disimpan");
       qc.invalidateQueries({ queryKey: ["pengerjaan-kalender", modul] });
       setBuktiFotoItem(null);
       setBuktiFotos([]);
+      setBuktiReport(defaultAfterReport());
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan foto"),
   });
@@ -252,6 +309,10 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       results.push(await addTimestamp(raw, coords));
     }
     setApproveFotos((prev) => [...prev, ...results]);
+    setApproveReport((prev) => ({
+      ...prev,
+      dokumentasi: [...prev.dokumentasi, ...results.map((src, i) => ({ src, label: `Dokumentasi ${prev.dokumentasi.length + i + 1}`, keterangan: "" }))],
+    }));
     setApproveProcessing(false);
     e.target.value = "";
   }
@@ -271,6 +332,10 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       results.push(await addTimestamp(raw, coords));
     }
     setBuktiFotos((prev) => [...prev, ...results]);
+    setBuktiReport((prev) => ({
+      ...prev,
+      dokumentasi: [...prev.dokumentasi, ...results.map((src, i) => ({ src, label: `Dokumentasi ${prev.dokumentasi.length + i + 1}`, keterangan: "" }))],
+    }));
     setBuktiProcessing(false);
     e.target.value = "";
   }
@@ -332,6 +397,73 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 
   // Unique PIC names from current items
   const uniquePics: string[] = Array.from(new Set(items.map((i: any) => i.pic_survey).filter(Boolean)));
+
+  function openApproveDialog(item: any) {
+    const report = parseAfterReport(item.foto_pengerjaan, item);
+    setApproveItem(item);
+    setApproveReport(report);
+    setApproveFotos(report.dokumentasi.map((row) => row.src).filter(Boolean));
+  }
+
+  function openBuktiDialog(item: any) {
+    const report = parseAfterReport(item.foto_pengerjaan, item);
+    setBuktiFotoItem(item);
+    setBuktiReport(report);
+    setBuktiFotos(report.dokumentasi.map((row) => row.src).filter(Boolean));
+  }
+
+  function syncReportPhotos(report: AfterReport, fotos: string[]) {
+    return {
+      ...report,
+      dokumentasi: fotos.map((src, index) => {
+        const existing = report.dokumentasi.find((row) => row.src === src) ?? report.dokumentasi[index];
+        return {
+          src,
+          label: existing?.label || (index === 0 ? "Area Pengerjaan" : `Dokumentasi ${index + 1}`),
+          keterangan: existing?.keterangan || "",
+          badge: existing?.badge || "",
+        };
+      }),
+    };
+  }
+
+  function escapeHtml(value: unknown) {
+    return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+
+  function handleDownloadDetailPdf(item: any) {
+    const report = parseAfterReport(item.foto_pengerjaan, item);
+    const tgl = item.tanggal_pengerjaan
+      ? new Date(String(item.tanggal_pengerjaan).split("T")[0] + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+      : "";
+    const nomor = `RB-GL-SRV/${String(item.id).padStart(3, "0")}/${new Date().getFullYear()}`;
+    const detailRows = report.detail.map((row) => `<tr><td>${escapeHtml(row.area)}</td><td><em>${escapeHtml(row.treatment)}</em></td><td class="status-ok">${escapeHtml(row.status || "Teratasi")}</td><td>${escapeHtml(row.keterangan)}</td></tr>`).join("");
+    const materialCards = report.material.map((row) => `<div class="material-card"><div class="material-icon">⚒</div><div><strong>${escapeHtml(row.item || "Material")}</strong><p>${escapeHtml(row.jumlah || "-")}${row.keterangan ? ` · ${escapeHtml(row.keterangan)}` : ""}</p></div></div>`).join("");
+    const photos: AfterReport["dokumentasi"] = report.dokumentasi.length ? report.dokumentasi : parseFotos(item.foto_pengerjaan).map((src, i) => ({ src, label: `Dokumentasi ${i + 1}`, keterangan: "" }));
+    const photoCards = photos.map((row, i) => `<figure class="${i === 2 ? "photo-wide" : ""}"><div class="photo-frame"><img src="${escapeHtml(row.src)}"/></div><figcaption><strong>${escapeHtml(row.label || `Dokumentasi ${i + 1}`)}</strong>${row.badge ? `<span>${escapeHtml(row.badge)}</span>` : ""}<p>${escapeHtml(row.keterangan || "")}</p></figcaption></figure>`).join("");
+    const signature = report.tanda_tangan
+      ? `<img class="signature-img" src="${escapeHtml(report.tanda_tangan)}" />`
+      : `<div class="signature-placeholder">[ Digital Signature ]</div>`;
+    const printedAt = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>Laporan Hasil Pengerjaan Rubru Pest</title><style>
+      *{box-sizing:border-box} body{margin:0;background:#fff;color:#111c2c;font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.45}.page{width:210mm;min-height:297mm;margin:0 auto;padding:18mm 16mm;background:#fff}.doc-head{border:1px solid #e5d4c8;padding:10px 12px;margin-bottom:18px}.doc-head h1{margin:0;color:#974800;font-size:24px;line-height:1.1;text-transform:uppercase}.mono{font-family:"Courier New",monospace;color:#585e6c;font-size:11px;text-transform:uppercase}.section{margin-top:20px}.section h2{border-left:4px solid #f27f22;padding-left:10px;font-size:16px;margin:0 0 10px}.info-grid{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #ddc1b1}.info{padding:10px;border-right:1px solid #ddc1b1;border-bottom:1px solid #ddc1b1}.info span{display:block;font-size:10px;color:#564336;text-transform:uppercase;font-weight:700}.info strong{display:block;margin-top:4px}table{width:100%;border-collapse:collapse}th{background:#111c2c;color:#fff;text-align:left;font-size:12px;padding:9px}td{border:1px solid #ddc1b1;padding:9px;vertical-align:top}.status-ok{color:#f27f22;font-weight:800}.material-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.material-card{display:flex;gap:14px;align-items:center;border:1px solid #ddc1b1;padding:14px}.material-icon{width:40px;height:40px;border-radius:10px;background:#dde2f3;display:flex;align-items:center;justify-content:center}.material-card strong{display:block}.material-card p{margin:2px 0 0;color:#564336}.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.photo-wide{grid-column:1/-1}.photo-frame{aspect-ratio:4/3;border:1px solid #ddc1b1;background:#f9f9ff;display:flex;align-items:center;justify-content:center;overflow:hidden}.photo-frame img{width:100%;height:100%;object-fit:contain}.photo-wide .photo-frame{aspect-ratio:21/9}.photo-card figcaption,figure figcaption{font-size:11px;color:#564336;margin-top:5px}.photo-card span,figure span{float:right;background:#f27f22;color:#fff;border-radius:999px;padding:2px 7px;font-weight:800}.note{border:1px solid #ddc1b1;background:#f0f3ff;padding:14px}.signature{margin-top:28px;border-top:1px solid #ddc1b1;padding-top:20px;text-align:center}.signature-img{height:80px;max-width:180px;object-fit:contain}.signature-placeholder{height:80px;display:flex;align-items:center;justify-content:center;color:#8a7264}.footer{text-align:center;margin-top:24px;color:#ddc1b1;text-transform:uppercase;letter-spacing:.12em;font-size:10px}@media print{@page{size:A4;margin:0}.page{margin:0}}
+    </style></head><body><div class="page">
+      <header class="doc-head"><h1>Laporan Hasil Pengerjaan<br/>Rubru Pest</h1><div class="mono">Official Service Report<br/>No: ${escapeHtml(nomor)}</div></header>
+      <section class="section"><h2>1. Informasi Pengerjaan</h2><div class="info-grid">
+        <div class="info"><span>Customer</span><strong>${escapeHtml(item.nama)}</strong></div><div class="info"><span>Technician</span><strong>${escapeHtml(report.technician || item.pic_survey || "-")}</strong></div><div class="info"><span>Date & Time</span><strong>${escapeHtml(tgl)}</strong></div>
+        <div class="info"><span>Location</span><strong>${escapeHtml(item.alamat || "-")}</strong></div><div class="info"><span>Luas Bangunan (m2)</span><strong>${escapeHtml(report.luas_bangunan || (item.luasan_tanah ? `${item.luasan_tanah} m2` : "-"))}</strong></div><div class="info"><span>Status</span><strong class="status-ok">${escapeHtml(report.status || "Selesai")}</strong></div>
+      </div></section>
+      <section class="section"><h2>2. Detail Pengerjaan</h2><table><thead><tr><th>Area</th><th>Jenis Treatment</th><th>Status</th><th>Keterangan</th></tr></thead><tbody>${detailRows || "<tr><td colspan='4'>-</td></tr>"}</tbody></table></section>
+      <section class="section"><h2>3. Alat & Material Terpakai</h2><div class="material-grid">${materialCards}</div></section>
+      <section class="section"><h2>4. Dokumentasi After Pengerjaan</h2><div class="photo-grid">${photoCards}</div></section>
+      <section class="section note"><strong>Catatan Teknisi</strong><p>${escapeHtml(report.catatan_teknisi || "-")}</p></section>
+      <footer class="signature"><p>Bekasi, ${printedAt}</p><p><strong>Hormat Kami,</strong></p>${signature}<p><strong>Rubru Pest Manajemen</strong></p></footer><div class="footer">End of Service Report</div>
+    </div><script>window.onload=function(){setTimeout(window.print,400)}</script></body></html>`;
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) { alert("Popup diblokir. Izinkan popup untuk mencetak."); return; }
+    w.document.write(html);
+    w.document.close();
+  }
 
   function openPdfDialog() {
     const pad = (n: number) => String(n).padStart(2, "0");
@@ -628,7 +760,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                                   <Button
                                     size="sm"
                                     className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
-                                    onClick={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
+                                    onClick={() => openApproveDialog(item)}
                                   >
                                     <CheckCircle className="h-3 w-3 mr-1" /> Selesai
                                   </Button>
@@ -637,7 +769,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                                   <Button
                                     size="sm" variant="outline"
                                     className="h-7 text-xs px-2"
-                                    onClick={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
+                                    onClick={() => openBuktiDialog(item)}
                                   >
                                     <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
                                   </Button>
@@ -653,6 +785,11 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                               </Button>
                             ) : null}
                           </div>
+                        )}
+                        {isSelesai && fotos.length > 0 && (
+                          <Button size="sm" variant="outline" className="h-7 text-xs px-2 shrink-0" onClick={() => handleDownloadDetailPdf(item)}>
+                            <FileDown className="h-3 w-3 mr-1" /> PDF Detail
+                          </Button>
                         )}
                       </div>
                     );
@@ -752,8 +889,8 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 canSchedule={canSchedule}
                 currentUserName={currentUserName}
                 onSchedule={() => openScheduleDialog(item)}
-                onApprove={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
-                onUploadBukti={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
+                onApprove={() => openApproveDialog(item)}
+                onUploadBukti={() => openBuktiDialog(item)}
                 onViewFoto={setViewFoto}
               />
             ))}
@@ -830,7 +967,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                       <Button
                         size="sm"
                         className="h-7 text-xs px-2 bg-blue-600 hover:bg-blue-700 text-white"
-                        onClick={() => { setApproveItem(item); setApproveFotos(parseFotos(item.foto_pengerjaan)); }}
+                        onClick={() => openApproveDialog(item)}
                       >
                         <CheckCircle className="h-3 w-3 mr-1" /> Selesai
                       </Button>
@@ -849,7 +986,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                   <Button
                     size="sm" variant="outline"
                     className="h-7 text-xs px-2 shrink-0"
-                    onClick={() => { setBuktiFotoItem(item); setBuktiFotos(parseFotos(item.foto_pengerjaan)); }}
+                    onClick={() => openBuktiDialog(item)}
                   >
                     <ImageIcon className="h-3 w-3 mr-1" /> Upload Foto
                   </Button>
@@ -899,6 +1036,9 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                         </div>
                       )}
                     </div>
+                    <Button size="sm" variant="outline" className="h-7 text-xs px-2 shrink-0" onClick={() => handleDownloadDetailPdf(item)}>
+                      <FileDown className="h-3 w-3 mr-1" /> PDF Detail
+                    </Button>
                   </div>
                 );
               })}
@@ -970,8 +1110,8 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       </Dialog>
 
       {/* ── Dialog: Approve Pengerjaan Selesai ── */}
-      <Dialog open={!!approveItem} onOpenChange={(v) => { if (!v) { setApproveItem(null); setApproveFotos([]); } }}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+      <Dialog open={!!approveItem} onOpenChange={(v) => { if (!v) { setApproveItem(null); setApproveFotos([]); setApproveReport(defaultAfterReport()); } }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CheckCircle className="h-5 w-5 text-blue-600" /> Konfirmasi Pengerjaan Selesai
@@ -989,6 +1129,12 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 {approveItem.luasan_tanah && <p className="text-xs text-blue-700 mt-0.5">{approveItem.luasan_tanah} m²</p>}
               </div>
 
+              <AfterReportFields
+                report={approveReport}
+                setReport={setApproveReport}
+                canAssignSignature={canApprove}
+              />
+
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
                   Foto Bukti Pengerjaan
@@ -1005,7 +1151,10 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                         </div>
                         <button
                           type="button"
-                          onClick={() => setApproveFotos((prev) => prev.filter((_, i) => i !== idx))}
+                          onClick={() => {
+                            setApproveFotos((prev) => prev.filter((_, i) => i !== idx));
+                            setApproveReport((prev) => ({ ...prev, dokumentasi: prev.dokumentasi.filter((_, i) => i !== idx) }));
+                          }}
                           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <X className="h-3 w-3" />
@@ -1040,11 +1189,11 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
               </div>
 
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => { setApproveItem(null); setApproveFotos([]); }}>Batal</Button>
+                <Button variant="outline" onClick={() => { setApproveItem(null); setApproveFotos([]); setApproveReport(defaultAfterReport()); }}>Batal</Button>
                 <Button
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                   disabled={approveFotos.length === 0 || approveMut.isPending || approveProcessing}
-                  onClick={() => approveMut.mutate({ id: approveItem.id, fotos: approveFotos })}
+                  onClick={() => approveMut.mutate({ id: approveItem.id, report: syncReportPhotos(approveReport, approveFotos) })}
                 >
                   {approveMut.isPending ? "Menyimpan..." : "Konfirmasi Selesai"}
                 </Button>
@@ -1127,8 +1276,8 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       </Dialog>
 
       {/* ── Dialog: Upload Foto Bukti (tanpa approve) ── */}
-      <Dialog open={!!buktiFotoItem} onOpenChange={(v) => { if (!v) { setBuktiFotoItem(null); setBuktiFotos([]); } }}>
-        <DialogContent className="max-w-sm max-h-[90vh] overflow-y-auto">
+      <Dialog open={!!buktiFotoItem} onOpenChange={(v) => { if (!v) { setBuktiFotoItem(null); setBuktiFotos([]); setBuktiReport(defaultAfterReport()); } }}>
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ImageIcon className="h-5 w-5 text-amber-600" /> Upload Foto Pengerjaan
@@ -1144,6 +1293,11 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                   </p>
                 )}
               </div>
+              <AfterReportFields
+                report={buktiReport}
+                setReport={setBuktiReport}
+                canAssignSignature={false}
+              />
               <div className="space-y-1.5">
                 <Label className="flex items-center gap-1">
                   Foto Bukti Pengerjaan <span className="text-destructive">*</span>
@@ -1157,7 +1311,10 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                         <img src={f} alt={`foto-${idx}`} className="w-full h-full object-cover" />
                         <button
                           type="button"
-                          onClick={() => setBuktiFotos((prev) => prev.filter((_, i) => i !== idx))}
+                          onClick={() => {
+                            setBuktiFotos((prev) => prev.filter((_, i) => i !== idx));
+                            setBuktiReport((prev) => ({ ...prev, dokumentasi: prev.dokumentasi.filter((_, i) => i !== idx) }));
+                          }}
                           className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <X className="h-3 w-3" />
@@ -1192,11 +1349,11 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 {buktiFotos.length > 0 && <p className="text-xs text-muted-foreground">{buktiFotos.length} foto dipilih</p>}
               </div>
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => { setBuktiFotoItem(null); setBuktiFotos([]); }}>Batal</Button>
+                <Button variant="outline" onClick={() => { setBuktiFotoItem(null); setBuktiFotos([]); setBuktiReport(defaultAfterReport()); }}>Batal</Button>
                 <Button
                   className="bg-amber-500 hover:bg-amber-600 text-white"
                   disabled={buktiFotos.length === 0 || buktimut.isPending || buktiProcessing}
-                  onClick={() => buktimut.mutate({ id: buktiFotoItem.id, fotos: buktiFotos })}
+                  onClick={() => buktimut.mutate({ id: buktiFotoItem.id, report: syncReportPhotos(buktiReport, buktiFotos) })}
                 >
                   {buktimut.isPending ? "Menyimpan..." : "Simpan Foto"}
                 </Button>
@@ -1218,6 +1375,89 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 }
 
 // ── ItemCard helper ───────────────────────────────────────────────────────────
+function AfterReportFields({ report, setReport, canAssignSignature }: {
+  report: AfterReport;
+  setReport: Dispatch<SetStateAction<AfterReport>>;
+  canAssignSignature: boolean;
+}) {
+  const patchRow = (key: "detail" | "material", index: number, patch: Record<string, string>) => {
+    setReport((prev) => ({ ...prev, [key]: prev[key].map((row, i) => i === index ? { ...row, ...patch } : row) }));
+  };
+  const addRow = (key: "detail" | "material") => {
+    setReport((prev) => ({
+      ...prev,
+      [key]: key === "detail"
+        ? [...prev.detail, { area: "", treatment: "", status: "Teratasi", keterangan: "" }]
+        : [...prev.material, { item: "", jumlah: "", keterangan: "" }],
+    }));
+  };
+  const removeRow = (key: "detail" | "material", index: number) => {
+    setReport((prev) => ({ ...prev, [key]: prev[key].length <= 1 ? prev[key] : prev[key].filter((_, i) => i !== index) }));
+  };
+  const uploadSignature = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setReport((prev) => ({ ...prev, tanda_tangan: String(reader.result ?? "") }));
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+  return (
+    <div className="space-y-3 rounded-lg border bg-white p-3">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="space-y-1">
+          <Label>Technician</Label>
+          <Input value={report.technician} onChange={(e) => setReport((p) => ({ ...p, technician: e.target.value }))} />
+        </div>
+        <div className="space-y-1">
+          <Label>Luas Bangunan</Label>
+          <Input value={report.luas_bangunan} onChange={(e) => setReport((p) => ({ ...p, luas_bangunan: e.target.value }))} placeholder="300 m2" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold">Detail Pengerjaan</p>
+        {report.detail.map((row, i) => (
+          <div key={i} className="grid grid-cols-[1fr_1fr_100px_1fr_28px] gap-2">
+            <Input value={row.area} onChange={(e) => patchRow("detail", i, { area: e.target.value })} placeholder="Area" />
+            <Input value={row.treatment} onChange={(e) => patchRow("detail", i, { treatment: e.target.value })} placeholder="Jenis treatment" />
+            <Input value={row.status} onChange={(e) => patchRow("detail", i, { status: e.target.value })} placeholder="Status" />
+            <Input value={row.keterangan} onChange={(e) => patchRow("detail", i, { keterangan: e.target.value })} placeholder="Keterangan" />
+            <Button type="button" variant="ghost" size="icon" disabled={report.detail.length <= 1} onClick={() => removeRow("detail", i)}><X className="h-4 w-4" /></Button>
+          </div>
+        ))}
+        <Button type="button" size="sm" variant="outline" onClick={() => addRow("detail")}>Tambah Detail</Button>
+      </div>
+      <div className="space-y-2">
+        <p className="text-sm font-semibold">Alat & Material Terpakai</p>
+        {report.material.map((row, i) => (
+          <div key={i} className="grid grid-cols-[1fr_100px_1fr_28px] gap-2">
+            <Input value={row.item} onChange={(e) => patchRow("material", i, { item: e.target.value })} placeholder="Item" />
+            <Input value={row.jumlah} onChange={(e) => patchRow("material", i, { jumlah: e.target.value })} placeholder="Jumlah" />
+            <Input value={row.keterangan} onChange={(e) => patchRow("material", i, { keterangan: e.target.value })} placeholder="Keterangan" />
+            <Button type="button" variant="ghost" size="icon" disabled={report.material.length <= 1} onClick={() => removeRow("material", i)}><X className="h-4 w-4" /></Button>
+          </div>
+        ))}
+        <Button type="button" size="sm" variant="outline" onClick={() => addRow("material")}>Tambah Material</Button>
+      </div>
+      <div className="space-y-1">
+        <Label>Catatan Teknisi</Label>
+        <textarea className="min-h-[70px] w-full rounded-md border px-3 py-2 text-sm" value={report.catatan_teknisi} onChange={(e) => setReport((p) => ({ ...p, catatan_teknisi: e.target.value }))} />
+      </div>
+      {canAssignSignature && (
+        <div className="space-y-2 rounded-md border border-dashed p-2">
+          <p className="text-sm font-semibold">Tanda Tangan</p>
+          {report.tanda_tangan && <img src={report.tanda_tangan} alt="Tanda tangan" className="h-16 max-w-40 object-contain" />}
+          <label className="inline-flex cursor-pointer items-center rounded-md border px-3 py-1.5 text-xs">
+            Upload tanda tangan
+            <input type="file" accept="image/*" className="hidden" onChange={uploadSignature} />
+          </label>
+          {report.tanda_tangan && <Button type="button" size="sm" variant="ghost" onClick={() => setReport((p) => ({ ...p, tanda_tangan: "" }))}>Hapus</Button>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ItemCard({ item, canApprove, canSchedule, currentUserName, onSchedule, onApprove, onUploadBukti, onViewFoto }: {
   item: any;
   canApprove: boolean;

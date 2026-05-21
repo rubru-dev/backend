@@ -2717,8 +2717,12 @@ router.patch("/:modul/leads/:id/bukti-pengerjaan", async (req: Request, res: Res
   const lead = await prisma.lead.findUnique({ where: { id } });
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
   if (!foto_pengerjaan) return res.status(400).json({ detail: "Foto wajib diisi" });
-  const fotosArr: string[] = Array.isArray(foto_pengerjaan) ? foto_pengerjaan : [foto_pengerjaan];
-  await prisma.lead.update({ where: { id }, data: { foto_pengerjaan: JSON.stringify(fotosArr) } });
+  const stored = Array.isArray(foto_pengerjaan)
+    ? JSON.stringify(foto_pengerjaan)
+    : typeof foto_pengerjaan === "object"
+      ? JSON.stringify(foto_pengerjaan)
+      : JSON.stringify([foto_pengerjaan]);
+  await prisma.lead.update({ where: { id }, data: { foto_pengerjaan: stored } });
   return res.json({ message: "Foto pengerjaan disimpan" });
 });
 
@@ -2729,7 +2733,11 @@ router.post("/:modul/leads/:id/approve-pengerjaan", requireRole("Head Golden"), 
   const id = BigInt(req.params.id);
   const { foto_pengerjaan } = req.body;
   if (!foto_pengerjaan) return res.status(400).json({ detail: "Foto pengerjaan wajib diupload" });
-  const fotosArr: string[] = Array.isArray(foto_pengerjaan) ? foto_pengerjaan : [foto_pengerjaan];
+  const stored = Array.isArray(foto_pengerjaan)
+    ? JSON.stringify(foto_pengerjaan)
+    : typeof foto_pengerjaan === "object"
+      ? JSON.stringify(foto_pengerjaan)
+      : JSON.stringify([foto_pengerjaan]);
   const lead = await prisma.lead.findUnique({ where: { id } });
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
   if (lead.survey_approval_status !== "approved")
@@ -2740,7 +2748,7 @@ router.post("/:modul/leads/:id/approve-pengerjaan", requireRole("Head Golden"), 
       pengerjaan_approval_status: "approved",
       pengerjaan_approved_by: req.user!.id,
       pengerjaan_approved_at: new Date(),
-      foto_pengerjaan: JSON.stringify(fotosArr),
+      foto_pengerjaan: stored,
     },
   });
   return res.json({ message: "Pengerjaan disetujui" });
