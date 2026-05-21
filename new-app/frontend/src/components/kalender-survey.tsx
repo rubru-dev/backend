@@ -114,7 +114,7 @@ type GoldenSurveyReportForm = {
   luas_area: string;
   area_disurvey: { area: string; keterangan: string }[];
   hama: { jenis: string; status: string; keterangan: string }[];
-  temuan: { area: string; jenis: string; keterangan: string }[];
+  temuan: { area: string; jenis: string; severity?: string; keterangan: string }[];
   treatment: { metode: string; area: string; keterangan: string }[];
   material: { item: string; jumlah: string; keterangan: string }[];
   foto_area: { dokumentasi: string[]; keterangan: string }[];
@@ -127,8 +127,8 @@ function defaultGoldenSurveyReportForm(item?: any): GoldenSurveyReportForm {
     jenis_bangunan: "",
     luas_area: item?.luasan_tanah != null ? String(item.luasan_tanah) : "",
     area_disurvey: [{ area: "", keterangan: "" }],
-    hama: GOLDEN_PEST_TYPES.map((jenis) => ({ jenis, status: "Ditemukan", keterangan: "" })),
-    temuan: [{ area: "", jenis: "", keterangan: "" }],
+    hama: GOLDEN_PEST_TYPES.map((jenis, index) => ({ jenis, status: index === 0 ? "Ditemukan" : "Tidak Ditemukan", keterangan: "" })),
+    temuan: [{ area: "", jenis: "", severity: "Sedang", keterangan: "" }],
     treatment: [{ metode: "", area: "", keterangan: "" }],
     material: [{ item: "", jumlah: "", keterangan: "" }],
     foto_area: [{ dokumentasi: [], keterangan: "" }],
@@ -160,7 +160,7 @@ function parseGoldenSurveyReportForm(raw: string | null | undefined, item?: any)
       ...data,
       area_disurvey: Array.isArray(data.area_disurvey) && data.area_disurvey.length ? data.area_disurvey : fallback.area_disurvey,
       hama: Array.isArray(data.hama) && data.hama.length ? data.hama.map((row: any) => ({ jenis: row?.jenis ?? "", status: row?.status === "Tidak Ditemukan" ? "Tidak Ditemukan" : "Ditemukan", keterangan: row?.keterangan ?? "" })) : fallback.hama,
-      temuan: Array.isArray(data.temuan) && data.temuan.length ? data.temuan : fallback.temuan,
+      temuan: Array.isArray(data.temuan) && data.temuan.length ? data.temuan.map((row: any) => ({ area: row?.area ?? "", jenis: row?.jenis ?? "", severity: row?.severity ?? "Sedang", keterangan: row?.keterangan ?? "" })) : fallback.temuan,
       treatment: Array.isArray(data.treatment) && data.treatment.length ? data.treatment : fallback.treatment,
       material: Array.isArray(data.material) && data.material.length ? data.material : fallback.material,
       foto_area: normalizeGoldenPhotoRows(data.foto_area, fallback.foto_area),
@@ -584,61 +584,69 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       const docImagesHtml = (images: string[]) => images.length
         ? `<div class="doc-grid">${images.map((src) => `<img src="${escapeHtml(src)}" class="doc-img" />`).join("")}</div>`
         : `<span class="muted">Belum ada dokumentasi</span>`;
-      const areaRowsHtml = report.area_disurvey.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const pestRowsHtml = report.hama.map((row) => `<tr><td>${reportValue(row.jenis)}</td><td>${reportValue(row.status)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const findingRowsHtml = report.temuan.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.jenis)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const treatmentRowsHtml = report.treatment.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.metode)}</td><td>${reportValue(row.area)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const materialRowsHtml = report.material.map((row, i) => `<tr><td>${i + 1}</td><td>${reportValue(row.item)}</td><td>${reportValue(row.jumlah)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const fotoAreaRowsHtml = report.foto_area.map((row, i) => `<tr><td>${i + 1}</td><td>${docImagesHtml(row.dokumentasi)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
-      const fotoTemuanRowsHtml = report.foto_temuan.map((row, i) => `<tr><td>${i + 1}</td><td>${docImagesHtml(row.dokumentasi)}</td><td>${reportValue(row.keterangan)}</td></tr>`).join("");
+      const areaCardsHtml = report.area_disurvey.map((row) => `<div class="area-card"><div class="area-title">${reportValue(row.area, "Area")}</div><div class="area-note">${reportValue(row.keterangan, "N/A")}</div></div>`).join("");
+      const pestCardsHtml = report.hama.map((row) => {
+        const found = row.status === "Ditemukan";
+        return `<div class="pest-card ${found ? "is-found" : ""}">
+          <div class="pest-icon">${found ? "!" : "-"}</div>
+          <div class="pest-body"><div class="pest-name">${reportValue(row.jenis)}</div><div class="pest-note">${reportValue(row.keterangan, "N/A")}</div></div>
+          <span class="status-chip ${found ? "found" : "not-found"}">${found ? "FOUND" : "NOT FOUND"}</span>
+        </div>`;
+      }).join("");
+      const findingRowsHtml = report.temuan.map((row) => `<tr><td>${reportValue(row.area)}</td><td>${reportValue(row.jenis)}</td><td class="severity ${String(row.severity ?? "").toLowerCase()}">${reportValue(row.severity, "Sedang")}</td></tr>`).join("");
+      const treatmentCardsHtml = report.treatment.map((row) => `<div class="treatment-card">
+        <div class="treatment-row"><span>METHOD</span><strong>${reportValue(row.metode, "Spraying")}</strong></div>
+        <div class="treatment-row"><span>AREA</span><strong>${reportValue(row.area, "Area treatment")}</strong></div>
+        <div class="treatment-notes"><span>NOTES</span><p>${reportValue(row.keterangan, "-")}</p></div>
+      </div>`).join("");
+      const materialCardsHtml = report.material.map((row) => `<div class="material-card"><strong>${reportValue(row.item, "Item")}</strong><span>${reportValue(row.jumlah, "Qty: -")}</span>${row.keterangan ? `<small>${reportValue(row.keterangan)}</small>` : ""}</div>`).join("");
+      const photoCardsHtml = (rows: { dokumentasi: string[]; keterangan: string }[]) => rows.map((row) => row.dokumentasi.length
+        ? row.dokumentasi.map((src) => `<figure class="photo-card"><div class="photo-frame"><img src="${escapeHtml(src)}" /></div><figcaption>${reportValue(row.keterangan, "Dokumentasi survey")}</figcaption></figure>`).join("")
+        : `<div class="photo-empty">${reportValue(row.keterangan, "Belum ada dokumentasi")}</div>`
+      ).join("");
+      const fotoAreaRowsHtml = photoCardsHtml(report.foto_area);
+      const fotoTemuanRowsHtml = photoCardsHtml(report.foto_temuan);
       return `
         <section class="report">
           <div class="page">
             ${letterheadHtml()}
-            <h1>Laporan Hasil Survey Rubru Pest</h1>
-            <p class="number">Nomor : ${nomor}</p>
-            <h2>1. Informasi Survey</h2>
-            <table>
-              <tbody>
-                <tr><th>Keterangan</th><th>Detail</th></tr>
-                <tr><td>Nama Customer / Project</td><td>${escapeHtml(item.nama || "")}</td></tr>
-                <tr><td>Tanggal Survey</td><td>${escapeHtml(tgl)}</td></tr>
-                <tr><td>Waktu Survey</td><td>${escapeHtml(item.jam_survey || "")}</td></tr>
-                <tr><td>Lokasi</td><td>${lokasi}</td></tr>
-                <tr><td>Surveyor</td><td>${reportValue(report.surveyor)}</td></tr>
-                <tr><td>Jenis Bangunan</td><td>${reportValue(report.jenis_bangunan, "Pilih salah satu: 1. Rumah 2. Kantor 3. Pabrik 4. Tempat Usaha")}</td></tr>
-                <tr><td>Luas Area</td><td>${reportValue(report.luas_area)}</td></tr>
-              </tbody>
-            </table>
-            <h2>2. Area yang Disurvey</h2>
-            <table><thead><tr><th>No</th><th>Area</th><th>Keterangan</th></tr></thead><tbody>${areaRowsHtml}</tbody></table>
-          </div>
-
-          <div class="page">
-            ${letterheadHtml()}
-            <h2>3. Jenis Hama yang Ditemukan</h2>
-            <table><thead><tr><th>Jenis Hama</th><th>Status Temuan</th><th>Keterangan</th></tr></thead><tbody>${pestRowsHtml}</tbody></table>
+            <div class="report-title">
+              <h1>Laporan Hasil Survey<br/>Rubru Pest</h1>
+              <p class="number">Nomor : ${nomor}</p>
+            </div>
+            <div class="info-grid">
+              <div class="info-card"><span>Customer</span><strong>${escapeHtml(item.nama || "-")}</strong></div>
+              <div class="info-card"><span>Surveyor</span><strong>${reportValue(report.surveyor, "-")}</strong></div>
+              <div class="info-card wide"><span>Date & Time</span><strong>${escapeHtml(tgl)}${item.jam_survey ? ` - ${escapeHtml(item.jam_survey)}` : ""}</strong></div>
+              <div class="info-card"><span>Location</span><strong>${lokasi || "-"}</strong></div>
+              <div class="info-card"><span>Type</span><strong>${reportValue(report.jenis_bangunan, "-")}${report.luas_area ? ` (${reportValue(report.luas_area)})` : ""}</strong></div>
+            </div>
+            <h2>Area yang Disurvey</h2>
+            <div class="stack">${areaCardsHtml}</div>
+            <h2>Jenis Hama yang Ditemukan</h2>
+            <div class="stack">${pestCardsHtml}</div>
             <h2>5. Detail Temuan Lapangan</h2>
-            <table><thead><tr><th>No</th><th>Area Temuan</th><th>Jenis Temuan</th><th>Keterangan</th></tr></thead><tbody>${findingRowsHtml}</tbody></table>
-            <h2>6. Rekomendasi Treatment</h2>
-            <p>Berdasarkan hasil temuan di lapangan, metode treatment yang direkomendasikan adalah:</p>
-            <table><thead><tr><th>No</th><th>Metode Treatment</th><th>Area Penerapan</th><th>Keterangan</th></tr></thead><tbody>${treatmentRowsHtml}</tbody></table>
+            <table class="findings-table"><thead><tr><th>Area</th><th>Type</th><th>Severity</th></tr></thead><tbody>${findingRowsHtml}</tbody></table>
           </div>
 
           <div class="page">
             ${letterheadHtml()}
-            <h2>7. Kebutuhan Alat / Material</h2>
-            <table><thead><tr><th>No</th><th>Item</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${materialRowsHtml}</tbody></table>
-            <h2>8. Dokumentasi Foto</h2>
-            <h3>A. Foto Area Survey</h3>
-            <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${fotoAreaRowsHtml}</tbody></table>
-            <h3>B. Foto Temuan Hama</h3>
-            <table><thead><tr><th>No</th><th>Dokumentasi</th><th>Keterangan</th></tr></thead><tbody>${fotoTemuanRowsHtml}</tbody></table>
+            <h2>Rekomendasi Treatment</h2>
+            <div class="stack">${treatmentCardsHtml}</div>
+            <h2>Kebutuhan Alat/Material</h2>
+            <div class="stack">${materialCardsHtml}</div>
+            <h2>Dokumentasi Foto</h2>
+            <h3>Foto Area Survey</h3>
+            <div class="photo-grid">${fotoAreaRowsHtml}</div>
+            <h3>Foto Temuan Hama</h3>
+            <div class="photo-grid wide-photo">${fotoTemuanRowsHtml}</div>
             <div class="signature-block">
               <p class="signature-place">Bekasi, ${printedAt}</p>
               <p class="signature-title">Hormat Kami</p>
-              <img class="signature-logo" src="${window.location.origin}/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" onerror="this.style.display='none'"/>
               <p class="signature-title signature-name">Rubrupest Manajemen</p>
+              <p class="signature-digital">(Digital Signature)</p>
+              <div class="signature-line"></div>
+              <p class="signature-footer">Official Survey Report</p>
             </div>
           </div>
         </section>
@@ -649,32 +657,66 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
 <html lang="id"><head><meta charset="UTF-8"/><title>Laporan Survey Golden - ${periodeLabel}${picLabel}</title>
 <style>
   * { box-sizing:border-box; }
-  body { margin:0; background:#fff; color:#111827; font-family:Arial,Helvetica,sans-serif; font-size:12px; line-height:1.5; }
-  .page { min-height:1122px; padding:38px 50px 44px; page-break-after:always; break-after:page; position:relative; overflow:hidden; }
-  .page::before { content:""; position:absolute; left:0; top:0; width:100%; height:8px; background:#d8a21b; }
+  body { margin:0; background:#f9f9ff; color:#111c2c; font-family:Inter,Arial,Helvetica,sans-serif; font-size:13px; line-height:1.45; }
+  .page { min-height:1122px; padding:34px 46px 42px; page-break-after:always; break-after:page; position:relative; overflow:hidden; background:#f9f9ff; }
   .page:last-child { page-break-after:auto; break-after:auto; }
-  .letterhead { display:flex; gap:18px; align-items:center; border-bottom:2px solid #111827; padding:0 0 14px; margin-bottom:18px; }
-  .letterhead img { width:96px; height:78px; object-fit:contain; flex:0 0 auto; }
+  .letterhead { display:flex; gap:18px; align-items:center; border-bottom:1px solid #ddc1b1; padding:0 0 14px; margin-bottom:16px; }
+  .letterhead img { width:104px; height:78px; object-fit:contain; flex:0 0 auto; }
   .letterhead-text { display:flex; min-height:78px; flex-direction:column; justify-content:center; }
-  .company { font-weight:800; font-size:17px; margin-bottom:5px; letter-spacing:.2px; text-transform:uppercase; }
-  .company-detail { font-size:11px; line-height:1.45; color:#374151; }
-  h1 { text-align:center; font-size:19px; line-height:1.25; margin:10px 0 5px; padding:10px 14px; border:1px solid #111827; border-left:8px solid #d8a21b; background:#fff8e1; text-transform:uppercase; }
-  h2 { font-size:13px; margin:16px 0 8px; padding:6px 9px; border-left:5px solid #d8a21b; background:#f8fafc; color:#111827; }
-  h3 { font-size:12px; margin:12px 0 6px; color:#111827; }
-  .number { margin:0 0 14px; text-align:center; font-weight:700; }
-  table { width:100%; border-collapse:collapse; margin:6px 0 12px; }
-  th, td { border:1px solid #111827; padding:6px 8px; vertical-align:top; min-height:26px; }
-  th { font-weight:700; text-align:left; background:#111827; color:#fff; }
-  tr:nth-child(even) td { background:#fcfcfd; }
+  .company { font-weight:800; font-size:17px; margin-bottom:5px; text-transform:uppercase; }
+  .company-detail { font-size:11px; line-height:1.45; color:#564336; }
+  .report-title { margin:6px 0 14px; }
+  h1 { color:#974800; font-size:24px; line-height:1.08; margin:0; text-transform:uppercase; letter-spacing:.2px; }
+  .number { margin:6px 0 0; text-align:center; font-family:'JetBrains Mono','Courier New',monospace; font-size:11px; font-weight:700; color:#5e6473; }
+  h2 { font-size:14px; line-height:1.2; margin:16px 0 8px; padding-left:9px; border-left:4px solid #f27f22; color:#111c2c; }
+  h3 { color:#5e6473; font-size:11px; margin:14px 0 7px; text-transform:uppercase; letter-spacing:.05em; }
+  .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
+  .info-card, .area-card, .pest-card, .material-card { background:#fff; border:1px solid #ddc1b1; border-radius:4px; padding:10px; break-inside:avoid; }
+  .info-card.wide { grid-column:1 / -1; }
+  .info-card span, .treatment-row span, .treatment-notes span { display:block; color:#5e6473; font-family:'JetBrains Mono','Courier New',monospace; font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+  .info-card strong { display:block; margin-top:4px; font-size:13px; }
+  .stack { display:grid; gap:8px; }
+  .area-card { background:#ffdbc7; border-color:#ffb688; }
+  .area-title { font-weight:800; }
+  .area-note, .pest-note, .material-card small { color:#564336; font-size:11px; }
+  .pest-card { display:grid; grid-template-columns:30px 1fr auto; gap:10px; align-items:center; border-color:#dde2f3; background:#f0f3ff; }
+  .pest-card.is-found { border-color:#f27f22; background:#fff; }
+  .pest-icon { width:28px; height:28px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:#e7eeff; color:#5e6473; font-weight:800; }
+  .is-found .pest-icon { background:#ffdbc7; color:#974800; }
+  .pest-name { font-weight:800; }
+  .status-chip { color:#fff; border-radius:2px; padding:3px 6px; font-size:10px; font-weight:800; }
+  .status-chip.found { background:#f27f22; }
+  .status-chip.not-found { background:#9b9fa1; }
+  table { width:100%; border-collapse:collapse; margin:6px 0 12px; background:#fff; break-inside:avoid; }
+  th, td { border:1px solid #ddc1b1; padding:7px 9px; vertical-align:top; }
+  th { background:#111c2c; color:#fff; font-size:11px; text-transform:uppercase; }
+  .severity { font-weight:800; color:#f27f22; }
+  .severity.parah, .severity.critical { color:#ba1a1a; }
+  .severity.ringan { color:#5e6473; }
+  .treatment-card { background:#111c2c; border:1px solid #263142; border-radius:4px; color:#fff; padding:10px; break-inside:avoid; }
+  .treatment-row { display:flex; justify-content:space-between; gap:12px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,.12); }
+  .treatment-notes p { margin:4px 0 0; font-style:italic; font-weight:700; }
+  .material-card { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .material-card strong { margin-right:auto; }
+  .material-card span { border-radius:999px; background:#dde2f3; color:#974800; font-weight:800; padding:4px 8px; }
+  .photo-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .wide-photo { grid-template-columns:1fr; }
+  .photo-card { margin:0; break-inside:avoid; }
+  .photo-frame { width:100%; aspect-ratio:4 / 3; background:#fff; border:1px solid #ddc1b1; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+  .photo-frame img { width:100%; height:100%; object-fit:contain; display:block; }
+  .photo-card figcaption { margin-top:5px; text-align:center; color:#564336; font-size:11px; font-style:italic; }
+  .photo-empty { border:1px dashed #ddc1b1; background:#fff; color:#5e6473; padding:14px; }
   .doc-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:flex-start; }
   .doc-img { width:190px; max-width:100%; height:auto; max-height:150px; object-fit:contain; border:1px solid #d1d5db; display:block; background:#fff; padding:3px; }
   .doc-grid, .doc-img, tr, table { break-inside:avoid; page-break-inside:avoid; }
   .muted { color:#6b7280; font-style:italic; }
-  .signature-block { width:230px; margin:20px 0 0 auto; text-align:left; }
-  .signature-place { margin:0 0 10px; }
-  .signature-title { font-weight:700; margin:0; }
-  .signature-logo { width:150px; height:70px; object-fit:contain; display:block; margin:8px 0 6px; }
+  .signature-block { margin:24px auto 0; max-width:310px; text-align:center; border-top:1px dashed #ddc1b1; padding-top:14px; break-inside:avoid; }
+  .signature-place { color:#5e6473; margin:0 0 14px; }
+  .signature-title { font-weight:800; margin:0; }
   .signature-name { margin-top:0; }
+  .signature-digital { color:#9b9fa1; font-style:italic; margin:28px 0 14px; }
+  .signature-line { height:1px; background:#ddc1b1; margin:0 auto 9px; width:220px; }
+  .signature-footer { margin:0; color:#5e6473; font-family:'JetBrains Mono','Courier New',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
   @media print { @page { size:A4 portrait; margin:0; } body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
 </style></head><body>
 ${sections}
@@ -1994,10 +2036,10 @@ function GoldenSurveyReportFields({
   };
 
   return (
-    <div className="space-y-4 rounded-lg border bg-amber-50/30 p-3">
-      <div>
-        <h3 className="font-semibold text-sm">Form Laporan Hasil Survey Rubru Pest</h3>
-        <p className="text-xs text-muted-foreground">Isian mengikuti Template Laporan Survey Golden.</p>
+    <div className="space-y-4 rounded-lg border border-[#ddc1b1] bg-[#f9f9ff] p-3">
+      <div className="border-l-4 border-[#f27f22] pl-3">
+        <h3 className="text-sm font-bold uppercase text-[#974800]">Laporan Hasil Survey Rubru Pest</h3>
+        <p className="text-xs text-muted-foreground">Isian mengikuti referensi Field Service Precision.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -2055,19 +2097,28 @@ function GoldenSurveyReportFields({
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("hama", { jenis: "", status: "Ditemukan", keterangan: "" })}>Tambah Jenis Hama</Button>}
       </GoldenRows>
 
-      <GoldenRows title="5. Detail Temuan Lapangan" headers={["Area Temuan", "Jenis Temuan", "Keterangan"]}>
+      <GoldenRows title="5. Detail Temuan Lapangan" headers={["Area Temuan", "Jenis Temuan", "Severity", "Keterangan"]}>
         {form.temuan.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr_34px] gap-2 items-center">
+          <div key={i} className="grid grid-cols-[28px_1fr_1fr_130px_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
             <Input value={row.area} onChange={(e) => updateRow("temuan", i, { area: e.target.value })} placeholder="Contoh: Plafon kamar" disabled={disabled} />
             <Input value={row.jenis} onChange={(e) => updateRow("temuan", i, { jenis: e.target.value })} placeholder="Contoh: Jalur rayap aktif" disabled={disabled} />
+            <Select value={row.severity || "Sedang"} onValueChange={(v) => updateRow("temuan", i, { severity: v })} disabled={disabled}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="Ringan">Ringan</SelectItem>
+                <SelectItem value="Sedang">Sedang</SelectItem>
+                <SelectItem value="Parah">Parah</SelectItem>
+                <SelectItem value="Critical">Critical</SelectItem>
+              </SelectContent>
+            </Select>
             <Input value={row.keterangan} onChange={(e) => updateRow("temuan", i, { keterangan: e.target.value })} placeholder="Detail kondisi di lapangan" disabled={disabled} />
             <Button type="button" variant="ghost" size="icon" disabled={disabled || form.temuan.length <= 1} onClick={() => removeRow("temuan", i)}>
               <X className="h-4 w-4 text-red-500" />
             </Button>
           </div>
         ))}
-        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("temuan", { area: "", jenis: "", keterangan: "" })}>Tambah Temuan</Button>}
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("temuan", { area: "", jenis: "", severity: "Sedang", keterangan: "" })}>Tambah Temuan</Button>}
       </GoldenRows>
 
       <GoldenRows title="6. Rekomendasi Treatment" headers={["Metode Treatment", "Area Penerapan", "Keterangan"]}>
