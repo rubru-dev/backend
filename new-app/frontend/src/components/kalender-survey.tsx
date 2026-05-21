@@ -119,6 +119,7 @@ type GoldenSurveyReportForm = {
   material: { item: string; jumlah: string; keterangan: string }[];
   foto_area: { dokumentasi: string[]; keterangan: string }[];
   foto_temuan: { dokumentasi: string[]; keterangan: string }[];
+  tanda_tangan: string;
 };
 
 function defaultGoldenSurveyReportForm(item?: any): GoldenSurveyReportForm {
@@ -133,6 +134,7 @@ function defaultGoldenSurveyReportForm(item?: any): GoldenSurveyReportForm {
     material: [{ item: "", jumlah: "", keterangan: "" }],
     foto_area: [{ dokumentasi: [], keterangan: "" }],
     foto_temuan: [{ dokumentasi: [], keterangan: "" }],
+    tanda_tangan: "",
   };
 }
 
@@ -165,6 +167,7 @@ function parseGoldenSurveyReportForm(raw: string | null | undefined, item?: any)
       material: Array.isArray(data.material) && data.material.length ? data.material : fallback.material,
       foto_area: normalizeGoldenPhotoRows(data.foto_area, fallback.foto_area),
       foto_temuan: normalizeGoldenPhotoRows(data.foto_temuan, fallback.foto_temuan),
+      tanda_tangan: typeof data.tanda_tangan === "string" ? data.tanda_tangan : fallback.tanda_tangan,
     };
   } catch {
     return fallback;
@@ -599,7 +602,10 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
         <div class="treatment-row"><span>AREA</span><strong>${reportValue(row.area, "Area treatment")}</strong></div>
         <div class="treatment-notes"><span>NOTES</span><p>${reportValue(row.keterangan, "-")}</p></div>
       </div>`).join("");
-      const materialCardsHtml = report.material.map((row) => `<div class="material-card"><strong>${reportValue(row.item, "Item")}</strong><span>${reportValue(row.jumlah, "Qty: -")}</span>${row.keterangan ? `<small>${reportValue(row.keterangan)}</small>` : ""}</div>`).join("");
+      const materialRowsHtml = report.material.map((row) => `<tr><td>${reportValue(row.item, "Item")}</td><td>${reportValue(row.jumlah, "-")}</td><td>${reportValue(row.keterangan, "-")}</td></tr>`).join("");
+      const signatureHtml = report.tanda_tangan
+        ? `<img class="signature-image" src="${escapeHtml(report.tanda_tangan)}" alt="Tanda tangan" />`
+        : `<p class="signature-digital">(Digital Signature)</p><div class="signature-line"></div>`;
       const photoCardsHtml = (rows: { dokumentasi: string[]; keterangan: string }[]) => rows.map((row) => row.dokumentasi.length
         ? row.dokumentasi.map((src) => `<figure class="photo-card"><div class="photo-frame"><img src="${escapeHtml(src)}" /></div><figcaption>${reportValue(row.keterangan, "Dokumentasi survey")}</figcaption></figure>`).join("")
         : `<div class="photo-empty">${reportValue(row.keterangan, "Belum ada dokumentasi")}</div>`
@@ -619,7 +625,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
               <div class="info-card"><span>Surveyor</span><strong>${reportValue(report.surveyor, "-")}</strong></div>
               <div class="info-card wide"><span>Date & Time</span><strong>${escapeHtml(tgl)}${item.jam_survey ? ` - ${escapeHtml(item.jam_survey)}` : ""}</strong></div>
               <div class="info-card"><span>Location</span><strong>${lokasi || "-"}</strong></div>
-              <div class="info-card"><span>Type</span><strong>${reportValue(report.jenis_bangunan, "-")}${report.luas_area ? ` (${reportValue(report.luas_area)})` : ""}</strong></div>
+              <div class="info-card"><span>Luas Area</span><strong>${reportValue(report.luas_area, "-")}</strong></div>
             </div>
             <h2>Area yang Disurvey</h2>
             <div class="stack">${areaCardsHtml}</div>
@@ -634,7 +640,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
             <h2>Rekomendasi Treatment</h2>
             <div class="stack">${treatmentCardsHtml}</div>
             <h2>Kebutuhan Alat/Material</h2>
-            <div class="stack">${materialCardsHtml}</div>
+            <table class="material-table"><thead><tr><th>Item</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${materialRowsHtml}</tbody></table>
             <h2>Dokumentasi Foto</h2>
             <h3>Foto Area Survey</h3>
             <div class="photo-grid">${fotoAreaRowsHtml}</div>
@@ -644,8 +650,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
               <p class="signature-place">Bekasi, ${printedAt}</p>
               <p class="signature-title">Hormat Kami</p>
               <p class="signature-title signature-name">Rubrupest Manajemen</p>
-              <p class="signature-digital">(Digital Signature)</p>
-              <div class="signature-line"></div>
+              ${signatureHtml}
               <p class="signature-footer">Official Survey Report</p>
             </div>
           </div>
@@ -657,8 +662,8 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
 <html lang="id"><head><meta charset="UTF-8"/><title>Laporan Survey Golden - ${periodeLabel}${picLabel}</title>
 <style>
   * { box-sizing:border-box; }
-  body { margin:0; background:#f9f9ff; color:#111c2c; font-family:Inter,Arial,Helvetica,sans-serif; font-size:13px; line-height:1.45; }
-  .page { min-height:1122px; padding:34px 46px 42px; page-break-after:always; break-after:page; position:relative; overflow:hidden; background:#f9f9ff; }
+  body { margin:0; background:#fff; color:#111c2c; font-family:Inter,Arial,Helvetica,sans-serif; font-size:13px; line-height:1.45; }
+  .page { min-height:1122px; padding:34px 46px 42px; page-break-after:always; break-after:page; position:relative; overflow:hidden; background:#fff; }
   .page:last-child { page-break-after:auto; break-after:auto; }
   .letterhead { display:flex; gap:18px; align-items:center; border-bottom:1px solid #ddc1b1; padding:0 0 14px; margin-bottom:16px; }
   .letterhead img { width:104px; height:78px; object-fit:contain; flex:0 0 auto; }
@@ -671,14 +676,14 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   h2 { font-size:14px; line-height:1.2; margin:16px 0 8px; padding-left:9px; border-left:4px solid #f27f22; color:#111c2c; }
   h3 { color:#5e6473; font-size:11px; margin:14px 0 7px; text-transform:uppercase; letter-spacing:.05em; }
   .info-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:12px; }
-  .info-card, .area-card, .pest-card, .material-card { background:#fff; border:1px solid #ddc1b1; border-radius:4px; padding:10px; break-inside:avoid; }
+  .info-card, .area-card, .pest-card { background:#fff; border:1px solid #ddc1b1; border-radius:4px; padding:10px; break-inside:avoid; }
   .info-card.wide { grid-column:1 / -1; }
   .info-card span, .treatment-row span, .treatment-notes span { display:block; color:#5e6473; font-family:'JetBrains Mono','Courier New',monospace; font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
   .info-card strong { display:block; margin-top:4px; font-size:13px; }
   .stack { display:grid; gap:8px; }
   .area-card { background:#ffdbc7; border-color:#ffb688; }
   .area-title { font-weight:800; }
-  .area-note, .pest-note, .material-card small { color:#564336; font-size:11px; }
+  .area-note, .pest-note { color:#564336; font-size:11px; }
   .pest-card { display:grid; grid-template-columns:30px 1fr auto; gap:10px; align-items:center; border-color:#dde2f3; background:#f0f3ff; }
   .pest-card.is-found { border-color:#f27f22; background:#fff; }
   .pest-icon { width:28px; height:28px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:#e7eeff; color:#5e6473; font-weight:800; }
@@ -693,12 +698,10 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   .severity { font-weight:800; color:#f27f22; }
   .severity.parah, .severity.critical { color:#ba1a1a; }
   .severity.ringan { color:#5e6473; }
-  .treatment-card { background:#111c2c; border:1px solid #263142; border-radius:4px; color:#fff; padding:10px; break-inside:avoid; }
-  .treatment-row { display:flex; justify-content:space-between; gap:12px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,.12); }
+  .treatment-card { background:#fff; border:1px solid #ddc1b1; border-radius:4px; color:#111c2c; padding:10px; break-inside:avoid; }
+  .treatment-row { display:flex; justify-content:space-between; gap:12px; padding-bottom:8px; margin-bottom:8px; border-bottom:1px solid #dde2f3; }
   .treatment-notes p { margin:4px 0 0; font-style:italic; font-weight:700; }
-  .material-card { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
-  .material-card strong { margin-right:auto; }
-  .material-card span { border-radius:999px; background:#dde2f3; color:#974800; font-weight:800; padding:4px 8px; }
+  .material-table th:nth-child(2), .material-table td:nth-child(2) { width:110px; text-align:center; }
   .photo-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .wide-photo { grid-template-columns:1fr; }
   .photo-card { margin:0; break-inside:avoid; }
@@ -715,6 +718,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   .signature-title { font-weight:800; margin:0; }
   .signature-name { margin-top:0; }
   .signature-digital { color:#9b9fa1; font-style:italic; margin:28px 0 14px; }
+  .signature-image { display:block; width:180px; max-height:90px; object-fit:contain; margin:16px auto 10px; }
   .signature-line { height:1px; background:#ddc1b1; margin:0 auto 9px; width:220px; }
   .signature-footer { margin:0; color:#5e6473; font-family:'JetBrains Mono','Courier New',monospace; font-size:10px; letter-spacing:.06em; text-transform:uppercase; }
   @media print { @page { size:A4 portrait; margin:0; } body { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
@@ -1628,6 +1632,7 @@ ${sections}
                   onPhotoChange={handleGoldenReportPhotoChange}
                   onPreviewPhoto={setLightboxSrc}
                   photoProcessing={listFotoProcessing}
+                  canAssignSignature={canApprove}
                 />
               )}
 
@@ -2019,6 +2024,7 @@ function GoldenSurveyReportFields({
   onPhotoChange,
   onPreviewPhoto,
   photoProcessing,
+  canAssignSignature,
 }: {
   form: GoldenSurveyReportForm;
   disabled: boolean;
@@ -2029,10 +2035,19 @@ function GoldenSurveyReportFields({
   onPhotoChange: (e: React.ChangeEvent<HTMLInputElement>, key: "foto_area" | "foto_temuan", index: number) => void;
   onPreviewPhoto: (src: string) => void;
   photoProcessing: boolean;
+  canAssignSignature: boolean;
 }) {
   const removePhoto = (key: "foto_area" | "foto_temuan", rowIndex: number, photoIndex: number) => {
     const row = form[key][rowIndex];
     updateRow(key, rowIndex, { dokumentasi: row.dokumentasi.filter((_, i) => i !== photoIndex) });
+  };
+  const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => updateField("tanda_tangan", String(reader.result ?? ""));
+    reader.readAsDataURL(file);
+    e.target.value = "";
   };
 
   return (
@@ -2226,6 +2241,31 @@ function GoldenSurveyReportFields({
         {photoProcessing && <p className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Memproses dokumentasi...</p>}
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("foto_temuan", { dokumentasi: [], keterangan: "" })}>Tambah Baris Foto Temuan</Button>}
       </GoldenRows>
+
+      <div className="space-y-2 rounded-md border border-[#ddc1b1] bg-white p-3">
+        <div>
+          <p className="text-sm font-semibold">Assignment Tanda Tangan</p>
+          <p className="text-[11px] text-muted-foreground">Hanya Super Admin dan Head Golden yang dapat upload/mengubah tanda tangan PDF.</p>
+        </div>
+        {form.tanda_tangan ? (
+          <div className="flex items-center gap-3">
+            <div className="flex h-20 w-36 items-center justify-center rounded border bg-muted/20 p-2">
+              <img src={form.tanda_tangan} alt="Tanda tangan" className="max-h-full max-w-full object-contain" />
+            </div>
+            {canAssignSignature && !disabled && (
+              <Button type="button" variant="outline" size="sm" onClick={() => updateField("tanda_tangan", "")}>Hapus Tanda Tangan</Button>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">Belum ada tanda tangan.</p>
+        )}
+        {canAssignSignature && !disabled && (
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground hover:border-primary/60">
+            <Upload className="h-3.5 w-3.5" /> Upload tanda tangan
+            <input type="file" accept="image/*" className="hidden" onChange={handleSignatureUpload} />
+          </label>
+        )}
+      </div>
     </div>
   );
 }
