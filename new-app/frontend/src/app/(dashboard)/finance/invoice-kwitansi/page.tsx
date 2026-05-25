@@ -218,6 +218,7 @@ function leadDisplayName(lead: any) {
 }
 
 const today = new Date().toISOString().split("T")[0];
+const EMPTY_LEADS: any[] = [];
 
 const EMPTY_FORM = {
   lead_id: "",
@@ -478,7 +479,7 @@ export default function InvoiceKwitansiPage() {
     queryFn: () => api.leads(leadSearch, form.kategori),
     enabled: open && !!form.kategori,
   });
-  const leads: any[] = leadsData?.items ?? [];
+  const leads: any[] = leadsData?.items ?? EMPTY_LEADS;
 
   // Invoice list
   const { data, isLoading } = useQuery({
@@ -510,7 +511,7 @@ export default function InvoiceKwitansiPage() {
     if (!lead) return;
     const generated = generateNomor(form.kategori, form.tanggal, lead, form.paket_desain);
     if (generated) {
-      setForm((f: any) => ({ ...f, nomor_invoice: generated }));
+      setForm((f: any) => f.nomor_invoice === generated ? f : { ...f, nomor_invoice: generated });
     }
   }, [form.kategori, form.lead_id, form.tanggal, form.paket_desain, selectedLead, leads]);
 
