@@ -161,7 +161,7 @@ const ABSEN_STATUS: Record<string, { color: string; label: string; icon: React.R
 
 function formatJam(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
 }
 
 function AbsenWidget({ userName }: { userName: string }) {
@@ -229,8 +229,8 @@ function AbsenWidget({ userName }: { userName: string }) {
     const raw = canvasRef.current.toDataURL("image/jpeg", 0.9);
     if (stream) stream.getTracks().forEach(t => t.stop()); setStream(null);
     const now = new Date();
-    const tgl = now.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-    const jam = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const tgl = now.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    const jam = now.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const lokasiTeks = gps ? (gps.diLuar ? `📍 Luar Kantor (${Math.round(gps.jarak)}m)` : `📍 Dalam Kantor (${Math.round(gps.jarak)}m)`) : "📍 Lokasi tidak tersedia";
     const stamped = await stampPhoto(raw, [`👤 ${userName}`, `🕐 ${jam}  📅 ${tgl}`, lokasiTeks]);
     setCapturedPhoto(stamped); setStep("preview");

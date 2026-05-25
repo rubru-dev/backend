@@ -81,10 +81,10 @@ function stampPhoto(imageSrc: string, lines: string[]): Promise<string> {
 
 function formatJam(d: string | Date | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
 }
 function formatTanggal(d: string | Date) {
-  return new Date(d).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  return new Date(d).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
 const STATUS_STYLE: Record<string, { color: string; icon: React.ReactNode; label: string }> = {
@@ -208,8 +208,8 @@ export default function AbsenKaryawanPage() {
 
     // Overlay timestamp
     const now = new Date();
-    const tgl = now.toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
-    const jam = now.toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    const tgl = now.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "short", day: "numeric", month: "short", year: "numeric" });
+    const jam = now.toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit", second: "2-digit" });
     const lokasiTeks = gps
       ? gps.diLuar
         ? `📍 Luar Kantor (${Math.round(gps.jarak)}m dari kantor)`

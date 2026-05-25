@@ -78,6 +78,30 @@ function generateNomorInvoice(jenis: string | null | undefined, tanggal: Date): 
   return `RR-INV-${suffix}`;
 }
 
+function invoicePart(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[\/\\]/g, "-")
+    .toUpperCase();
+}
+
+function generateKategoriInvoiceNumber(kategori: string | null | undefined, tanggal: Date, lead?: { nama?: string | null; salutation?: string | null } | null, paketDesain?: string | null): string {
+  const d = new Date(tanggal);
+  const dd = String(d.getDate()).padStart(2, "0");
+  const mm = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const suffix = `${dd}/${mm}/${yyyy}`;
+  const client = invoicePart(leadDisplayName(lead) || lead?.nama || "CLIENT");
+  if (kategori === "Payment Desain") return `RBR-DS-${invoicePart(paketDesain || "PAKET")}-${client}-${suffix}`;
+  if (kategori === "Payment Survey") return `RBR-SVY-${client}-${suffix}`;
+  if (kategori === "Payment Projek") return `RBR-PRJ-${client}-${suffix}`;
+  if (kategori === "Payment RKR") return `RKR-PRJ-${client}-${suffix}`;
+  if (kategori === "Payment Golden") return `RBR-GL-${client}-${suffix}`;
+  if (kategori === "Payment Filter Air") return `RBR-FLA-${client}-${suffix}`;
+  return generateNomorInvoice(null, tanggal);
+}
+
 function invoiceDictFrontend(inv: any) {
   const leadName = leadDisplayName(inv.lead);
   return {
@@ -795,11 +819,29 @@ router.delete("/tukang/kwitansi/:id", async (req: Request, res: Response) => {
 // ── /leads-dropdown – for invoice form lead picker ────────────────────────────
 router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const search = (req.query.search as string) || "";
+  const kategori = req.query.kategori as string | undefined;
   const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 50);
   const searchFilter = exactForSingleCharSearch(search);
+  const where: Record<string, unknown> = {};
+  if (!kategori) return res.json({ items: [] });
+  if (["Payment Desain", "Payment Survey", "Payment Projek"].includes(kategori)) {
+    where.modul = { in: ["sales-admin", "database-client"] };
+  } else if (kategori === "Payment RKR") {
+    where.modul = { in: ["telemarketing", "database-client"] };
+  } else if (kategori === "Payment Golden") {
+    where.modul = "golden";
+  } else if (kategori === "Payment Filter Air") {
+    where.modul = "filter-air";
+  }
+  if (searchFilter) {
+    where.OR = [
+      { nama: searchFilter },
+      { nomor_telepon: searchFilter },
+    ];
+  }
   const leads = await prisma.lead.findMany({
-    where: searchFilter ? { nama: searchFilter } : {},
-    select: { id: true, salutation: true, nama: true, jenis: true, nomor_telepon: true, alamat: true },
+    where,
+    select: { id: true, salutation: true, nama: true, jenis: true, nomor_telepon: true, alamat: true, modul: true, sumber_leads: true },
     orderBy: { nama: "asc" },
     take: limit,
   });
@@ -876,10 +918,14 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
   // Determine invoice number: manual input or auto-generate from lead jenis
   let invoiceNumber = nomor_invoice || "";
   if (!invoiceNumber && lead_id) {
-    const lead = await prisma.lead.findUnique({ where: { id: BigInt(lead_id) }, select: { jenis: true } });
-    invoiceNumber = generateNomorInvoice(lead?.jenis, tgl);
+    const lead = await prisma.lead.findUnique({ where: { id: BigInt(lead_id) }, select: { jenis: true, nama: true, salutation: true } });
+    invoiceNumber = kategori
+      ? generateKategoriInvoiceNumber(kategori, tgl, lead, paket_desain)
+      : generateNomorInvoice(lead?.jenis, tgl);
   }
-  if (!invoiceNumber) invoiceNumber = generateNomorInvoice(null, tgl);
+  if (!invoiceNumber) invoiceNumber = kategori
+    ? generateKategoriInvoiceNumber(kategori, tgl, null, paket_desain)
+    : generateNomorInvoice(null, tgl);
 
   const ppnPct = parseFloat(String(ppn_percentage ?? 0));
   let subtotal = 0;

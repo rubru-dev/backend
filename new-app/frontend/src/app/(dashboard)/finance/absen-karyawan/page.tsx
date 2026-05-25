@@ -22,11 +22,11 @@ const BULAN_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","A
 
 function fmtJam2(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
 }
 function fmtTgl2(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(d).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric" });
 }
 
 function generateAbsenPDF(records: any[], karyawanList: any[], filters: {
@@ -93,7 +93,7 @@ function generateAbsenPDF(records: any[], karyawanList: any[], filters: {
     </tr></thead>
     <tbody>${rows||'<tr><td colspan="6" style="text-align:center;padding:20px;color:#9ca3af">Tidak ada data</td></tr>'}</tbody>
   </table>
-  <p style="margin-top:12px;font-size:11px;color:#9ca3af">Dicetak pada: ${new Date().toLocaleString("id-ID")}</p>
+  <p style="margin-top:12px;font-size:11px;color:#9ca3af">Dicetak pada: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB</p>
   <script>window.onload=()=>{window.print();}</script>
   </body></html>`;
 
@@ -150,7 +150,7 @@ function generateIzinPDF(records: any[], filters: { userName: string; kategori: 
     </tr></thead>
     <tbody>${rows || '<tr><td colspan="6" style="text-align:center;padding:20px;color:#9ca3af">Tidak ada data</td></tr>'}</tbody>
   </table>
-  <p style="margin-top:12px;font-size:11px;color:#9ca3af">Dicetak pada: ${new Date().toLocaleString("id-ID")}</p>
+  <p style="margin-top:12px;font-size:11px;color:#9ca3af">Dicetak pada: ${new Date().toLocaleString("id-ID", { timeZone: "Asia/Jakarta" })} WIB</p>
   <script>window.onload=()=>{window.print();}</script>
   </body></html>`;
 
@@ -174,11 +174,38 @@ function StatusBadge({ status }: { status: string }) {
 
 function fmtJam(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" });
+  return new Date(d).toLocaleTimeString("id-ID", { timeZone: "Asia/Jakarta", hour: "2-digit", minute: "2-digit" });
 }
 function fmtTgl(d: string | null) {
   if (!d) return "—";
-  return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
+  return new Date(d).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "short", year: "numeric" });
+}
+
+function toDateInputWib(d: string | Date | null) {
+  if (!d) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(d));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
+function toDateTimeLocalWib(d: string | Date | null) {
+  if (!d) return "";
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date(d));
+  const get = (type: string) => parts.find((p) => p.type === type)?.value ?? "00";
+  return `${get("year")}-${get("month")}-${get("day")}T${get("hour")}:${get("minute")}`;
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
@@ -197,7 +224,7 @@ export default function FinanceAbsenKaryawanPage() {
   const [photoDialog, setPhotoDialog]       = useState<{ masuk?: string; keluar?: string; name?: string } | null>(null);
   const [rejectOpen, setRejectOpen]         = useState<{ id: number; catatan: string } | null>(null);
   const [editOpen, setEditOpen]             = useState<{
-    id: number; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean;
+    id: number; tanggal: string; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean;
   } | null>(null);
 
   const { data: karyawanList } = useQuery({
@@ -252,8 +279,9 @@ export default function FinanceAbsenKaryawanPage() {
   });
 
   const overrideMut = useMutation({
-    mutationFn: (data: { id: number; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean }) =>
+    mutationFn: (data: { id: number; tanggal: string; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean }) =>
       apiClient.patch(`/absen-karyawan/admin/${data.id}/override`, {
+        tanggal: data.tanggal,
         jam_masuk: data.jam_masuk || null,
         jam_keluar: data.jam_keluar || null,
         status: data.status,
@@ -469,8 +497,9 @@ export default function FinanceAbsenKaryawanPage() {
                               title="Edit Absen"
                               onClick={() => setEditOpen({
                                 id: r.id,
-                                jam_masuk: r.jam_masuk ? new Date(r.jam_masuk).toISOString().slice(0, 16) : "",
-                                jam_keluar: r.jam_keluar ? new Date(r.jam_keluar).toISOString().slice(0, 16) : "",
+                                tanggal: toDateInputWib(r.tanggal),
+                                jam_masuk: toDateTimeLocalWib(r.jam_masuk),
+                                jam_keluar: toDateTimeLocalWib(r.jam_keluar),
                                 status: r.status,
                                 terlambat: r.terlambat ?? false,
                               })}>
@@ -571,6 +600,11 @@ export default function FinanceAbsenKaryawanPage() {
           </DialogHeader>
           {editOpen && (
             <div className="space-y-4">
+              <div>
+                <Label>Tanggal</Label>
+                <Input type="date" className="mt-1" value={editOpen.tanggal}
+                  onChange={e => setEditOpen(prev => prev ? { ...prev, tanggal: e.target.value } : null)} />
+              </div>
               <div>
                 <Label>Jam Masuk</Label>
                 <Input type="datetime-local" className="mt-1" value={editOpen.jam_masuk}

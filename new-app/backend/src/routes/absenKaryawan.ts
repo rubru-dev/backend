@@ -29,6 +29,63 @@ function saveBase64Photo(dataUrl: string, dir: string): string {
   return `/storage/absen-karyawan/${filename}`;
 }
 
+function jakartaDateParts(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Jakarta",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  return {
+    year: Number(parts.find((p) => p.type === "year")?.value),
+    month: Number(parts.find((p) => p.type === "month")?.value),
+    day: Number(parts.find((p) => p.type === "day")?.value),
+  };
+}
+
+function jakartaDateOnly(value?: string | Date | null) {
+  if (value instanceof Date) {
+    const p = jakartaDateParts(value);
+    return new Date(Date.UTC(p.year, p.month - 1, p.day));
+  }
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  }
+  const p = jakartaDateParts(value ? new Date(value) : new Date());
+  return new Date(Date.UTC(p.year, p.month - 1, p.day));
+}
+
+function parseJakartaDateTime(value?: string | null) {
+  if (!value) return null;
+  const match = String(value).match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/);
+  if (!match) return new Date(value);
+  const [, y, m, d, h, min, s] = match;
+  return new Date(Date.UTC(Number(y), Number(m) - 1, Number(d), Number(h) - 7, Number(min), Number(s ?? 0), 0));
+}
+
+function jakartaTimeParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Jakarta",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(date);
+  return {
+    hour: Number(parts.find((p) => p.type === "hour")?.value),
+    minute: Number(parts.find((p) => p.type === "minute")?.value),
+    second: Number(parts.find((p) => p.type === "second")?.value),
+  };
+}
+
+function moveTimeToJakartaDate(date: Date | null, tanggal: Date) {
+  if (!date) return null;
+  const dateParts = jakartaDateParts(tanggal);
+  const time = jakartaTimeParts(date);
+  return new Date(Date.UTC(dateParts.year, dateParts.month - 1, dateParts.day, time.hour - 7, time.minute, time.second, 0));
+}
+
 // ── GET /absen-karyawan/config — config kantor (public, semua karyawan bisa baca) ──
 router.get("/config", async (_req: Request, res: Response) => {
   let cfg = await prisma.absenKaryawanConfig.findUnique({ where: { id: 1 } });
@@ -41,8 +98,7 @@ router.get("/config", async (_req: Request, res: Response) => {
 // ── GET /absen-karyawan/today — record absen hari ini milik user ──────────────
 router.get("/today", async (req: Request, res: Response) => {
   const userId = req.user!.id;
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = jakartaDateOnly();
   const record = await prisma.absenKaryawan.findUnique({
     where: { user_id_tanggal: { user_id: userId, tanggal: today } },
   });
@@ -72,8 +128,7 @@ router.post("/check-in", async (req: Request, res: Response) => {
   if (!cfg) cfg = await prisma.absenKaryawanConfig.create({ data: { id: 1 } });
 
   const now = new Date();
-  const today = new Date(now);
-  today.setHours(0, 0, 0, 0);
+  const today = jakartaDateOnly(now);
 
   // Cek sudah absen masuk hari ini
   const existing = await prisma.absenKaryawan.findUnique({
@@ -133,8 +188,7 @@ router.post("/check-out", async (req: Request, res: Response) => {
   const { foto_keluar, lat, lng } = req.body;
   if (!foto_keluar) return res.status(400).json({ detail: "Foto wajib diisi" });
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const today = jakartaDateOnly();
 
   const record = await prisma.absenKaryawan.findUnique({
     where: { user_id_tanggal: { user_id: userId, tanggal: today } },
@@ -172,26 +226,22 @@ router.get("/admin/list", async (req: Request, res: Response) => {
 
   const where: any = {};
   if (tanggal) {
-    const d = new Date(tanggal as string);
-    d.setHours(0, 0, 0, 0);
-    where.tanggal = d;
+    where.tanggal = jakartaDateOnly(tanggal as string);
   } else if (tanggal_mulai || tanggal_selesai) {
     where.tanggal = {};
     if (tanggal_mulai) {
-      const d = new Date(tanggal_mulai as string); d.setHours(0, 0, 0, 0);
-      where.tanggal.gte = d;
+      where.tanggal.gte = jakartaDateOnly(tanggal_mulai as string);
     }
     if (tanggal_selesai) {
-      const d = new Date(tanggal_selesai as string); d.setHours(23, 59, 59, 999);
-      where.tanggal.lte = d;
+      where.tanggal.lte = jakartaDateOnly(tanggal_selesai as string);
     }
   } else if (bulan || tahun) {
     const year = tahun ? parseInt(tahun as string) : new Date().getFullYear();
     const month = bulan ? parseInt(bulan as string) : null;
     if (month) {
-      where.tanggal = { gte: new Date(year, month - 1, 1), lte: new Date(year, month, 0, 23, 59, 59) };
+      where.tanggal = { gte: jakartaDateOnly(`${year}-${String(month).padStart(2, "0")}-01`), lte: jakartaDateOnly(`${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`) };
     } else {
-      where.tanggal = { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59) };
+      where.tanggal = { gte: jakartaDateOnly(`${year}-01-01`), lte: jakartaDateOnly(`${year}-12-31`) };
     }
   }
   if (user_id) where.user_id = BigInt(user_id as string);
@@ -244,7 +294,7 @@ router.patch("/admin/:id/approve", async (req: Request, res: Response) => {
 router.patch("/admin/:id/reject", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const approverId = req.user!.id;
-  const { catatan } = req.body;
+  const { catatan, catatan_reject } = req.body;
   const record = await prisma.absenKaryawan.findUnique({ where: { id } });
   if (!record) return res.status(404).json({ detail: "Record tidak ditemukan" });
   if (record.status !== "Pending") return res.status(400).json({ detail: "Hanya bisa reject status Pending" });
@@ -255,7 +305,7 @@ router.patch("/admin/:id/reject", async (req: Request, res: Response) => {
       status: "Ditolak",
       approved_by: approverId,
       approved_at: new Date(),
-      catatan_reject: catatan || null,
+      catatan_reject: catatan || catatan_reject || null,
     },
   });
   return res.json(updated);
@@ -318,7 +368,7 @@ router.post("/izin", async (req: Request, res: Response) => {
     return res.status(400).json({ detail: "Kategori tidak valid (izin/sakit/cuti)" });
 
   // Parse date string as UTC midnight to avoid server timezone shifting the date
-  const today = new Date(tanggal as string);
+  const today = jakartaDateOnly(tanggal as string);
 
   const existing = await prisma.izinKaryawan.findUnique({
     where: { user_id_tanggal: { user_id: userId, tanggal: today } },
@@ -354,15 +404,15 @@ router.get("/admin/izin/list", async (req: Request, res: Response) => {
   if (user_id) where.user_id = BigInt(user_id as string);
   if (tanggal_mulai || tanggal_selesai) {
     where.tanggal = {};
-    if (tanggal_mulai) { const d = new Date(tanggal_mulai as string); d.setHours(0,0,0,0); where.tanggal.gte = d; }
-    if (tanggal_selesai) { const d = new Date(tanggal_selesai as string); d.setHours(23,59,59,999); where.tanggal.lte = d; }
+    if (tanggal_mulai) where.tanggal.gte = jakartaDateOnly(tanggal_mulai as string);
+    if (tanggal_selesai) where.tanggal.lte = jakartaDateOnly(tanggal_selesai as string);
   } else if (bulan || tahun) {
     const year = tahun ? parseInt(tahun as string) : new Date().getFullYear();
     const month = bulan ? parseInt(bulan as string) : null;
     if (month) {
-      where.tanggal = { gte: new Date(year, month - 1, 1), lte: new Date(year, month, 0, 23, 59, 59) };
+      where.tanggal = { gte: jakartaDateOnly(`${year}-${String(month).padStart(2, "0")}-01`), lte: jakartaDateOnly(`${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`) };
     } else {
-      where.tanggal = { gte: new Date(year, 0, 1), lte: new Date(year, 11, 31, 23, 59, 59) };
+      where.tanggal = { gte: jakartaDateOnly(`${year}-01-01`), lte: jakartaDateOnly(`${year}-12-31`) };
     }
   }
   const items = await prisma.izinKaryawan.findMany({
@@ -423,11 +473,15 @@ router.patch("/admin/:id/override", async (req: Request, res: Response) => {
   const record = await prisma.absenKaryawan.findUnique({ where: { id } });
   if (!record) return res.status(404).json({ detail: "Record tidak ditemukan" });
 
-  const { jam_masuk, jam_keluar, status, terlambat, alasan_luar, catatan_reject } = req.body;
+  const { tanggal, jam_masuk, jam_keluar, status, terlambat, alasan_luar, catatan_reject } = req.body;
 
   const data: any = {};
-  if (jam_masuk !== undefined) data.jam_masuk = jam_masuk ? new Date(jam_masuk) : null;
-  if (jam_keluar !== undefined) data.jam_keluar = jam_keluar ? new Date(jam_keluar) : null;
+  const nextTanggal = tanggal !== undefined ? jakartaDateOnly(tanggal) : null;
+  if (nextTanggal) data.tanggal = nextTanggal;
+  if (jam_masuk !== undefined) data.jam_masuk = parseJakartaDateTime(jam_masuk);
+  else if (nextTanggal) data.jam_masuk = moveTimeToJakartaDate(record.jam_masuk, nextTanggal);
+  if (jam_keluar !== undefined) data.jam_keluar = parseJakartaDateTime(jam_keluar);
+  else if (nextTanggal) data.jam_keluar = moveTimeToJakartaDate(record.jam_keluar, nextTanggal);
   if (status !== undefined) data.status = status;
   if (terlambat !== undefined) data.terlambat = Boolean(terlambat);
   if (alasan_luar !== undefined) data.alasan_luar = alasan_luar || null;

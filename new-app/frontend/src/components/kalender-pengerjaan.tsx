@@ -207,6 +207,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   const [pdfDari, setPdfDari] = useState("");
   const [pdfSampai, setPdfSampai] = useState("");
   const [pdfPics, setPdfPics] = useState<string[]>([]);
+  const [pdfClientIds, setPdfClientIds] = useState<string[]>([]);
 
   // Dialog: set tanggal pengerjaan
   const [scheduleItem, setScheduleItem] = useState<any | null>(null);
@@ -406,6 +407,13 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 
   // Unique PIC names from current items
   const uniquePics: string[] = Array.from(new Set(items.map((i: any) => i.pic_survey).filter(Boolean)));
+  const uniquePengerjaanClients: { id: string; nama: string }[] = Array.from(
+    new Map(
+      items
+        .filter((i: any) => i.tanggal_pengerjaan || i.tanggal_survey)
+        .map((i: any) => [String(i.id), { id: String(i.id), nama: String(i.nama ?? "Tanpa Nama") }])
+    ).values()
+  );
 
   function openApproveDialog(item: any) {
     const report = parseAfterReport(item.foto_pengerjaan, item);
@@ -492,15 +500,31 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     setPdfDari(`${tahun}-${pad(bulan)}-01`);
     setPdfSampai(`${tahun}-${pad(bulan)}-${pad(lastDay)}`);
     setPdfPics([]);
+    setPdfClientIds([]);
     setPdfOpen(true);
   }
 
-  function handleDownloadPdf(dari?: string, sampai?: string, pics?: string[]) {
+  function letterheadHtml() {
+    return `
+      <div class="letterhead">
+        <img src="${window.location.origin}/images/offer-logos/rubru-pest-logo.jpeg" alt="Rubru Pest" onerror="this.style.display='none'"/>
+        <div class="letterhead-text">
+          <div class="company">PT. Rubah Rumah Inovasi Pemuda</div>
+          <div class="company-detail">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</div>
+          <div class="company-detail">Telp : +62 813 - 7640 - 5550</div>
+          <div class="company-detail">Website : rubahrumah.com</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function handleDownloadPdf(dari?: string, sampai?: string, pics?: string[], clientIds?: string[]) {
     const filtered = items.filter((item: any) => {
       const tgl = item.tanggal_pengerjaan ? String(item.tanggal_pengerjaan).split("T")[0] : null;
       if (dari && tgl && tgl < dari) return false;
       if (sampai && tgl && tgl > sampai) return false;
       if (pics?.length && !pics.includes(item.pic_survey)) return false;
+      if (clientIds?.length && !clientIds.includes(String(item.id))) return false;
       return true;
     });
 
@@ -550,46 +574,38 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 <title>Kalender After Pengerjaan — ${periodeLabel}${picLabel}</title>
 <style>
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { font-family:'Segoe UI',Arial,sans-serif; font-size:12px; color:#1a1a1a; background:#fff; padding:26px 34px; }
-  .letterhead { display:flex; align-items:center; gap:16px; margin-bottom:8px; }
-  .letterhead-logo { height:60px; width:auto; object-fit:contain; flex-shrink:0; }
-  .company-name { font-size:14px; font-weight:700; color:#1e293b; text-transform:uppercase; letter-spacing:.02em; }
-  .company-detail { font-size:11px; color:#475569; margin-top:2px; line-height:1.6; }
-  hr.divider { border:none; border-top:2px solid #1e293b; margin:8px 0 14px; }
-  h1 { font-size:16px; font-weight:700; color:#1e293b; margin-bottom:2px; }
-  .meta { font-size:11px; color:#94a3b8; margin-bottom:14px; }
+  body { font-family:Inter,'Segoe UI',Arial,sans-serif; font-size:12px; color:#111c2c; background:#fff; padding:26px 34px; }
+  .letterhead { display:flex; gap:18px; align-items:center; border-bottom:1px solid #ddc1b1; padding:0 0 14px; margin-bottom:16px; }
+  .letterhead img { width:104px; height:78px; object-fit:contain; flex:0 0 auto; }
+  .letterhead-text { display:flex; min-height:78px; flex-direction:column; justify-content:center; }
+  .company { font-weight:800; font-size:17px; margin-bottom:5px; text-transform:uppercase; }
+  .company-detail { font-size:11px; line-height:1.45; color:#564336; }
+  h1 { color:#974800; font-size:20px; line-height:1.1; margin:0 0 4px; text-transform:uppercase; letter-spacing:.2px; }
+  .meta { font-size:11px; color:#5e6473; margin-bottom:14px; }
   .summary { display:flex; gap:12px; margin-bottom:16px; flex-wrap:wrap; }
-  .scard { border:1px solid #e2e8f0; border-radius:8px; padding:8px 16px; background:#f8fafc; min-width:90px; }
-  .scard-label { font-size:9px; color:#64748b; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
-  .scard-value { font-size:22px; font-weight:700; color:#1e293b; }
-  .scard-ok .scard-value { color:#2563eb; }
-  .scard-sched .scard-value { color:#d97706; }
-  .scard-unsched .scard-value { color:#64748b; }
+  .scard { border:1px solid #ddc1b1; border-radius:4px; padding:8px 16px; background:#fff; min-width:90px; }
+  .scard-label { font-size:9px; color:#5e6473; text-transform:uppercase; letter-spacing:.05em; margin-bottom:3px; }
+  .scard-value { font-size:22px; font-weight:800; color:#111c2c; }
+  .scard-ok .scard-value { color:#f27f22; }
+  .scard-sched .scard-value { color:#974800; }
+  .scard-unsched .scard-value { color:#5e6473; }
   table { width:100%; border-collapse:collapse; font-size:11px; }
-  th { background:#f1f5f9; padding:7px 8px; text-align:left; font-weight:600; color:#475569; border-bottom:2px solid #e2e8f0; }
-  td { padding:6px 8px; border-bottom:1px solid #f1f5f9; vertical-align:top; }
-  .num { text-align:center; color:#94a3b8; width:24px; }
-  .sub { color:#94a3b8; font-size:10px; }
-  .sub-blue { color:#2563eb; font-size:10px; font-weight:600; }
+  th { background:#111c2c; padding:7px 8px; text-align:left; font-weight:700; color:#fff; border:1px solid #111c2c; text-transform:uppercase; }
+  td { padding:7px 8px; border:1px solid #ddc1b1; vertical-align:top; }
+  .num { text-align:center; color:#5e6473; width:24px; }
+  .sub { color:#5e6473; font-size:10px; }
+  .sub-blue { color:#974800; font-size:10px; font-weight:700; }
   .italic { font-style:italic; }
-  .badge { font-size:9px; padding:2px 7px; border-radius:4px; font-weight:600; }
-  .s-ok { background:#dbeafe; color:#1d4ed8; }
-  .s-sched { background:#fef3c7; color:#d97706; }
-  .s-pend { background:#f1f5f9; color:#64748b; }
+  .badge { font-size:9px; padding:3px 7px; border-radius:2px; font-weight:800; }
+  .s-ok { background:#ffdbc7; color:#974800; }
+  .s-sched { background:#fef3c7; color:#974800; }
+  .s-pend { background:#f0f3ff; color:#5e6473; }
   .foto-grid { display:flex; flex-wrap:wrap; gap:4px; margin-top:6px; }
-  .footer { margin-top:24px; padding-top:8px; border-top:1px solid #e2e8f0; font-size:10px; color:#94a3b8; display:flex; justify-content:space-between; }
+  .footer { margin-top:24px; padding-top:8px; border-top:1px solid #ddc1b1; font-size:10px; color:#5e6473; display:flex; justify-content:space-between; }
   @media print { body { padding:14px 18px; } }
 </style></head><body>
-  <div class="letterhead">
-    <img src="${window.location.origin}/images/logo.png" alt="Logo" class="letterhead-logo" onerror="this.style.display='none'"/>
-    <div>
-      <div class="company-name">PT. Rubah Rumah Inovasi Pemuda</div>
-      <div class="company-detail">Telp: 081376405550</div>
-      <div class="company-detail">Jl. Pandu II No.420. Sepanjang Jaya. Kec. Rawalumbu. Kota Bekasi. Jawa Barat 17116</div>
-    </div>
-  </div>
-  <hr class="divider"/>
-  <h1>Kalender After Pengerjaan — GoldenxRubahrumah</h1>
+  ${letterheadHtml()}
+  <h1>Kalender After Pengerjaan<br/>Rubru Pest</h1>
   <div class="meta">Periode: ${periodeLabel}${picLabel} &nbsp;|&nbsp; Dicetak: ${printNow.toLocaleDateString("id-ID", { weekday:"long", year:"numeric", month:"long", day:"numeric" })} ${printNow.toLocaleTimeString("id-ID", { hour:"2-digit", minute:"2-digit" })}</div>
   <div class="summary">
     <div class="scard"><div class="scard-label">Total</div><div class="scard-value">${filtered.length}</div></div>
@@ -1305,6 +1321,46 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
               </div>
             </div>
             <div className="space-y-1">
+              <Label className="text-xs">Filter Client Pengerjaan <span className="text-muted-foreground font-normal">(opsional, bisa lebih dari satu)</span></Label>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-full h-8 text-sm justify-between font-normal">
+                    {pdfClientIds.length === 0
+                      ? <span className="text-muted-foreground">Semua client pengerjaan</span>
+                      : <span className="truncate">{pdfClientIds.length} client dipilih</span>}
+                    <ChevronRight className="h-3.5 w-3.5 rotate-90 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-72 p-2" align="start">
+                  {uniquePengerjaanClients.length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-2">Tidak ada client pengerjaan pada data ini</p>
+                  ) : (
+                    <div className="space-y-1 max-h-56 overflow-y-auto">
+                      {uniquePengerjaanClients.map((client) => (
+                        <label key={client.id} className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-muted cursor-pointer">
+                          <Checkbox
+                            checked={pdfClientIds.includes(client.id)}
+                            onCheckedChange={(checked) =>
+                              setPdfClientIds((prev) => checked ? [...prev, client.id] : prev.filter((id) => id !== client.id))
+                            }
+                          />
+                          <span className="text-sm truncate">{client.nama}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                  {pdfClientIds.length > 0 && (
+                    <button
+                      className="mt-1 w-full text-xs text-center text-muted-foreground hover:text-foreground py-1"
+                      onClick={() => setPdfClientIds([])}
+                    >
+                      Reset pilihan client
+                    </button>
+                  )}
+                </PopoverContent>
+              </Popover>
+            </div>
+            <div className="space-y-1">
               <Label className="text-xs">Filter PIC <span className="text-muted-foreground font-normal">(opsional, bisa lebih dari satu)</span></Label>
               <Popover>
                 <PopoverTrigger asChild>
@@ -1348,7 +1404,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
               <Button variant="outline" onClick={() => setPdfOpen(false)}>Batal</Button>
               <Button
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                onClick={() => { setPdfOpen(false); handleDownloadPdf(pdfDari || undefined, pdfSampai || undefined, pdfPics.length ? pdfPics : undefined); }}
+                onClick={() => { setPdfOpen(false); handleDownloadPdf(pdfDari || undefined, pdfSampai || undefined, pdfPics.length ? pdfPics : undefined, pdfClientIds.length ? pdfClientIds : undefined); }}
               >
                 <FileDown className="h-4 w-4 mr-1.5" /> Download PDF
               </Button>

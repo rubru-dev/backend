@@ -28,8 +28,13 @@ import { useAuthStore } from "@/store/authStore";
 
 // ── API ───────────────────────────────────────────────────────────────────────
 const api = {
-  leads: (search?: string) =>
-    apiClient.get("/finance/leads-dropdown", { params: search ? { search } : {} }).then(r => r.data),
+  leads: (search?: string, kategori?: string) =>
+    apiClient.get("/finance/leads-dropdown", {
+      params: {
+        ...(search ? { search } : {}),
+        ...(kategori ? { kategori } : {}),
+      },
+    }).then(r => r.data),
   list: (params?: any) => apiClient.get("/finance/invoices", { params }).then(r => r.data),
   create: (data: any) => apiClient.post("/finance/invoices", data).then(r => r.data),
   update: (id: number, data: any) => apiClient.patch(`/finance/invoices/${id}`, data).then(r => r.data),
@@ -58,16 +63,148 @@ const STATUS_BADGE: Record<string, { variant: any; label: string }> = {
 
 const METODE_OPTIONS = ["Transfer Bank", "Tunai", "QRIS", "Cek / Giro"];
 
-function generateNomor(jenis: string | null, tgl: string) {
+const CATEGORY_OPTIONS = [
+  "Payment Desain",
+  "Payment Survey",
+  "Payment RKR",
+  "Payment Projek",
+  "Payment Golden",
+  "Payment Filter Air",
+] as const;
+
+const DESIGN_PACKAGE_NOTES: Record<string, { label: string; termin1Days: string; termin1Items: string[]; termin2Days: string; termin2Items: string[] }> = {
+  Basic: {
+    label: "Paket Desain Basic",
+    termin1Days: "4 Hari Kerja",
+    termin1Items: ["Desain 3D Eksterior/Fasad - 2 View", "Gambar Kerja 2D - Layout Eksisting", "Gambar Kerja 2D - Layout Perubahan"],
+    termin2Days: "3 Hari Kerja",
+    termin2Items: ["Gambar Interior 3D", "RAB (Rencana Anggaran Biaya)"],
+  },
+  Standart: {
+    label: "Paket Desain Standart",
+    termin1Days: "7 Hari Kerja",
+    termin1Items: [
+      "Desain 3D Eksterior/Fasad - 2 View",
+      "Gambar Kerja 2D - Detail Fasad",
+      "Gambar Kerja 2D - Layout Struktur Pondasi",
+      "Gambar Kerja 2D - Layout Struktur Kolom",
+      "Gambar Kerja 2D - Layout Struktur Balokan",
+      "Gambar Kerja 2D - Layout Electrical (Lampu, Stop Kontak, Saklar)",
+      "Gambar Kerja 2D - Layout Plumbing (Air Bersih, Air Tinja dan Air Kotor)",
+      "Gambar Kerja 2D - Potongan Bujur (A-A)",
+      "Gambar Kerja 2D - Potongan Melintang (B-B)",
+    ],
+    termin2Days: "7 Hari Kerja",
+    termin2Items: ["Gambar Interior 3D - 7 View", "RAB (Rencana Anggaran Biaya)"],
+  },
+  Premium: {
+    label: "Paket Desain Premium",
+    termin1Days: "10 Hari Kerja",
+    termin1Items: [
+      "Desain 3D Eksterior/Fasad - 3 View",
+      "Gambar Kerja 2D - Detail Fasad",
+      "Gambar Kerja 2D - Layout Struktur Pondasi",
+      "Gambar Kerja 2D - Layout Struktur Kolom",
+      "Gambar Kerja 2D - Layout Struktur Balokan",
+      "Gambar Kerja 2D - Layout Electrical (Lampu, Stop Kontak, Saklar)",
+      "Gambar Kerja 2D - Layout Plumbing (Air Bersih, Air Tinja dan Air Kotor)",
+      "Gambar Kerja 2D - Layout Pintu dan Jendela",
+      "Gambar Kerja 2D - Layout Finishing Plafond",
+      "Gambar Kerja 2D - Layout Finishing Lantai",
+      "Gambar Kerja 2D - Layout Finishing Dinding",
+      "Gambar Kerja 2D - Detail Struktur",
+      "Gambar Kerja 2D - Detail Pintu dan Jendela",
+      "Gambar Kerja 2D - Detail Finishing Plafond",
+      "Gambar Kerja 2D - Detail Finishing Lantai",
+      "Gambar Kerja 2D - Detail Arsitektur",
+      "Gambar Kerja 2D - Potongan Bujur (A-A)",
+      "Gambar Kerja 2D - Potongan Melintang (B-B)",
+    ],
+    termin2Days: "11 Hari Kerja",
+    termin2Items: ["Gambar Interior 3D - 13 View", "RAB (Rencana Anggaran Biaya)"],
+  },
+  Deluxe: {
+    label: "Paket Desain Deluxe",
+    termin1Days: "14 Hari Kerja",
+    termin1Items: [
+      "Desain 3D Eksterior/Fasad - 4 View",
+      "Gambar Kerja 2D - Detail Fasad",
+      "Gambar Kerja 2D - Layout Struktur Pondasi",
+      "Gambar Kerja 2D - Layout Struktur Kolom",
+      "Gambar Kerja 2D - Layout Struktur Balokan",
+      "Gambar Kerja 2D - Layout Sloof",
+      "Gambar Kerja 2D - Layout Electrical (Lampu, Stop Kontak, Saklar)",
+      "Gambar Kerja 2D - Layout Plumbing (Air Bersih, Air Tinja dan Air Kotor)",
+      "Gambar Kerja 2D - Layout Pintu dan Jendela",
+      "Gambar Kerja 2D - Layout Finishing Plafond",
+      "Gambar Kerja 2D - Layout Finishing Lantai",
+      "Gambar Kerja 2D - Layout Finishing Dinding",
+      "Gambar Kerja 2D - Detail Struktur",
+      "Gambar Kerja 2D - Detail Pintu dan Jendela",
+      "Gambar Kerja 2D - Detail Finishing Plafond",
+      "Gambar Kerja 2D - Detail Finishing Lantai",
+      "Gambar Kerja 2D - Detail Arsitektur",
+      "Gambar Kerja 2D - Potongan Bujur (A-A)",
+      "Gambar Kerja 2D - Potongan Melintang (B-B)",
+    ],
+    termin2Days: "14 Hari Kerja",
+    termin2Items: ["Gambar Interior 3D - 16 View", "RAB (Rencana Anggaran Biaya)"],
+  },
+};
+
+const SURVEY_NOTE = `Keterangan Survey:
+- Denah Eksisting (Denah Saat ini)
+- Denah Perubahan (Sesuai Request Client saat Survey)
+- Konsultasi Bersama tim Rubah Rumah
+
+Maksimal Revisi adalah 1x jika lebih dari itu maka, disarankan mengambil paket Desain sesuai luasan bangunan yang akan di bangun/renovasi.`;
+
+function slugInvoicePart(value: string | null | undefined) {
+  return String(value || "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[\/\\]/g, "-")
+    .toUpperCase();
+}
+
+function generateNomor(kategori: string | null, tgl: string, lead?: any, paketDesain?: string) {
   const d = new Date(tgl || Date.now());
   const dd = String(d.getDate()).padStart(2, "0");
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
   const suffix = `${dd}/${mm}/${yyyy}`;
-  if (jenis === "Sipil")    return `RR-SP-${suffix}`;
-  if (jenis === "Desain")   return `RR-DS-${suffix}`;
-  if (jenis === "Interior") return `RR-INT-${suffix}`;
+  const client = slugInvoicePart(leadDisplayName(lead) || lead?.nama || "CLIENT");
+  if (kategori === "Payment Desain") {
+    const paket = slugInvoicePart(paketDesain || "PAKET");
+    return `RBR-DS-${paket}-${client}-${suffix}`;
+  }
+  if (kategori === "Payment Survey") return `RBR-SVY-${client}-${suffix}`;
+  if (kategori === "Payment Projek") return `RBR-PRJ-${client}-${suffix}`;
+  if (kategori === "Payment RKR") return `RKR-PRJ-${client}-${suffix}`;
+  if (kategori === "Payment Golden") return `RBR-GL-${client}-${suffix}`;
+  if (kategori === "Payment Filter Air") return `RBR-FLA-${client}-${suffix}`;
   return "";
+}
+
+function getDesignNote(paketDesain: string) {
+  const pkg = DESIGN_PACKAGE_NOTES[paketDesain] ?? DESIGN_PACKAGE_NOTES.Basic;
+  return `Keterangan Paket Desain ${pkg.label} :
+
+Lingkup Pekerjaan :
+
+Termin 1 (50%) - ${pkg.termin1Days} :
+
+${pkg.termin1Items.map((item) => `- ${item}`).join("\n")}
+
+Termin 2 (Pelunasan 50%) - ${pkg.termin2Days} :
+
+${pkg.termin2Items.map((item) => `- ${item}`).join("\n")}
+
+Syarat dan Ketentuan :
+
+1. Pada Termin 1 dan Termin 2 revisi bersifat major maksimal 3x.
+2. Waktu desain bisa bertambah tergantung dari berapa lama umpan balik dari klien untuk revisi di tiap fase termin.
+3. Timeline desain berlaku sejak client melakukan pembayaran DP 50%.`;
 }
 
 function formatRp(val: number | string) {
@@ -275,6 +412,7 @@ export default function InvoiceKwitansiPage() {
   const [form, setForm] = useState<any>(EMPTY_FORM);
   const [leadSearch, setLeadSearch] = useState("");
   const [showLeadDropdown, setShowLeadDropdown] = useState(false);
+  const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [rabItems, setRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string }[]>([]);
 
   useEffect(() => {
@@ -336,9 +474,9 @@ export default function InvoiceKwitansiPage() {
 
   // Leads for dropdown
   const { data: leadsData } = useQuery({
-    queryKey: ["leads-dropdown", leadSearch],
-    queryFn: () => api.leads(leadSearch),
-    enabled: open,
+    queryKey: ["leads-dropdown", form.kategori, leadSearch],
+    queryFn: () => api.leads(leadSearch, form.kategori),
+    enabled: open && !!form.kategori,
   });
   const leads: any[] = leadsData?.items ?? [];
 
@@ -365,16 +503,16 @@ export default function InvoiceKwitansiPage() {
   });
   const bankAccounts: any[] = Array.isArray(bankAccountsData) ? bankAccountsData : [];
 
-  // Auto-generate nomor invoice when lead or tanggal changes
+  // Auto-generate nomor invoice when kategori, lead, paket, or tanggal changes
   useEffect(() => {
-    if (!form.lead_id) return;
-    const lead = leads.find((l: any) => String(l.id) === String(form.lead_id));
+    if (!form.kategori || !form.lead_id) return;
+    const lead = selectedLead ?? leads.find((l: any) => String(l.id) === String(form.lead_id));
     if (!lead) return;
-    const generated = generateNomor(lead.jenis, form.tanggal);
-    if (generated && !form._nomorManual) {
+    const generated = generateNomor(form.kategori, form.tanggal, lead, form.paket_desain);
+    if (generated) {
       setForm((f: any) => ({ ...f, nomor_invoice: generated }));
     }
-  }, [form.lead_id, form.tanggal, leads]);
+  }, [form.kategori, form.lead_id, form.tanggal, form.paket_desain, selectedLead, leads]);
 
   // Mutations
   const createMut = useMutation({
@@ -385,6 +523,8 @@ export default function InvoiceKwitansiPage() {
       setOpen(false);
       setEditId(null);
       setForm(EMPTY_FORM);
+      setSelectedLead(null);
+      setLeadSearch("");
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal membuat invoice"),
   });
@@ -397,6 +537,8 @@ export default function InvoiceKwitansiPage() {
       setOpen(false);
       setEditId(null);
       setForm(EMPTY_FORM);
+      setSelectedLead(null);
+      setLeadSearch("");
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui invoice"),
   });
@@ -493,9 +635,35 @@ export default function InvoiceKwitansiPage() {
   });
 
   function handleSelectLead(lead: any) {
+    setSelectedLead(lead);
     setForm((f: any) => ({ ...f, lead_id: String(lead.id), _nomorManual: false }));
     setLeadSearch(leadDisplayName(lead));
     setShowLeadDropdown(false);
+  }
+
+  function handleCategoryChange(kategori: string) {
+    const nextCatatan =
+      kategori === "Payment Survey" ? SURVEY_NOTE :
+      kategori === "Payment Desain" ? getDesignNote(form.paket_desain || "Basic") :
+      "";
+    setSelectedLead(null);
+    setLeadSearch("");
+    setShowLeadDropdown(false);
+    setForm({
+      ...form,
+      kategori,
+      lead_id: "",
+      nomor_invoice: "",
+      catatan: nextCatatan,
+      paket_desain: kategori === "Payment Desain" ? (form.paket_desain || "Basic") : "",
+      jenis_filter_air: "",
+      rab_item_id: "",
+      _nomorManual: false,
+    });
+  }
+
+  function handleDesignPackageChange(paket_desain: string) {
+    setForm({ ...form, paket_desain, catatan: getDesignNote(paket_desain), _nomorManual: false });
   }
 
   async function handleDownloadPDF(inv: any) {
@@ -639,7 +807,7 @@ export default function InvoiceKwitansiPage() {
               <option value="Mr">Mr</option>
               <option value="Mrs">Mrs</option>
             </select>
-            <Button onClick={() => { setForm(EMPTY_FORM); setLeadSearch(""); setOpen(true); }}>
+            <Button onClick={() => { setForm(EMPTY_FORM); setLeadSearch(""); setSelectedLead(null); setOpen(true); }}>
               <Plus className="h-4 w-4 mr-2" /> Buat Invoice
             </Button>
           </div>
@@ -795,6 +963,7 @@ export default function InvoiceKwitansiPage() {
                                         rab_item_id: inv.rab_item_id ? String(inv.rab_item_id) : "",
                                         _nomorManual: true,
                                       });
+                                      setSelectedLead(inv.lead ?? null);
                                       setLeadSearch(leadDisplayName(inv.lead));
                                       setOpen(true);
                                     }}>
@@ -924,7 +1093,7 @@ export default function InvoiceKwitansiPage() {
       </Tabs>
 
       {/* Create / Edit Invoice Dialog */}
-      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm(EMPTY_FORM); setLeadSearch(""); } }}>
+      <Dialog open={open} onOpenChange={(v) => { setOpen(v); if (!v) { setEditId(null); setForm(EMPTY_FORM); setLeadSearch(""); setSelectedLead(null); } }}>
         <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -932,24 +1101,50 @@ export default function InvoiceKwitansiPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div>
+              <Label>Kategori *</Label>
+              <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
+                value={form.kategori}
+                onChange={e => handleCategoryChange(e.target.value)}>
+                <option value="">— Pilih kategori terlebih dahulu —</option>
+                {CATEGORY_OPTIONS.map((category) => {
+                  if (salesAdminOnly && !["Payment Desain", "Payment Survey"].includes(category)) return null;
+                  if (category === "Payment Projek" && !canSeeProyek) return null;
+                  return <option key={category} value={category}>{category}</option>;
+                })}
+              </select>
+              {salesAdminOnly && (
+                <p className="text-xs text-amber-600 mt-1">Sales Admin hanya dapat membuat invoice kategori Payment Desain dan Payment Survey.</p>
+              )}
+            </div>
+
             {/* Lead Picker */}
             <div className="relative">
-              <Label>Klien (dari data Leads) *</Label>
+              <Label>Klien *</Label>
               <Input
-                placeholder="Cari nama klien..."
+                placeholder={form.kategori ? "Cari nama atau nomor telepon klien..." : "Pilih kategori terlebih dahulu"}
                 value={leadSearch}
-                onChange={e => { setLeadSearch(e.target.value); setShowLeadDropdown(true); }}
-                onFocus={() => setShowLeadDropdown(true)}
+                disabled={!form.kategori}
+                onChange={e => {
+                  setLeadSearch(e.target.value);
+                  setSelectedLead(null);
+                  setForm((f: any) => ({ ...f, lead_id: "", nomor_invoice: "" }));
+                  setShowLeadDropdown(!!form.kategori);
+                }}
+                onFocus={() => setShowLeadDropdown(!!form.kategori)}
                 autoComplete="off"
               />
               {showLeadDropdown && leads.length > 0 && (
                 <div className="absolute z-50 w-full bg-white border rounded-md shadow-md max-h-48 overflow-y-auto mt-1">
                   {leads.map((l: any) => (
                     <button key={l.id} type="button"
-                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 flex justify-between"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted/50 flex justify-between gap-3"
                       onClick={() => handleSelectLead(l)}>
-                      <span>{leadDisplayName(l)}</span>
-                      <span className="text-muted-foreground text-xs">{l.jenis || "—"}</span>
+                      <span className="min-w-0">
+                        <span className="block truncate">{leadDisplayName(l)}</span>
+                        <span className="block text-xs text-muted-foreground truncate">{l.nomor_telepon || "Tanpa nomor telepon"}</span>
+                      </span>
+                      <span className="text-muted-foreground text-xs shrink-0">{l.jenis || l.modul || "—"}</span>
                     </button>
                   ))}
                 </div>
@@ -967,10 +1162,11 @@ export default function InvoiceKwitansiPage() {
                 <Input
                   placeholder="Auto-generate atau isi manual"
                   value={form.nomor_invoice}
-                  onChange={e => setForm({ ...form, nomor_invoice: e.target.value, _nomorManual: true })}
+                  readOnly
+                  className="bg-muted/40"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  Format: RR-SP/RR-DS/RR-INT berdasarkan jenis lead, atau isi manual
+                  Nomor invoice otomatis mengikuti kategori, klien, dan tanggal.
                 </p>
               </div>
               <div>
@@ -1007,30 +1203,12 @@ export default function InvoiceKwitansiPage() {
                 onChange={e => setForm({ ...form, ppn_percentage: Number(e.target.value) })} />
             </div>
 
-            <div>
-              <Label>Kategori</Label>
-              <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
-                value={form.kategori}
-                onChange={e => setForm({ ...form, kategori: e.target.value, paket_desain: "", jenis_filter_air: "", rab_item_id: "" })}>
-                <option value="">— Pilih kategori —</option>
-                <option value="Payment Desain">Payment Desain</option>
-                <option value="Payment Survey">Payment Survey</option>
-                {!salesAdminOnly && <option value="Payment RKR">Payment RKR</option>}
-                {!salesAdminOnly && canSeeProyek && <option value="Payment Projek">Payment Projek</option>}
-                {!salesAdminOnly && <option value="Payment Golden">Payment Golden</option>}
-                {!salesAdminOnly && <option value="Payment Filter Air">Payment Filter Air</option>}
-              </select>
-              {salesAdminOnly && (
-                <p className="text-xs text-amber-600 mt-1">Sales Admin hanya dapat membuat invoice kategori Payment Desain dan Payment Survey.</p>
-              )}
-            </div>
-
             {form.kategori === "Payment Desain" && (
               <div>
                 <Label>Paket Desain</Label>
                 <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
                   value={form.paket_desain}
-                  onChange={e => setForm({ ...form, paket_desain: e.target.value })}>
+                  onChange={e => handleDesignPackageChange(e.target.value)}>
                   <option value="">— Pilih paket —</option>
                   <option value="Basic">Basic — Rp 2.500.000</option>
                   <option value="Standart">Standart — Rp 6.800.000</option>
@@ -1093,9 +1271,9 @@ export default function InvoiceKwitansiPage() {
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setOpen(false); setEditId(null); setForm(EMPTY_FORM); setLeadSearch(""); }}>Batal</Button>
+              <Button variant="outline" onClick={() => { setOpen(false); setEditId(null); setForm(EMPTY_FORM); setLeadSearch(""); setSelectedLead(null); }}>Batal</Button>
               <Button
-                disabled={!form.lead_id || !form.nomor_invoice || createMut.isPending || updateMut.isPending}
+                disabled={!form.kategori || !form.lead_id || !form.nomor_invoice || createMut.isPending || updateMut.isPending}
                 onClick={() => {
                   const payload = {
                     lead_id: form.lead_id,
