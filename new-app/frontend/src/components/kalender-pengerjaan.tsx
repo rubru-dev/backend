@@ -460,6 +460,54 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     return String(value ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
   }
 
+  function buildAfterReportPageHtml(item: any, pageIndex = 0) {
+    const report = parseAfterReport(item.foto_pengerjaan, item);
+    const tgl = item.tanggal_pengerjaan
+      ? new Date(String(item.tanggal_pengerjaan).split("T")[0] + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
+      : "-";
+    const nomor = `RB-GL-SRV/${String(item.id).padStart(3, "0")}/${new Date().getFullYear()}`;
+    const detailRows = report.detail
+      .filter((row) => row.area || row.treatment || row.status || row.keterangan)
+      .map((row) => `<tr><td>${escapeHtml(row.area || "-")}</td><td><em>${escapeHtml(row.treatment || "-")}</em></td><td class="status-ok">${escapeHtml(row.status || "Teratasi")}</td><td>${escapeHtml(row.keterangan || "-")}</td></tr>`)
+      .join("");
+    const materialCards = report.material
+      .filter((row) => row.item || row.jumlah || row.keterangan)
+      .map((row) => `<div class="material-card"><div class="material-icon">Tools</div><div><strong>${escapeHtml(row.item || "Material")}</strong><p>${escapeHtml(row.jumlah || "-")}${row.keterangan ? ` - ${escapeHtml(row.keterangan)}` : ""}</p></div></div>`)
+      .join("");
+    const photos: AfterReport["dokumentasi"] = report.dokumentasi.length
+      ? report.dokumentasi
+      : parseFotos(item.foto_pengerjaan).map((src, i) => ({ src, label: `Dokumentasi ${i + 1}`, keterangan: "" }));
+    const photoCards = photos.map((row, i) => `<figure class="${i === 2 ? "photo-wide" : ""}"><div class="photo-frame"><img src="${escapeHtml(row.src)}"/></div><figcaption><strong>${escapeHtml(row.label || `Dokumentasi ${i + 1}`)}</strong>${row.badge ? `<span>${escapeHtml(row.badge)}</span>` : ""}<p>${escapeHtml(row.keterangan || "")}</p></figcaption></figure>`).join("");
+    const signature = report.tanda_tangan
+      ? `<img class="signature-img" src="${escapeHtml(report.tanda_tangan)}" />`
+      : `<div class="signature-placeholder">[ Digital Signature ]</div>`;
+    const printedAt = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+    return `<div class="page ${pageIndex > 0 ? "page-break" : ""}">
+      <header class="doc-head">
+        <h1>Laporan Hasil Pengerjaan<br/>Rubru Pest</h1>
+        <div class="mono">Official Service Report<br/>No: ${escapeHtml(nomor)}</div>
+      </header>
+      <section class="section"><h2>1. Informasi Pengerjaan</h2><div class="info-grid">
+        <div class="info"><span>Customer</span><strong>${escapeHtml(item.nama)}</strong></div>
+        <div class="info"><span>Technician</span><strong>${escapeHtml(report.technician || item.pic_survey || "-")}</strong></div>
+        <div class="info"><span>Date & Time</span><strong>${escapeHtml(tgl)}</strong></div>
+        <div class="info"><span>Location</span><strong>${escapeHtml(item.alamat || "-")}</strong></div>
+        <div class="info"><span>Luas Bangunan (m2)</span><strong>${escapeHtml(report.luas_bangunan || (item.luasan_tanah ? `${item.luasan_tanah} m2` : "-"))}</strong></div>
+        <div class="info"><span>Status</span><strong class="status-ok">${escapeHtml(report.status || "Selesai")}</strong></div>
+      </div></section>
+      <section class="section"><h2>2. Detail Pengerjaan</h2><table><thead><tr><th>Area</th><th>Jenis Treatment</th><th>Status</th><th>Keterangan</th></tr></thead><tbody>${detailRows || "<tr><td colspan='4'>-</td></tr>"}</tbody></table></section>
+      <section class="section"><h2>3. Alat & Material Terpakai</h2><div class="material-grid">${materialCards || "<div class='empty-box'>-</div>"}</div></section>
+      <section class="section"><h2>4. Dokumentasi After Pengerjaan</h2><div class="photo-grid">${photoCards || "<div class='empty-box'>Belum ada dokumentasi foto</div>"}</div></section>
+      <section class="section note"><strong>Catatan Teknisi</strong><p>${escapeHtml(report.catatan_teknisi || "-")}</p></section>
+      <footer class="signature"><p>Bekasi, ${printedAt}</p><p><strong>Hormat Kami,</strong></p>${signature}<p><strong>Rubru Pest Manajemen</strong></p></footer>
+      <div class="footer">End of Service Report</div>
+    </div>`;
+  }
+
+  function afterReportPrintStyles() {
+    return `*{box-sizing:border-box} body{margin:0;background:#fff;color:#111c2c;font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.45}.page{width:210mm;min-height:297mm;margin:0 auto;padding:18mm 16mm;background:#fff}.page-break{break-before:page;page-break-before:always}.doc-head{border:1px solid #e5d4c8;padding:10px 12px;margin-bottom:18px}.doc-head h1{margin:0;color:#974800;font-size:24px;line-height:1.1;text-transform:uppercase}.mono{font-family:"Courier New",monospace;color:#585e6c;font-size:11px;text-transform:uppercase}.section{margin-top:20px}.section h2{border-left:4px solid #f27f22;padding-left:10px;font-size:16px;margin:0 0 10px}.info-grid{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #ddc1b1}.info{padding:10px;border-right:1px solid #ddc1b1;border-bottom:1px solid #ddc1b1}.info span{display:block;font-size:10px;color:#564336;text-transform:uppercase;font-weight:700}.info strong{display:block;margin-top:4px}table{width:100%;border-collapse:collapse}th{background:#111c2c;color:#fff;text-align:left;font-size:12px;padding:9px}td{border:1px solid #ddc1b1;padding:9px;vertical-align:top}.status-ok{color:#f27f22;font-weight:800}.material-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.material-card{display:flex;gap:14px;align-items:center;border:1px solid #ddc1b1;padding:14px}.material-icon{min-width:40px;height:40px;border-radius:10px;background:#dde2f3;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#414754}.material-card strong{display:block}.material-card p{margin:2px 0 0;color:#564336}.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.photo-wide{grid-column:1/-1}.photo-frame{aspect-ratio:4/3;border:1px solid #ddc1b1;background:#f9f9ff;display:flex;align-items:center;justify-content:center;overflow:hidden}.photo-frame img{width:100%;height:100%;object-fit:contain}.photo-wide .photo-frame{aspect-ratio:21/9}figure{margin:0}figure figcaption{font-size:11px;color:#564336;margin-top:5px}figure span{float:right;background:#f27f22;color:#fff;border-radius:999px;padding:2px 7px;font-weight:800}.note{border:1px solid #ddc1b1;background:#f0f3ff;padding:14px}.signature{margin-top:28px;border-top:1px solid #ddc1b1;padding-top:20px;text-align:center}.signature-img{height:80px;max-width:180px;object-fit:contain}.signature-placeholder{height:80px;display:flex;align-items:center;justify-content:center;color:#8a7264}.footer{text-align:center;margin-top:24px;color:#ddc1b1;text-transform:uppercase;letter-spacing:.12em;font-size:10px}.empty-box{grid-column:1/-1;border:1px solid #ddc1b1;color:#8a7264;padding:14px;text-align:center}@media print{@page{size:A4;margin:0}.page{margin:0}}`;
+  }
+
   function handleDownloadDetailPdf(item: any) {
     const report = parseAfterReport(item.foto_pengerjaan, item);
     const tgl = item.tanggal_pengerjaan
@@ -521,6 +569,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   function handleDownloadPdf(dari?: string, sampai?: string, pics?: string[], clientIds?: string[]) {
     const filtered = items.filter((item: any) => {
       const tgl = item.tanggal_pengerjaan ? String(item.tanggal_pengerjaan).split("T")[0] : null;
+      if ((dari || sampai) && !tgl) return false;
       if (dari && tgl && tgl < dari) return false;
       if (sampai && tgl && tgl > sampai) return false;
       if (pics?.length && !pics.includes(item.pic_survey)) return false;
@@ -528,10 +577,27 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       return true;
     });
 
+    const pages = filtered.map((item: any, index: number) => buildAfterReportPageHtml(item, index)).join("");
+    const emptyPage = `<div class="page"><header class="doc-head"><h1>Laporan Hasil Pengerjaan<br/>Rubru Pest</h1></header><div class="empty-box">Tidak ada data pada filter ini</div></div>`;
+    const detailHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Laporan Hasil Pengerjaan Rubru Pest</title><style>${afterReportPrintStyles()}</style></head><body>${pages || emptyPage}<script>
+      window.onload = function() {
+        var imgs = document.querySelectorAll('img');
+        if (!imgs.length) { setTimeout(window.print, 300); return; }
+        var n = 0, total = imgs.length;
+        function done() { n++; if (n >= total) setTimeout(window.print, 300); }
+        imgs.forEach(function(img) { if (img.complete) done(); else { img.onload = done; img.onerror = done; } });
+      };
+    </script></body></html>`;
+    const detailWindow = window.open("", "_blank", "width=900,height=700");
+    if (!detailWindow) { alert("Popup diblokir. Izinkan popup untuk mencetak."); return; }
+    detailWindow.document.write(detailHtml);
+    detailWindow.document.close();
+    return;
+
     const periodeLabel = dari && sampai
       ? `${dari} s/d ${sampai}`
       : `${MONTH_NAMES_ID[bulan - 1]} ${tahun}`;
-    const picLabel = pics?.length ? ` — PIC: ${pics.join(", ")}` : "";
+    const picLabel = pics?.length ? ` — PIC: ${(pics ?? []).join(", ")}` : "";
     const printNow = new Date();
 
     const statusText = (item: any) =>
@@ -640,8 +706,8 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
 
     const w = window.open("", "_blank", "width=900,height=700");
     if (!w) { alert("Popup diblokir. Izinkan popup untuk mencetak."); return; }
-    w.document.write(html);
-    w.document.close();
+    w!.document.write(html);
+    w!.document.close();
   }
 
   // ── render ───────────────────────────────────────────────────────────────────

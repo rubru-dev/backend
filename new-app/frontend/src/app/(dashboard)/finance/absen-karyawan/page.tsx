@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye, Settings, FileDown, Pencil, FileText, Image as ImageIcon,
+  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye, Settings, FileDown, Pencil, FileText, Image as ImageIcon, UserPlus,
 } from "lucide-react";
 
 const BULAN_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -226,6 +226,15 @@ export default function FinanceAbsenKaryawanPage() {
   const [editOpen, setEditOpen]             = useState<{
     id: number; tanggal: string; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean;
   } | null>(null);
+  const [manualDialogOpen, setManualDialogOpen] = useState(false);
+  const [manualOpen, setManualOpen]         = useState({
+    user_id: "",
+    tanggal: toDateInputWib(new Date()),
+    jam_masuk: "",
+    jam_keluar: "",
+    status: "Hadir",
+    terlambat: false,
+  });
 
   const { data: karyawanList } = useQuery({
     queryKey: ["absen-karyawan-list"],
@@ -294,6 +303,18 @@ export default function FinanceAbsenKaryawanPage() {
       setEditOpen(null);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal mengubah absen"),
+  });
+
+  const manualMut = useMutation({
+    mutationFn: (data: typeof manualOpen) =>
+      apiClient.post("/absen-karyawan/admin/manual", data).then(r => r.data),
+    onSuccess: () => {
+      toast.success("Absen manual berhasil ditambahkan");
+      qc.invalidateQueries({ queryKey: ["finance-absen"] });
+      qc.invalidateQueries({ queryKey: ["finance-absen-pending"] });
+      setManualOpen({ user_id: "", tanggal: toDateInputWib(new Date()), jam_masuk: "", jam_keluar: "", status: "Hadir", terlambat: false });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menambah absen manual"),
   });
 
   const records: any[] = Array.isArray(absenData) ? absenData : absenData?.data ?? absenData?.items ?? [];
@@ -430,6 +451,11 @@ export default function FinanceAbsenKaryawanPage() {
           </select>
         </div>
         <div className="flex gap-2 self-end">
+          {canOverride && (
+            <Button size="sm" className="h-9 gap-1.5" onClick={() => setManualDialogOpen(true)}>
+              <UserPlus className="h-3.5 w-3.5" /> Tambah Manual
+            </Button>
+          )}
           {(filterUser || filterTglMulai || filterTglSelesai || filterBulan || filterTahun || filterStatus) && (
             <Button variant="ghost" size="sm" className="h-9" onClick={() => {
               setFilterUser(""); setFilterTglMulai(""); setFilterTglSelesai("");
@@ -534,6 +560,70 @@ export default function FinanceAbsenKaryawanPage() {
           <KonfigurasiTab />
         </TabsContent>
       </Tabs>
+
+      {/* Manual Add Dialog - hanya jerry@rubahrumah.com */}
+      <Dialog open={manualDialogOpen} onOpenChange={setManualDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-blue-600">
+              <UserPlus className="h-5 w-5" /> Tambah Absen Manual
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Karyawan</Label>
+              <select className="border rounded-md px-3 py-2 text-sm h-9 w-full mt-1"
+                value={manualOpen.user_id}
+                onChange={e => setManualOpen(prev => ({ ...prev, user_id: e.target.value }))}>
+                <option value="">Pilih karyawan</option>
+                {(karyawanList ?? []).map((u: any) => (
+                  <option key={u.id} value={String(u.id)}>{u.name}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <Label>Tanggal</Label>
+              <Input type="date" className="mt-1" value={manualOpen.tanggal}
+                onChange={e => setManualOpen(prev => ({ ...prev, tanggal: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Jam Masuk</Label>
+              <Input type="datetime-local" className="mt-1" value={manualOpen.jam_masuk}
+                onChange={e => setManualOpen(prev => ({ ...prev, jam_masuk: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Jam Keluar</Label>
+              <Input type="datetime-local" className="mt-1" value={manualOpen.jam_keluar}
+                onChange={e => setManualOpen(prev => ({ ...prev, jam_keluar: e.target.value }))} />
+            </div>
+            <div>
+              <Label>Status</Label>
+              <select className="border rounded-md px-3 py-2 text-sm h-9 w-full mt-1"
+                value={manualOpen.status}
+                onChange={e => setManualOpen(prev => ({ ...prev, status: e.target.value }))}>
+                <option value="Hadir">Hadir</option>
+                <option value="Terlambat">Terlambat</option>
+                <option value="Disetujui">Disetujui</option>
+                <option value="Pending">Pending</option>
+                <option value="Ditolak">Ditolak</option>
+              </select>
+            </div>
+            <div className="flex items-center gap-2">
+              <input type="checkbox" id="manual-terlambat" checked={manualOpen.terlambat}
+                onChange={e => setManualOpen(prev => ({ ...prev, terlambat: e.target.checked }))} />
+              <label htmlFor="manual-terlambat" className="text-sm">Tandai Terlambat</label>
+            </div>
+            <p className="text-xs text-muted-foreground">Absen manual tidak membutuhkan upload foto dan otomatis tercatat oleh akun jerry@rubahrumah.com.</p>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setManualDialogOpen(false)}>Batal</Button>
+              <Button disabled={manualMut.isPending || !manualOpen.user_id || !manualOpen.tanggal}
+                onClick={() => manualMut.mutate(manualOpen, { onSuccess: () => setManualDialogOpen(false) })}>
+                {manualMut.isPending ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Photo Dialog */}
       <Dialog open={!!photoDialog} onOpenChange={v => { if (!v) setPhotoDialog(null); }}>

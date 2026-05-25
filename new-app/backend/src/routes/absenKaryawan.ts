@@ -347,6 +347,46 @@ router.get("/admin/karyawan-list", async (_req: Request, res: Response) => {
   return res.json(users.map((u) => ({ id: String(u.id), name: u.name })));
 });
 
+// POST /absen-karyawan/admin/manual - tambah absen manual tanpa foto
+// Hanya bisa diakses oleh user dengan email jerry@rubahrumah.com
+router.post("/admin/manual", async (req: Request, res: Response) => {
+  if (req.user!.email !== "jerry@rubahrumah.com") {
+    return res.status(403).json({ detail: "Akses ditolak" });
+  }
+
+  const { user_id, tanggal, jam_masuk, jam_keluar, status, terlambat, alasan_luar, catatan_reject } = req.body;
+  if (!user_id) return res.status(400).json({ detail: "Karyawan wajib dipilih" });
+  if (!tanggal) return res.status(400).json({ detail: "Tanggal wajib diisi" });
+
+  const userId = BigInt(user_id);
+  const tanggalDate = jakartaDateOnly(tanggal as string);
+  const existing = await prisma.absenKaryawan.findUnique({
+    where: { user_id_tanggal: { user_id: userId, tanggal: tanggalDate } },
+    select: { id: true },
+  });
+  if (existing) {
+    return res.status(409).json({ detail: "Karyawan ini sudah memiliki data absen pada tanggal tersebut. Gunakan edit absen untuk mengubah data." });
+  }
+
+  const record = await prisma.absenKaryawan.create({
+    data: {
+      user_id: userId,
+      tanggal: tanggalDate,
+      jam_masuk: parseJakartaDateTime(jam_masuk || null),
+      jam_keluar: parseJakartaDateTime(jam_keluar || null),
+      terlambat: Boolean(terlambat),
+      status: status || (terlambat ? "Terlambat" : "Hadir"),
+      di_luar_kantor: false,
+      alasan_luar: alasan_luar || null,
+      catatan_reject: catatan_reject || null,
+      approved_by: req.user!.id,
+      approved_at: new Date(),
+    },
+  });
+
+  return res.status(201).json(record);
+});
+
 // ── GET /absen-karyawan/izin/my — riwayat izin milik user sendiri ─────────────
 router.get("/izin/my", async (req: Request, res: Response) => {
   const userId = req.user!.id;

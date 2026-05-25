@@ -1,7 +1,19 @@
 # RubahRumah — System Documentation
 
 > Dokumen referensi lengkap untuk AI coding agent. Update file ini setiap ada perubahan fitur besar.
-> Last updated: 2026-05-20 (Template Penawaran Desain/RKR)
+> Last updated: 2026-05-25 (Absen Manual & PDF After Pengerjaan Golden)
+
+---
+
+## 0. Changelog Fitur Terbaru (2026-05-25)
+
+### Finance Absen Karyawan
+- **Finance > Absen Karyawan:** User dengan email `jerry@rubahrumah.com` dapat menambahkan absen manual untuk semua karyawan tanpa upload foto melalui tombol `Tambah Manual`.
+- **Backend:** Endpoint baru `POST /api/v1/absen-karyawan/admin/manual` hanya menerima akses dari `jerry@rubahrumah.com`, validasi duplikat per karyawan/tanggal, dan menyimpan jam masuk/jam keluar/status manual.
+
+### RubahrumahxGolden After Pengerjaan
+- **RubahrumahxGolden > Kalender After Pengerjaan > Download PDF:** Output PDF kini berupa halaman detail laporan per client sesuai referensi `new-app/refrence/after pengerjaan`, memakai field yang diisi pada detail after pengerjaan: informasi pengerjaan, detail pengerjaan, alat/material, dokumentasi foto, catatan teknisi, dan tanda tangan.
+- **PDF Filter:** Filter tanggal, client pengerjaan, dan PIC tetap dipakai, tetapi hasil cetak bukan lagi rekap tabel kalender; setiap client yang lolos filter dicetak sebagai halaman laporan sendiri.
 
 ---
 
