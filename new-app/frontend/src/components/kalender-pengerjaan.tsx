@@ -536,7 +536,6 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
             ${item.nomor_telepon ? `<br/><span class="sub">${item.nomor_telepon}</span>` : ""}
             ${item.alamat ? `<br/><span class="sub">${String(item.alamat).replace(/</g, "&lt;")}</span>` : ""}
             ${item.luasan_tanah != null ? `<br/><span class="sub-blue">${item.luasan_tanah} m²</span>` : ""}
-            ${item.catatan_survey ? `<br/><span class="sub italic">"${String(item.catatan_survey).replace(/</g, "&lt;")}"</span>` : ""}
             ${fotoHtml}
           </td>
           <td>${tglSurvey}</td>
@@ -841,9 +840,6 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                               <span className="text-blue-700 font-semibold">{item.luasan_tanah} m²</span>
                             )}
                           </div>
-                          {item.catatan_survey && (
-                            <p className="text-xs text-muted-foreground mt-0.5 italic">"{item.catatan_survey}"</p>
-                          )}
                           {hasDetail && <p className="mt-1.5 text-xs text-blue-700 font-medium">Dokumentasi/detail tersimpan</p>}
                         </div>
                         {!isSelesai && (
@@ -1149,7 +1145,6 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
                 <p className="font-semibold">{scheduleItem.nama}</p>
                 {scheduleItem.alamat && <p className="text-xs text-muted-foreground">{scheduleItem.alamat}</p>}
                 {scheduleItem.luasan_tanah && <p className="text-xs text-blue-700 mt-0.5">{scheduleItem.luasan_tanah} m²</p>}
-                {scheduleItem.catatan_survey && <p className="text-xs text-muted-foreground mt-0.5 italic">"{scheduleItem.catatan_survey}"</p>}
               </div>
               <div className="space-y-1.5">
                 <Label>Tanggal Pengerjaan <span className="text-destructive">*</span></Label>

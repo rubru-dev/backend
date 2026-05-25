@@ -2647,7 +2647,7 @@ router.get("/:modul/pengerjaan-kalender", async (req: Request, res: Response) =>
     where,
     select: {
       id: true, nama: true, nomor_telepon: true, alamat: true, jenis: true, status: true,
-      tanggal_survey: true, pic_survey: true, luasan_tanah: true, catatan_survey: true,
+      tanggal_survey: true, pic_survey: true, luasan_tanah: true,
       tanggal_pengerjaan: true, pengerjaan_approval_status: true,
       foto_pengerjaan: true, pengerjaan_approved_at: true,
       survey_approved_at: true,
