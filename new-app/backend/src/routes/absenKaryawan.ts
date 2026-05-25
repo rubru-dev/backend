@@ -477,7 +477,19 @@ router.patch("/admin/:id/override", async (req: Request, res: Response) => {
 
   const data: any = {};
   const nextTanggal = tanggal !== undefined ? jakartaDateOnly(tanggal) : null;
-  if (nextTanggal) data.tanggal = nextTanggal;
+  if (nextTanggal) {
+    const sameDate = record.tanggal.toISOString().slice(0, 10) === nextTanggal.toISOString().slice(0, 10);
+    if (!sameDate) {
+      const existingOnTargetDate = await prisma.absenKaryawan.findUnique({
+        where: { user_id_tanggal: { user_id: record.user_id, tanggal: nextTanggal } },
+        select: { id: true },
+      });
+      if (existingOnTargetDate && existingOnTargetDate.id !== record.id) {
+        return res.status(409).json({ detail: "Tanggal tersebut sudah memiliki data absen untuk karyawan ini. Hapus atau edit data pada tanggal itu terlebih dahulu." });
+      }
+    }
+    data.tanggal = nextTanggal;
+  }
   if (jam_masuk !== undefined) data.jam_masuk = parseJakartaDateTime(jam_masuk);
   else if (nextTanggal) data.jam_masuk = moveTimeToJakartaDate(record.jam_masuk, nextTanggal);
   if (jam_keluar !== undefined) data.jam_keluar = parseJakartaDateTime(jam_keluar);
