@@ -483,6 +483,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
       : `<div class="signature-placeholder">[ Digital Signature ]</div>`;
     const printedAt = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
     return `<div class="page ${pageIndex > 0 ? "page-break" : ""}">
+      ${letterheadHtml()}
       <header class="doc-head">
         <h1>Laporan Hasil Pengerjaan<br/>Rubru Pest</h1>
         <div class="mono">Official Service Report<br/>No: ${escapeHtml(nomor)}</div>
@@ -505,10 +506,17 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
   }
 
   function afterReportPrintStyles() {
-    return `*{box-sizing:border-box} body{margin:0;background:#fff;color:#111c2c;font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.45}.page{width:210mm;min-height:297mm;margin:0 auto;padding:18mm 16mm;background:#fff}.page-break{break-before:page;page-break-before:always}.doc-head{border:1px solid #e5d4c8;padding:10px 12px;margin-bottom:18px}.doc-head h1{margin:0;color:#974800;font-size:24px;line-height:1.1;text-transform:uppercase}.mono{font-family:"Courier New",monospace;color:#585e6c;font-size:11px;text-transform:uppercase}.section{margin-top:20px}.section h2{border-left:4px solid #f27f22;padding-left:10px;font-size:16px;margin:0 0 10px}.info-grid{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #ddc1b1}.info{padding:10px;border-right:1px solid #ddc1b1;border-bottom:1px solid #ddc1b1}.info span{display:block;font-size:10px;color:#564336;text-transform:uppercase;font-weight:700}.info strong{display:block;margin-top:4px}table{width:100%;border-collapse:collapse}th{background:#111c2c;color:#fff;text-align:left;font-size:12px;padding:9px}td{border:1px solid #ddc1b1;padding:9px;vertical-align:top}.status-ok{color:#f27f22;font-weight:800}.material-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.material-card{display:flex;gap:14px;align-items:center;border:1px solid #ddc1b1;padding:14px}.material-icon{min-width:40px;height:40px;border-radius:10px;background:#dde2f3;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#414754}.material-card strong{display:block}.material-card p{margin:2px 0 0;color:#564336}.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.photo-wide{grid-column:1/-1}.photo-frame{aspect-ratio:4/3;border:1px solid #ddc1b1;background:#f9f9ff;display:flex;align-items:center;justify-content:center;overflow:hidden}.photo-frame img{width:100%;height:100%;object-fit:contain}.photo-wide .photo-frame{aspect-ratio:21/9}figure{margin:0}figure figcaption{font-size:11px;color:#564336;margin-top:5px}figure span{float:right;background:#f27f22;color:#fff;border-radius:999px;padding:2px 7px;font-weight:800}.note{border:1px solid #ddc1b1;background:#f0f3ff;padding:14px}.signature{margin-top:28px;border-top:1px solid #ddc1b1;padding-top:20px;text-align:center}.signature-img{height:80px;max-width:180px;object-fit:contain}.signature-placeholder{height:80px;display:flex;align-items:center;justify-content:center;color:#8a7264}.footer{text-align:center;margin-top:24px;color:#ddc1b1;text-transform:uppercase;letter-spacing:.12em;font-size:10px}.empty-box{grid-column:1/-1;border:1px solid #ddc1b1;color:#8a7264;padding:14px;text-align:center}@media print{@page{size:A4;margin:0}.page{margin:0}}`;
+    return `*{box-sizing:border-box} body{margin:0;background:#fff;color:#111c2c;font-family:Inter,Arial,sans-serif;font-size:13px;line-height:1.45}.page{width:210mm;min-height:297mm;margin:0 auto;padding:18mm 16mm;background:#fff}.page-break{break-before:page;page-break-before:always}.letterhead{display:flex;gap:18px;align-items:center;border-bottom:1px solid #ddc1b1;padding:0 0 14px;margin-bottom:16px}.letterhead img{width:104px;height:78px;object-fit:contain;flex:0 0 auto}.letterhead-text{display:flex;min-height:78px;flex-direction:column;justify-content:center}.company{font-weight:800;font-size:17px;margin-bottom:5px;text-transform:uppercase}.company-detail{font-size:11px;line-height:1.45;color:#564336}.doc-head{border:1px solid #e5d4c8;padding:10px 12px;margin-bottom:18px}.doc-head h1{margin:0;color:#974800;font-size:24px;line-height:1.1;text-transform:uppercase}.mono{font-family:"Courier New",monospace;color:#585e6c;font-size:11px;text-transform:uppercase}.section{margin-top:20px}.section h2{border-left:4px solid #f27f22;padding-left:10px;font-size:16px;margin:0 0 10px}.info-grid{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid #ddc1b1}.info{padding:10px;border-right:1px solid #ddc1b1;border-bottom:1px solid #ddc1b1}.info span{display:block;font-size:10px;color:#564336;text-transform:uppercase;font-weight:700}.info strong{display:block;margin-top:4px}table{width:100%;border-collapse:collapse}th{background:#111c2c;color:#fff;text-align:left;font-size:12px;padding:9px}td{border:1px solid #ddc1b1;padding:9px;vertical-align:top}.status-ok{color:#f27f22;font-weight:800}.material-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.material-card{display:flex;gap:14px;align-items:center;border:1px solid #ddc1b1;padding:14px}.material-icon{min-width:40px;height:40px;border-radius:10px;background:#dde2f3;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;color:#414754}.material-card strong{display:block}.material-card p{margin:2px 0 0;color:#564336}.photo-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.photo-wide{grid-column:1/-1}.photo-frame{aspect-ratio:4/3;border:1px solid #ddc1b1;background:#f9f9ff;display:flex;align-items:center;justify-content:center;overflow:hidden}.photo-frame img{width:100%;height:100%;object-fit:contain}.photo-wide .photo-frame{aspect-ratio:21/9}figure{margin:0}figure figcaption{font-size:11px;color:#564336;margin-top:5px}figure span{float:right;background:#f27f22;color:#fff;border-radius:999px;padding:2px 7px;font-weight:800}.note{border:1px solid #ddc1b1;background:#f0f3ff;padding:14px}.signature{margin-top:28px;border-top:1px solid #ddc1b1;padding-top:20px;text-align:center}.signature-img{height:80px;max-width:180px;object-fit:contain}.signature-placeholder{height:80px;display:flex;align-items:center;justify-content:center;color:#8a7264}.footer{text-align:center;margin-top:24px;color:#ddc1b1;text-transform:uppercase;letter-spacing:.12em;font-size:10px}.empty-box{grid-column:1/-1;border:1px solid #ddc1b1;color:#8a7264;padding:14px;text-align:center}@media print{@page{size:A4;margin:0}.page{margin:0}}`;
   }
 
   function handleDownloadDetailPdf(item: any) {
+    const detailHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Laporan Hasil Pengerjaan Rubru Pest</title><style>${afterReportPrintStyles()}</style></head><body>${buildAfterReportPageHtml(item)}<script>window.onload=function(){setTimeout(window.print,400)}</script></body></html>`;
+    const detailWindow = window.open("", "_blank", "width=900,height=700");
+    if (!detailWindow) { alert("Popup diblokir. Izinkan popup untuk mencetak."); return; }
+    detailWindow.document.write(detailHtml);
+    detailWindow.document.close();
+    return;
+
     const report = parseAfterReport(item.foto_pengerjaan, item);
     const tgl = item.tanggal_pengerjaan
       ? new Date(String(item.tanggal_pengerjaan).split("T")[0] + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })
@@ -538,8 +546,8 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     </div><script>window.onload=function(){setTimeout(window.print,400)}</script></body></html>`;
     const w = window.open("", "_blank", "width=900,height=700");
     if (!w) { alert("Popup diblokir. Izinkan popup untuk mencetak."); return; }
-    w.document.write(html);
-    w.document.close();
+    w!.document.write(html);
+    w!.document.close();
   }
 
   function openPdfDialog() {
@@ -578,7 +586,7 @@ export function KalenderAfterPengerjaan({ modul }: Props) {
     });
 
     const pages = filtered.map((item: any, index: number) => buildAfterReportPageHtml(item, index)).join("");
-    const emptyPage = `<div class="page"><header class="doc-head"><h1>Laporan Hasil Pengerjaan<br/>Rubru Pest</h1></header><div class="empty-box">Tidak ada data pada filter ini</div></div>`;
+    const emptyPage = `<div class="page">${letterheadHtml()}<header class="doc-head"><h1>Laporan Hasil Pengerjaan<br/>Rubru Pest</h1></header><div class="empty-box">Tidak ada data pada filter ini</div></div>`;
     const detailHtml = `<!doctype html><html><head><meta charset="utf-8"><title>Laporan Hasil Pengerjaan Rubru Pest</title><style>${afterReportPrintStyles()}</style></head><body>${pages || emptyPage}<script>
       window.onload = function() {
         var imgs = document.querySelectorAll('img');
