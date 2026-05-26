@@ -15,7 +15,6 @@ import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 const PACKAGES = {
   "Paket Desain Basic": {
     timeline: "4 - 7 Hari",
-    price: 2500000,
     termin1: {
       days: "4 Hari Kerja",
       items: ["Desain 3D Eksterior/Fasad - 2 View", "Gambar Kerja 2D - Layout Eksisting", "Gambar Kerja 2D - Layout Perubahan"],
@@ -27,7 +26,6 @@ const PACKAGES = {
   },
   "Paket Desain Standart": {
     timeline: "7 - 14 Hari",
-    price: 6800000,
     termin1: {
       days: "7 Hari Kerja",
       items: [
@@ -49,7 +47,6 @@ const PACKAGES = {
   },
   "Paket Desain Premium": {
     timeline: "14 - 21 Hari",
-    price: 8500000,
     termin1: {
       days: "10 Hari Kerja",
       items: [
@@ -80,7 +77,6 @@ const PACKAGES = {
   },
   "Paket Desain Deluxe": {
     timeline: "21 - 28 Hari",
-    price: 15800000,
     termin1: {
       days: "14 Hari Kerja",
       items: [
@@ -123,6 +119,7 @@ type SavedOffer = {
   roId: string;
   tanggal: string;
   luasTanah: string;
+  nominal: string;
   paketName: keyof typeof PACKAGES;
   clientName: string;
   roName: string;
@@ -157,6 +154,7 @@ function formatDateFile(date: string) {
 }
 
 function terbilang(value: number) {
+  if (!value) return "[Isi nominal]";
   const satuan = ["", "Satu", "Dua", "Tiga", "Empat", "Lima", "Enam", "Tujuh", "Delapan", "Sembilan", "Sepuluh", "Sebelas"];
   const read = (n: number): string => {
     if (n < 12) return satuan[n];
@@ -180,6 +178,7 @@ export default function PenawaranDesainPage() {
   const [roId, setRoId] = useState("");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [luasTanah, setLuasTanah] = useState("");
+  const [nominal, setNominal] = useState("");
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -223,6 +222,7 @@ export default function PenawaranDesainPage() {
     : clients;
   const selectedRo = employees.find((e) => String(e.id) === roId);
   const pkg = PACKAGES[paketName];
+  const total = Number(nominal) || 0;
   const namaAsli = client ? rawClientName(client) : "[Nama Client]";
   const name = client ? `${salutation} ${namaAsli}` : "Mr/Mrs [Nama Client]";
 
@@ -254,10 +254,11 @@ export default function PenawaranDesainPage() {
       roId,
       tanggal,
       luasTanah,
+      nominal,
       paketName,
       clientName: namaAsli,
       roName: selectedRo?.nama || "[Nama RO]",
-      total: pkg.price,
+      total,
     };
     persistOffers([offer, ...savedOffers]);
     setActiveTab("list");
@@ -269,6 +270,7 @@ export default function PenawaranDesainPage() {
     setRoId(offer.roId);
     setTanggal(offer.tanggal);
     setLuasTanah(offer.luasTanah ?? "");
+    setNominal(offer.nominal ?? String(offer.total ?? ""));
     setPaketName(offer.paketName);
     setShowPreview(true);
     setActiveTab("generate");
@@ -320,7 +322,7 @@ export default function PenawaranDesainPage() {
           <TabsTrigger value="list">List Penawaran</TabsTrigger>
         </TabsList>
         <TabsContent value="generate" className="mt-4">
-      <div className="grid md:grid-cols-6 gap-3 rounded-lg border bg-white p-4">
+      <div className="grid md:grid-cols-7 gap-3 rounded-lg border bg-white p-4">
         <div>
           <Label>Salutation</Label>
           <Select value={salutation} onValueChange={(v) => setSalutation(v as "Mr" | "Mrs")}>
@@ -395,6 +397,16 @@ export default function PenawaranDesainPage() {
               {Object.keys(PACKAGES).map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
             </SelectContent>
           </Select>
+        </div>
+        <div>
+          <Label>Nominal</Label>
+          <Input
+            type="number"
+            min={0}
+            value={nominal}
+            onChange={(e) => setNominal(e.target.value)}
+            placeholder="Isi nominal"
+          />
         </div>
       </div>
         </TabsContent>
@@ -473,14 +485,14 @@ export default function PenawaranDesainPage() {
                 <td className="border border-black p-2">Jasa Desain {paketName}</td>
                 <td className="border border-black p-2">{pkg.timeline}</td>
                 <td className="border border-black p-2 text-center">{luasTanah || "[Isi]"}</td>
-                <td className="border border-black p-2 text-right">{IDR(pkg.price)}</td>
+                <td className="border border-black p-2 text-right">{total ? IDR(total) : "[Isi manual]"}</td>
               </tr>
               <tr>
                 <td className="border border-black p-2 font-bold" colSpan={3}>Total Harga</td>
-                <td className="border border-black p-2 text-right font-bold">{IDR(pkg.price)}</td>
+                <td className="border border-black p-2 text-right font-bold">{total ? IDR(total) : "[Isi manual]"}</td>
               </tr>
               <tr>
-                <td className="border border-black p-2 font-bold" colSpan={4}>Terbilang : {terbilang(pkg.price)}</td>
+                <td className="border border-black p-2 font-bold" colSpan={4}>Terbilang : {terbilang(total)}</td>
               </tr>
             </tbody>
           </table>

@@ -5,6 +5,13 @@
 
 ---
 
+## 0. Changelog Fitur Terbaru (2026-05-26)
+
+### Penawaran Desain
+- **Penawaran > Penawaran Desain:** Nominal paket desain tidak lagi otomatis mengikuti harga default per paket. Form sekarang memiliki field `Nominal` yang diisi manual; nilai ini dipakai untuk kolom nominal, total harga, terbilang, PDF/print, dan list penawaran tersimpan.
+
+---
+
 ## 0. Changelog Fitur Terbaru (2026-05-25)
 
 ### Finance Absen Karyawan
