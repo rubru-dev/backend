@@ -194,7 +194,7 @@ export default function PenawaranDesainPage() {
 
   const { data } = useQuery({
     queryKey: ["penawaran-desain-clients"],
-    queryFn: () => apiClient.get("/bd/sales-admin/leads", { params: { limit: 10000 } }).then((r) => r.data),
+    queryFn: () => apiClient.get("/bd/database-client/leads", { params: { limit: 10000 } }).then((r) => r.data),
   });
   const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
     queryKey: ["penawaran-desain-employees"],
@@ -340,7 +340,7 @@ export default function PenawaranDesainPage() {
             <Input
               value={clientSearch}
               onChange={(e) => setClientSearch(e.target.value)}
-              placeholder="Cari nama client"
+              placeholder="Cari dari Data Klien"
               className="pl-9"
               aria-label="Cari nama client"
             />

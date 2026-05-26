@@ -9,6 +9,7 @@
 
 ### Penawaran Desain
 - **Penawaran > Penawaran Desain:** Nominal paket desain tidak lagi otomatis mengikuti harga default per paket. Form sekarang memiliki field `Nominal` yang diisi manual; nilai ini dipakai untuk kolom nominal, total harga, terbilang, PDF/print, dan list penawaran tersimpan.
+- **Penawaran > Penawaran Desain:** Dropdown client sekarang mengambil sumber dari `Database Client > Data Klien` (`/bd/database-client/leads`), bukan lagi dari `Sales Admin > Follow Up Leads`.
 
 ### Kalender Survey Golden
 - **RubahrumahxGolden > Kalender Survey > Detail Survey:** Tambah field `Tipe Metode` setelah `Jenis Bangunan` dengan opsi `Pra-Konstruksi` dan `Pasca-Konstruksi`; nilai tersimpan di detail survey Golden dan tampil di PDF laporan.
