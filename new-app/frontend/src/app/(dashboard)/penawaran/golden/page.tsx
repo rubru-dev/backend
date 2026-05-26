@@ -15,8 +15,10 @@ import { useAuthStore } from "@/store/authStore";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 
 const HAMA_OPTIONS = [
-  "Rayap Tanah (Rhinotermitidae)",
-  "Rayap Kayu (Kalotermitidae)",
+  "Rayap Pohon (Neotermes tectonae)",
+  "Rayap Kayu Lembab (Glyptotermes Sp.)",
+  "Rayap Subteranian (Coptotermes Sp.)",
+  "Rayap tanah (Makrotermes sp.)",
   "Tikus Got (Rattus Norvegicus)",
   "Tikus rumah / tikus atap (Rattus tanezumi / Rattus rattus)",
   "Mencit rumah (Mus musculus)",
@@ -49,8 +51,14 @@ type SavedOffer = {
   jumlahVisit: string;
   kontrakTreatment: string;
   syaratKetentuan: string;
+  adminContacts?: AdminContact[];
   clientName: string;
   roName: string;
+};
+
+type AdminContact = {
+  nama: string;
+  nomor: string;
 };
 
 function rawClientName(c: any) {
@@ -102,14 +110,14 @@ export default function PenawaranGoldenPage() {
   const [nomorSurat, setNomorSurat] = useState(`RB-GL/001/${today.slice(8, 10)}/${today.slice(5, 7)}/${today.slice(0, 4)}`);
   const [lokasiSurat, setLokasiSurat] = useState("Bekasi");
   const [cakupanArea, setCakupanArea] = useState("");
-  const [selectedHama, setSelectedHama] = useState<string[]>(["Rayap Tanah (Rhinotermitidae)"]);
+  const [selectedHama, setSelectedHama] = useState<string[]>(["Rayap Pohon (Neotermes tectonae)"]);
   const [selectedMetode, setSelectedMetode] = useState<string[]>(["Injection dan Spraying"]);
   const [jenisTreatment, setJenisTreatment] = useState("Pra-Konstruksi");
-  const [jumlahUnit, setJumlahUnit] = useState("");
   const [biaya, setBiaya] = useState("");
   const [jumlahVisit, setJumlahVisit] = useState("");
   const [kontrakTreatment, setKontrakTreatment] = useState("");
   const [syaratKetentuan, setSyaratKetentuan] = useState("");
+  const [adminContacts, setAdminContacts] = useState<AdminContact[]>([{ nama: "Admin Rubrupest", nomor: "" }]);
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
@@ -158,7 +166,7 @@ export default function PenawaranGoldenPage() {
     setDownloadingPdf(true);
     try {
       await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-      await downloadOfferPdf(".offer-page", `Penawaran Ruangkeruang - ${name} - ${formatDateFile(tanggal)}`);
+      await downloadOfferPdf(".offer-page", `Penawaran Golden - ${name} - ${formatDateFile(tanggal)}`);
     } finally {
       setDownloadingPdf(false);
     }
@@ -183,11 +191,12 @@ export default function PenawaranGoldenPage() {
       selectedHama,
       selectedMetode,
       jenisTreatment,
-      jumlahUnit,
+      jumlahUnit: "",
       biaya,
       jumlahVisit,
       kontrakTreatment,
       syaratKetentuan,
+      adminContacts,
       clientName: namaAsli,
       roName: selectedRo?.nama || "[Nama RO]",
     };
@@ -203,21 +212,21 @@ export default function PenawaranGoldenPage() {
     setNomorSurat(offer.nomorSurat);
     setLokasiSurat(offer.lokasiSurat);
     setCakupanArea(offer.cakupanArea);
-    setSelectedHama(offer.selectedHama);
+    setSelectedHama(offer.selectedHama.filter((item) => HAMA_OPTIONS.includes(item)));
     setSelectedMetode(offer.selectedMetode.filter((item) => METODE_OPTIONS.includes(item)));
     setJenisTreatment(offer.jenisTreatment || "Pra-Konstruksi");
-    setJumlahUnit(offer.jumlahUnit);
     setBiaya(offer.biaya);
     setJumlahVisit(offer.jumlahVisit);
     setKontrakTreatment(offer.kontrakTreatment);
     setSyaratKetentuan(offer.syaratKetentuan);
+    setAdminContacts(offer.adminContacts?.length ? offer.adminContacts : [{ nama: "Admin Rubrupest", nomor: "" }]);
     setShowPreview(true);
     setActiveTab("generate");
     if (shouldPrint) {
       setDownloadingPdf(true);
       setTimeout(async () => {
         try {
-          await downloadOfferPdf(".offer-page", `Penawaran Ruangkeruang - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
+          await downloadOfferPdf(".offer-page", `Penawaran Golden - ${offer.salutation} ${offer.clientName} - ${formatDateFile(offer.tanggal)}`);
         } finally {
           setDownloadingPdf(false);
         }
@@ -227,6 +236,18 @@ export default function PenawaranGoldenPage() {
 
   function deleteOffer(id: string) {
     persistOffers(savedOffers.filter((offer) => offer.id !== id));
+  }
+
+  function updateAdminContact(index: number, patch: Partial<AdminContact>) {
+    setAdminContacts((prev) => prev.map((contact, i) => i === index ? { ...contact, ...patch } : contact));
+  }
+
+  function addAdminContact() {
+    setAdminContacts((prev) => [...prev, { nama: "", nomor: "" }]);
+  }
+
+  function removeAdminContact(index: number) {
+    setAdminContacts((prev) => prev.length > 1 ? prev.filter((_, i) => i !== index) : prev);
   }
 
   return (
@@ -318,7 +339,7 @@ export default function PenawaranGoldenPage() {
           </div>
         </div>
 
-        <div className="grid md:grid-cols-5 gap-3">
+        <div className="grid md:grid-cols-4 gap-3">
           <div>
             <Label>Jenis Treatment</Label>
             <Select value={jenisTreatment} onValueChange={setJenisTreatment}>
@@ -328,7 +349,6 @@ export default function PenawaranGoldenPage() {
               </SelectContent>
             </Select>
           </div>
-          <div><Label>Jumlah Unit</Label><Input value={jumlahUnit} onChange={(e) => setJumlahUnit(e.target.value)} placeholder="Isi manual" /></div>
           <div><Label>Biaya</Label><Input value={biaya} onChange={(e) => setBiaya(e.target.value)} placeholder="Contoh: 2500000" /></div>
           <div><Label>Jumlah Visit</Label><Input value={jumlahVisit} onChange={(e) => setJumlahVisit(e.target.value)} placeholder="Isi manual" /></div>
           <div><Label>Kontrak Treatment</Label><Input value={kontrakTreatment} onChange={(e) => setKontrakTreatment(e.target.value)} placeholder="Isi manual" /></div>
@@ -367,6 +387,24 @@ export default function PenawaranGoldenPage() {
                 </label>
               ))}
             </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="flex items-center justify-between gap-3">
+            <Label>Kontak Admin Rubrupest</Label>
+            <Button type="button" variant="outline" size="sm" onClick={addAdminContact}>Tambah Kontak</Button>
+          </div>
+          <div className="grid gap-2 rounded-md border p-3">
+            {adminContacts.map((contact, index) => (
+              <div key={index} className="grid gap-2 md:grid-cols-[1fr_1fr_40px]">
+                <Input value={contact.nama} onChange={(e) => updateAdminContact(index, { nama: e.target.value })} placeholder="Nama kontak" />
+                <Input value={contact.nomor} onChange={(e) => updateAdminContact(index, { nomor: e.target.value })} placeholder="Nomor telepon / WhatsApp" />
+                <Button type="button" variant="ghost" size="icon" disabled={adminContacts.length <= 1} onClick={() => removeAdminContact(index)}>
+                  <Trash2 className="h-4 w-4 text-red-500" />
+                </Button>
+              </div>
+            ))}
           </div>
         </div>
       </div>
@@ -428,7 +466,6 @@ export default function PenawaranGoldenPage() {
                 <ol className="ml-5 list-decimal">{(selectedMetode.length ? selectedMetode : METODE_OPTIONS).map((row) => <li key={row}>{row}</li>)}</ol>
               </TemplateRow>
               <TemplateRow label="Jenis Treatment">{jenisTreatment}</TemplateRow>
-              <TemplateRow label="Jumlah Unit">{jumlahUnit || "[Isi manual]"}</TemplateRow>
               <TemplateRow label="Biaya">{formatMoney(biaya)}</TemplateRow>
               <TemplateRow label="Jumlah Visit">{jumlahVisit || "[Isi manual]"}</TemplateRow>
               <TemplateRow label="Kontrak Treatment">{kontrakTreatment || "[Isi manual]"}</TemplateRow>
@@ -443,7 +480,11 @@ export default function PenawaranGoldenPage() {
             <p className="mt-8 text-justify">
               Besar harapan kami dapat menjalin kerja sama yang baik dengan perusahaan Bapak/Ibu, dan bila Bapak/Ibu memerlukan informasi lebih detail, dapat segera hubungi:
             </p>
-            <p className="mt-5">Admin Rubrupest - 082812172</p>
+            <div className="mt-5">
+              {adminContacts.map((contact, index) => (
+                <p key={index}>{contact.nama || "Admin Rubrupest"} - {contact.nomor || "[Nomor kontak]"}</p>
+              ))}
+            </div>
             <p>Dengan Senang Hati kami akan menjelaskannya kembali.</p>
             <p className="mt-5">Atas perhatian dan kerjasamanya kami ucapkan terima kasih.</p>
 

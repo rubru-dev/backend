@@ -15,6 +15,11 @@
 - **RubahrumahxGolden > Kalender Survey > Detail Survey:** Jika `Jenis Hama yang Ditemukan` berisi `Rayap` dengan status `Ditemukan`, form menampilkan pilihan multi-select subjenis rayap: `Rayap Pohon (Neotermes tectonae)`, `Rayap Kayu Lembab (Glyptotermes Sp.)`, `Rayap Subteranian (Coptotermes Sp.)`, dan `Rayap tanah (Makrotermes sp.)`; pilihan ikut tampil saat download PDF.
 - **RubahrumahxGolden > Kalender Survey > Detail Survey:** Header section laporan Golden (`Area yang Disurvey`, `Jenis Hama yang Ditemukan`, `Detail Temuan Lapangan`, `Rekomendasi Treatment`, `Kebutuhan Alat / Material`, `Foto Area Survey`, `Foto Temuan Hama`) bisa disembunyikan per section lewat tombol `Sembunyikan` dan dikembalikan lewat `Kembalikan`; PDF laporan otomatis tidak menampilkan section yang disembunyikan.
 
+### Penawaran Golden
+- **Penawaran > Penawaran Golden:** Field `Jumlah Unit` dihapus dari form dan preview/PDF penawaran Golden.
+- **Penawaran > Penawaran Golden:** Opsi `Cakupan Hama` menghapus `Rayap Tanah (Rhinotermitidae)` dan `Rayap Kayu (Kalotermitidae)`, lalu menambahkan `Rayap Pohon (Neotermes tectonae)`, `Rayap Kayu Lembab (Glyptotermes Sp.)`, `Rayap Subteranian (Coptotermes Sp.)`, dan `Rayap tanah (Makrotermes sp.)`.
+- **Penawaran > Penawaran Golden:** Kontak `Admin Rubrupest` sekarang berupa field dinamis nama/nomor, bisa lebih dari satu kontak, ikut tersimpan di list penawaran lokal, dan tampil di preview/PDF.
+
 ---
 
 ## 0. Changelog Fitur Terbaru (2026-05-25)
