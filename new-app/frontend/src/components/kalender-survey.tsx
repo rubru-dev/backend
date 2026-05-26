@@ -18,7 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   CalendarDays, CheckCircle, XCircle, Clock,
-  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X,
+  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X, RotateCcw, EyeOff,
 } from "lucide-react";
 
 /** Ambil koordinat GPS + nama lokasi via Nominatim reverse geocoding */
@@ -107,13 +107,30 @@ const MONTH_NAMES = [
 ];
 const DAY_NAMES = ["Min", "Sen", "Sel", "Rab", "Kam", "Jum", "Sab"];
 const GOLDEN_PEST_TYPES = ["Rayap", "Tikus", "Nyamuk", "Semut", "Lalat", "Kecoa", "Kutu"];
+const GOLDEN_TERMITE_TYPES = [
+  "Rayap Pohon (Neotermes tectonae)",
+  "Rayap Kayu Lembab (Glyptotermes Sp.)",
+  "Rayap Subteranian (Coptotermes Sp.)",
+  "Rayap tanah (Makrotermes sp.)",
+];
+const GOLDEN_SURVEY_SECTION_LABELS: Record<string, string> = {
+  area_disurvey: "2. Area yang Disurvey",
+  hama: "3. Jenis Hama yang Ditemukan",
+  temuan: "5. Detail Temuan Lapangan",
+  treatment: "6. Rekomendasi Treatment",
+  material: "7. Kebutuhan Alat / Material",
+  foto_area: "8A. Foto Area Survey",
+  foto_temuan: "8B. Foto Temuan Hama",
+};
 
 type GoldenSurveyReportForm = {
   surveyor: string;
   jenis_bangunan: string;
+  tipe_metode: string;
   luas_area: string;
+  hidden_sections: string[];
   area_disurvey: { area: string; keterangan: string }[];
-  hama: { jenis: string; status: string; keterangan: string }[];
+  hama: { jenis: string; status: string; keterangan: string; sub_jenis_rayap?: string[] }[];
   temuan: { area: string; jenis: string; severity?: string; keterangan: string }[];
   treatment: { metode: string; area: string; keterangan: string }[];
   material: { item: string; jumlah: string; keterangan: string }[];
@@ -126,9 +143,16 @@ function defaultGoldenSurveyReportForm(item?: any): GoldenSurveyReportForm {
   return {
     surveyor: item?.pic_survey ?? "",
     jenis_bangunan: "",
+    tipe_metode: "",
     luas_area: item?.luasan_tanah != null ? String(item.luasan_tanah) : "",
+    hidden_sections: [],
     area_disurvey: [{ area: "", keterangan: "" }],
-    hama: GOLDEN_PEST_TYPES.map((jenis, index) => ({ jenis, status: index === 0 ? "Ditemukan" : "Tidak Ditemukan", keterangan: "" })),
+    hama: GOLDEN_PEST_TYPES.map((jenis, index) => ({
+      jenis,
+      status: index === 0 ? "Ditemukan" : "Tidak Ditemukan",
+      keterangan: "",
+      sub_jenis_rayap: jenis === "Rayap" ? [] : undefined,
+    })),
     temuan: [{ area: "", jenis: "", severity: "Sedang", keterangan: "" }],
     treatment: [{ metode: "", area: "", keterangan: "" }],
     material: [{ item: "", jumlah: "", keterangan: "" }],
@@ -160,8 +184,15 @@ function parseGoldenSurveyReportForm(raw: string | null | undefined, item?: any)
     return {
       ...fallback,
       ...data,
+      hidden_sections: Array.isArray(data.hidden_sections) ? data.hidden_sections.map(String) : fallback.hidden_sections,
       area_disurvey: Array.isArray(data.area_disurvey) && data.area_disurvey.length ? data.area_disurvey : fallback.area_disurvey,
-      hama: Array.isArray(data.hama) && data.hama.length ? data.hama.map((row: any) => ({ jenis: row?.jenis ?? "", status: row?.status === "Tidak Ditemukan" ? "Tidak Ditemukan" : "Ditemukan", keterangan: row?.keterangan ?? "" })) : fallback.hama,
+      tipe_metode: typeof data.tipe_metode === "string" ? data.tipe_metode : fallback.tipe_metode,
+      hama: Array.isArray(data.hama) && data.hama.length ? data.hama.map((row: any) => ({
+        jenis: row?.jenis ?? "",
+        status: row?.status === "Tidak Ditemukan" ? "Tidak Ditemukan" : "Ditemukan",
+        keterangan: row?.keterangan ?? "",
+        sub_jenis_rayap: Array.isArray(row?.sub_jenis_rayap) ? row.sub_jenis_rayap.map(String) : [],
+      })) : fallback.hama,
       temuan: Array.isArray(data.temuan) && data.temuan.length ? data.temuan.map((row: any) => ({ area: row?.area ?? "", jenis: row?.jenis ?? "", severity: row?.severity ?? "Sedang", keterangan: row?.keterangan ?? "" })) : fallback.temuan,
       treatment: Array.isArray(data.treatment) && data.treatment.length ? data.treatment : fallback.treatment,
       material: Array.isArray(data.material) && data.material.length ? data.material : fallback.material,
@@ -584,15 +615,19 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       const lokasi = escapeHtml(item.alamat || "");
       const report = parseGoldenSurveyReportForm(item.catatan_survey, item);
       const reportValue = (value: unknown, fallback = "") => escapeHtml(value || fallback);
+      const isSectionVisible = (section: string) => !report.hidden_sections.includes(section);
       const docImagesHtml = (images: string[]) => images.length
         ? `<div class="doc-grid">${images.map((src) => `<img src="${escapeHtml(src)}" class="doc-img" />`).join("")}</div>`
         : `<span class="muted">Belum ada dokumentasi</span>`;
       const areaCardsHtml = report.area_disurvey.map((row) => `<div class="area-card"><div class="area-title">${reportValue(row.area, "Area")}</div><div class="area-note">${reportValue(row.keterangan, "N/A")}</div></div>`).join("");
       const pestCardsHtml = report.hama.map((row) => {
         const found = row.status === "Ditemukan";
+        const termiteDetail = found && String(row.jenis ?? "").toLowerCase().includes("rayap") && row.sub_jenis_rayap?.length
+          ? `<ul class="termite-list">${row.sub_jenis_rayap.map((jenis) => `<li>${reportValue(jenis)}</li>`).join("")}</ul>`
+          : "";
         return `<div class="pest-card ${found ? "is-found" : ""}">
           <div class="pest-icon">${found ? "!" : "-"}</div>
-          <div class="pest-body"><div class="pest-name">${reportValue(row.jenis)}</div><div class="pest-note">${reportValue(row.keterangan, "N/A")}</div></div>
+          <div class="pest-body"><div class="pest-name">${reportValue(row.jenis)}</div>${termiteDetail}<div class="pest-note">${reportValue(row.keterangan, "N/A")}</div></div>
           <span class="status-chip ${found ? "found" : "not-found"}">${found ? "FOUND" : "NOT FOUND"}</span>
         </div>`;
       }).join("");
@@ -612,6 +647,20 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       ).join("");
       const fotoAreaRowsHtml = photoCardsHtml(report.foto_area);
       const fotoTemuanRowsHtml = photoCardsHtml(report.foto_temuan);
+      const pageOneSections = [
+        isSectionVisible("area_disurvey") ? `<h2>Area yang Disurvey</h2><div class="stack">${areaCardsHtml}</div>` : "",
+        isSectionVisible("hama") ? `<h2>Jenis Hama yang Ditemukan</h2><div class="stack">${pestCardsHtml}</div>` : "",
+        isSectionVisible("temuan") ? `<h2>5. Detail Temuan Lapangan</h2><table class="findings-table"><thead><tr><th>Area</th><th>Type</th><th>Severity</th></tr></thead><tbody>${findingRowsHtml}</tbody></table>` : "",
+      ].filter(Boolean).join("");
+      const photoSections = [
+        isSectionVisible("foto_area") ? `<h3>Foto Area Survey</h3><div class="photo-grid">${fotoAreaRowsHtml}</div>` : "",
+        isSectionVisible("foto_temuan") ? `<h3>Foto Temuan Hama</h3><div class="photo-grid wide-photo">${fotoTemuanRowsHtml}</div>` : "",
+      ].filter(Boolean).join("");
+      const pageTwoSections = [
+        isSectionVisible("treatment") ? `<h2>Rekomendasi Treatment</h2><div class="stack">${treatmentCardsHtml}</div>` : "",
+        isSectionVisible("material") ? `<h2>Kebutuhan Alat/Material</h2><table class="material-table"><thead><tr><th>Item</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${materialRowsHtml}</tbody></table>` : "",
+        photoSections ? `<h2>Dokumentasi Foto</h2>${photoSections}` : "",
+      ].filter(Boolean).join("");
       return `
         <section class="report">
           <div class="page">
@@ -625,27 +674,15 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
               <div class="info-card"><span>Surveyor</span><strong>${reportValue(report.surveyor, "-")}</strong></div>
               <div class="info-card wide"><span>Date & Time</span><strong>${escapeHtml(tgl)}${item.jam_survey ? ` - ${escapeHtml(item.jam_survey)}` : ""}</strong></div>
               <div class="info-card"><span>Location</span><strong>${lokasi || "-"}</strong></div>
+              <div class="info-card"><span>Tipe Metode</span><strong>${reportValue(report.tipe_metode, "-")}</strong></div>
               <div class="info-card"><span>Luas Area</span><strong>${reportValue(report.luas_area, "-")}</strong></div>
             </div>
-            <h2>Area yang Disurvey</h2>
-            <div class="stack">${areaCardsHtml}</div>
-            <h2>Jenis Hama yang Ditemukan</h2>
-            <div class="stack">${pestCardsHtml}</div>
-            <h2>5. Detail Temuan Lapangan</h2>
-            <table class="findings-table"><thead><tr><th>Area</th><th>Type</th><th>Severity</th></tr></thead><tbody>${findingRowsHtml}</tbody></table>
+            ${pageOneSections || `<p class="muted">Section detail survey disembunyikan.</p>`}
           </div>
 
           <div class="page">
             ${letterheadHtml()}
-            <h2>Rekomendasi Treatment</h2>
-            <div class="stack">${treatmentCardsHtml}</div>
-            <h2>Kebutuhan Alat/Material</h2>
-            <table class="material-table"><thead><tr><th>Item</th><th>Jumlah</th><th>Keterangan</th></tr></thead><tbody>${materialRowsHtml}</tbody></table>
-            <h2>Dokumentasi Foto</h2>
-            <h3>Foto Area Survey</h3>
-            <div class="photo-grid">${fotoAreaRowsHtml}</div>
-            <h3>Foto Temuan Hama</h3>
-            <div class="photo-grid wide-photo">${fotoTemuanRowsHtml}</div>
+            ${pageTwoSections || `<p class="muted">Section lanjutan survey disembunyikan.</p>`}
             <div class="signature-block">
               <p class="signature-place">Bekasi, ${printedAt}</p>
               <p class="signature-title">Hormat Kami</p>
@@ -689,6 +726,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   .pest-icon { width:28px; height:28px; border-radius:999px; display:flex; align-items:center; justify-content:center; background:#e7eeff; color:#5e6473; font-weight:800; }
   .is-found .pest-icon { background:#ffdbc7; color:#974800; }
   .pest-name { font-weight:800; }
+  .termite-list { margin:4px 0 5px 16px; padding:0; color:#111c2c; font-size:11px; line-height:1.35; }
   .status-chip { color:#fff; border-radius:2px; padding:3px 6px; font-size:10px; font-weight:800; }
   .status-chip.found { background:#f27f22; }
   .status-chip.not-found { background:#9b9fa1; }
@@ -2065,12 +2103,31 @@ ${sections}
   );
 }
 
-function GoldenRows({ title, headers, children }: { title: string; headers: string[]; children: ReactNode }) {
+function GoldenRows({
+  title,
+  headers,
+  children,
+  onHide,
+  disabled,
+}: {
+  title: string;
+  headers: string[];
+  children: ReactNode;
+  onHide?: () => void;
+  disabled?: boolean;
+}) {
   return (
     <div className="space-y-2">
-      <div>
-        <p className="text-sm font-semibold">{title}</p>
-        <p className="text-[11px] text-muted-foreground">{headers.join(" | ")}</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">{title}</p>
+          <p className="text-[11px] text-muted-foreground">{headers.join(" | ")}</p>
+        </div>
+        {onHide && !disabled && (
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={onHide}>
+            <EyeOff className="mr-1 h-3.5 w-3.5" /> Sembunyikan
+          </Button>
+        )}
       </div>
       <div className="space-y-2">{children}</div>
     </div>
@@ -2104,6 +2161,22 @@ function GoldenSurveyReportFields({
     const row = form[key][rowIndex];
     updateRow(key, rowIndex, { dokumentasi: row.dokumentasi.filter((_, i) => i !== photoIndex) });
   };
+  const isTermiteFound = (row: GoldenSurveyReportForm["hama"][number]) =>
+    row.status === "Ditemukan" && String(row.jenis ?? "").toLowerCase().includes("rayap");
+  const toggleTermiteType = (rowIndex: number, value: string, checked: boolean) => {
+    const current = form.hama[rowIndex].sub_jenis_rayap ?? [];
+    updateRow("hama", rowIndex, {
+      sub_jenis_rayap: checked ? Array.from(new Set([...current, value])) : current.filter((item) => item !== value),
+    });
+  };
+  const hiddenSections = form.hidden_sections ?? [];
+  const isSectionHidden = (section: string) => hiddenSections.includes(section);
+  const hideSection = (section: string) => {
+    updateField("hidden_sections", Array.from(new Set([...hiddenSections, section])));
+  };
+  const restoreSection = (section: string) => {
+    updateField("hidden_sections", hiddenSections.filter((item) => item !== section));
+  };
   const handleSignatureUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2120,7 +2193,28 @@ function GoldenSurveyReportFields({
         <p className="text-xs text-muted-foreground">Isian mengikuti referensi Field Service Precision.</p>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      {hiddenSections.length > 0 && (
+        <div className="space-y-2 rounded-md border border-dashed border-[#ddc1b1] bg-white p-3">
+          <p className="text-xs font-semibold text-muted-foreground">Section disembunyikan</p>
+          <div className="flex flex-wrap gap-2">
+            {hiddenSections.map((section) => (
+              <Button
+                key={section}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={disabled}
+                onClick={() => restoreSection(section)}
+              >
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Kembalikan {GOLDEN_SURVEY_SECTION_LABELS[section] ?? section}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
         <div className="space-y-1.5">
           <Label>Surveyor</Label>
           <Input value={form.surveyor} onChange={(e) => updateField("surveyor", e.target.value)} disabled={disabled} placeholder="Nama petugas survey" />
@@ -2136,12 +2230,23 @@ function GoldenSurveyReportFields({
           </Select>
         </div>
         <div className="space-y-1.5">
+          <Label>Tipe Metode</Label>
+          <Select value={form.tipe_metode || "__none__"} onValueChange={(v) => updateField("tipe_metode", v === "__none__" ? "" : v)} disabled={disabled}>
+            <SelectTrigger><SelectValue placeholder="Pilih tipe metode" /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Pilih salah satu</SelectItem>
+              <SelectItem value="Pra-Konstruksi">Pra-Konstruksi</SelectItem>
+              <SelectItem value="Pasca-Konstruksi">Pasca-Konstruksi</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="space-y-1.5">
           <Label>Luas Area</Label>
           <Input value={form.luas_area} onChange={(e) => updateField("luas_area", e.target.value)} disabled={disabled} placeholder="Contoh: 120 m2 / 2 lantai" />
         </div>
       </div>
 
-      <GoldenRows title="2. Area yang Disurvey" headers={["Area", "Keterangan"]}>
+      {!isSectionHidden("area_disurvey") && <GoldenRows title="2. Area yang Disurvey" headers={["Area", "Keterangan"]} disabled={disabled} onHide={() => hideSection("area_disurvey")}>
         {form.area_disurvey.map((row, i) => (
           <div key={i} className="grid grid-cols-[28px_1fr_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
@@ -2153,29 +2258,45 @@ function GoldenSurveyReportFields({
           </div>
         ))}
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("area_disurvey", { area: "", keterangan: "" })}>Tambah Area</Button>}
-      </GoldenRows>
+      </GoldenRows>}
 
-      <GoldenRows title="3. Jenis Hama yang Ditemukan" headers={["Jenis Hama", "Status Temuan", "Keterangan"]}>
+      {!isSectionHidden("hama") && <GoldenRows title="3. Jenis Hama yang Ditemukan" headers={["Jenis Hama", "Status Temuan", "Keterangan"]} disabled={disabled} onHide={() => hideSection("hama")}>
         {form.hama.map((row, i) => (
-          <div key={`${row.jenis}-${i}`} className="grid grid-cols-[1fr_160px_1.5fr_34px] gap-2 items-center">
-            <Input value={row.jenis} onChange={(e) => updateRow("hama", i, { jenis: e.target.value })} placeholder="Contoh: Rayap / Tikus / Kecoa" disabled={disabled} />
-            <Select value={row.status || "Ditemukan"} onValueChange={(v) => updateRow("hama", i, { status: v })} disabled={disabled}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Ditemukan">Ditemukan</SelectItem>
-                <SelectItem value="Tidak Ditemukan">Tidak Ditemukan</SelectItem>
-              </SelectContent>
-            </Select>
-            <Input value={row.keterangan} onChange={(e) => updateRow("hama", i, { keterangan: e.target.value })} placeholder="Keterangan indikasi atau lokasi temuan" disabled={disabled} />
-            <Button type="button" variant="ghost" size="icon" disabled={disabled || form.hama.length <= 1} onClick={() => removeRow("hama", i)}>
-              <X className="h-4 w-4 text-red-500" />
-            </Button>
+          <div key={`${row.jenis}-${i}`} className="space-y-2 rounded-md border border-dashed border-[#ddc1b1] bg-white p-2">
+            <div className="grid grid-cols-[1fr_160px_1.5fr_34px] gap-2 items-center">
+              <Input value={row.jenis} onChange={(e) => updateRow("hama", i, { jenis: e.target.value })} placeholder="Contoh: Rayap / Tikus / Kecoa" disabled={disabled} />
+              <Select value={row.status || "Ditemukan"} onValueChange={(v) => updateRow("hama", i, { status: v })} disabled={disabled}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Ditemukan">Ditemukan</SelectItem>
+                  <SelectItem value="Tidak Ditemukan">Tidak Ditemukan</SelectItem>
+                </SelectContent>
+              </Select>
+              <Input value={row.keterangan} onChange={(e) => updateRow("hama", i, { keterangan: e.target.value })} placeholder="Keterangan indikasi atau lokasi temuan" disabled={disabled} />
+              <Button type="button" variant="ghost" size="icon" disabled={disabled || form.hama.length <= 1} onClick={() => removeRow("hama", i)}>
+                <X className="h-4 w-4 text-red-500" />
+              </Button>
+            </div>
+            {isTermiteFound(row) && (
+              <div className="grid grid-cols-1 gap-2 rounded border bg-[#f9f9ff] p-2 sm:grid-cols-2">
+                {GOLDEN_TERMITE_TYPES.map((value) => (
+                  <label key={value} className="flex items-start gap-2 text-xs leading-snug">
+                    <Checkbox
+                      checked={(row.sub_jenis_rayap ?? []).includes(value)}
+                      disabled={disabled}
+                      onCheckedChange={(checked) => toggleTermiteType(i, value, checked === true)}
+                    />
+                    <span>{value}</span>
+                  </label>
+                ))}
+              </div>
+            )}
           </div>
         ))}
-        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("hama", { jenis: "", status: "Ditemukan", keterangan: "" })}>Tambah Jenis Hama</Button>}
-      </GoldenRows>
+        {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("hama", { jenis: "", status: "Ditemukan", keterangan: "", sub_jenis_rayap: [] })}>Tambah Jenis Hama</Button>}
+      </GoldenRows>}
 
-      <GoldenRows title="5. Detail Temuan Lapangan" headers={["Area Temuan", "Jenis Temuan", "Severity", "Keterangan"]}>
+      {!isSectionHidden("temuan") && <GoldenRows title="5. Detail Temuan Lapangan" headers={["Area Temuan", "Jenis Temuan", "Severity", "Keterangan"]} disabled={disabled} onHide={() => hideSection("temuan")}>
         {form.temuan.map((row, i) => (
           <div key={i} className="grid grid-cols-[28px_1fr_1fr_130px_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
@@ -2197,9 +2318,9 @@ function GoldenSurveyReportFields({
           </div>
         ))}
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("temuan", { area: "", jenis: "", severity: "Sedang", keterangan: "" })}>Tambah Temuan</Button>}
-      </GoldenRows>
+      </GoldenRows>}
 
-      <GoldenRows title="6. Rekomendasi Treatment" headers={["Metode Treatment", "Area Penerapan", "Keterangan"]}>
+      {!isSectionHidden("treatment") && <GoldenRows title="6. Rekomendasi Treatment" headers={["Metode Treatment", "Area Penerapan", "Keterangan"]} disabled={disabled} onHide={() => hideSection("treatment")}>
         {form.treatment.map((row, i) => (
           <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
@@ -2212,9 +2333,9 @@ function GoldenSurveyReportFields({
           </div>
         ))}
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("treatment", { metode: "", area: "", keterangan: "" })}>Tambah Treatment</Button>}
-      </GoldenRows>
+      </GoldenRows>}
 
-      <GoldenRows title="7. Kebutuhan Alat / Material" headers={["Item", "Jumlah", "Keterangan"]}>
+      {!isSectionHidden("material") && <GoldenRows title="7. Kebutuhan Alat / Material" headers={["Item", "Jumlah", "Keterangan"]} disabled={disabled} onHide={() => hideSection("material")}>
         {form.material.map((row, i) => (
           <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr_34px] gap-2 items-center">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
@@ -2227,9 +2348,9 @@ function GoldenSurveyReportFields({
           </div>
         ))}
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("material", { item: "", jumlah: "", keterangan: "" })}>Tambah Material</Button>}
-      </GoldenRows>
+      </GoldenRows>}
 
-      <GoldenRows title="8A. Foto Area Survey" headers={["Dokumentasi", "Keterangan"]}>
+      {!isSectionHidden("foto_area") && <GoldenRows title="8A. Foto Area Survey" headers={["Dokumentasi", "Keterangan"]} disabled={disabled} onHide={() => hideSection("foto_area")}>
         {form.foto_area.map((row, i) => (
           <div key={i} className="grid grid-cols-[28px_1.4fr_1fr_34px] gap-2 items-start">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
@@ -2265,9 +2386,9 @@ function GoldenSurveyReportFields({
         ))}
         {photoProcessing && <p className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Memproses dokumentasi...</p>}
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("foto_area", { dokumentasi: [], keterangan: "" })}>Tambah Baris Foto Area</Button>}
-      </GoldenRows>
+      </GoldenRows>}
 
-      <GoldenRows title="8B. Foto Temuan Hama" headers={["Dokumentasi", "Keterangan"]}>
+      {!isSectionHidden("foto_temuan") && <GoldenRows title="8B. Foto Temuan Hama" headers={["Dokumentasi", "Keterangan"]} disabled={disabled} onHide={() => hideSection("foto_temuan")}>
         {form.foto_temuan.map((row, i) => (
           <div key={i} className="grid grid-cols-[28px_1.4fr_1fr_34px] gap-2 items-start">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
@@ -2303,7 +2424,7 @@ function GoldenSurveyReportFields({
         ))}
         {photoProcessing && <p className="text-xs text-muted-foreground"><Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Memproses dokumentasi...</p>}
         {!disabled && <Button type="button" variant="outline" size="sm" onClick={() => addRow("foto_temuan", { dokumentasi: [], keterangan: "" })}>Tambah Baris Foto Temuan</Button>}
-      </GoldenRows>
+      </GoldenRows>}
 
       <div className="space-y-2 rounded-md border border-[#ddc1b1] bg-white p-3">
         <div>

@@ -10,6 +10,11 @@
 ### Penawaran Desain
 - **Penawaran > Penawaran Desain:** Nominal paket desain tidak lagi otomatis mengikuti harga default per paket. Form sekarang memiliki field `Nominal` yang diisi manual; nilai ini dipakai untuk kolom nominal, total harga, terbilang, PDF/print, dan list penawaran tersimpan.
 
+### Kalender Survey Golden
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** Tambah field `Tipe Metode` setelah `Jenis Bangunan` dengan opsi `Pra-Konstruksi` dan `Pasca-Konstruksi`; nilai tersimpan di detail survey Golden dan tampil di PDF laporan.
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** Jika `Jenis Hama yang Ditemukan` berisi `Rayap` dengan status `Ditemukan`, form menampilkan pilihan multi-select subjenis rayap: `Rayap Pohon (Neotermes tectonae)`, `Rayap Kayu Lembab (Glyptotermes Sp.)`, `Rayap Subteranian (Coptotermes Sp.)`, dan `Rayap tanah (Makrotermes sp.)`; pilihan ikut tampil saat download PDF.
+- **RubahrumahxGolden > Kalender Survey > Detail Survey:** Header section laporan Golden (`Area yang Disurvey`, `Jenis Hama yang Ditemukan`, `Detail Temuan Lapangan`, `Rekomendasi Treatment`, `Kebutuhan Alat / Material`, `Foto Area Survey`, `Foto Temuan Hama`) bisa disembunyikan per section lewat tombol `Sembunyikan` dan dikembalikan lewat `Kembalikan`; PDF laporan otomatis tidak menampilkan section yang disembunyikan.
+
 ---
 
 ## 0. Changelog Fitur Terbaru (2026-05-25)
