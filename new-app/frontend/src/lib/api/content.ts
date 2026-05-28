@@ -59,7 +59,7 @@ export const desainApi = {
   exportData: (id: string) => apiClient.get(`/desain/timeline/${id}/export`).then((r) => r.data),
   listEmployees: () => apiClient.get("/desain/employees").then((r) => r.data),
   listLeads: (search?: string) =>
-    apiClient.get("/finance/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
+    apiClient.get("/finance/leads-dropdown", { params: { kategori: "Payment Desain", search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
   uploadFileBukti: (itemId: string, file: File) => {
     const form = new FormData();
     form.append("file", file);

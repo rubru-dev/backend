@@ -7,6 +7,13 @@
 
 ## 0. Changelog Fitur Terbaru (2026-05-26)
 
+### Projek Desain
+- **Desain > Projek Desain:** Dropdown `Lead / Klien` pada tambah/edit timeline sekarang mengambil data dari `Sales Admin > Follow Up Leads` dan `Database Client > Data Klien` lewat kategori `Payment Desain`, bukan request dropdown tanpa kategori.
+
+### AR Golden
+- **RubahrumahxGolden > AR Golden:** Sumber data tidak lagi dari invoice kategori `Payment Golden`; data AR Golden sekarang diisi manual lewat tabel `golden_ar_entries`.
+- **RubahrumahxGolden > AR Golden:** Tambah/edit/hapus data manual hanya bisa dilakukan role `Super Admin`; role lain dengan akses `golden.ar` hanya bisa melihat dan download PDF.
+
 ### Penawaran Desain
 - **Penawaran > Penawaran Desain:** Nominal paket desain tidak lagi otomatis mengikuti harga default per paket. Form sekarang memiliki field `Nominal` yang diisi manual; nilai ini dipakai untuk kolom nominal, total harga, terbilang, PDF/print, dan list penawaran tersimpan.
 - **Penawaran > Penawaran Desain:** Dropdown client sekarang mengambil sumber dari `Database Client > Data Klien` (`/bd/database-client/leads`), bukan lagi dari `Sales Admin > Follow Up Leads`.

@@ -4,20 +4,51 @@ import { requirePermission } from "../middleware/requireRole";
 
 const router = Router();
 
-const FE_STATUS_FROM_DB: Record<string, string> = {
-  draft: "Draft",
-  sent: "Terkirim",
-  paid: "Lunas",
-  Lunas: "Lunas",
-};
-
 function isSuperAdminReq(req: Request) {
   return req.user?.roles.some((r) => r.role.name === "Super Admin") ?? false;
 }
 
-function leadDisplayName(lead: { salutation?: string | null; nama?: string | null } | null) {
-  if (!lead) return "-";
-  return [lead.salutation, lead.nama].filter(Boolean).join(" ") || lead.nama || "-";
+async function ensureGoldenArTable() {
+  await prisma.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS golden_ar_entries (
+      id BIGSERIAL PRIMARY KEY,
+      nama_client VARCHAR(255) NOT NULL,
+      invoice_number VARCHAR(100),
+      tanggal DATE,
+      status VARCHAR(50) DEFAULT 'Belum Dibayar',
+      total_tagihan NUMERIC(18, 2) NOT NULL DEFAULT 0,
+      total_terbayar NUMERIC(18, 2) NOT NULL DEFAULT 0,
+      deadline DATE,
+      catatan TEXT,
+      created_by BIGINT REFERENCES users(id) ON UPDATE NO ACTION ON DELETE SET NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `);
+}
+
+function goldenArDict(row: any) {
+  const tagihan = parseFloat(String(row.total_tagihan ?? 0));
+  const terbayar = parseFloat(String(row.total_terbayar ?? 0));
+  return {
+    id: Number(row.id),
+    invoice_number: row.invoice_number,
+    nama_client: row.nama_client,
+    tanggal: row.tanggal ? new Date(row.tanggal).toISOString().split("T")[0] : null,
+    status: row.status,
+    total_tagihan: tagihan,
+    total_terbayar: terbayar,
+    outstanding: Math.max(0, tagihan - terbayar),
+    deadline: row.deadline ? new Date(row.deadline).toISOString().split("T")[0] : null,
+    catatan: row.catatan,
+    created_by: row.created_by ? Number(row.created_by) : null,
+  };
+}
+
+function requireSuperAdminGoldenAr(req: Request, res: Response) {
+  if (isSuperAdminReq(req)) return true;
+  res.status(403).json({ detail: "Hanya Super Admin yang dapat mengisi AR Golden manual" });
+  return false;
 }
 
 // ── META ADS ──────────────────────────────────────────────────────────────────
@@ -43,36 +74,79 @@ router.get("/meta-ads/campaigns-select", async (req: Request, res: Response) => 
 });
 
 router.get("/ar-tagihan", requirePermission("golden", "ar"), async (_req: Request, res: Response) => {
-  const invoices = await prisma.invoice.findMany({
-    where: { kategori: "Payment Golden", lead_id: { not: null } },
-    select: {
-      id: true,
-      invoice_number: true,
-      lead_id: true,
-      tanggal: true,
-      grand_total: true,
-      status: true,
-      lead: { select: { nama: true, salutation: true } },
-      kwitansi: { select: { jumlah_diterima: true } },
-    },
-    orderBy: { tanggal: "desc" },
-  });
+  await ensureGoldenArTable();
+  const rows = await prisma.$queryRawUnsafe<any[]>(`
+    SELECT id, invoice_number, nama_client, tanggal, status, total_tagihan, total_terbayar, deadline, catatan, created_by
+    FROM golden_ar_entries
+    ORDER BY COALESCE(tanggal, created_at::date) DESC, id DESC
+  `);
+  return res.json(rows.map(goldenArDict));
+});
 
-  return res.json(invoices.map((inv) => {
-    const tagihan = parseFloat(String(inv.grand_total ?? 0));
-    const terbayar = inv.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
-    return {
-      invoice_id: Number(inv.id),
-      invoice_number: inv.invoice_number,
-      lead_id: inv.lead_id ? Number(inv.lead_id) : null,
-      nama_client: leadDisplayName(inv.lead),
-      tanggal: inv.tanggal ? new Date(inv.tanggal).toISOString().split("T")[0] : null,
-      status: FE_STATUS_FROM_DB[inv.status || "draft"] || inv.status,
-      total_tagihan: tagihan,
-      total_terbayar: terbayar,
-      outstanding: Math.max(0, tagihan - terbayar),
-    };
-  }));
+router.post("/ar-tagihan", requirePermission("golden", "ar"), async (req: Request, res: Response) => {
+  if (!requireSuperAdminGoldenAr(req, res)) return;
+  await ensureGoldenArTable();
+  const { nama_client, invoice_number, tanggal, status, total_tagihan, total_terbayar, deadline, catatan } = req.body;
+  if (!String(nama_client ?? "").trim()) return res.status(400).json({ detail: "Nama client wajib diisi" });
+
+  const rows = await prisma.$queryRawUnsafe<any[]>(
+    `INSERT INTO golden_ar_entries
+      (nama_client, invoice_number, tanggal, status, total_tagihan, total_terbayar, deadline, catatan, created_by)
+     VALUES ($1, $2, $3::date, $4, $5::numeric, $6::numeric, $7::date, $8, $9)
+     RETURNING id, invoice_number, nama_client, tanggal, status, total_tagihan, total_terbayar, deadline, catatan, created_by`,
+    String(nama_client).trim(),
+    invoice_number ? String(invoice_number).trim() : null,
+    tanggal || null,
+    status || "Belum Dibayar",
+    Number(total_tagihan ?? 0),
+    Number(total_terbayar ?? 0),
+    deadline || null,
+    catatan ? String(catatan) : null,
+    req.user!.id,
+  );
+  return res.status(201).json(goldenArDict(rows[0]));
+});
+
+router.patch("/ar-tagihan/:id", requirePermission("golden", "ar"), async (req: Request, res: Response) => {
+  if (!requireSuperAdminGoldenAr(req, res)) return;
+  await ensureGoldenArTable();
+  const id = BigInt(req.params.id);
+  const { nama_client, invoice_number, tanggal, status, total_tagihan, total_terbayar, deadline, catatan } = req.body;
+  if (!String(nama_client ?? "").trim()) return res.status(400).json({ detail: "Nama client wajib diisi" });
+
+  const rows = await prisma.$queryRawUnsafe<any[]>(
+    `UPDATE golden_ar_entries SET
+      nama_client = $1,
+      invoice_number = $2,
+      tanggal = $3::date,
+      status = $4,
+      total_tagihan = $5::numeric,
+      total_terbayar = $6::numeric,
+      deadline = $7::date,
+      catatan = $8,
+      updated_at = now()
+     WHERE id = $9
+     RETURNING id, invoice_number, nama_client, tanggal, status, total_tagihan, total_terbayar, deadline, catatan, created_by`,
+    String(nama_client).trim(),
+    invoice_number ? String(invoice_number).trim() : null,
+    tanggal || null,
+    status || "Belum Dibayar",
+    Number(total_tagihan ?? 0),
+    Number(total_terbayar ?? 0),
+    deadline || null,
+    catatan ? String(catatan) : null,
+    id,
+  );
+  if (!rows[0]) return res.status(404).json({ detail: "Data AR Golden tidak ditemukan" });
+  return res.json(goldenArDict(rows[0]));
+});
+
+router.delete("/ar-tagihan/:id", requirePermission("golden", "ar"), async (req: Request, res: Response) => {
+  if (!requireSuperAdminGoldenAr(req, res)) return;
+  await ensureGoldenArTable();
+  const deleted = await prisma.$executeRawUnsafe(`DELETE FROM golden_ar_entries WHERE id = $1`, BigInt(req.params.id));
+  if (!deleted) return res.status(404).json({ detail: "Data AR Golden tidak ditemukan" });
+  return res.json({ message: "Data AR Golden dihapus" });
 });
 
 // GET /golden/meta-ads/campaigns
