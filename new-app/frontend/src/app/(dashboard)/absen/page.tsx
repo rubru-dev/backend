@@ -18,8 +18,10 @@ import {
 import { useAuthStore } from "@/store/authStore";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
-const MAX_FILE_MB = 30;
+const MAX_FILE_MB = 8;
 const MAX_FILE_BYTES = MAX_FILE_MB * 1024 * 1024;
+const MAX_IMAGE_DIMENSION = 1280;
+const JPEG_QUALITY = 0.72;
 
 const api = {
   getProjects: () => apiClient.get("/finance/tukang-absen/projects").then((r) => r.data),
@@ -49,16 +51,21 @@ function formatDate(d: string | Date) {
   return new Date(d).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
 
-/** Gambar timestamp di sudut kanan bawah foto menggunakan Canvas */
-async function addTimestamp(dataUrl: string): Promise<string> {
-  return new Promise((resolve) => {
+/** Resize, kompres, lalu gambar timestamp di sudut kanan bawah foto. */
+async function preparePhoto(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
     const img = new Image();
     img.onload = () => {
+      URL.revokeObjectURL(url);
+      const scale = Math.min(1, MAX_IMAGE_DIMENSION / Math.max(img.width, img.height));
+      const width = Math.max(1, Math.round(img.width * scale));
+      const height = Math.max(1, Math.round(img.height * scale));
       const canvas = document.createElement("canvas");
-      canvas.width = img.width;
-      canvas.height = img.height;
+      canvas.width = width;
+      canvas.height = height;
       const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, 0, 0);
+      ctx.drawImage(img, 0, 0, width, height);
 
       const now = new Date();
       const ts = now.toLocaleString("id-ID", {
@@ -66,7 +73,7 @@ async function addTimestamp(dataUrl: string): Promise<string> {
         hour: "2-digit", minute: "2-digit", second: "2-digit",
       });
 
-      const fontSize = Math.max(14, Math.round(img.width * 0.028));
+      const fontSize = Math.max(14, Math.round(width * 0.032));
       ctx.font = `bold ${fontSize}px monospace`;
       const textWidth = ctx.measureText(ts).width;
       const pad = Math.round(fontSize * 0.5);
@@ -74,19 +81,23 @@ async function addTimestamp(dataUrl: string): Promise<string> {
       // Background semi-transparan
       ctx.fillStyle = "rgba(0,0,0,0.55)";
       ctx.fillRect(
-        img.width - textWidth - pad * 2 - 6,
-        img.height - fontSize - pad * 2 - 6,
+        width - textWidth - pad * 2 - 6,
+        height - fontSize - pad * 2 - 6,
         textWidth + pad * 2,
         fontSize + pad + 4,
       );
 
       // Teks kuning
       ctx.fillStyle = "#FFE600";
-      ctx.fillText(ts, img.width - textWidth - pad - 6, img.height - pad - 8);
+      ctx.fillText(ts, width - textWidth - pad - 6, height - pad - 8);
 
-      resolve(canvas.toDataURL("image/jpeg", 0.88));
+      resolve(canvas.toDataURL("image/jpeg", JPEG_QUALITY));
     };
-    img.src = dataUrl;
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Foto tidak bisa diproses"));
+    };
+    img.src = url;
   });
 }
 
@@ -320,13 +331,14 @@ function AbsenTukangPageInner() {
     if (!file) return;
     if (!validateFile(file)) { e.target.value = ""; return; }
     setFotoProcessing(true);
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const stamped = await addTimestamp(reader.result as string);
+    try {
+      const stamped = await preparePhoto(file);
       setFotoPreview(stamped);
+    } catch {
+      toast.error("Gagal memproses foto. Coba gunakan foto yang lebih kecil.");
+    } finally {
       setFotoProcessing(false);
-    };
-    reader.readAsDataURL(file);
+    }
   }
 
   // Bon foto: validasi + timestamp, append ke array
@@ -340,20 +352,17 @@ function AbsenTukangPageInner() {
     if (!valid.length) { e.target.value = ""; return; }
     setBonProcessing(true);
     const results: string[] = [];
-    for (const file of valid) {
-      await new Promise<void>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const stamped = await addTimestamp(reader.result as string);
-          results.push(stamped);
-          resolve();
-        };
-        reader.readAsDataURL(file);
-      });
+    try {
+      for (const file of valid) {
+        results.push(await preparePhoto(file));
+      }
+      setBonFotos((prev) => [...prev, ...results]);
+    } catch {
+      toast.error("Gagal memproses foto bon. Coba kurangi jumlah atau ukuran foto.");
+    } finally {
+      setBonProcessing(false);
+      e.target.value = "";
     }
-    setBonFotos((prev) => [...prev, ...results]);
-    setBonProcessing(false);
-    e.target.value = "";
   }
 
   function removeBonFoto(idx: number) {

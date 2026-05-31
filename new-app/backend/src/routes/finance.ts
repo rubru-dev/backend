@@ -3,8 +3,12 @@ import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
 import { sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
+import fs from "fs";
+import path from "path";
+import { config } from "../config";
 
 const router = Router();
+const MAX_STORED_IMAGE_BYTES = 8 * 1024 * 1024;
 
 // ── Invoice helpers ───────────────────────────────────────────────────────────
 
@@ -20,6 +24,25 @@ function leadDisplayName(lead?: { salutation?: string | null; nama?: string | nu
 
 function canFullyEditInvoice(req: Request) {
   return req.user?.email?.toLowerCase() === "jerry@rubahrumah.com";
+}
+
+function saveBase64Image(dataUrl: string | null | undefined, subdir: string): string | null {
+  if (!dataUrl) return null;
+  if (!dataUrl.startsWith("data:image/")) return dataUrl;
+
+  const matches = dataUrl.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64,(.+)$/);
+  if (!matches) throw new Error("Format foto tidak valid");
+
+  const mime = matches[1];
+  const ext = mime.split("/")[1] === "jpeg" ? "jpg" : mime.split("/")[1].replace(/[^a-zA-Z0-9]/g, "");
+  const buffer = Buffer.from(matches[2], "base64");
+  if (buffer.length > MAX_STORED_IMAGE_BYTES) throw new Error("Foto terlalu besar. Maksimal 8MB setelah kompresi.");
+
+  const dir = path.resolve(config.storagePath, subdir);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  fs.writeFileSync(path.join(dir, filename), buffer);
+  return `/storage/${subdir}/${filename}`;
 }
 
 function exactForSingleCharSearch(search: string | undefined) {
@@ -2497,11 +2520,12 @@ router.post("/adm-projek/:id/tukang/absen-foto", async (req: Request, res: Respo
   if (!tukang_id || !foto) return res.status(400).json({ detail: "tukang_id dan foto wajib diisi" });
   const tukang = await prisma.tukangRegistry.findFirst({ where: { id: BigInt(tukang_id), adm_finance_project_id: pid } });
   if (!tukang) return res.status(404).json({ detail: "Tukang tidak ditemukan untuk proyek ini" });
+  const storedFoto = saveBase64Image(foto, "tukang-absen");
   const p = await prisma.tukangAbsenFoto.create({
     data: {
       tukang_id: BigInt(tukang_id),
       tanggal: new Date(tanggal),
-      foto,
+      foto: storedFoto,
       foto_timestamp: foto_timestamp ? new Date(foto_timestamp) : new Date(),
       status: "Pending",
       created_by: req.user!.id,
@@ -2861,11 +2885,12 @@ router.post("/tukang-absen/:project_id/submit", async (req: Request, res: Respon
   });
   if (!tukang) return res.status(403).json({ detail: "Anda tidak terdaftar sebagai tukang di proyek ini" });
   const absenDate = tanggal ? new Date(tanggal) : new Date();
+  const storedFoto = saveBase64Image(foto, "tukang-absen");
   const p = await prisma.tukangAbsenFoto.create({
     data: {
       tukang_id: tukang.id,
       tanggal: absenDate,
-      foto,
+      foto: storedFoto,
       foto_timestamp: new Date(),
       status: "Pending",
       created_by: userId,
@@ -3034,6 +3059,7 @@ router.post("/adm-projek/:id/tukang/bon-material", async (req: Request, res: Res
   const projectId = BigInt(req.params.id);
   const { tukang_id, tanggal, keterangan, total_harga, foto_bon, catatan } = req.body;
   if (!tukang_id) return res.status(400).json({ detail: "tukang_id diperlukan" });
+  const storedFotoBon = saveBase64Image(foto_bon, "tukang-bon-material");
   const b = await prisma.tukangBonMaterial.create({
     data: {
       adm_finance_project_id: projectId,
@@ -3041,7 +3067,7 @@ router.post("/adm-projek/:id/tukang/bon-material", async (req: Request, res: Res
       tanggal: tanggal ? new Date(tanggal) : new Date(),
       keterangan: keterangan ?? null,
       total_harga: total_harga ?? 0,
-      foto_bon: foto_bon ?? null,
+      foto_bon: storedFotoBon,
       catatan: catatan ?? null,
       created_by: req.user?.id ?? null,
     },
@@ -3085,6 +3111,7 @@ router.post("/tukang-absen/:pid/submit-bon", async (req: Request, res: Response)
   });
   if (!tukang) return res.status(404).json({ detail: "Tukang tidak ditemukan di proyek ini" });
   const { tanggal, keterangan, total_harga, foto_bon, catatan } = req.body;
+  const storedFotoBon = saveBase64Image(foto_bon, "tukang-bon-material");
   const b = await prisma.tukangBonMaterial.create({
     data: {
       adm_finance_project_id: projectId,
@@ -3092,7 +3119,7 @@ router.post("/tukang-absen/:pid/submit-bon", async (req: Request, res: Response)
       tanggal: tanggal ? new Date(tanggal) : new Date(),
       keterangan: keterangan ?? null,
       total_harga: total_harga ?? 0,
-      foto_bon: foto_bon ?? null,
+      foto_bon: storedFotoBon,
       catatan: catatan ?? null,
       created_by: userId,
     },
