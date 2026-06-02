@@ -262,6 +262,7 @@ router.put("/roles/:id/permissions", requireRole("Super Admin"), async (req: Req
 const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }> = [
   { name: "pic.kalender_visit", module: "pic", label: "Sub-menu: Kalender Visit PIC" },
   { name: "projek.gudang_workshop", module: "projek", label: "Sub-menu: Gudang/Workshop" },
+  { name: "projek.form_bast", module: "projek", label: "Sub-menu: Form BAST" },
   { name: "bd.report_analytics", module: "bd", label: "Sub-menu: Report dan Analytics BD" },
   { name: "telemarketing.view",          module: "telemarketing", label: "Lihat Sales Admin Product dan Mitra" },
   { name: "telemarketing.create",        module: "telemarketing", label: "Buat Sales Admin Product dan Mitra" },

@@ -139,6 +139,7 @@ async function main() {
     { name: "admin.roles",    module: "admin", label: "Sub-menu: Roles & Permission" },
     { name: "admin.settings", module: "admin", label: "Sub-menu: Pengaturan" },
     // Projek Sipil tab-level
+    { name: "projek.form_bast",          module: "projek", label: "Sub-menu: Form BAST" },
     { name: "projek_sipil.termin",      module: "projek_sipil", label: "Tab: Daftar Termin Sipil" },
     { name: "projek_sipil.gantt",       module: "projek_sipil", label: "Tab: Gantt Chart Sipil" },
     { name: "projek_sipil.docs",        module: "projek_sipil", label: "Tab: Docs/Link Sipil" },
