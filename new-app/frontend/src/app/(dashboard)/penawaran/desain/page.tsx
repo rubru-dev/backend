@@ -119,6 +119,7 @@ type SavedOffer = {
   roId: string;
   tanggal: string;
   luasTanah: string;
+  satuan?: "m2" | "m3";
   nominal: string;
   paketName: keyof typeof PACKAGES;
   clientName: string;
@@ -178,6 +179,7 @@ export default function PenawaranDesainPage() {
   const [roId, setRoId] = useState("");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [luasTanah, setLuasTanah] = useState("");
+  const [satuan, setSatuan] = useState<"m2" | "m3">("m2");
   const [nominal, setNominal] = useState("");
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
@@ -254,6 +256,7 @@ export default function PenawaranDesainPage() {
       roId,
       tanggal,
       luasTanah,
+      satuan,
       nominal,
       paketName,
       clientName: namaAsli,
@@ -270,6 +273,7 @@ export default function PenawaranDesainPage() {
     setRoId(offer.roId);
     setTanggal(offer.tanggal);
     setLuasTanah(offer.luasTanah ?? "");
+    setSatuan(offer.satuan ?? "m2");
     setNominal(offer.nominal ?? String(offer.total ?? ""));
     setPaketName(offer.paketName);
     setShowPreview(true);
@@ -322,7 +326,7 @@ export default function PenawaranDesainPage() {
           <TabsTrigger value="list">List Penawaran</TabsTrigger>
         </TabsList>
         <TabsContent value="generate" className="mt-4">
-      <div className="grid md:grid-cols-7 gap-3 rounded-lg border bg-white p-4">
+      <div className="grid md:grid-cols-8 gap-3 rounded-lg border bg-white p-4">
         <div>
           <Label>Salutation</Label>
           <Select value={salutation} onValueChange={(v) => setSalutation(v as "Mr" | "Mrs")}>
@@ -370,7 +374,7 @@ export default function PenawaranDesainPage() {
           <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
         </div>
         <div>
-          <Label>Luas Tanah (Meter)</Label>
+          <Label>Volume</Label>
           <Input
             type="number"
             min={0}
@@ -378,6 +382,16 @@ export default function PenawaranDesainPage() {
             onChange={(e) => setLuasTanah(e.target.value)}
             placeholder="Contoh: 120"
           />
+        </div>
+        <div>
+          <Label>Satuan</Label>
+          <Select value={satuan} onValueChange={(v) => setSatuan(v as "m2" | "m3")}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value="m2">m2</SelectItem>
+              <SelectItem value="m3">m3</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
         <div>
           <Label>Nama RO</Label>
@@ -399,13 +413,13 @@ export default function PenawaranDesainPage() {
           </Select>
         </div>
         <div>
-          <Label>Nominal</Label>
+          <Label>Total Harga</Label>
           <Input
             type="number"
             min={0}
             value={nominal}
             onChange={(e) => setNominal(e.target.value)}
-            placeholder="Isi nominal"
+            placeholder="Isi total harga"
           />
         </div>
       </div>
@@ -464,7 +478,7 @@ export default function PenawaranDesainPage() {
 
           <p>Dengan Hormat,</p>
           <p className="text-justify">
-            Berdasarkan hasil konsultasi yang telah dilakukan oleh tim PT. Rubah Rumah Inovasi Pemuda pada {formatDateID(tanggal)}, bersama ini kami menyampaikan penawaran jasa desain untuk kebutuhan pembangunan Rumah Hunian dengan luas {luasTanah || "[Isi luas]"} meter milik {name}.
+            Berdasarkan hasil konsultasi yang telah dilakukan oleh tim PT. Rubah Rumah Inovasi Pemuda pada {formatDateID(tanggal)}, bersama ini kami menyampaikan penawaran jasa desain untuk kebutuhan pembangunan Rumah Hunian dengan volume {luasTanah || "[Isi volume]"} {satuan} milik {name}.
           </p>
           <p className="text-justify mt-3">
             Penawaran ini dibuat sebagai tahap awal perencanaan agar desain yang dihasilkan sesuai dengan kondisi lapangan, kebutuhan ruang, serta estimasi pekerjaan yang akan dilakukan.
@@ -476,8 +490,9 @@ export default function PenawaranDesainPage() {
               <tr>
                 <th className="border border-black p-2 text-left">Keterangan</th>
                 <th className="border border-black p-2 text-left">Estimasi Pengerjaan</th>
-                <th className="border border-black p-2 text-center">Luas Tanah (Meter)</th>
-                <th className="border border-black p-2 text-right">Nominal</th>
+                <th className="border border-black p-2 text-center">Volume</th>
+                <th className="border border-black p-2 text-center">Satuan</th>
+                <th className="border border-black p-2 text-right">Total Harga</th>
               </tr>
             </thead>
             <tbody>
@@ -485,14 +500,15 @@ export default function PenawaranDesainPage() {
                 <td className="border border-black p-2">Jasa Desain {paketName}</td>
                 <td className="border border-black p-2">{pkg.timeline}</td>
                 <td className="border border-black p-2 text-center">{luasTanah || "[Isi]"}</td>
+                <td className="border border-black p-2 text-center">{satuan}</td>
                 <td className="border border-black p-2 text-right">{total ? IDR(total) : "[Isi manual]"}</td>
               </tr>
               <tr>
-                <td className="border border-black p-2 font-bold" colSpan={3}>Total Harga</td>
+                <td className="border border-black p-2 font-bold" colSpan={4}>Total Harga</td>
                 <td className="border border-black p-2 text-right font-bold">{total ? IDR(total) : "[Isi manual]"}</td>
               </tr>
               <tr>
-                <td className="border border-black p-2 font-bold" colSpan={4}>Terbilang : {terbilang(total)}</td>
+                <td className="border border-black p-2 font-bold" colSpan={5}>Terbilang : {terbilang(total)}</td>
               </tr>
             </tbody>
           </table>
