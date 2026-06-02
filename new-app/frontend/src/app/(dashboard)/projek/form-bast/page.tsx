@@ -378,15 +378,15 @@ export default function FormBastPage() {
 
       {showPreview && (
         <div className="offer-page mx-auto min-h-[1123px] max-w-[794px] border bg-white px-[1.6cm] py-[1.1cm] text-[11px] leading-[1.35] text-black shadow-sm">
-          <div className="flex items-start gap-5">
-            <div className="flex h-[128px] w-[150px] shrink-0 items-start justify-center">
-              <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-[118px] max-w-[150px] object-contain" />
+          <div className="grid grid-cols-[150px_1fr] items-center gap-5">
+            <div className="flex h-[108px] w-[150px] shrink-0 items-center justify-center">
+              <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-[96px] max-w-[142px] object-contain" />
             </div>
-            <div className="pt-1">
-              <p className="text-[15px] font-bold">PT. Rubah Rumah Inovasi Pemuda</p>
+            <div className="leading-[1.35]">
+              <p className="text-[15px] font-bold leading-tight">PT. Rubah Rumah Inovasi Pemuda</p>
               <p className="mt-2">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota</p>
               <p>Bekasi, Jawa Barat</p>
-              <div className="mt-1 grid grid-cols-[64px_1fr]">
+              <div className="mt-1 grid grid-cols-[64px_1fr] gap-y-0.5">
                 <span>Telp</span><span>: +62 813-7640-5550</span>
                 <span>Website</span><span>: rubahrumah.com</span>
               </div>

@@ -75,9 +75,9 @@ export default function PenawaranRkrPage() {
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [rows, setRows] = useState<OfferRow[]>([
-    { uraian: "", qty: "", hargaSatuan: "" },
-    { uraian: "", qty: "", hargaSatuan: "" },
-    { uraian: "", qty: "", hargaSatuan: "" },
+    { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
+    { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
+    { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
   ]);
   const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
     if (typeof window === "undefined") return [];
@@ -146,7 +146,7 @@ export default function PenawaranRkrPage() {
       roId,
       tanggal,
       jenisPenawaran,
-      rows: rows.map((row) => ({ ...row, hargaSatuan: row.hargaSatuan || row.harga || "" })),
+      rows: rows.map((row) => ({ ...row, satuan: row.satuan || "m2", hargaSatuan: row.hargaSatuan || row.harga || "" })),
       clientName: namaAsli,
       roName: selectedRo?.nama || "[Nama RO]",
       total,
@@ -161,7 +161,7 @@ export default function PenawaranRkrPage() {
     setRoId(offer.roId);
     setTanggal(offer.tanggal);
     setJenisPenawaran(offer.jenisPenawaran);
-    setRows(offer.rows.map((row) => ({ ...row, hargaSatuan: row.hargaSatuan || row.harga || "" })));
+    setRows(offer.rows.map((row) => ({ ...row, satuan: row.satuan || "m2", hargaSatuan: row.hargaSatuan || row.harga || "" })));
     setShowPreview(true);
     setActiveTab("generate");
     if (shouldPrint) {
@@ -274,15 +274,22 @@ export default function PenawaranRkrPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Rincian Penawaran</Label>
-            <Button type="button" variant="outline" size="sm" onClick={() => setRows((prev) => [...prev, { uraian: "", qty: "", hargaSatuan: "" }])}>
+            <Button type="button" variant="outline" size="sm" onClick={() => setRows((prev) => [...prev, { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" }])}>
               <Plus className="h-4 w-4 mr-1" /> Tambah Baris
             </Button>
           </div>
           <div className="space-y-2">
             {rows.map((row, i) => (
-              <div key={i} className="grid md:grid-cols-[1fr_90px_150px_40px] gap-2">
+              <div key={i} className="grid md:grid-cols-[1fr_100px_100px_150px_40px] gap-2">
                 <Input value={row.uraian} onChange={(e) => updateRow(i, { uraian: e.target.value })} placeholder="Uraian pekerjaan" />
-                <Input type="number" min={0} value={row.qty} onChange={(e) => updateRow(i, { qty: nonNegativeNumber(e.target.value) })} placeholder="Qty" />
+                <Input type="number" min={0} value={row.qty} onChange={(e) => updateRow(i, { qty: nonNegativeNumber(e.target.value) })} placeholder="Volume" />
+                <Select value={row.satuan || "m2"} onValueChange={(value) => updateRow(i, { satuan: value })}>
+                  <SelectTrigger><SelectValue placeholder="Satuan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="m2">m2</SelectItem>
+                    <SelectItem value="m3">m3</SelectItem>
+                  </SelectContent>
+                </Select>
                 <Input type="number" min={0} value={row.hargaSatuan || row.harga || ""} onChange={(e) => updateRow(i, { hargaSatuan: nonNegativeNumber(e.target.value) })} placeholder="Harga satuan" />
                 <Button type="button" variant="ghost" size="icon" disabled={rows.length <= 1} onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))}>
                   <Trash2 className="h-4 w-4 text-red-500" />
@@ -340,8 +347,8 @@ export default function PenawaranRkrPage() {
               <tr>
                 <th className="w-10 border border-black p-2 text-center">No</th>
                 <th className="border border-black p-2 text-left">Uraian Pekerjaan</th>
-                <th className="w-20 border border-black p-2 text-center">Qty</th>
-                <th className="w-36 border border-black p-2 text-right">Harga Satuan</th>
+                <th className="w-20 border border-black p-2 text-center">Volume</th>
+                <th className="w-20 border border-black p-2 text-center">Satuan</th>
                 <th className="w-36 border border-black p-2 text-right">Total</th>
               </tr>
             </thead>
@@ -354,7 +361,7 @@ export default function PenawaranRkrPage() {
                     <td className="border border-black p-2 text-center">{i + 1}</td>
                     <td className="border border-black p-2">{row.uraian || "[Isi manual]"}</td>
                     <td className="border border-black p-2 text-center">{row.qty || "[Isi]"}</td>
-                    <td className="border border-black p-2 text-right">{harga ? fmtMoney(harga) : "[Isi]"}</td>
+                    <td className="border border-black p-2 text-center">{row.satuan || "m2"}</td>
                     <td className="border border-black p-2 text-right">{harga && qty ? fmtMoney(qty * harga) : "[Isi manual]"}</td>
                   </tr>
                 );
