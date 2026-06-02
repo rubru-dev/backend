@@ -110,6 +110,7 @@ const PACKAGES = {
 
 const IDR = (n: number) => `Rp. ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(n)}`;
 const STORAGE_KEY = "rubahrumah.penawaran.desain";
+const DISCOUNT_STORAGE_KEY = "rubahrumah.penawaran.desain.diskon";
 
 type SavedOffer = {
   id: string;
@@ -124,6 +125,26 @@ type SavedOffer = {
   clientName: string;
   roName: string;
   total: number;
+};
+
+type SavedDiscountRequest = {
+  id: string;
+  createdAt: string;
+  clientId: string;
+  salutation: "Mr" | "Mrs";
+  roId: string;
+  tanggal: string;
+  luasTanah: string;
+  paketName: keyof typeof PACKAGES;
+  clientName: string;
+  roName: string;
+  hargaNormal: number;
+  tipeDiskon: "nominal" | "persen";
+  nilaiDiskon: string;
+  nominalDiskon: number;
+  hargaSetelahDiskon: number;
+  alasan: string;
+  status: string;
 };
 
 function rawClientName(c: any) {
@@ -179,6 +200,10 @@ export default function PenawaranDesainPage() {
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [luasTanah, setLuasTanah] = useState("");
   const [nominal, setNominal] = useState("");
+  const [tipeDiskon, setTipeDiskon] = useState<"nominal" | "persen">("nominal");
+  const [nilaiDiskon, setNilaiDiskon] = useState("");
+  const [alasanDiskon, setAlasanDiskon] = useState("");
+  const [statusDiskon, setStatusDiskon] = useState("Draft");
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -187,6 +212,14 @@ export default function PenawaranDesainPage() {
     if (typeof window === "undefined") return [];
     try {
       return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [savedDiscounts, setSavedDiscounts] = useState<SavedDiscountRequest[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(window.localStorage.getItem(DISCOUNT_STORAGE_KEY) || "[]");
     } catch {
       return [];
     }
@@ -223,6 +256,11 @@ export default function PenawaranDesainPage() {
   const selectedRo = employees.find((e) => String(e.id) === roId);
   const pkg = PACKAGES[paketName];
   const total = Number(nominal) || 0;
+  const nominalDiskon = tipeDiskon === "persen"
+    ? Math.round(total * ((Number(nilaiDiskon) || 0) / 100))
+    : Number(nilaiDiskon) || 0;
+  const hargaSetelahDiskon = Math.max(total - nominalDiskon, 0);
+  const persenDiskon = total > 0 ? (nominalDiskon / total) * 100 : 0;
   const namaAsli = client ? rawClientName(client) : "[Nama Client]";
   const name = client ? `${salutation} ${namaAsli}` : "Mr/Mrs [Nama Client]";
 
@@ -243,6 +281,11 @@ export default function PenawaranDesainPage() {
   function persistOffers(next: SavedOffer[]) {
     setSavedOffers(next);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }
+
+  function persistDiscounts(next: SavedDiscountRequest[]) {
+    setSavedDiscounts(next);
+    window.localStorage.setItem(DISCOUNT_STORAGE_KEY, JSON.stringify(next));
   }
 
   function saveOffer() {
@@ -290,6 +333,59 @@ export default function PenawaranDesainPage() {
     persistOffers(savedOffers.filter((offer) => offer.id !== id));
   }
 
+  function saveDiscountRequest() {
+    const request: SavedDiscountRequest = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      clientId: String(client?.id ?? clientId),
+      salutation,
+      roId,
+      tanggal,
+      luasTanah,
+      paketName,
+      clientName: namaAsli,
+      roName: selectedRo?.nama || "[Nama RO]",
+      hargaNormal: total,
+      tipeDiskon,
+      nilaiDiskon,
+      nominalDiskon,
+      hargaSetelahDiskon,
+      alasan: alasanDiskon,
+      status: statusDiskon,
+    };
+    persistDiscounts([request, ...savedDiscounts]);
+  }
+
+  function loadDiscountRequest(request: SavedDiscountRequest, shouldPrint = false) {
+    setClientId(request.clientId);
+    setSalutation(request.salutation);
+    setRoId(request.roId);
+    setTanggal(request.tanggal);
+    setLuasTanah(request.luasTanah ?? "");
+    setNominal(String(request.hargaNormal || ""));
+    setPaketName(request.paketName);
+    setTipeDiskon(request.tipeDiskon);
+    setNilaiDiskon(request.nilaiDiskon);
+    setAlasanDiskon(request.alasan);
+    setStatusDiskon(request.status);
+    setShowPreview(true);
+    setActiveTab("diskon");
+    if (shouldPrint) {
+      setTimeout(() => void downloadDiscountPdf(), 100);
+    }
+  }
+
+  async function downloadDiscountPdf() {
+    setShowPreview(true);
+    setDownloadingPdf(true);
+    try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await downloadOfferPdf(".discount-page", `Pengajuan Diskon Desain - ${name} - ${formatDateFile(tanggal)}`);
+    } finally {
+      setDownloadingPdf(false);
+    }
+  }
+
   return (
     <div className="p-6 space-y-5">
       <style jsx global>{`
@@ -320,6 +416,7 @@ export default function PenawaranDesainPage() {
         <TabsList>
           <TabsTrigger value="generate">Generate</TabsTrigger>
           <TabsTrigger value="list">List Penawaran</TabsTrigger>
+          <TabsTrigger value="diskon">Pengajuan Diskon</TabsTrigger>
         </TabsList>
         <TabsContent value="generate" className="mt-4">
       <div className="grid md:grid-cols-7 gap-3 rounded-lg border bg-white p-4">
@@ -434,9 +531,185 @@ export default function PenawaranDesainPage() {
             )}
           </div>
         </TabsContent>
+        <TabsContent value="diskon" className="mt-4 space-y-4">
+          <div className="grid gap-4 rounded-lg border bg-white p-4 lg:grid-cols-[1fr_320px]">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <Label>Harga Normal</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={nominal}
+                  onChange={(e) => setNominal(e.target.value)}
+                  placeholder="Harga sebelum diskon"
+                />
+              </div>
+              <div>
+                <Label>Tipe Diskon</Label>
+                <Select value={tipeDiskon} onValueChange={(value) => setTipeDiskon(value as "nominal" | "persen")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="nominal">Nominal</SelectItem>
+                    <SelectItem value="persen">Persen</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>{tipeDiskon === "persen" ? "Diskon (%)" : "Diskon (Rp)"}</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={nilaiDiskon}
+                  onChange={(e) => setNilaiDiskon(e.target.value)}
+                  placeholder={tipeDiskon === "persen" ? "Contoh: 10" : "Contoh: 500000"}
+                />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={statusDiskon} onValueChange={setStatusDiskon}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Draft">Draft</SelectItem>
+                    <SelectItem value="Diajukan">Diajukan</SelectItem>
+                    <SelectItem value="Disetujui">Disetujui</SelectItem>
+                    <SelectItem value="Ditolak">Ditolak</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Alasan Pengajuan</Label>
+                <Input
+                  value={alasanDiskon}
+                  onChange={(e) => setAlasanDiskon(e.target.value)}
+                  placeholder="Contoh: penyesuaian budget client / promo closing"
+                />
+              </div>
+            </div>
+            <div className="rounded-lg border bg-slate-50 p-3 text-sm">
+              <p className="font-semibold">Ringkasan Diskon</p>
+              <div className="mt-3 space-y-2">
+                <div className="flex justify-between"><span>Harga normal</span><span>{total ? IDR(total) : "-"}</span></div>
+                <div className="flex justify-between text-red-600"><span>Diskon</span><span>-{nominalDiskon ? IDR(nominalDiskon) : "-"}</span></div>
+                <div className="flex justify-between"><span>Persentase</span><span>{persenDiskon ? `${persenDiskon.toFixed(1)}%` : "-"}</span></div>
+                <div className="border-t pt-2 flex justify-between font-bold"><span>Harga akhir</span><span>{hargaSetelahDiskon ? IDR(hargaSetelahDiskon) : "-"}</span></div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Button className="flex-1" onClick={saveDiscountRequest}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
+                <Button className="flex-1" variant="outline" onClick={downloadDiscountPdf} disabled={downloadingPdf}>
+                  <Download className="h-4 w-4 mr-2" /> PDF
+                </Button>
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-lg border bg-white">
+            <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr_150px] gap-3 border-b px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
+              <span>Client</span><span>Paket</span><span>Diskon</span><span>Status</span><span className="text-right">Aksi</span>
+            </div>
+            {savedDiscounts.length ? savedDiscounts.map((request) => (
+              <div key={request.id} className="grid grid-cols-[1.2fr_1fr_1fr_1fr_150px] items-center gap-3 border-b px-4 py-3 text-sm last:border-b-0">
+                <span className="font-medium">{request.salutation} {request.clientName}</span>
+                <span>{request.paketName}</span>
+                <span>{IDR(request.nominalDiskon)}</span>
+                <span>{request.status}</span>
+                <div className="flex justify-end gap-1">
+                  <Button size="sm" variant="outline" onClick={() => loadDiscountRequest(request)}>Buka</Button>
+                  <Button size="sm" onClick={() => loadDiscountRequest(request, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  {isSuperAdmin && (
+                    <Button size="icon" variant="ghost" onClick={() => persistDiscounts(savedDiscounts.filter((item) => item.id !== request.id))}>
+                      <Trash2 className="h-4 w-4 text-red-500" />
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )) : (
+              <div className="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada pengajuan diskon tersimpan.</div>
+            )}
+          </div>
+        </TabsContent>
       </Tabs>
 
-      {showPreview && (
+      {showPreview && activeTab === "diskon" && (
+        <div className="discount-page offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white px-[1.5cm] py-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
+          <div className="offer-header mb-0 border-b-2 border-black pb-4 text-[12px]">
+            <div className="flex items-center gap-4">
+              <div className="flex h-36 w-44 shrink-0 items-center justify-center">
+                <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-36 max-w-44 object-contain" />
+              </div>
+              <div>
+                <p className="text-[12px] font-bold leading-tight">PT. RUBAH RUMAH INOVASI PEMUDA</p>
+                <p className="mt-2 text-[12px] leading-5">Jl. Pandu II No. 420, Kel. Sepanjang Jaya, Kec. Rawalumbu, Kota Bekasi, Jawa Barat</p>
+                <p className="text-[12px] leading-5">Telp: +62 813-7640-5550</p>
+                <p className="text-[12px] leading-5">Website: rubahrumah.com</p>
+              </div>
+            </div>
+          </div>
+
+          <h2 className="mb-5 mt-6 text-center text-[14px] font-bold leading-none">FORM PENGAJUAN DISKON JASA DESAIN</h2>
+
+          <div className="mb-5 grid grid-cols-[150px_1fr] gap-y-1">
+            <span>Tanggal Pengajuan</span><span>: {formatDateID(tanggal)}</span>
+            <span>Nama Client</span><span>: {name}</span>
+            <span>Paket Desain</span><span>: {paketName}</span>
+            <span>Luas Tanah</span><span>: {luasTanah || "[Isi luas]"} meter</span>
+            <span>Relationship Officer</span><span>: {selectedRo?.nama || "[Nama RO]"}</span>
+            <span>Status</span><span>: {statusDiskon}</span>
+          </div>
+
+          <p className="text-justify">
+            Berdasarkan penawaran jasa desain untuk kebutuhan pembangunan Rumah Hunian milik {name}, berikut pengajuan diskon yang diajukan untuk pertimbangan dan persetujuan internal.
+          </p>
+
+          <table className="my-4 w-full border-collapse text-[12px]">
+            <tbody>
+              <tr>
+                <td className="w-1/2 border border-black p-2 font-bold">Harga Normal</td>
+                <td className="border border-black p-2 text-right">{total ? IDR(total) : "[Isi nominal]"}</td>
+              </tr>
+              <tr>
+                <td className="border border-black p-2 font-bold">Diskon Diajukan</td>
+                <td className="border border-black p-2 text-right">
+                  {nominalDiskon ? IDR(nominalDiskon) : "[Isi diskon]"} {persenDiskon ? `(${persenDiskon.toFixed(1)}%)` : ""}
+                </td>
+              </tr>
+              <tr>
+                <td className="border border-black p-2 font-bold">Harga Setelah Diskon</td>
+                <td className="border border-black p-2 text-right font-bold">{hargaSetelahDiskon ? IDR(hargaSetelahDiskon) : "[Isi nominal]"}</td>
+              </tr>
+              <tr>
+                <td className="border border-black p-2 font-bold" colSpan={2}>Terbilang : {terbilang(hargaSetelahDiskon)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div className="mt-4">
+            <p className="font-bold">Alasan Pengajuan :</p>
+            <p className="mt-1 min-h-12 text-justify">{alasanDiskon || "[Isi alasan pengajuan diskon]"}</p>
+          </div>
+
+          <p className="mt-6 text-justify">
+            Demikian form pengajuan diskon ini dibuat untuk menjadi dasar pertimbangan persetujuan. Apabila disetujui, harga setelah diskon dapat digunakan sebagai nominal pada penawaran jasa desain kepada client.
+          </p>
+
+          <p className="mt-8 text-right">Bekasi, {formatDateID(tanggal)}</p>
+          <div className="mt-6 grid grid-cols-2 gap-8 text-center">
+            <div>
+              <p>Diajukan Oleh,</p>
+              <div className="h-20" />
+              <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
+              <p>Relation Officer</p>
+            </div>
+            <div>
+              <p>Disetujui Oleh,</p>
+              <div className="h-20" />
+              <p className="font-bold">........................</p>
+              <p>Management</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showPreview && activeTab !== "diskon" && (
         <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white px-[1.5cm] py-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
           <div className="offer-header mb-0 border-b-2 border-black pb-4 text-[12px]">
             <div className="flex items-center gap-4">
