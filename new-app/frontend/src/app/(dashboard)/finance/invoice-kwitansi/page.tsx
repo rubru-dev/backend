@@ -173,7 +173,7 @@ function generateNomor(kategori: string | null, tgl: string, lead?: any, paketDe
   const mm = String(d.getMonth() + 1).padStart(2, "0");
   const yyyy = d.getFullYear();
   const suffix = `${dd}/${mm}/${yyyy}`;
-  const client = slugInvoicePart(leadDisplayName(lead) || lead?.nama || "CLIENT");
+  const client = slugInvoicePart(rawLeadName(lead) || lead?.nama || "CLIENT");
   if (kategori === "Payment Desain") {
     const paket = slugInvoicePart(paketDesain || "PAKET");
     return `RBR-DS-${paket}-${client}-${suffix}`;
@@ -214,6 +214,13 @@ function formatRp(val: number | string) {
 function leadDisplayName(lead: any) {
   if (!lead) return "";
   if (lead.display_name) return lead.display_name;
+  const name = rawLeadName(lead);
+  const alamat = typeof lead.alamat === "string" ? lead.alamat.trim() : "";
+  return alamat ? `${name} - ${alamat}` : name;
+}
+
+function rawLeadName(lead: any) {
+  if (!lead) return "";
   return lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama;
 }
 
@@ -852,7 +859,7 @@ export default function InvoiceKwitansiPage() {
                                 : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                             </TableCell>
                             <TableCell className="font-mono font-medium">{inv.nomor_invoice}</TableCell>
-                            <TableCell>{inv.klien || "—"}</TableCell>
+                            <TableCell>{leadDisplayName(inv.lead) || inv.klien || "—"}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">{inv.lead?.jenis || "—"}</TableCell>
                             <TableCell className="text-sm text-muted-foreground">{inv.kategori || "—"}</TableCell>
                             <TableCell className="whitespace-nowrap">
@@ -1489,7 +1496,7 @@ export default function InvoiceKwitansiPage() {
             </DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground -mt-2">
-            {nominalTarget?.nomor_invoice} — {nominalTarget?.klien}
+            {nominalTarget?.nomor_invoice} — {leadDisplayName(nominalTarget?.lead) || nominalTarget?.klien}
           </p>
           <p className="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
             ⚠️ Perubahan nominal hanya bisa dilakukan <strong>satu kali</strong>. Setelah disimpan tidak bisa diubah lagi.

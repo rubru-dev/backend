@@ -22,6 +22,12 @@ function leadDisplayName(lead?: { salutation?: string | null; nama?: string | nu
   return lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama;
 }
 
+function leadDisplayLabel(lead?: { salutation?: string | null; nama?: string | null; alamat?: string | null } | null) {
+  const name = leadDisplayName(lead);
+  const alamat = lead?.alamat?.trim();
+  return alamat ? `${name} - ${alamat}` : name;
+}
+
 function canFullyEditInvoice(req: Request) {
   return req.user?.email?.toLowerCase() === "jerry@rubahrumah.com";
 }
@@ -127,10 +133,11 @@ function generateKategoriInvoiceNumber(kategori: string | null | undefined, tang
 
 function invoiceDictFrontend(inv: any) {
   const leadName = leadDisplayName(inv.lead);
+  const leadLabel = leadDisplayLabel(inv.lead);
   return {
     id: inv.id,
     nomor_invoice: inv.invoice_number,
-    lead: inv.lead ? { id: inv.lead.id, salutation: inv.lead.salutation ?? null, nama: inv.lead.nama, display_name: leadName, jenis: inv.lead.jenis, alamat: inv.lead.alamat, nomor_telepon: inv.lead.nomor_telepon } : null,
+    lead: inv.lead ? { id: inv.lead.id, salutation: inv.lead.salutation ?? null, nama: inv.lead.nama, display_name: leadLabel, jenis: inv.lead.jenis, alamat: inv.lead.alamat, nomor_telepon: inv.lead.nomor_telepon } : null,
     klien: leadName,
     tanggal: inv.tanggal,
     overdue_date: inv.overdue_date || null,
@@ -848,7 +855,7 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const where: Record<string, unknown> = {};
   if (!kategori) return res.json({ items: [] });
   if (["Payment Desain", "Payment Survey", "Payment Projek"].includes(kategori)) {
-    where.modul = { in: ["sales-admin", "database-client"] };
+    where.modul = "sales-admin";
   } else if (kategori === "Payment RKR") {
     where.modul = { in: ["telemarketing", "database-client"] };
   } else if (kategori === "Payment Golden") {
@@ -860,6 +867,7 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
     where.OR = [
       { nama: searchFilter },
       { nomor_telepon: searchFilter },
+      { alamat: searchFilter },
     ];
   }
   const leads = await prisma.lead.findMany({
@@ -868,7 +876,7 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
     orderBy: { nama: "asc" },
     take: limit,
   });
-  return res.json({ items: leads.map((lead) => ({ ...lead, display_name: leadDisplayName(lead) })) });
+  return res.json({ items: leads.map((lead) => ({ ...lead, display_name: leadDisplayLabel(lead) })) });
 });
 
 // ── Bank Accounts ─────────────────────────────────────────────────────────────
