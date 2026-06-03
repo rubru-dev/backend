@@ -441,6 +441,10 @@ export default function InvoiceKwitansiPage() {
   // Signature dialog state (only Head Finance signing remains)
   const [signTarget, setSignTarget] = useState<{ id: number } | null>(null);
 
+  // Jerry-only PDF address override state
+  const [pdfAddressTarget, setPdfAddressTarget] = useState<any | null>(null);
+  const [pdfCustomAddress, setPdfCustomAddress] = useState("");
+
   // Mark paid dialog state
   const [markPaidId, setMarkPaidId] = useState<number | null>(null);
   const [metode, setMetode] = useState("Transfer Bank");
@@ -674,8 +678,18 @@ export default function InvoiceKwitansiPage() {
     setForm({ ...form, paket_desain, catatan: getDesignNote(paket_desain), _nomorManual: false });
   }
 
-  async function handleDownloadPDF(inv: any) {
+  function requestDownloadPDF(inv: any) {
+    if (!canEditInvoiceFully) {
+      handleDownloadPDF(inv);
+      return;
+    }
+    setPdfAddressTarget(inv);
+    setPdfCustomAddress(inv.lead?.alamat || "");
+  }
+
+  async function handleDownloadPDF(inv: any, alamatKhusus?: string | null) {
     try {
+      const finalAlamat = alamatKhusus !== undefined ? alamatKhusus : inv.lead?.alamat;
       const logoUrl = await getLogoBase64();
       const { InvoicePDF } = await import("@/components/invoice-pdf");
       const blob = await pdf(
@@ -684,7 +698,7 @@ export default function InvoiceKwitansiPage() {
           tanggal={inv.tanggal}
           overdue_date={inv.overdue_date}
           klien={inv.klien}
-          alamat_klien={inv.lead?.alamat}
+          alamat_klien={finalAlamat}
           telepon_klien={inv.lead?.nomor_telepon}
           lead_jenis={inv.lead?.jenis}
           items={inv.items || []}
@@ -901,7 +915,7 @@ export default function InvoiceKwitansiPage() {
                                 {inv.status === "Terbit" && (
                                   <>
                                     <Button size="sm" variant="outline" className="h-7 text-xs"
-                                      onClick={() => handleDownloadPDF(inv)}>
+                                      onClick={() => requestDownloadPDF(inv)}>
                                       <Download className="h-3 w-3 mr-1" /> PDF Invoice
                                     </Button>
                                     <Button size="sm" className="h-7 text-xs bg-green-600 hover:bg-green-700"
@@ -912,7 +926,7 @@ export default function InvoiceKwitansiPage() {
                                 )}
                                 {inv.status === "Lunas" && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs"
-                                    onClick={() => handleDownloadPDF(inv)}>
+                                    onClick={() => requestDownloadPDF(inv)}>
                                     <Download className="h-3 w-3 mr-1" /> PDF Invoice
                                   </Button>
                                 )}
@@ -1321,6 +1335,48 @@ export default function InvoiceKwitansiPage() {
           signMut.mutate({ id: signTarget.id, sig });
         }}
       />
+
+      {/* Jerry-only Invoice PDF Address Override */}
+      <Dialog open={!!pdfAddressTarget} onOpenChange={(v) => { if (!v) { setPdfAddressTarget(null); setPdfCustomAddress(""); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Download className="h-5 w-5 text-orange-500" /> Download PDF Invoice
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3">
+            <p className="text-sm text-muted-foreground">
+              {pdfAddressTarget?.nomor_invoice} - {leadDisplayName(pdfAddressTarget?.lead) || pdfAddressTarget?.klien}
+            </p>
+            <div>
+              <Label>Alamat khusus di PDF <span className="text-muted-foreground font-normal text-xs">(opsional)</span></Label>
+              <textarea
+                className="w-full border rounded-md px-3 py-2 text-sm mt-1 min-h-[90px] resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+                placeholder="Kosongkan jika PDF tidak perlu menampilkan alamat."
+                value={pdfCustomAddress}
+                onChange={(e) => setPdfCustomAddress(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Perubahan ini hanya untuk file PDF yang didownload, tidak mengubah data lead/invoice.
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => { setPdfAddressTarget(null); setPdfCustomAddress(""); }}>Batal</Button>
+              <Button
+                onClick={async () => {
+                  if (!pdfAddressTarget) return;
+                  const alamat = pdfCustomAddress.trim() ? pdfCustomAddress.trim() : null;
+                  await handleDownloadPDF(pdfAddressTarget, alamat);
+                  setPdfAddressTarget(null);
+                  setPdfCustomAddress("");
+                }}
+              >
+                <Download className="h-4 w-4 mr-1" /> Download PDF
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Bukti Bayar Dialog */}
       <Dialog open={!!buktiBayarTarget} onOpenChange={v => { if (!v) { setBuktiBayarTarget(null); setBuktiBayarBase64(null); } }}>
