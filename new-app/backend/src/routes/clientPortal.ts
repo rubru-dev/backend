@@ -38,6 +38,19 @@ async function getLiveProjectProgress(leadId: bigint | null | undefined) {
   const sipilIds = sipilProyeks.map((p) => p.id);
   const interiorIds = interiorProyeks.map((p) => p.id);
 
+  const taskStatuses = [
+    ...sipilProyeks.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status))),
+    ...interiorProyeks.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status))),
+  ];
+  if (taskStatuses.length > 0) {
+    const taskDone = taskStatuses.filter((status) => status === "Selesai").length;
+    return {
+      progress: progressFromCounts(taskDone, taskStatuses.length),
+      totalItems: taskStatuses.length,
+      doneItems: taskDone,
+    };
+  }
+
   const [checklistSipilTotal, checklistSipilDone, checklistInteriorTotal, checklistInteriorDone] = await Promise.all([
     sipilIds.length ? prisma.checklistSipil.count({ where: { proyek_id: { in: sipilIds } } }) : 0,
     sipilIds.length ? prisma.checklistSipil.count({ where: { proyek_id: { in: sipilIds }, is_checked: true } }) : 0,
@@ -55,16 +68,29 @@ async function getLiveProjectProgress(leadId: bigint | null | undefined) {
     };
   }
 
-  const taskStatuses = [
-    ...sipilProyeks.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status))),
-    ...interiorProyeks.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status))),
-  ];
-  const taskDone = taskStatuses.filter((status) => status === "Selesai").length;
   return {
-    progress: progressFromCounts(taskDone, taskStatuses.length),
-    totalItems: taskStatuses.length,
-    doneItems: taskDone,
+    progress: null,
+    totalItems: 0,
+    doneItems: 0,
   };
+}
+
+async function getLiveProjectSummary(leadId: bigint | null | undefined) {
+  if (!leadId) return null;
+  const [sipilProyeks, interiorProyeks] = await Promise.all([
+    prisma.proyekBerjalan.findMany({
+      where: { lead_id: leadId },
+      select: { nama_proyek: true, lokasi: true, tanggal_mulai: true, tanggal_selesai: true, updated_at: true },
+      orderBy: { updated_at: "desc" },
+    }),
+    prisma.proyekInterior.findMany({
+      where: { lead_id: leadId },
+      select: { nama_proyek: true, lokasi: true, tanggal_mulai: true, tanggal_selesai: true, updated_at: true },
+      orderBy: { updated_at: "desc" },
+    }),
+  ]);
+  const allProjects = [...sipilProyeks, ...interiorProyeks].sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime());
+  return allProjects[0] ?? null;
 }
 
 // ── POST /login ───────────────────────────────────────────────────────────────
@@ -123,6 +149,7 @@ router.get("/me", async (req: Request, res: Response) => {
   if (!project) { res.status(404).json({ detail: "Project tidak ditemukan" }); return; }
 
   const liveProgress = await getLiveProjectProgress(project.lead_id);
+  const liveProject = await getLiveProjectSummary(project.lead_id);
 
   // Hitung summary
   const [paymentCount, paidCount, galeriCount, dokumenCount, aktivitasCount, invCount, invLunasCount] = await Promise.all([
@@ -138,12 +165,12 @@ router.get("/me", async (req: Request, res: Response) => {
 
   return res.json({
     id: project.id,
-    nama_proyek: project.nama_proyek,
+    nama_proyek: liveProject?.nama_proyek ?? project.nama_proyek,
     klien: project.klien,
-    alamat: project.alamat,
-    tanggal_mulai: project.tanggal_mulai,
-    tanggal_selesai: project.tanggal_selesai,
-    status_proyek: project.status_proyek,
+    alamat: liveProject?.lokasi ?? project.alamat,
+    tanggal_mulai: liveProject?.tanggal_mulai ?? project.tanggal_mulai,
+    tanggal_selesai: project.tanggal_selesai ?? liveProject?.tanggal_selesai,
+    status_proyek: liveProgress.progress !== null && liveProgress.progress >= 100 ? "Selesai" : project.status_proyek,
     progress_persen: liveProgress.progress ?? project.progress_persen,
     catatan: project.catatan,
     jenis: project.lead?.jenis ?? null,
@@ -501,16 +528,6 @@ router.get("/kontak", async (req: Request, res: Response) => {
 });
 
 // ── GET /aktivitas-projek ─────────────────────────────────────────────────────
-// Baca live dari ProyekBerjalan/ProyekInterior berdasarkan lead_id klien.
-// Deadline yang ditampilkan = tanggal_selesai asli + 4 hari (buffer untuk klien).
-const DEADLINE_BUFFER_DAYS = 4;
-function addDays(date: Date | null | undefined, n: number): Date | null {
-  if (!date) return null;
-  const d = new Date(date);
-  d.setDate(d.getDate() + n);
-  return d;
-}
-
 router.get("/aktivitas-projek", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
@@ -552,7 +569,7 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
           termin_nama: t.nama,
           judul: task.nama_pekerjaan,
           tanggal_mulai: task.tanggal_mulai,
-          tanggal_selesai: addDays(task.tanggal_selesai, DEADLINE_BUFFER_DAYS),
+          tanggal_selesai: task.tanggal_selesai,
           status: task.status,
         });
       }
@@ -570,7 +587,7 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
           termin_nama: t.nama,
           judul: task.nama_pekerjaan,
           tanggal_mulai: task.tanggal_mulai,
-          tanggal_selesai: addDays(task.tanggal_selesai, DEADLINE_BUFFER_DAYS),
+          tanggal_selesai: task.tanggal_selesai,
           status: task.status,
         });
       }

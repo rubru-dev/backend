@@ -62,7 +62,15 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
 
   function handleLeadChange(leadId: string) {
     const lead = leads.find((l: any) => String(l.id) === leadId);
-    setForm((f) => ({ ...f, lead_id: leadId, klien: lead?.nama ?? f.klien, alamat: lead?.alamat ?? f.alamat }));
+    setForm((f) => ({
+      ...f,
+      lead_id: leadId,
+      nama_proyek: lead?.proyek?.nama_proyek ?? f.nama_proyek,
+      klien: lead?.nama ?? f.klien,
+      alamat: lead?.proyek?.lokasi ?? lead?.alamat ?? f.alamat,
+      tanggal_mulai: lead?.proyek?.tanggal_mulai ? lead.proyek.tanggal_mulai.slice(0, 10) : f.tanggal_mulai,
+      tanggal_selesai: lead?.proyek?.tanggal_selesai ? lead.proyek.tanggal_selesai.slice(0, 10) : f.tanggal_selesai,
+    }));
   }
 
   return (
@@ -132,7 +140,7 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
         </div>
         <div className="flex justify-end gap-2 pt-2">
           <Button variant="outline" onClick={onClose}>Batal</Button>
-          <Button disabled={isPending || !form.lead_id || !form.nama_proyek || !form.username || !form.password}
+          <Button disabled={isPending || !form.lead_id || !form.username || !form.password}
             onClick={() => mutate(form)}>
             {isPending ? "Menyimpan..." : "Buat Akun"}
           </Button>

@@ -102,7 +102,8 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
                 { label: "Status", value: project.status_proyek },
                 { label: "Progress", value: `${project.progress_persen}%` },
                 { label: "Mulai", value: fmtDate(project.tanggal_mulai) },
-                { label: "Selesai", value: fmtDate(project.tanggal_selesai) },
+                { label: "Target Internal", value: fmtDate(project.live_project?.tanggal_selesai) },
+                { label: "Deadline Klien", value: fmtDate(project.tanggal_selesai) },
                 { label: "Catatan", value: project.catatan || "-" },
               ].map(({ label, value }) => (
                 <div key={label} className="grid grid-cols-5 gap-2">
@@ -138,8 +139,13 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
               </div>
               <div className="grid grid-cols-2 gap-2">
                 <div><Label>Tgl Mulai</Label><Input type="date" value={formP.tanggal_mulai} onChange={(e) => setFormP((f: any) => ({ ...f, tanggal_mulai: e.target.value }))} /></div>
-                <div><Label>Tgl Selesai</Label><Input type="date" value={formP.tanggal_selesai} onChange={(e) => setFormP((f: any) => ({ ...f, tanggal_selesai: e.target.value }))} /></div>
+                <div><Label>Deadline Klien</Label><Input type="date" value={formP.tanggal_selesai} onChange={(e) => setFormP((f: any) => ({ ...f, tanggal_selesai: e.target.value }))} /></div>
               </div>
+              {project.live_project?.tanggal_selesai && (
+                <p className="text-xs text-gray-400">
+                  Target internal dari Projek Sipil/Interior: {fmtDate(project.live_project.tanggal_selesai)}. Deadline klien boleh dibuat berbeda untuk buffer waktu.
+                </p>
+              )}
               <div><Label>Catatan (tampil di portal klien)</Label><Textarea value={formP.catatan} onChange={(e) => setFormP((f: any) => ({ ...f, catatan: e.target.value }))} /></div>
               <div>
                 <Label>Link ke Administrasi Projek (kehadiran tukang)</Label>

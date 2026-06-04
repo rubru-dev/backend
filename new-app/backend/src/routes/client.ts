@@ -81,18 +81,80 @@ async function _recalcProgress(projectId: bigint) {
   await prisma.clientPortalProject.update({ where: { id: projectId }, data: { progress_persen: persen } });
 }
 
-function projectDetail(p: any) {
+function progressFromCounts(done: number, total: number) {
+  return total > 0 ? Math.round((done / total) * 100) : null;
+}
+
+async function getLiveProjectSummary(leadId: bigint | null | undefined) {
+  if (!leadId) return null;
+
+  const [sipilProyeks, interiorProyeks] = await Promise.all([
+    prisma.proyekBerjalan.findMany({
+      where: { lead_id: leadId },
+      include: { termins: { include: { tasks: { select: { status: true } } } } },
+      orderBy: { updated_at: "desc" },
+    }),
+    prisma.proyekInterior.findMany({
+      where: { lead_id: leadId },
+      include: { termins: { include: { tasks: { select: { status: true } } } } },
+      orderBy: { updated_at: "desc" },
+    }),
+  ]);
+
+  const allProjects = [
+    ...sipilProyeks.map((p) => ({ ...p, type: "sipil" as const })),
+    ...interiorProyeks.map((p) => ({ ...p, type: "interior" as const })),
+  ].sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime());
+
+  if (allProjects.length === 0) return null;
+
+  const taskStatuses = allProjects.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status)));
+  let progress = progressFromCounts(taskStatuses.filter((status) => status === "Selesai").length, taskStatuses.length);
+
+  if (progress === null) {
+    const sipilIds = sipilProyeks.map((p) => p.id);
+    const interiorIds = interiorProyeks.map((p) => p.id);
+    const [checklistSipilTotal, checklistSipilDone, checklistInteriorTotal, checklistInteriorDone] = await Promise.all([
+      sipilIds.length ? prisma.checklistSipil.count({ where: { proyek_id: { in: sipilIds } } }) : 0,
+      sipilIds.length ? prisma.checklistSipil.count({ where: { proyek_id: { in: sipilIds }, is_checked: true } }) : 0,
+      interiorIds.length ? prisma.checklistInterior.count({ where: { proyek_id: { in: interiorIds } } }) : 0,
+      interiorIds.length ? prisma.checklistInterior.count({ where: { proyek_id: { in: interiorIds }, is_checked: true } }) : 0,
+    ]);
+    progress = progressFromCounts(checklistSipilDone + checklistInteriorDone, checklistSipilTotal + checklistInteriorTotal);
+  }
+
+  const primary = allProjects[0];
+  return {
+    nama_proyek: primary.nama_proyek,
+    alamat: primary.lokasi,
+    tanggal_mulai: primary.tanggal_mulai,
+    tanggal_selesai: primary.tanggal_selesai,
+    progress_persen: progress,
+    status_proyek: progress !== null && progress >= 100 ? "Selesai" : "Berjalan",
+  };
+}
+
+async function projectDetail(p: any) {
+  const live = await getLiveProjectSummary(p.lead_id);
   return {
     id: p.id,
     lead_id: p.lead_id,
     adm_finance_project_id: p.adm_finance_project_id,
-    nama_proyek: p.nama_proyek,
+    nama_proyek: live?.nama_proyek ?? p.nama_proyek,
     klien: p.klien,
-    alamat: p.alamat,
-    tanggal_mulai: p.tanggal_mulai,
-    tanggal_selesai: p.tanggal_selesai,
-    status_proyek: p.status_proyek,
-    progress_persen: p.progress_persen,
+    alamat: live?.alamat ?? p.alamat,
+    tanggal_mulai: live?.tanggal_mulai ?? p.tanggal_mulai,
+    tanggal_selesai: p.tanggal_selesai ?? live?.tanggal_selesai,
+    status_proyek: live?.progress_persen !== null && live?.progress_persen !== undefined && live.progress_persen >= 100 ? "Selesai" : p.status_proyek,
+    progress_persen: live?.progress_persen ?? p.progress_persen,
+    live_project: live ? {
+      nama_proyek: live.nama_proyek,
+      alamat: live.alamat,
+      tanggal_mulai: live.tanggal_mulai,
+      tanggal_selesai: live.tanggal_selesai,
+      progress_persen: live.progress_persen,
+      status_proyek: live.status_proyek,
+    } : null,
     catatan: p.catatan,
     created_at: p.created_at,
     lead: p.lead ? { id: p.lead.id, nama: p.lead.nama, nomor_telepon: p.lead.nomor_telepon } : null,
@@ -123,7 +185,19 @@ router.get("/leads-dropdown", async (_req: Request, res: Response) => {
     select: { id: true, nama: true, nomor_telepon: true, jenis: true, alamat: true },
     orderBy: { nama: "asc" },
   });
-  return res.json(leads);
+  const items = await Promise.all(leads.map(async (lead) => {
+    const live = await getLiveProjectSummary(lead.id);
+    return {
+      ...lead,
+      proyek: live ? {
+        nama_proyek: live.nama_proyek,
+        lokasi: live.alamat,
+        tanggal_mulai: live.tanggal_mulai,
+        tanggal_selesai: live.tanggal_selesai,
+      } : null,
+    };
+  }));
+  return res.json(items);
 });
 
 // ── GET /projects ─────────────────────────────────────────────────────────────
@@ -139,7 +213,7 @@ router.get("/projects", async (_req: Request, res: Response) => {
     },
     orderBy: { created_at: "desc" },
   });
-  return res.json(projects.map(projectDetail));
+  return res.json(await Promise.all(projects.map(projectDetail)));
 });
 
 // ── POST /projects ────────────────────────────────────────────────────────────
@@ -150,8 +224,8 @@ router.post("/projects", async (req: Request, res: Response) => {
     username, password,
   } = req.body;
 
-  if (!lead_id || !nama_proyek || !username || !password) {
-    res.status(400).json({ detail: "lead_id, nama_proyek, username, dan password wajib diisi" });
+  if (!lead_id || !username || !password) {
+    res.status(400).json({ detail: "lead_id, username, dan password wajib diisi" });
     return;
   }
 
@@ -160,6 +234,7 @@ router.post("/projects", async (req: Request, res: Response) => {
   // Cek lead exists
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) { res.status(404).json({ detail: "Lead tidak ditemukan" }); return; }
+  const live = await getLiveProjectSummary(leadId);
 
   // Cek belum ada project/account untuk lead ini
   const existing = await prisma.clientPortalProject.findUnique({ where: { lead_id: leadId } });
@@ -176,13 +251,13 @@ router.post("/projects", async (req: Request, res: Response) => {
       data: {
         lead_id: leadId,
         adm_finance_project_id: adm_finance_project_id ? BigInt(adm_finance_project_id) : null,
-        nama_proyek,
+        nama_proyek: nama_proyek || live?.nama_proyek || lead.nama,
         klien: klien ?? lead.nama,
-        alamat: alamat ?? lead.alamat ?? null,
-        tanggal_mulai: tanggal_mulai ? new Date(tanggal_mulai) : null,
-        tanggal_selesai: tanggal_selesai ? new Date(tanggal_selesai) : null,
-        status_proyek: status_proyek ?? "Berjalan",
-        progress_persen: progress_persen ?? 0,
+        alamat: alamat ?? live?.alamat ?? lead.alamat ?? null,
+        tanggal_mulai: tanggal_mulai ? new Date(tanggal_mulai) : live?.tanggal_mulai ?? null,
+        tanggal_selesai: tanggal_selesai ? new Date(tanggal_selesai) : live?.tanggal_selesai ?? null,
+        status_proyek: status_proyek ?? live?.status_proyek ?? "Berjalan",
+        progress_persen: progress_persen ?? live?.progress_persen ?? 0,
         catatan: catatan ?? null,
         created_by: createdById,
       },
@@ -215,7 +290,7 @@ router.get("/projects/:id", async (req: Request, res: Response) => {
     },
   });
   if (!project) { res.status(404).json({ detail: "Project tidak ditemukan" }); return; }
-  return res.json(projectDetail(project));
+  return res.json(await projectDetail(project));
 });
 
 // ── PATCH /projects/:id ───────────────────────────────────────────────────────
