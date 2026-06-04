@@ -143,7 +143,7 @@ export const sipilApi = {
   deleteTask: (taskId: string) => apiClient.delete(`/sipil/tasks/${taskId}`).then((r) => r.data),
   listEmployees: () => apiClient.get("/sipil/employees").then((r) => r.data),
   listLeads: (search?: string) =>
-    apiClient.get("/finance/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
+    apiClient.get("/sipil/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
   // RAPP
   getRapp: (terminId: string) => apiClient.get(`/sipil/termins/${terminId}/rapp`).then((r) => r.data),
   addMaterialKategori: (terminId: string, data: any) => apiClient.post(`/sipil/termins/${terminId}/rapp/material-kategori`, data).then((r) => r.data),

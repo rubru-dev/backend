@@ -58,6 +58,50 @@ router.get("/employees", async (_req: Request, res: Response) => {
   return res.json(users.map((u) => ({ id: u.id, nama: u.name })));
 });
 
+// GET /leads-dropdown - client leads from Sales Admin follow up
+router.get("/leads-dropdown", async (req: Request, res: Response) => {
+  const search = (req.query.search as string | undefined)?.trim();
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 50);
+  const searchFilter = search
+    ? search.length === 1
+      ? { equals: search, mode: "insensitive" as const }
+      : { contains: search, mode: "insensitive" as const }
+    : undefined;
+
+  const leads = await prisma.lead.findMany({
+    where: {
+      modul: "sales-admin",
+      status: { equals: "Client", mode: "insensitive" },
+      ...(searchFilter ? {
+        OR: [
+          { nama: searchFilter },
+          { nomor_telepon: searchFilter },
+          { alamat: searchFilter },
+        ],
+      } : {}),
+    },
+    select: {
+      id: true,
+      salutation: true,
+      nama: true,
+      nomor_telepon: true,
+      alamat: true,
+      jenis: true,
+      status: true,
+      modul: true,
+    },
+    orderBy: { nama: "asc" },
+    take: limit,
+  });
+
+  return res.json({
+    items: leads.map((lead) => ({
+      ...lead,
+      display_name: lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama,
+    })),
+  });
+});
+
 // GET /projeks
 router.get("/projeks", async (req: Request, res: Response) => {
   const { page, limit, skip } = getPagination(req.query);
