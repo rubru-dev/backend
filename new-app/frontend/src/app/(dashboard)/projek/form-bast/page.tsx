@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { desainApi } from "@/lib/api/content";
+import { apiClient } from "@/lib/api/client";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,7 +15,10 @@ import { Download, Eye, FileText, Save, Search, Trash2 } from "lucide-react";
 type LeadOption = {
   id: string;
   nama: string;
+  display_name?: string | null;
   telepon?: string | null;
+  nomor_telepon?: string | null;
+  alamat?: string | null;
   jenis?: string | null;
   status?: string | null;
 };
@@ -117,19 +120,32 @@ export default function FormBastPage() {
   });
 
   const { data: leads = [] } = useQuery<LeadOption[]>({
-    queryKey: ["form-bast-desain-kanban-leads"],
-    queryFn: () => desainApi.getKanbanLeads(),
+    queryKey: ["form-bast-sales-admin-follow-up-leads"],
+    queryFn: () =>
+      apiClient
+        .get("/bd/sales-admin/leads", { params: { limit: 500 } })
+        .then((response) => response.data?.items ?? response.data ?? []),
     staleTime: 5 * 60_000,
   });
 
   const selectedLead = leads.find((lead) => String(lead.id) === leadId) ?? leads[0];
-  const namaClient = cleanClientName(selectedLead?.nama) || "........................";
+  const selectedLeadPhone = selectedLead?.telepon ?? selectedLead?.nomor_telepon ?? "";
+  const namaClient = cleanClientName(selectedLead?.display_name ?? selectedLead?.nama) || "........................";
   const effectiveLeadId = leadId || String(selectedLead?.id ?? "");
+
+  useEffect(() => {
+    if (leadId || !selectedLead) return;
+    setLeadId(String(selectedLead.id));
+    setTeleponClient(selectedLeadPhone);
+    setAlamatClient(selectedLead.alamat ?? "");
+  }, [leadId, selectedLead, selectedLeadPhone]);
 
   const filteredLeads = useMemo(() => {
     const needle = normalizeSearch(clientSearch);
     if (!needle) return leads;
-    return leads.filter((lead) => normalizeSearch(`${lead.nama} ${lead.telepon ?? ""}`).includes(needle));
+    return leads.filter((lead) =>
+      normalizeSearch(`${lead.display_name ?? lead.nama} ${lead.telepon ?? lead.nomor_telepon ?? ""} ${lead.alamat ?? ""}`).includes(needle)
+    );
   }, [clientSearch, leads]);
 
   function syncTanggalBast(value: string) {
@@ -143,7 +159,8 @@ export default function FormBastPage() {
   function pickLead(value: string) {
     setLeadId(value);
     const picked = leads.find((lead) => String(lead.id) === value);
-    setTeleponClient(picked?.telepon ?? "");
+    setTeleponClient(picked?.telepon ?? picked?.nomor_telepon ?? "");
+    setAlamatClient(picked?.alamat ?? "");
   }
 
   function persist(next: SavedBast[]) {
@@ -278,7 +295,7 @@ export default function FormBastPage() {
 
             <div className="mt-4 grid gap-4 md:grid-cols-4">
               <div className="md:col-span-2">
-                <Label>Nama Client dari Follow Up Desain</Label>
+                <Label>Nama Client dari Follow Up Leads Sales Admin</Label>
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
@@ -293,7 +310,7 @@ export default function FormBastPage() {
                   <SelectContent>
                     {filteredLeads.length ? filteredLeads.map((lead) => (
                       <SelectItem key={lead.id} value={String(lead.id)}>
-                        {cleanClientName(lead.nama)}
+                        {cleanClientName(lead.display_name ?? lead.nama)}
                       </SelectItem>
                     )) : (
                       <div className="px-3 py-2 text-sm text-muted-foreground">Client tidak ditemukan</div>
