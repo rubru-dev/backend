@@ -177,9 +177,9 @@ export default function SuratJalanPDF({ project, surat_jalan, items }: SuratJala
             </View>
           </View>
 
-          {/* Right: Admin Finance */}
+          {/* Right: Head Finance */}
           <View style={styles.signBox}>
-            <Text style={styles.signTitle}>Admin Finance</Text>
+            <Text style={styles.signTitle}>Head Finance</Text>
             {sj.af_signature ? (
               <>
                 <Image src={sj.af_signature} style={{ width: 120, height: 56, objectFit: "contain", marginBottom: 2 }} />

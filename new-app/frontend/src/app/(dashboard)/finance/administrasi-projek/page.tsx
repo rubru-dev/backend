@@ -2510,7 +2510,7 @@ function SuratJalanTab({ proyekId, proyekNama }: { proyekId: number; proyekNama?
   const signAfMut = useMutation({
     mutationFn: (af_signature: string) => admApi.signSuratJalan(proyekId, viewSid!, { af_signature }),
     onSuccess: () => {
-      toast.success("Surat jalan ditandatangani AF");
+      toast.success("Surat jalan ditandatangani Head Finance");
       qc.invalidateQueries({ queryKey: ["adm-sj", proyekId] });
       qc.invalidateQueries({ queryKey: ["adm-sj-detail", proyekId, viewSid] });
       setSjSigDialog(false);
@@ -2547,7 +2547,7 @@ function SuratJalanTab({ proyekId, proyekNama }: { proyekId: number; proyekNama?
             <TableHead>Tanggal</TableHead>
             <TableHead>Nama Penerima</TableHead>
             <TableHead>No. Telp</TableHead>
-            <TableHead>TTD AF</TableHead>
+            <TableHead>TTD HF</TableHead>
             <TableHead className="w-20" />
           </TableRow>
         </TableHeader>
@@ -2719,7 +2719,7 @@ function SuratJalanTab({ proyekId, proyekNama }: { proyekId: number; proyekNama?
               {/* AF Status */}
               <div className="border rounded-md p-3 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">Tanda Tangan Admin Finance</p>
+                  <p className="text-sm font-medium">Tanda Tangan Head Finance</p>
                   {sjDetail.af_signed_at ? (
                     <p className="text-xs text-green-600 mt-0.5">✓ {sjDetail.af_name} — {new Date(sjDetail.af_signed_at).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" })}</p>
                   ) : (
@@ -2727,17 +2727,17 @@ function SuratJalanTab({ proyekId, proyekNama }: { proyekId: number; proyekNama?
                   )}
                   {sjDetail.af_signature && (
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={sjDetail.af_signature} alt="TTD AF" className="mt-2 max-h-16 border rounded bg-white p-1 object-contain" />
+                    <img src={sjDetail.af_signature} alt="TTD HF" className="mt-2 max-h-16 border rounded bg-white p-1 object-contain" />
                   )}
                 </div>
                 <div className="flex gap-2">
                   {!sjDetail.af_signed_at && (
                     <Button size="sm" variant="outline" className="text-orange-600 border-orange-300" onClick={() => setSjSigDialog(true)}>
-                      <PenLine className="h-3.5 w-3.5 mr-1" /> TTD AF
+                      <PenLine className="h-3.5 w-3.5 mr-1" /> TTD HF
                     </Button>
                   )}
                   <Button size="sm" variant="default" disabled={!sjDetail.af_signed_at} onClick={handleDownloadPDF}
-                    title={!sjDetail.af_signed_at ? "Harus ditandatangani AF terlebih dahulu" : "Download PDF"}>
+                    title={!sjDetail.af_signed_at ? "Harus ditandatangani Head Finance terlebih dahulu" : "Download PDF"}>
                     <FileDown className="h-3.5 w-3.5 mr-1" /> Download PDF
                   </Button>
                 </div>
@@ -2751,7 +2751,7 @@ function SuratJalanTab({ proyekId, proyekNama }: { proyekId: number; proyekNama?
       <SignatureDialog
         open={sjSigDialog}
         onOpenChange={setSjSigDialog}
-        title="Tanda Tangan Admin Finance — Surat Jalan"
+        title="Tanda Tangan Head Finance - Surat Jalan"
         onSave={(dataUrl) => signAfMut.mutate(dataUrl)}
         loading={signAfMut.isPending}
       />
@@ -2902,18 +2902,12 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
   });
 
   // ── Gajian Signatures ────────────────────────────────────────────────────────
-  const [gajianSigDialog, setGajianSigDialog] = useState<{ open: boolean; gid: number | null; mode: "af" | "hf" }>({ open: false, gid: null, mode: "af" });
+  const [gajianSigDialog, setGajianSigDialog] = useState<{ open: boolean; gid: number | null }>({ open: false, gid: null });
 
-  const signGajianAFMut = useMutation({
-    mutationFn: ({ gid, af_signature }: { gid: number; af_signature: string }) =>
-      admApi.signGajianAF(proyekId, gid, { af_signature }),
-    onSuccess: () => { toast.success("TTD Admin Finance disimpan"); qc.invalidateQueries({ queryKey: ["tukang-gajian", proyekId] }); setGajianSigDialog({ open: false, gid: null, mode: "af" }); },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
-  });
   const signGajianHFMut = useMutation({
     mutationFn: ({ gid, hf_signature }: { gid: number; hf_signature: string }) =>
       admApi.signGajianHF(proyekId, gid, { hf_signature }),
-    onSuccess: () => { toast.success("TTD Head Finance disimpan"); qc.invalidateQueries({ queryKey: ["tukang-gajian", proyekId] }); setGajianSigDialog({ open: false, gid: null, mode: "af" }); },
+    onSuccess: () => { toast.success("TTD Head Finance disimpan"); qc.invalidateQueries({ queryKey: ["tukang-gajian", proyekId] }); setGajianSigDialog({ open: false, gid: null }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
 
@@ -3199,33 +3193,27 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
                   <span className="font-bold text-sm mr-1">{formatRp(g.total_gaji)}</span>
                   {g.kwitansi_dibuat && <Badge variant="outline" className="text-green-600 border-green-300 text-xs"><Receipt className="h-3 w-3 mr-1" /> Kwitansi</Badge>}
-                  {/* TTD Admin Finance */}
-                  {g.af_signature
-                    ? <Badge variant="outline" className="text-green-600 border-green-300 text-xs gap-1"><CheckCircle className="h-3 w-3" /> AF</Badge>
-                    : <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setGajianSigDialog({ open: true, gid: g.id, mode: "af" })}>
-                        <PenLine className="h-3 w-3 mr-1" /> TTD AF
-                      </Button>}
                   {/* TTD Head Finance */}
                   {g.hf_signature
                     ? <Badge variant="outline" className="text-green-600 border-green-300 text-xs gap-1"><CheckCircle className="h-3 w-3" /> HF</Badge>
-                    : <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setGajianSigDialog({ open: true, gid: g.id, mode: "hf" })}>
+                    : <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setGajianSigDialog({ open: true, gid: g.id })}>
                         <PenLine className="h-3 w-3 mr-1" /> TTD HF
                       </Button>}
                   {/* PDF Gajian — locked until fully signed */}
                   <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!g.is_fully_signed}
-                    title={!g.is_fully_signed ? "Perlu TTD AF dan HF terlebih dahulu" : undefined}
+                    title={!g.is_fully_signed ? "Perlu TTD HF terlebih dahulu" : undefined}
                     onClick={() => downloadPDF("gajian", g.items || [], {
                       tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
-                      signatures: { af: { signature: g.af_signature, at: g.af_signed_at }, hf: { signature: g.hf_signature, at: g.hf_signed_at } },
+                      signatures: { hf: { signature: g.hf_signature, at: g.hf_signed_at } },
                     })}>
                     <FileDown className="h-3 w-3 mr-1" /> PDF Gajian
                   </Button>
                   {/* PDF Kwitansi per periode — locked until fully signed */}
                   <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!g.is_fully_signed}
-                    title={!g.is_fully_signed ? "Perlu TTD AF dan HF terlebih dahulu" : undefined}
+                    title={!g.is_fully_signed ? "Perlu TTD HF terlebih dahulu" : undefined}
                     onClick={() => downloadPDF("kwitansi", g.kwitansis || [], {
                       tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
-                      signatures: { af: { signature: g.af_signature, at: g.af_signed_at }, hf: { signature: g.hf_signature, at: g.hf_signed_at } },
+                      signatures: { hf: { signature: g.hf_signature, at: g.hf_signed_at } },
                     })}>
                     <FileDown className="h-3 w-3 mr-1" /> PDF Kwitansi
                   </Button>
@@ -3503,15 +3491,12 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
       <SignatureDialog
         open={gajianSigDialog.open}
         onOpenChange={(v) => setGajianSigDialog((s) => ({ ...s, open: v }))}
-        title={gajianSigDialog.mode === "af" ? "TTD Admin Finance — Rekap Gajian" : "TTD Head Finance — Rekap Gajian"}
+        title="TTD Head Finance - Rekap Gajian"
         onSave={(dataUrl) => {
           if (!gajianSigDialog.gid) return;
-          if (gajianSigDialog.mode === "af")
-            signGajianAFMut.mutate({ gid: gajianSigDialog.gid, af_signature: dataUrl });
-          else
-            signGajianHFMut.mutate({ gid: gajianSigDialog.gid, hf_signature: dataUrl });
+          signGajianHFMut.mutate({ gid: gajianSigDialog.gid, hf_signature: dataUrl });
         }}
-        loading={signGajianAFMut.isPending || signGajianHFMut.isPending}
+        loading={signGajianHFMut.isPending}
       />
     </div>
   );

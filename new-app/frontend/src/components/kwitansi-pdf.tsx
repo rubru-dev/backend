@@ -162,14 +162,13 @@ export interface KwitansiPDFProps {
   items?: KwitansiItem[];
   buktiBayar?: string | null;
   head_finance?: KwitansiSignatureInfo | null;
-  admin_finance?: KwitansiSignatureInfo | null;
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function KwitansiPDF({
   nomor_kwitansi, nomor_invoice, tanggal_lunas, klien, alamat_klien, telepon_klien, lead_jenis,
   jumlah, metode_bayar, detail_bayar, catatan, logoUrl, items, buktiBayar,
-  head_finance, admin_finance,
+  head_finance,
 }: KwitansiPDFProps) {
   const metodeLabel = detail_bayar ? `${metode_bayar} — ${detail_bayar}` : metode_bayar;
 
@@ -282,14 +281,6 @@ export function KwitansiPDF({
               : <View style={styles.signImageEmpty} />}
             <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
             {head_finance?.at && <Text style={styles.signDate}>{formatDate(head_finance.at)}</Text>}
-          </View>
-          <View style={styles.signBlock}>
-            <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Admin Finance</Text></View>
-            {admin_finance?.signature
-              ? <Image style={styles.signImage} src={admin_finance.signature} />
-              : <View style={styles.signImageEmpty} />}
-            <Text style={styles.signName}>{admin_finance?.name || "___________________"}</Text>
-            {admin_finance?.at && <Text style={styles.signDate}>{formatDate(admin_finance.at)}</Text>}
           </View>
         </View>
 

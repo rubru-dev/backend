@@ -165,7 +165,6 @@ export interface InvoicePDFProps {
   catatan?: string;
   bank_account?: { bank_name: string; account_number: string; account_name: string } | null;
   head_finance?: SignatureInfo | null;
-  admin_finance?: SignatureInfo | null;
   logoUrl?: string;
 }
 
@@ -173,7 +172,7 @@ export interface InvoicePDFProps {
 export function InvoicePDF({
   nomor_invoice, tanggal, overdue_date, klien, alamat_klien, telepon_klien, lead_jenis, items,
   subtotal, ppn_percentage, ppn_amount, grand_total, catatan, bank_account,
-  head_finance, admin_finance, logoUrl,
+  head_finance, logoUrl,
 }: InvoicePDFProps) {
   return (
     <Document title={`Invoice ${nomor_invoice}`} author={COMPANY.name}>
@@ -296,14 +295,6 @@ export function InvoicePDF({
               : <View style={styles.signImageEmpty} />}
             <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
             {head_finance?.at && <Text style={styles.signDate}>{formatDate(head_finance.at)}</Text>}
-          </View>
-          <View style={styles.signBlock}>
-            <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Admin Finance</Text></View>
-            {admin_finance?.signature
-              ? <Image style={styles.signImage} src={admin_finance.signature} />
-              : <View style={styles.signImageEmpty} />}
-            <Text style={styles.signName}>{admin_finance?.name || "___________________"}</Text>
-            {admin_finance?.at && <Text style={styles.signDate}>{formatDate(admin_finance.at)}</Text>}
           </View>
         </View>
 

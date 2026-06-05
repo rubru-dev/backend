@@ -701,7 +701,6 @@ router.get("/projects/:id/invoices", async (req: Request, res: Response) => {
     where: {
       lead_id: project.lead_id,
       head_finance_at: { not: null },
-      admin_finance_at: { not: null },
     },
     orderBy: { created_at: "desc" },
   });

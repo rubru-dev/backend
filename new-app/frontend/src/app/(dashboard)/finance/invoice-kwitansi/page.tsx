@@ -41,8 +41,6 @@ const api = {
   delete: (id: number) => apiClient.delete(`/finance/invoices/${id}`).then(r => r.data),
   signHead: (id: number, signature_data: string) =>
     apiClient.post(`/finance/invoices/${id}/sign-head`, { signature_data }).then(r => r.data),
-  signAdmin: (id: number, signature_data: string) =>
-    apiClient.post(`/finance/invoices/${id}/sign-admin`, { signature_data }).then(r => r.data),
   markPaid: (id: number, data: any) =>
     apiClient.post(`/finance/invoices/${id}/mark-paid`, data).then(r => r.data),
   getKwitansi: (id: number) =>
@@ -714,11 +712,6 @@ export default function InvoiceKwitansiPage() {
             at: inv.head_finance_at,
             signature: inv.head_finance_signature,
           } : null}
-          admin_finance={inv.admin_finance ? {
-            name: inv.admin_finance.name,
-            at: inv.admin_finance_at,
-            signature: inv.admin_finance_signature,
-          } : null}
         />
       ).toBlob();
       saveAs(blob, `invoice-${inv.nomor_invoice?.replace(/\//g, "-")}.pdf`);
@@ -750,11 +743,6 @@ export default function InvoiceKwitansiPage() {
             name: inv.head_finance.name,
             at: inv.head_finance_at,
             signature: inv.head_finance_signature,
-          } : null}
-          admin_finance={inv.admin_finance ? {
-            name: inv.admin_finance.name,
-            at: inv.admin_finance_at,
-            signature: inv.admin_finance_signature,
           } : null}
         />
       ).toBlob();
@@ -960,7 +948,7 @@ export default function InvoiceKwitansiPage() {
                                     <Trash2 className="h-3 w-3 mr-1" /> Hapus
                                   </Button>
                                 )}
-                                {(canEditInvoiceFully || (inv.status === "Draft" && !inv.head_finance && !inv.admin_finance)) && (
+                                {(canEditInvoiceFully || (inv.status === "Draft" && !inv.head_finance)) && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs"
                                     onClick={() => {
                                       setEditId(inv.id);

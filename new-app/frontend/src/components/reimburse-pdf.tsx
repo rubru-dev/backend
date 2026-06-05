@@ -261,14 +261,13 @@ export interface ReimbursePDFProps {
   items: ReimburseItem[];
   total: number;
   head_finance?: SignatureInfo | null;
-  admin_finance?: SignatureInfo | null;
   logoUrl?: string;
   buktis?: ReimburseBukti[];
 }
 
 export function ReimbursePDF({
   id, tanggal, nama_karyawan, role_karyawan, kategori, keterangan,
-  items, total, head_finance, admin_finance, logoUrl, buktis,
+  items, total, head_finance, logoUrl, buktis,
 }: ReimbursePDFProps) {
   return (
     <Document title={`Reimburse #${id}`} author={COMPANY.name}>
@@ -353,14 +352,6 @@ export function ReimbursePDF({
               : <View style={styles.signImageEmpty} />}
             <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
             {head_finance?.at && <Text style={styles.signDate}>{formatDate(head_finance.at)}</Text>}
-          </View>
-          <View style={styles.signBlock}>
-            <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Admin Finance</Text></View>
-            {admin_finance?.signature
-              ? <Image style={styles.signImage} src={admin_finance.signature} />
-              : <View style={styles.signImageEmpty} />}
-            <Text style={styles.signName}>{admin_finance?.name || "___________________"}</Text>
-            {admin_finance?.at && <Text style={styles.signDate}>{formatDate(admin_finance.at)}</Text>}
           </View>
         </View>
 

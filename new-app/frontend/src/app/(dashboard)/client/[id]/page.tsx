@@ -334,7 +334,7 @@ function TabPembayaran({ pid }: { pid: number }) {
           {loadingAssignable ? <Skeleton className="h-40" /> : assignableInvoices.length === 0 ? (
             <div className="text-center py-8 text-gray-400 text-sm">
               Belum ada invoice Terbit/Lunas untuk proyek ini.<br />
-              <span className="text-xs">Invoice harus sudah ditandatangani oleh Head Finance dan Admin Finance.</span>
+              <span className="text-xs">Invoice harus sudah ditandatangani oleh Head Finance.</span>
             </div>
           ) : (
             <Table>

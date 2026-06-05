@@ -142,7 +142,7 @@ const ROLE_GUIDES: RoleSection[] = [
     ],
     steps: [
       "Invoice: buka Invoice & Kwitansi → Buat Invoice → pilih lead → simpan.",
-      "Invoice perlu tanda tangan Head Finance dan Admin Finance sebelum bisa Terbit.",
+      "Invoice perlu tanda tangan Head Finance sebelum bisa Terbit.",
       "Setelah klien bayar, klik 'Mark as Paid' → kwitansi otomatis dibuat.",
       "Administrasi Projek: pilih proyek → kelola cashflow per termin.",
       "Gaji Tukang: buka tab Tukang → input daftar tukang → absen → proses gajian.",

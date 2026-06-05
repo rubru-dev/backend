@@ -1138,22 +1138,9 @@ router.post("/invoices/:id/sign-head", requirePermission("finance", "sign_head")
   return res.json({ message: "Tanda tangan Head Finance disimpan", status: newStatus });
 });
 
-// ── Tanda tangan Admin Finance (Super Admin only — fitur ini tidak lagi diekspos di UI) ─────
+// Legacy endpoint: approval now uses Head Finance only.
 router.post("/invoices/:id/sign-admin", requirePermission("finance", "sign_admin"), async (req: Request, res: Response) => {
-  const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
-  if (!isSuperAdmin) return res.status(403).json({ detail: "Hanya Super Admin yang bisa menandatangani sebagai Admin Finance" });
-  const id = BigInt(req.params.id);
-  const inv = await prisma.invoice.findUnique({ where: { id }, include: { head_finance: true } });
-  if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
-  if (inv.status === "Lunas" || inv.status === "Batal") return res.status(400).json({ detail: "Invoice Lunas/Batal tidak bisa diubah" });
-  const { signature_data } = req.body;
-  if (!signature_data) return res.status(400).json({ detail: "Signature data wajib diisi" });
-  const newStatus = inv.head_finance_id ? "Terbit" : inv.status;
-  await prisma.invoice.update({
-    where: { id },
-    data: { admin_finance_id: req.user!.id, admin_finance_at: new Date(), admin_finance_signature: signature_data, status: newStatus },
-  });
-  return res.json({ message: "Tanda tangan Admin Finance disimpan", status: newStatus });
+  return res.status(410).json({ detail: "Endpoint ini tidak digunakan lagi. Gunakan tanda tangan Head Finance." });
 });
 
 // ── Mark Paid ─────────────────────────────────────────────────────────────────
@@ -1405,42 +1392,22 @@ router.post("/reimburse/:id/sign-head", requirePermission("finance", "sign_head"
   if (!existing) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
   if (existing.status === "Ditolak") return res.status(400).json({ detail: "Reimburse sudah ditolak" });
 
-  const botchSigned = !!existing.admin_finance_id;
   const updated = await prisma.reimburse.update({
     where: { id },
     data: {
       head_finance_id: req.user!.id,
       head_finance_at: new Date(),
       head_finance_signature: signature_data,
-      status: botchSigned ? "Disetujui" : existing.status,
+      status: "Disetujui",
     },
     include: REIMBURSE_INCLUDE,
   });
   return res.json({ message: "Tanda tangan Head Finance disimpan", data: reimburseDict(updated) });
 });
 
-// POST /finance/reimburse/:id/sign-admin
+// Legacy endpoint: approval now uses Head Finance only.
 router.post("/reimburse/:id/sign-admin", requirePermission("finance", "sign_admin"), async (req: Request, res: Response) => {
-  const id = BigInt(req.params.id);
-  const { signature_data } = req.body;
-  if (!signature_data) return res.status(400).json({ detail: "signature_data wajib diisi" });
-
-  const existing = await prisma.reimburse.findUnique({ where: { id } });
-  if (!existing) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
-  if (existing.status === "Ditolak") return res.status(400).json({ detail: "Reimburse sudah ditolak" });
-
-  const bothSigned = !!existing.head_finance_id;
-  const updated = await prisma.reimburse.update({
-    where: { id },
-    data: {
-      admin_finance_id: req.user!.id,
-      admin_finance_at: new Date(),
-      admin_finance_signature: signature_data,
-      status: bothSigned ? "Disetujui" : existing.status,
-    },
-    include: REIMBURSE_INCLUDE,
-  });
-  return res.json({ message: "Tanda tangan Admin Finance disimpan", data: reimburseDict(updated) });
+  return res.status(410).json({ detail: "Endpoint ini tidak digunakan lagi. Gunakan tanda tangan Head Finance." });
 });
 
 // POST /finance/reimburse/:id/reject
@@ -2673,7 +2640,7 @@ router.get("/adm-projek/:id/tukang/gajian", async (req: Request, res: Response) 
     kwitansi_dibuat: g.kwitansis.length > 0,
     af_signature: g.af_signature, af_signed_at: g.af_signed_at,
     hf_signature: g.hf_signature, hf_signed_at: g.hf_signed_at,
-    is_fully_signed: !!(g.af_signature && g.hf_signature),
+    is_fully_signed: !!g.hf_signature,
     items: g.items.map((i) => ({
       id: i.id, tukang_id: i.tukang_id, tukang_name: i.tukang_name,
       hari_kerja: i.hari_kerja, daily_rate: Number(i.daily_rate),

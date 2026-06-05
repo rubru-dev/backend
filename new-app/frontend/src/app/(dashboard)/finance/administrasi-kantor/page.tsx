@@ -52,8 +52,6 @@ const reimburseApi = {
   create: (data: any) => apiClient.post("/finance/reimburse", data).then((r) => r.data),
   signHead: (id: number, signature_data: string) =>
     apiClient.post(`/finance/reimburse/${id}/sign-head`, { signature_data }).then((r) => r.data),
-  signAdmin: (id: number, signature_data: string) =>
-    apiClient.post(`/finance/reimburse/${id}/sign-admin`, { signature_data }).then((r) => r.data),
   reject: (id: number, alasan: string) =>
     apiClient.post(`/finance/reimburse/${id}/reject`, { alasan }).then((r) => r.data),
   delete: (id: number) => apiClient.delete(`/finance/reimburse/${id}`).then((r) => r.data),
@@ -491,7 +489,7 @@ export default function AdministrasiKantorPage() {
   const [filterSampaiTanggal, setFilterSampaiTanggal] = useState("");
 
   // Signature dialog
-  const [signTarget, setSignTarget] = useState<{ id: number; type: "head" | "admin" } | null>(null);
+  const [signTarget, setSignTarget] = useState<{ id: number; type: "head" } | null>(null);
 
   // Reject dialog
   const [rejectDialog, setRejectDialog] = useState<{ id: number; alasan: string } | null>(null);
@@ -537,8 +535,8 @@ export default function AdministrasiKantorPage() {
   });
 
   const signMut = useMutation({
-    mutationFn: ({ id, type, sig }: { id: number; type: "head" | "admin"; sig: string }) =>
-      type === "head" ? reimburseApi.signHead(id, sig) : reimburseApi.signAdmin(id, sig),
+    mutationFn: ({ id, sig }: { id: number; type: "head"; sig: string }) =>
+      reimburseApi.signHead(id, sig),
     onSuccess: (data) => {
       toast.success(data.message || "Tanda tangan disimpan");
       qc.invalidateQueries({ queryKey: ["reimburse"] });
@@ -630,7 +628,6 @@ export default function AdministrasiKantorPage() {
           logoUrl={logoUrl}
           buktis={r.buktis || []}
           head_finance={r.head_finance ? { name: r.head_finance.name, at: r.head_finance_at, signature: r.head_finance_signature } : null}
-          admin_finance={r.admin_finance ? { name: r.admin_finance.name, at: r.admin_finance_at, signature: r.admin_finance_signature } : null}
         />
       ).toBlob();
       saveAs(blob, `reimburse-${String(r.id).padStart(4, "0")}.pdf`);
@@ -755,7 +752,7 @@ export default function AdministrasiKantorPage() {
                 <TableHead>Kategori</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Status</TableHead>
-                {(canSignHead || canSignAdmin) && <TableHead>Tanda Tangan</TableHead>}
+                {canSignHead && <TableHead>Tanda Tangan</TableHead>}
                 <TableHead className="w-36" />
               </TableRow>
             </TableHeader>
@@ -784,7 +781,7 @@ export default function AdministrasiKantorPage() {
                         <TableCell>{r.kategori || "—"}</TableCell>
                         <TableCell className="text-right font-semibold">{formatRp(r.total)}</TableCell>
                         <TableCell><StatusBadge status={r.status} /></TableCell>
-                        {(canSignHead || canSignAdmin) && (
+                        {canSignHead && (
                           <TableCell onClick={e => e.stopPropagation()}>
                             {r.status !== "Ditolak" && (
                               <div className="flex flex-col gap-1">
@@ -797,17 +794,6 @@ export default function AdministrasiKantorPage() {
                                   <button className="text-xs text-green-600 flex items-center gap-1 hover:underline"
                                     onClick={() => setSignTarget({ id: r.id, type: "head" })}>
                                     <CheckCircle2 className="h-3 w-3" /> Head Finance
-                                  </button>
-                                ))}
-                                {canSignAdmin && (!r.admin_finance ? (
-                                  <Button size="sm" variant="outline" className="h-6 text-xs"
-                                    onClick={() => setSignTarget({ id: r.id, type: "admin" })}>
-                                    <PenLine className="h-3 w-3 mr-1" /> Admin Finance
-                                  </Button>
-                                ) : (
-                                  <button className="text-xs text-green-600 flex items-center gap-1 hover:underline"
-                                    onClick={() => setSignTarget({ id: r.id, type: "admin" })}>
-                                    <CheckCircle2 className="h-3 w-3" /> Admin Finance
                                   </button>
                                 ))}
                               </div>
@@ -869,8 +855,6 @@ export default function AdministrasiKantorPage() {
                                   <p className="text-xs text-muted-foreground font-medium mb-1">Status Tanda Tangan</p>
                                   <SignBadge signed={!!r.head_finance} name={r.head_finance?.name} at={r.head_finance_at} />
                                   <div className="text-xs text-muted-foreground">Head Finance</div>
-                                  <SignBadge signed={!!r.admin_finance} name={r.admin_finance?.name} at={r.admin_finance_at} />
-                                  <div className="text-xs text-muted-foreground">Admin Finance</div>
                                 </div>
                                 {r.alasan_tolak && (
                                   <div className="border border-destructive/30 rounded-md p-3 bg-red-50">
@@ -1025,7 +1009,7 @@ export default function AdministrasiKantorPage() {
       <SignatureDialog
         open={!!signTarget}
         onOpenChange={v => { if (!v) setSignTarget(null); }}
-        title={signTarget?.type === "head" ? "Tanda Tangan Head Finance" : "Tanda Tangan Admin Finance"}
+        title="Tanda Tangan Head Finance"
         loading={signMut.isPending}
         onSave={sig => {
           if (!signTarget) return;

@@ -190,24 +190,18 @@ export default function TukangPDF({ type, project, data, meta, logoUrl }: Tukang
         </View>
 
         {/* ── Signatures (for gajian/kwitansi when provided) ── */}
-        {meta?.signatures && (
+        {meta?.signatures?.hf && (
           <View style={styles.signRow}>
-            {(["af", "hf"] as const).map((key) => {
-              const sig = meta.signatures![key];
-              const label = key === "af" ? "Admin Finance" : "Head Finance";
-              return (
-                <View key={key} style={styles.signBlock}>
-                  <View style={styles.signTitleBox}>
-                    <Text style={styles.signTitleText}>{label}</Text>
-                  </View>
-                  {sig?.signature
-                    ? <Image style={styles.signImage} src={sig.signature} />
-                    : <View style={styles.signImageEmpty} />}
-                  <Text style={styles.signName}>{sig?.name || "___________________"}</Text>
-                  {sig?.at && <Text style={styles.signDate}>{fmtDate(sig.at)}</Text>}
-                </View>
-              );
-            })}
+            <View style={styles.signBlock}>
+              <View style={styles.signTitleBox}>
+                <Text style={styles.signTitleText}>Head Finance</Text>
+              </View>
+              {meta.signatures.hf.signature
+                ? <Image style={styles.signImage} src={meta.signatures.hf.signature} />
+                : <View style={styles.signImageEmpty} />}
+              <Text style={styles.signName}>{meta.signatures.hf.name || "___________________"}</Text>
+              {meta.signatures.hf.at && <Text style={styles.signDate}>{fmtDate(meta.signatures.hf.at)}</Text>}
+            </View>
           </View>
         )}
 
