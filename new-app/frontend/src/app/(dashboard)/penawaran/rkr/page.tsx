@@ -59,6 +59,16 @@ function parseMoney(value: string) {
   return Number(String(value).replace(/[^\d]/g, "")) || 0;
 }
 
+function parseVolume(value: string) {
+  return Number(String(value).replace(",", ".")) || 0;
+}
+
+function decimalVolumeInput(value: string) {
+  const normalized = value.replace(/\./g, ",").replace(/[^\d,]/g, "");
+  const [whole, ...decimalParts] = normalized.split(",");
+  return `${whole}${decimalParts.length ? `,${decimalParts.join("")}` : ""}`;
+}
+
 function fmtMoney(value: number) {
   return `Rp. ${new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(value)}`;
 }
@@ -109,7 +119,7 @@ export default function PenawaranRkrPage() {
   const name = client ? `${salutation}. ${namaAsli}` : "Mr/Mrs. [Nama Client]";
   const selectedRo = employees.find((e) => String(e.id) === roId);
 
-  const total = useMemo(() => rows.reduce((sum, row) => sum + ((Number(row.qty) || 0) * parseMoney(row.hargaSatuan || row.harga || "")), 0), [rows]);
+  const total = useMemo(() => rows.reduce((sum, row) => sum + (parseVolume(row.qty) * parseMoney(row.hargaSatuan || row.harga || "")), 0), [rows]);
 
   function updateRow(index: number, patch: Partial<OfferRow>) {
     setRows((prev) => prev.map((row, i) => i === index ? { ...row, ...patch } : row));
@@ -282,7 +292,7 @@ export default function PenawaranRkrPage() {
             {rows.map((row, i) => (
               <div key={i} className="grid md:grid-cols-[1fr_100px_100px_150px_40px] gap-2">
                 <Input value={row.uraian} onChange={(e) => updateRow(i, { uraian: e.target.value })} placeholder="Uraian pekerjaan" />
-                <Input type="number" min={0} value={row.qty} onChange={(e) => updateRow(i, { qty: nonNegativeNumber(e.target.value) })} placeholder="Volume" />
+                <Input inputMode="decimal" value={row.qty} onChange={(e) => updateRow(i, { qty: decimalVolumeInput(e.target.value) })} placeholder="Volume" />
                 <Select value={row.satuan || "m2"} onValueChange={(value) => updateRow(i, { satuan: value })}>
                   <SelectTrigger><SelectValue placeholder="Satuan" /></SelectTrigger>
                   <SelectContent>
@@ -354,7 +364,7 @@ export default function PenawaranRkrPage() {
             </thead>
             <tbody>
               {rows.map((row, i) => {
-                const qty = Number(row.qty) || 0;
+                const qty = parseVolume(row.qty);
                 const harga = parseMoney(row.hargaSatuan || row.harga || "");
                 return (
                   <tr key={i}>
