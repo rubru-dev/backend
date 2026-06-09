@@ -14,7 +14,7 @@ import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { penawaranApi } from "@/lib/api/penawaran";
 
-type OfferRow = { uraian: string; qty: string; hargaSatuan: string; satuan?: string; harga?: string };
+type OfferRow = { uraian: string; keterangan?: string; qty: string; hargaSatuan: string; satuan?: string; harga?: string };
 const STORAGE_KEY = "rubahrumah.penawaran.rkr";
 type ConfirmAction = {
   title: string;
@@ -32,6 +32,7 @@ type SavedOffer = {
   roId: string;
   tanggal: string;
   jenisPenawaran: string;
+  catatan?: string;
   rows: OfferRow[];
   clientName: string;
   roName: string;
@@ -91,13 +92,14 @@ export default function PenawaranRkrPage() {
   const [clientSearch, setClientSearch] = useState("");
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [jenisPenawaran, setJenisPenawaran] = useState("Interior");
+  const [catatan, setCatatan] = useState("");
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [rows, setRows] = useState<OfferRow[]>([
-    { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
-    { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
-    { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
+    { uraian: "", keterangan: "", qty: "", satuan: "m2", hargaSatuan: "" },
+    { uraian: "", keterangan: "", qty: "", satuan: "m2", hargaSatuan: "" },
+    { uraian: "", keterangan: "", qty: "", satuan: "m2", hargaSatuan: "" },
   ]);
   const { data: savedOffers = [], refetch: refetchOffers } = useQuery<SavedOffer[]>({
     queryKey: ["penawaran-rkr-offers"],
@@ -188,7 +190,8 @@ export default function PenawaranRkrPage() {
       roId,
       tanggal,
       jenisPenawaran,
-      rows: rows.map((row) => ({ ...row, satuan: row.satuan || "m2", hargaSatuan: row.hargaSatuan || row.harga || "" })),
+      catatan,
+      rows: rows.map((row) => ({ ...row, satuan: row.satuan || "m2", keterangan: row.keterangan || "", hargaSatuan: row.hargaSatuan || row.harga || "" })),
       clientName: namaAsli,
       roName: selectedRo?.nama || "[Nama RO]",
       total,
@@ -204,7 +207,8 @@ export default function PenawaranRkrPage() {
     setRoId(offer.roId);
     setTanggal(offer.tanggal);
     setJenisPenawaran(offer.jenisPenawaran);
-    setRows(offer.rows.map((row) => ({ ...row, satuan: row.satuan || "m2", hargaSatuan: row.hargaSatuan || row.harga || "" })));
+    setCatatan(offer.catatan ?? "");
+    setRows(offer.rows.map((row) => ({ ...row, satuan: row.satuan === "m" ? "m1" : row.satuan || "m2", keterangan: row.keterangan ?? "", hargaSatuan: row.hargaSatuan || row.harga || "" })));
     setShowPreview(true);
     setActiveTab("generate");
     if (shouldPrint) {
@@ -318,21 +322,22 @@ export default function PenawaranRkrPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Rincian Penawaran</Label>
-            <Button type="button" variant="outline" size="sm" onClick={() => askConfirm({ title: "Konfirmasi Tambah Baris", description: "Tambah baris rincian penawaran RKR?", confirmLabel: "Tambah", onConfirm: () => setRows((prev) => [...prev, { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" }]) })}>
+            <Button type="button" variant="outline" size="sm" onClick={() => askConfirm({ title: "Konfirmasi Tambah Baris", description: "Tambah baris rincian penawaran RKR?", confirmLabel: "Tambah", onConfirm: () => setRows((prev) => [...prev, { uraian: "", keterangan: "", qty: "", satuan: "m2", hargaSatuan: "" }]) })}>
               <Plus className="h-4 w-4 mr-1" /> Tambah Baris
             </Button>
           </div>
           <div className="space-y-2">
             {rows.map((row, i) => (
-              <div key={i} className="grid md:grid-cols-[1fr_100px_100px_150px_40px] gap-2">
+              <div key={i} className="grid md:grid-cols-[1fr_1fr_100px_100px_150px_40px] gap-2">
                 <Input value={row.uraian} onChange={(e) => updateRow(i, { uraian: e.target.value })} placeholder="Uraian pekerjaan" />
+                <Input value={row.keterangan ?? ""} onChange={(e) => updateRow(i, { keterangan: e.target.value })} placeholder="Keterangan (opsional)" />
                 <Input inputMode="decimal" value={row.qty} onChange={(e) => updateRow(i, { qty: decimalVolumeInput(e.target.value) })} placeholder="Volume" />
-                <Select value={row.satuan || "m2"} onValueChange={(value) => updateRow(i, { satuan: value })}>
+                <Select value={row.satuan === "m" ? "m1" : row.satuan || "m2"} onValueChange={(value) => updateRow(i, { satuan: value })}>
                   <SelectTrigger><SelectValue placeholder="Satuan" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="m2">m2</SelectItem>
                     <SelectItem value="m3">m3</SelectItem>
-                    <SelectItem value="m">m</SelectItem>
+                    <SelectItem value="m1">m1</SelectItem>
                   </SelectContent>
                 </Select>
                 <Input type="number" min={0} value={row.hargaSatuan || row.harga || ""} onChange={(e) => updateRow(i, { hargaSatuan: nonNegativeNumber(e.target.value) })} placeholder="Harga satuan" />
@@ -342,6 +347,15 @@ export default function PenawaranRkrPage() {
               </div>
             ))}
           </div>
+        </div>
+        <div>
+          <Label>Catatan</Label>
+          <textarea
+            className="mt-1 min-h-24 w-full rounded-md border px-3 py-2 text-sm"
+            value={catatan}
+            onChange={(e) => setCatatan(e.target.value)}
+            placeholder="Catatan tambahan untuk penawaran (opsional)"
+          />
         </div>
       </div>
         </TabsContent>
@@ -394,7 +408,7 @@ export default function PenawaranRkrPage() {
                 <th className="border border-black p-2 text-left">Uraian Pekerjaan</th>
                 <th className="w-20 border border-black p-2 text-center">Volume</th>
                 <th className="w-20 border border-black p-2 text-center">Satuan</th>
-                <th className="w-36 border border-black p-2 text-right">Total</th>
+                <th className="w-36 border border-black p-2 text-right">Total Tambahan</th>
               </tr>
             </thead>
             <tbody>
@@ -404,9 +418,12 @@ export default function PenawaranRkrPage() {
                 return (
                   <tr key={i}>
                     <td className="border border-black p-2 text-center">{i + 1}</td>
-                    <td className="border border-black p-2">{row.uraian || "[Isi manual]"}</td>
+                    <td className="border border-black p-2">
+                      <div>{row.uraian || "[Isi manual]"}</div>
+                      {row.keterangan && <div className="mt-1 text-[11px] italic leading-4">{row.keterangan}</div>}
+                    </td>
                     <td className="border border-black p-2 text-center">{row.qty || "[Isi]"}</td>
-                    <td className="border border-black p-2 text-center">{row.satuan || "m2"}</td>
+                    <td className="border border-black p-2 text-center">{row.satuan === "m" ? "m1" : row.satuan || "m2"}</td>
                     <td className="border border-black p-2 text-right">{harga && qty ? fmtMoney(qty * harga) : "[Isi manual]"}</td>
                   </tr>
                 );
@@ -417,6 +434,13 @@ export default function PenawaranRkrPage() {
               </tr>
             </tbody>
           </table>
+
+          {catatan.trim() && (
+            <div className="mb-5">
+              <p className="font-bold">Catatan:</p>
+              <p className="whitespace-pre-line text-justify">{catatan}</p>
+            </div>
+          )}
 
           <p className="text-justify">
             Demikian penawaran ini kami sampaikan. Besar harapan kami untuk dapat bekerja sama dengan {name}. Apabila terdapat pertanyaan lebih lanjut, {name} dapat menghubungi kami kapan saja.
