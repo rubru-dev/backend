@@ -43,9 +43,9 @@ export function ConfirmDialog({
           <Button variant="outline" onClick={handleClose} disabled={loading}>
             Batal
           </Button>
-          <Button variant="destructive" onClick={onConfirm} disabled={loading}>
+          <Button variant={variant === "destructive" ? "destructive" : "default"} onClick={onConfirm} disabled={loading}>
             {loading && <Loader2 className="animate-spin mr-2" size={14} />}
-            Ya, Hapus
+            {confirmLabel ?? "Ya, Hapus"}
           </Button>
         </DialogFooter>
       </DialogContent>

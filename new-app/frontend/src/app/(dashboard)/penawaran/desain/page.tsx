@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Download, Eye, Save, Search, Trash2 } from "lucide-react";
+import { Download, Eye, PenLine, Save, Search, Trash2 } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SignatureDialog } from "@/components/signature-dialog";
+import { penawaranApi } from "@/lib/api/penawaran";
 
 const PACKAGES = {
   "Paket Desain Basic": {
@@ -145,6 +148,15 @@ type SavedDiscountRequest = {
   hargaSetelahDiskon: number;
   alasan: string;
   status: string;
+  roSignature?: string | null;
+};
+
+type ConfirmAction = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  variant?: "default" | "destructive";
+  onConfirm: () => void | Promise<void>;
 };
 
 function rawClientName(c: any) {
@@ -204,25 +216,20 @@ export default function PenawaranDesainPage() {
   const [nilaiDiskon, setNilaiDiskon] = useState("");
   const [alasanDiskon, setAlasanDiskon] = useState("");
   const [statusDiskon, setStatusDiskon] = useState("Draft");
+  const [roSignature, setRoSignature] = useState<string | null>(null);
+  const [signatureOpen, setSignatureOpen] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [paketName, setPaketName] = useState<keyof typeof PACKAGES>("Paket Desain Basic");
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [clientSearch, setClientSearch] = useState("");
-  const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
-    } catch {
-      return [];
-    }
+  const { data: savedOffers = [], refetch: refetchOffers } = useQuery<SavedOffer[]>({
+    queryKey: ["penawaran-desain-offers"],
+    queryFn: () => penawaranApi.list<SavedOffer>("desain", "offer"),
   });
-  const [savedDiscounts, setSavedDiscounts] = useState<SavedDiscountRequest[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      return JSON.parse(window.localStorage.getItem(DISCOUNT_STORAGE_KEY) || "[]");
-    } catch {
-      return [];
-    }
+  const { data: savedDiscounts = [], refetch: refetchDiscounts } = useQuery<SavedDiscountRequest[]>({
+    queryKey: ["penawaran-desain-discounts"],
+    queryFn: () => penawaranApi.list<SavedDiscountRequest>("desain", "discount"),
   });
 
   const { data } = useQuery({
@@ -233,6 +240,34 @@ export default function PenawaranDesainPage() {
     queryKey: ["penawaran-desain-employees"],
     queryFn: () => apiClient.get("/desain/employees").then((r) => r.data),
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    async function migrateLocalData() {
+      const migrateKey = async <T extends { id?: string }>(key: string, kind: "offer" | "discount") => {
+        const raw = window.localStorage.getItem(key);
+        if (!raw) return;
+        let items: T[] = [];
+        try {
+          items = JSON.parse(raw);
+        } catch {
+          window.localStorage.removeItem(key);
+          return;
+        }
+        if (!Array.isArray(items) || items.length === 0) {
+          window.localStorage.removeItem(key);
+          return;
+        }
+        await Promise.all(items.map((item) => penawaranApi.save("desain", kind, item)));
+        window.localStorage.removeItem(key);
+      };
+      await migrateKey<SavedOffer>(STORAGE_KEY, "offer");
+      await migrateKey<SavedDiscountRequest>(DISCOUNT_STORAGE_KEY, "discount");
+      void refetchOffers();
+      void refetchDiscounts();
+    }
+    void migrateLocalData();
+  }, [refetchOffers, refetchDiscounts]);
 
   const clients = [...(Array.isArray(data) ? data : data?.items ?? [])].sort((a: any, b: any) =>
     (rawClientName(a) || String(a?.nama ?? "")).localeCompare(rawClientName(b) || String(b?.nama ?? ""), "id", {
@@ -267,6 +302,16 @@ export default function PenawaranDesainPage() {
   const termin1Rows = useMemo(() => pkg.termin1.items.map((d) => <li key={d}>{d}</li>), [pkg]);
   const termin2Rows = useMemo(() => pkg.termin2.items.map((d) => <li key={d}>{d}</li>), [pkg]);
 
+  function askConfirm(action: ConfirmAction) {
+    setConfirmAction(action);
+  }
+
+  async function confirmCurrentAction() {
+    if (!confirmAction) return;
+    await confirmAction.onConfirm();
+    setConfirmAction(null);
+  }
+
   async function downloadPdf() {
     setShowPreview(true);
     setDownloadingPdf(true);
@@ -278,17 +323,7 @@ export default function PenawaranDesainPage() {
     }
   }
 
-  function persistOffers(next: SavedOffer[]) {
-    setSavedOffers(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }
-
-  function persistDiscounts(next: SavedDiscountRequest[]) {
-    setSavedDiscounts(next);
-    window.localStorage.setItem(DISCOUNT_STORAGE_KEY, JSON.stringify(next));
-  }
-
-  function saveOffer() {
+  async function saveOffer() {
     const offer: SavedOffer = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
@@ -303,7 +338,8 @@ export default function PenawaranDesainPage() {
       roName: selectedRo?.nama || "[Nama RO]",
       total,
     };
-    persistOffers([offer, ...savedOffers]);
+    await penawaranApi.save("desain", "offer", offer);
+    await refetchOffers();
     setActiveTab("list");
   }
 
@@ -329,11 +365,12 @@ export default function PenawaranDesainPage() {
     }
   }
 
-  function deleteOffer(id: string) {
-    persistOffers(savedOffers.filter((offer) => offer.id !== id));
+  async function deleteOffer(id: string) {
+    await penawaranApi.remove(id);
+    await refetchOffers();
   }
 
-  function saveDiscountRequest() {
+  async function saveDiscountRequest() {
     const request: SavedDiscountRequest = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
@@ -352,8 +389,10 @@ export default function PenawaranDesainPage() {
       hargaSetelahDiskon,
       alasan: alasanDiskon,
       status: statusDiskon,
+      roSignature,
     };
-    persistDiscounts([request, ...savedDiscounts]);
+    await penawaranApi.save("desain", "discount", request);
+    await refetchDiscounts();
   }
 
   function loadDiscountRequest(request: SavedDiscountRequest, shouldPrint = false) {
@@ -368,6 +407,7 @@ export default function PenawaranDesainPage() {
     setNilaiDiskon(request.nilaiDiskon);
     setAlasanDiskon(request.alasan);
     setStatusDiskon(request.status);
+    setRoSignature(request.roSignature ?? null);
     setShowPreview(true);
     setActiveTab("diskon");
     if (shouldPrint) {
@@ -406,9 +446,9 @@ export default function PenawaranDesainPage() {
           <p className="text-sm text-muted-foreground">Pilih client, tanggal, dan paket desain untuk membuat lampiran PDF.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowPreview((v) => !v)}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
-          <Button variant="outline" onClick={saveOffer}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
-          <Button onClick={downloadPdf} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
+          <Button variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Preview", description: "Tampilkan atau sembunyikan preview penawaran?", confirmLabel: "Lanjutkan", onConfirm: () => setShowPreview((v) => !v) })}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
+          <Button variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Simpan", description: "Simpan penawaran desain ini ke daftar penawaran?", confirmLabel: "Simpan", onConfirm: saveOffer })}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
+          <Button onClick={() => askConfirm({ title: "Konfirmasi Download", description: "Download PDF penawaran desain dengan data saat ini?", confirmLabel: "Download PDF", onConfirm: downloadPdf })} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
         </div>
       </div>
 
@@ -519,10 +559,10 @@ export default function PenawaranDesainPage() {
                 <span>{offer.paketName}</span>
                 <span>{IDR(offer.total)}</span>
                 <div className="flex justify-end gap-1">
-                  <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
-                  <Button size="sm" onClick={() => loadOffer(offer, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="sm" variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Buka", description: "Muat data penawaran ini ke form?", confirmLabel: "Buka", onConfirm: () => loadOffer(offer) })}>Buka</Button>
+                  <Button size="sm" onClick={() => askConfirm({ title: "Konfirmasi PDF", description: "Muat dan download PDF penawaran ini?", confirmLabel: "Download PDF", onConfirm: () => loadOffer(offer, true) })} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
                   {isSuperAdmin && (
-                    <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                    <Button size="icon" variant="ghost" onClick={() => askConfirm({ title: "Konfirmasi Hapus", description: "Hapus penawaran desain ini dari daftar?", confirmLabel: "Hapus", variant: "destructive", onConfirm: () => deleteOffer(offer.id) })}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                   )}
                 </div>
               </div>
@@ -584,6 +624,24 @@ export default function PenawaranDesainPage() {
                   placeholder="Contoh: penyesuaian budget client / promo closing"
                 />
               </div>
+              <div className="md:col-span-3">
+                <Label>Tanda Tangan RO</Label>
+                <div className="mt-1 flex flex-wrap items-center gap-3 rounded-md border bg-slate-50 p-3">
+                  {roSignature ? (
+                    <img src={roSignature} alt="Tanda tangan RO" className="h-16 max-w-40 object-contain" />
+                  ) : (
+                    <span className="text-sm text-muted-foreground">Belum ada tanda tangan RO.</span>
+                  )}
+                  <Button type="button" variant="outline" size="sm" onClick={() => askConfirm({ title: "Konfirmasi Tanda Tangan", description: "Buka modal untuk upload atau gambar tanda tangan RO?", confirmLabel: "Buka", onConfirm: () => setSignatureOpen(true) })}>
+                    <PenLine className="h-4 w-4 mr-2" /> Upload / Digital
+                  </Button>
+                  {roSignature && (
+                    <Button type="button" variant="ghost" size="sm" onClick={() => askConfirm({ title: "Konfirmasi Hapus TTD", description: "Hapus tanda tangan RO dari pengajuan diskon ini?", confirmLabel: "Hapus", variant: "destructive", onConfirm: () => setRoSignature(null) })}>
+                      <Trash2 className="h-4 w-4 mr-2 text-red-500" /> Hapus
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
             <div className="rounded-lg border bg-slate-50 p-3 text-sm">
               <p className="font-semibold">Ringkasan Diskon</p>
@@ -594,8 +652,8 @@ export default function PenawaranDesainPage() {
                 <div className="border-t pt-2 flex justify-between font-bold"><span>Harga akhir</span><span>{hargaSetelahDiskon ? IDR(hargaSetelahDiskon) : "-"}</span></div>
               </div>
               <div className="mt-4 flex gap-2">
-                <Button className="flex-1" onClick={saveDiscountRequest}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
-                <Button className="flex-1" variant="outline" onClick={downloadDiscountPdf} disabled={downloadingPdf}>
+                <Button className="flex-1" onClick={() => askConfirm({ title: "Konfirmasi Simpan", description: "Simpan pengajuan diskon desain ini?", confirmLabel: "Simpan", onConfirm: saveDiscountRequest })}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
+                <Button className="flex-1" variant="outline" onClick={() => askConfirm({ title: "Konfirmasi PDF", description: "Download PDF pengajuan diskon ini?", confirmLabel: "Download PDF", onConfirm: downloadDiscountPdf })} disabled={downloadingPdf}>
                   <Download className="h-4 w-4 mr-2" /> PDF
                 </Button>
               </div>
@@ -613,10 +671,10 @@ export default function PenawaranDesainPage() {
                 <span>{IDR(request.nominalDiskon)}</span>
                 <span>{request.status}</span>
                 <div className="flex justify-end gap-1">
-                  <Button size="sm" variant="outline" onClick={() => loadDiscountRequest(request)}>Buka</Button>
-                  <Button size="sm" onClick={() => loadDiscountRequest(request, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="sm" variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Buka", description: "Muat data pengajuan diskon ini ke form?", confirmLabel: "Buka", onConfirm: () => loadDiscountRequest(request) })}>Buka</Button>
+                  <Button size="sm" onClick={() => askConfirm({ title: "Konfirmasi PDF", description: "Muat dan download PDF pengajuan diskon ini?", confirmLabel: "Download PDF", onConfirm: () => loadDiscountRequest(request, true) })} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
                   {isSuperAdmin && (
-                    <Button size="icon" variant="ghost" onClick={() => persistDiscounts(savedDiscounts.filter((item) => item.id !== request.id))}>
+                    <Button size="icon" variant="ghost" onClick={() => askConfirm({ title: "Konfirmasi Hapus", description: "Hapus pengajuan diskon ini dari daftar?", confirmLabel: "Hapus", variant: "destructive", onConfirm: async () => { await penawaranApi.remove(request.id); await refetchDiscounts(); } })}>
                       <Trash2 className="h-4 w-4 text-red-500" />
                     </Button>
                   )}
@@ -669,7 +727,7 @@ export default function PenawaranDesainPage() {
               <tr>
                 <td className="border border-black p-2 font-bold">Diskon Diajukan</td>
                 <td className="border border-black p-2 text-right">
-                  {nominalDiskon ? IDR(nominalDiskon) : "[Isi diskon]"} {persenDiskon ? `(${persenDiskon.toFixed(1)}%)` : ""}
+                  {nominalDiskon ? IDR(nominalDiskon) : "[Isi diskon]"}
                 </td>
               </tr>
               <tr>
@@ -695,14 +753,18 @@ export default function PenawaranDesainPage() {
           <div className="mt-6 grid grid-cols-2 gap-8 text-center">
             <div>
               <p>Diajukan Oleh,</p>
-              <div className="h-20" />
+              <div className="flex h-24 flex-col items-center justify-center gap-1">
+                <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-12 max-w-28 object-contain" />
+                {roSignature && <img src={roSignature} alt="Tanda tangan RO" className="max-h-12 max-w-36 object-contain" />}
+              </div>
               <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
               <p>Relation Officer</p>
             </div>
             <div>
               <p>Disetujui Oleh,</p>
-              <div className="h-20" />
-              <p className="font-bold">........................</p>
+              <div className="flex h-24 items-center justify-center">
+                <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-16 max-w-32 object-contain" />
+              </div>
               <p>Management</p>
             </div>
           </div>
@@ -802,6 +864,25 @@ export default function PenawaranDesainPage() {
           </div>
         </div>
       )}
+
+      <SignatureDialog
+        open={signatureOpen}
+        onOpenChange={setSignatureOpen}
+        title="Tanda Tangan RO"
+        onSave={(base64) => {
+          setRoSignature(base64);
+          setSignatureOpen(false);
+        }}
+      />
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        onOpenChange={(open) => !open && setConfirmAction(null)}
+        title={confirmAction?.title}
+        description={confirmAction?.description}
+        confirmLabel={confirmAction?.confirmLabel}
+        variant={confirmAction?.variant ?? "default"}
+        onConfirm={() => void confirmCurrentAction()}
+      />
     </div>
   );
 }

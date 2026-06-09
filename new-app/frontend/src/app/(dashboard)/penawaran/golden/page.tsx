@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Eye, Save, Search, Trash2 } from "lucide-react";
@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { penawaranApi } from "@/lib/api/penawaran";
 
 const HAMA_OPTIONS = [
   "Rayap Pohon (Neotermes tectonae)",
@@ -32,6 +34,13 @@ const METODE_OPTIONS = [
 ];
 const TREATMENT_OPTIONS = ["Pra-Konstruksi", "Pasca-Konstruksi"];
 const STORAGE_KEY = "rubahrumah.penawaran.golden";
+type ConfirmAction = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  variant?: "default" | "destructive";
+  onConfirm: () => void | Promise<void>;
+};
 
 type SavedOffer = {
   id: string;
@@ -120,13 +129,10 @@ export default function PenawaranGoldenPage() {
   const [adminContacts, setAdminContacts] = useState<AdminContact[]>([{ nama: "Admin Rubrupest", nomor: "" }]);
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
-    } catch {
-      return [];
-    }
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const { data: savedOffers = [], refetch: refetchOffers } = useQuery<SavedOffer[]>({
+    queryKey: ["penawaran-golden-offers"],
+    queryFn: () => penawaranApi.list<SavedOffer>("golden", "offer"),
   });
 
   const { data } = useQuery({
@@ -137,6 +143,27 @@ export default function PenawaranGoldenPage() {
     queryKey: ["penawaran-golden-employees"],
     queryFn: () => apiClient.get("/desain/employees").then((r) => r.data),
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    async function migrateLocalData() {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      let items: SavedOffer[] = [];
+      try {
+        items = JSON.parse(raw);
+      } catch {
+        window.localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+      if (Array.isArray(items) && items.length) {
+        await Promise.all(items.map((item) => penawaranApi.save("golden", "offer", item)));
+        await refetchOffers();
+      }
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+    void migrateLocalData();
+  }, [refetchOffers]);
 
   const clients = [...(Array.isArray(data) ? data : data?.items ?? [])].sort((a: any, b: any) =>
     (rawClientName(a) || String(a?.nama ?? "")).localeCompare(rawClientName(b) || String(b?.nama ?? ""), "id", { sensitivity: "base" })
@@ -157,6 +184,16 @@ export default function PenawaranGoldenPage() {
     setSelectedHama((prev) => checked ? [...prev, value] : prev.filter((item) => item !== value));
   }
 
+  function askConfirm(action: ConfirmAction) {
+    setConfirmAction(action);
+  }
+
+  async function confirmCurrentAction() {
+    if (!confirmAction) return;
+    await confirmAction.onConfirm();
+    setConfirmAction(null);
+  }
+
   function toggleMetode(value: string, checked: boolean) {
     setSelectedMetode((prev) => checked ? [...prev, value] : prev.filter((item) => item !== value));
   }
@@ -172,12 +209,7 @@ export default function PenawaranGoldenPage() {
     }
   }
 
-  function persistOffers(next: SavedOffer[]) {
-    setSavedOffers(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }
-
-  function saveOffer() {
+  async function saveOffer() {
     const offer: SavedOffer = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
@@ -200,7 +232,8 @@ export default function PenawaranGoldenPage() {
       clientName: namaAsli,
       roName: selectedRo?.nama || "[Nama RO]",
     };
-    persistOffers([offer, ...savedOffers]);
+    await penawaranApi.save("golden", "offer", offer);
+    await refetchOffers();
     setActiveTab("list");
   }
 
@@ -234,8 +267,9 @@ export default function PenawaranGoldenPage() {
     }
   }
 
-  function deleteOffer(id: string) {
-    persistOffers(savedOffers.filter((offer) => offer.id !== id));
+  async function deleteOffer(id: string) {
+    await penawaranApi.remove(id);
+    await refetchOffers();
   }
 
   function updateAdminContact(index: number, patch: Partial<AdminContact>) {
@@ -271,9 +305,9 @@ export default function PenawaranGoldenPage() {
           <p className="text-sm text-muted-foreground">Template penawaran jasa anti rayap Rubrupest by Golden.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowPreview((v) => !v)}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
-          <Button variant="outline" onClick={saveOffer}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
-          <Button onClick={downloadPdf} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
+          <Button variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Preview", description: "Tampilkan atau sembunyikan preview penawaran?", confirmLabel: "Lanjutkan", onConfirm: () => setShowPreview((v) => !v) })}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
+          <Button variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Simpan", description: "Simpan penawaran Golden ini ke daftar penawaran?", confirmLabel: "Simpan", onConfirm: saveOffer })}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
+          <Button onClick={() => askConfirm({ title: "Konfirmasi Download", description: "Download PDF penawaran Golden dengan data saat ini?", confirmLabel: "Download PDF", onConfirm: downloadPdf })} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
         </div>
       </div>
 
@@ -393,14 +427,14 @@ export default function PenawaranGoldenPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between gap-3">
             <Label>Kontak Admin Rubrupest</Label>
-            <Button type="button" variant="outline" size="sm" onClick={addAdminContact}>Tambah Kontak</Button>
+            <Button type="button" variant="outline" size="sm" onClick={() => askConfirm({ title: "Konfirmasi Tambah Kontak", description: "Tambah kontak admin Rubrupest pada penawaran?", confirmLabel: "Tambah", onConfirm: addAdminContact })}>Tambah Kontak</Button>
           </div>
           <div className="grid gap-2 rounded-md border p-3">
             {adminContacts.map((contact, index) => (
               <div key={index} className="grid gap-2 md:grid-cols-[1fr_1fr_40px]">
                 <Input value={contact.nama} onChange={(e) => updateAdminContact(index, { nama: e.target.value })} placeholder="Nama kontak" />
                 <Input value={contact.nomor} onChange={(e) => updateAdminContact(index, { nomor: e.target.value })} placeholder="Nomor telepon / WhatsApp" />
-                <Button type="button" variant="ghost" size="icon" disabled={adminContacts.length <= 1} onClick={() => removeAdminContact(index)}>
+                <Button type="button" variant="ghost" size="icon" disabled={adminContacts.length <= 1} onClick={() => askConfirm({ title: "Konfirmasi Hapus Kontak", description: "Hapus kontak admin ini dari penawaran?", confirmLabel: "Hapus", variant: "destructive", onConfirm: () => removeAdminContact(index) })}>
                   <Trash2 className="h-4 w-4 text-red-500" />
                 </Button>
               </div>
@@ -421,10 +455,10 @@ export default function PenawaranGoldenPage() {
                 <span>{offer.nomorSurat}</span>
                 <span>{formatMoney(offer.biaya)}</span>
                 <div className="flex justify-end gap-1">
-                  <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
-                  <Button size="sm" onClick={() => loadOffer(offer, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="sm" variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Buka", description: "Muat data penawaran ini ke form?", confirmLabel: "Buka", onConfirm: () => loadOffer(offer) })}>Buka</Button>
+                  <Button size="sm" onClick={() => askConfirm({ title: "Konfirmasi PDF", description: "Muat dan download PDF penawaran ini?", confirmLabel: "Download PDF", onConfirm: () => loadOffer(offer, true) })} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
                   {isSuperAdmin && (
-                    <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                    <Button size="icon" variant="ghost" onClick={() => askConfirm({ title: "Konfirmasi Hapus", description: "Hapus penawaran Golden ini dari daftar?", confirmLabel: "Hapus", variant: "destructive", onConfirm: () => deleteOffer(offer.id) })}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                   )}
                 </div>
               </div>
@@ -502,6 +536,15 @@ export default function PenawaranGoldenPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        onOpenChange={(open) => !open && setConfirmAction(null)}
+        title={confirmAction?.title}
+        description={confirmAction?.description}
+        confirmLabel={confirmAction?.confirmLabel}
+        variant={confirmAction?.variant ?? "default"}
+        onConfirm={() => void confirmCurrentAction()}
+      />
     </div>
   );
 }

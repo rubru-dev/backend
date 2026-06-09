@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Download, Eye, Plus, Save, Search, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
@@ -11,9 +11,18 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { penawaranApi } from "@/lib/api/penawaran";
 
 type OfferRow = { uraian: string; qty: string; hargaSatuan: string; satuan?: string; harga?: string };
 const STORAGE_KEY = "rubahrumah.penawaran.rkr";
+type ConfirmAction = {
+  title: string;
+  description: string;
+  confirmLabel: string;
+  variant?: "default" | "destructive";
+  onConfirm: () => void | Promise<void>;
+};
 
 type SavedOffer = {
   id: string;
@@ -84,18 +93,15 @@ export default function PenawaranRkrPage() {
   const [jenisPenawaran, setJenisPenawaran] = useState("Interior");
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
+  const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
   const [rows, setRows] = useState<OfferRow[]>([
     { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
     { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
     { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" },
   ]);
-  const [savedOffers, setSavedOffers] = useState<SavedOffer[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      return JSON.parse(window.localStorage.getItem(STORAGE_KEY) || "[]");
-    } catch {
-      return [];
-    }
+  const { data: savedOffers = [], refetch: refetchOffers } = useQuery<SavedOffer[]>({
+    queryKey: ["penawaran-rkr-offers"],
+    queryFn: () => penawaranApi.list<SavedOffer>("rkr", "offer"),
   });
 
   const { data } = useQuery({
@@ -106,6 +112,27 @@ export default function PenawaranRkrPage() {
     queryKey: ["penawaran-rkr-employees"],
     queryFn: () => apiClient.get("/desain/employees").then((r) => r.data),
   });
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    async function migrateLocalData() {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) return;
+      let items: SavedOffer[] = [];
+      try {
+        items = JSON.parse(raw);
+      } catch {
+        window.localStorage.removeItem(STORAGE_KEY);
+        return;
+      }
+      if (Array.isArray(items) && items.length) {
+        await Promise.all(items.map((item) => penawaranApi.save("rkr", "offer", item)));
+        await refetchOffers();
+      }
+      window.localStorage.removeItem(STORAGE_KEY);
+    }
+    void migrateLocalData();
+  }, [refetchOffers]);
 
   const clients = [...(Array.isArray(data) ? data : data?.items ?? [])].sort((a: any, b: any) =>
     (rawClientName(a) || String(a?.nama ?? "")).localeCompare(rawClientName(b) || String(b?.nama ?? ""), "id", { sensitivity: "base" })
@@ -125,6 +152,16 @@ export default function PenawaranRkrPage() {
     setRows((prev) => prev.map((row, i) => i === index ? { ...row, ...patch } : row));
   }
 
+  function askConfirm(action: ConfirmAction) {
+    setConfirmAction(action);
+  }
+
+  async function confirmCurrentAction() {
+    if (!confirmAction) return;
+    await confirmAction.onConfirm();
+    setConfirmAction(null);
+  }
+
   function nonNegativeNumber(value: string) {
     const number = Number(value);
     if (Number.isNaN(number)) return "";
@@ -142,12 +179,7 @@ export default function PenawaranRkrPage() {
     }
   }
 
-  function persistOffers(next: SavedOffer[]) {
-    setSavedOffers(next);
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-  }
-
-  function saveOffer() {
+  async function saveOffer() {
     const offer: SavedOffer = {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
@@ -161,7 +193,8 @@ export default function PenawaranRkrPage() {
       roName: selectedRo?.nama || "[Nama RO]",
       total,
     };
-    persistOffers([offer, ...savedOffers]);
+    await penawaranApi.save("rkr", "offer", offer);
+    await refetchOffers();
     setActiveTab("list");
   }
 
@@ -186,8 +219,9 @@ export default function PenawaranRkrPage() {
     }
   }
 
-  function deleteOffer(id: string) {
-    persistOffers(savedOffers.filter((offer) => offer.id !== id));
+  async function deleteOffer(id: string) {
+    await penawaranApi.remove(id);
+    await refetchOffers();
   }
 
   return (
@@ -210,9 +244,9 @@ export default function PenawaranRkrPage() {
           <p className="text-sm text-muted-foreground">Template penawaran Interior/Eksterior Ruangkeruang.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setShowPreview((v) => !v)}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
-          <Button variant="outline" onClick={saveOffer}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
-          <Button onClick={downloadPdf} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
+          <Button variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Preview", description: "Tampilkan atau sembunyikan preview penawaran?", confirmLabel: "Lanjutkan", onConfirm: () => setShowPreview((v) => !v) })}><Eye className="h-4 w-4 mr-2" /> Preview</Button>
+          <Button variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Simpan", description: "Simpan penawaran RKR ini ke daftar penawaran?", confirmLabel: "Simpan", onConfirm: saveOffer })}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
+          <Button onClick={() => askConfirm({ title: "Konfirmasi Download", description: "Download PDF penawaran RKR dengan data saat ini?", confirmLabel: "Download PDF", onConfirm: downloadPdf })} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> {downloadingPdf ? "Membuat PDF..." : "Download PDF"}</Button>
         </div>
       </div>
 
@@ -284,7 +318,7 @@ export default function PenawaranRkrPage() {
         <div className="space-y-2">
           <div className="flex items-center justify-between">
             <Label>Rincian Penawaran</Label>
-            <Button type="button" variant="outline" size="sm" onClick={() => setRows((prev) => [...prev, { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" }])}>
+            <Button type="button" variant="outline" size="sm" onClick={() => askConfirm({ title: "Konfirmasi Tambah Baris", description: "Tambah baris rincian penawaran RKR?", confirmLabel: "Tambah", onConfirm: () => setRows((prev) => [...prev, { uraian: "", qty: "", satuan: "m2", hargaSatuan: "" }]) })}>
               <Plus className="h-4 w-4 mr-1" /> Tambah Baris
             </Button>
           </div>
@@ -298,10 +332,11 @@ export default function PenawaranRkrPage() {
                   <SelectContent>
                     <SelectItem value="m2">m2</SelectItem>
                     <SelectItem value="m3">m3</SelectItem>
+                    <SelectItem value="m">m</SelectItem>
                   </SelectContent>
                 </Select>
                 <Input type="number" min={0} value={row.hargaSatuan || row.harga || ""} onChange={(e) => updateRow(i, { hargaSatuan: nonNegativeNumber(e.target.value) })} placeholder="Harga satuan" />
-                <Button type="button" variant="ghost" size="icon" disabled={rows.length <= 1} onClick={() => setRows((prev) => prev.filter((_, idx) => idx !== i))}>
+                <Button type="button" variant="ghost" size="icon" disabled={rows.length <= 1} onClick={() => askConfirm({ title: "Konfirmasi Hapus Baris", description: "Hapus baris rincian penawaran ini?", confirmLabel: "Hapus", variant: "destructive", onConfirm: () => setRows((prev) => prev.filter((_, idx) => idx !== i)) })}>
                   <Trash2 className="h-4 w-4 text-red-500" />
                 </Button>
               </div>
@@ -322,10 +357,10 @@ export default function PenawaranRkrPage() {
                 <span>{offer.jenisPenawaran}</span>
                 <span>{offer.total ? fmtMoney(offer.total) : "-"}</span>
                 <div className="flex justify-end gap-1">
-                  <Button size="sm" variant="outline" onClick={() => loadOffer(offer)}>Buka</Button>
-                  <Button size="sm" onClick={() => loadOffer(offer, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  <Button size="sm" variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Buka", description: "Muat data penawaran ini ke form?", confirmLabel: "Buka", onConfirm: () => loadOffer(offer) })}>Buka</Button>
+                  <Button size="sm" onClick={() => askConfirm({ title: "Konfirmasi PDF", description: "Muat dan download PDF penawaran ini?", confirmLabel: "Download PDF", onConfirm: () => loadOffer(offer, true) })} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
                   {isSuperAdmin && (
-                    <Button size="icon" variant="ghost" onClick={() => deleteOffer(offer.id)}><Trash2 className="h-4 w-4 text-red-500" /></Button>
+                    <Button size="icon" variant="ghost" onClick={() => askConfirm({ title: "Konfirmasi Hapus", description: "Hapus penawaran RKR ini dari daftar?", confirmLabel: "Hapus", variant: "destructive", onConfirm: () => deleteOffer(offer.id) })}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                   )}
                 </div>
               </div>
@@ -400,6 +435,15 @@ export default function PenawaranRkrPage() {
           </div>
         </div>
       )}
+      <ConfirmDialog
+        open={Boolean(confirmAction)}
+        onOpenChange={(open) => !open && setConfirmAction(null)}
+        title={confirmAction?.title}
+        description={confirmAction?.description}
+        confirmLabel={confirmAction?.confirmLabel}
+        variant={confirmAction?.variant ?? "default"}
+        onConfirm={() => void confirmCurrentAction()}
+      />
     </div>
   );
 }
