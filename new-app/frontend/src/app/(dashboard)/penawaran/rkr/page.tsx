@@ -408,7 +408,7 @@ export default function PenawaranRkrPage() {
                 <th className="border border-black p-2 text-left">Uraian Pekerjaan</th>
                 <th className="w-20 border border-black p-2 text-center">Volume</th>
                 <th className="w-20 border border-black p-2 text-center">Satuan</th>
-                <th className="w-36 border border-black p-2 text-right">Total Tambahan</th>
+                <th className="w-36 border border-black p-2 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
@@ -429,7 +429,7 @@ export default function PenawaranRkrPage() {
                 );
               })}
               <tr>
-                <td className="border border-black p-2 font-bold text-right" colSpan={4}>Total</td>
+                <td className="border border-black p-2 font-bold text-right" colSpan={4}>Total Harga Penawaran</td>
                 <td className="border border-black p-2 text-right font-bold">{total ? fmtMoney(total) : "[Isi manual]"}</td>
               </tr>
             </tbody>

@@ -572,7 +572,7 @@ Current behavior:
   - Rincian pekerjaan berisi `Uraian Pekerjaan`, `Keterangan` opsional per baris, `Volume`, `Satuan`, dan `Harga Satuan` untuk perhitungan.
   - Opsi satuan: `m1`, `m2`, dan `m3`.
   - Form memiliki `Catatan` umum opsional.
-  - Preview/PDF tidak menampilkan kolom harga satuan; yang tampil adalah `Total Tambahan` per uraian dan total keseluruhan.
+  - Preview/PDF tidak menampilkan kolom harga satuan; yang tampil adalah `Total` per uraian dan `Total Harga Penawaran` untuk total keseluruhan.
   - Keterangan per uraian tampil di bawah nama uraian pada PDF bila diisi.
 - Penawaran Golden dan Filter Air:
   - List penawaran tersimpan shared di database.
