@@ -753,9 +753,15 @@ export default function PenawaranDesainPage() {
           <div className="mt-6 grid grid-cols-2 gap-8 text-center">
             <div>
               <p>Diajukan Oleh,</p>
-              <div className="flex h-24 flex-col items-center justify-center gap-1">
-                <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-12 max-w-28 object-contain" />
-                {roSignature && <img src={roSignature} alt="Tanda tangan RO" className="max-h-12 max-w-36 object-contain" />}
+              <div className="relative mx-auto flex h-24 w-44 items-center justify-center">
+                <img src="/images/logo.png" alt="Rubah Rumah" className="max-h-16 max-w-36 object-contain opacity-90" />
+                {roSignature && (
+                  <img
+                    src={roSignature}
+                    alt="Tanda tangan RO"
+                    className="absolute left-1/2 top-1/2 max-h-20 max-w-44 -translate-x-1/2 -translate-y-1/2 object-contain"
+                  />
+                )}
               </div>
               <p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p>
               <p>Relation Officer</p>
