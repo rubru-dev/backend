@@ -551,6 +551,8 @@ Design:
 - Split view desktop: form kiri, document preview kanan.
 - Preview harus terlihat seperti halaman A4.
 - Toolbar preview: `Preview`, `Print`, `Download PDF`, `Reset`.
+- Semua tombol aksi penting di menu Penawaran harus menampilkan modal konfirmasi sebelum menjalankan aksi (`Preview`, `Simpan`, `Download PDF`, `Buka`, `Hapus`, tambah/hapus baris, upload/hapus tanda tangan).
+- Data penawaran harus tersimpan secara shared di database, bukan per-browser/per-user via `localStorage`, sehingga bisa dibuka dari PC, HP, dan oleh user lain sesuai akses.
 - Form dibuat sectioned:
   - Data client
   - Detail pekerjaan
@@ -558,10 +560,28 @@ Design:
   - Syarat dan ketentuan
   - Kontak/RO
 
+Current behavior:
+
+- Penawaran Desain:
+  - Memiliki tab `Generate`, `List Penawaran`, dan `Pengajuan Diskon`.
+  - Pengajuan diskon menyimpan harga normal, diskon nominal/Rp, harga akhir, alasan, status, RO, dan tanda tangan RO.
+  - PDF pengajuan diskon menampilkan logo pada area tanda tangan RO dan Management. Tanda tangan RO dapat berupa upload gambar atau tanda tangan digital, dan ditumpuk di atas logo seperti tanda tangan manual.
+  - PDF pengajuan diskon tidak menampilkan persentase diskon.
+  - Titik-titik di atas tulisan `Management` tidak ditampilkan.
+- Penawaran RKR:
+  - Rincian pekerjaan berisi `Uraian Pekerjaan`, `Keterangan` opsional per baris, `Volume`, `Satuan`, dan `Harga Satuan` untuk perhitungan.
+  - Opsi satuan: `m1`, `m2`, dan `m3`.
+  - Form memiliki `Catatan` umum opsional.
+  - Preview/PDF tidak menampilkan kolom harga satuan; yang tampil adalah `Total Tambahan` per uraian dan total keseluruhan.
+  - Keterangan per uraian tampil di bawah nama uraian pada PDF bila diisi.
+- Penawaran Golden dan Filter Air:
+  - List penawaran tersimpan shared di database.
+  - Aksi list dan toolbar menggunakan modal konfirmasi.
+
 Prompt:
 
 ```text
-Design a document offer builder for Report Rubru. Create a two-pane layout: structured form on the left and A4 document preview on the right. Include sections for client data, work details, pricing, payment terms, conditions, and signature/contact. Use orange primary actions and a professional document-management interface.
+Design a Penawaran document builder for Report Rubru. Create a two-pane layout: structured form on the left and A4 document preview on the right. Include shared saved-offer lists, confirmation modals for all actions, sections for client data, work details, pricing inputs, notes, terms, contacts, RO, and signature. For RKR, include per-row optional descriptions, units m1/m2/m3, optional notes, and a PDF preview that shows line totals and grand total without showing unit prices. For design discount requests, include RO digital/upload signature overlaid on the logo and a Management logo signature block. Use orange primary actions and a professional document-management interface.
 ```
 
 ### 9.9 Projek
@@ -1068,6 +1088,7 @@ Bagian ini untuk menjaga desain tetap realistis terhadap app yang ada.
 | Charts | Recharts |
 | Drag and drop | @hello-pangea/dnd |
 | PDF | @react-pdf/renderer + print browser |
+| Penawaran storage | Backend API + PostgreSQL table `penawaran_offers` |
 
 Existing shell:
 
@@ -1076,6 +1097,15 @@ Existing shell:
 - Main content max width: `max-w-7xl`.
 - Current brand asset: `/images/logo.png`.
 - Current app name: `Report Rubru`.
+
+Penawaran implementation notes:
+
+- API route: `/api/v1/penawaran`.
+- Backend file: `backend/src/routes/penawaran.ts`.
+- Frontend API helper: `frontend/src/lib/api/penawaran.ts`.
+- Database table: `penawaran_offers`.
+- Prisma model: `PenawaranOffer`.
+- The Penawaran pages migrate old local browser data into the shared database once when a page is opened on the device that still has the old `localStorage` data.
 
 ---
 
@@ -1107,4 +1137,3 @@ Desain dianggap cocok jika:
 - Status payment/project/approval terlihat jelas.
 - Visual brand RubahRumah terasa lewat logo dan aksen orange, bukan seluruh layar orange.
 - Semua halaman terasa satu sistem yang konsisten.
-
