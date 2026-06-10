@@ -44,6 +44,15 @@ const styles = StyleSheet.create({
     fontSize: 24, fontWeight: "bold", color: ORANGE,
   },
   invoiceNumber: { fontSize: 8.5, color: GRAY, marginTop: 3, textAlign: "right", lineHeight: 1.25 },
+  docHeader: {
+    marginTop: 14,
+    marginBottom: 10,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: ORANGE_MID,
+  },
+  docTitle: { fontSize: 24, fontWeight: "bold", color: ORANGE },
+  docNumber: { fontSize: 9, color: GRAY, marginTop: 4, lineHeight: 1.3 },
 
   // Orange accent bar
   accentBar: { height: 4, backgroundColor: ORANGE, marginBottom: 20, borderRadius: 2 },
@@ -141,8 +150,11 @@ function formatRp(val: number) {
   return "Rp " + Math.round(val).toLocaleString("id-ID");
 }
 function formatDate(d: string | Date | null) {
-  if (!d) return "—";
+  if (!d) return "-";
   return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+}
+function softBreak(value: string) {
+  return value.replace(/([/\\\-()])/g, "$1\u200B");
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -196,17 +208,18 @@ export function InvoicePDF({
               <Text style={styles.companyContact}>Tel {COMPANY.phone}  Email {COMPANY.email}</Text>
             </View>
           </View>
-          <View style={styles.titleBlock}>
-            <Text style={styles.invoiceTitle}>INVOICE</Text>
-            <Text style={styles.invoiceNumber}>{nomor_invoice}</Text>
-          </View>
+        </View>
+
+        <View style={styles.docHeader}>
+          <Text style={styles.docTitle}>INVOICE</Text>
+          <Text style={styles.docNumber}>{softBreak(nomor_invoice)}</Text>
         </View>
 
         {/* ── Meta ── */}
         <View style={styles.metaRow}>
           <View style={styles.metaBlock}>
             <View style={styles.metaLabelBox}><Text style={styles.metaLabelText}>TAGIHAN KEPADA</Text></View>
-            <Text style={styles.metaValue}>{klien || "—"}</Text>
+            <Text style={styles.metaValue}>{klien || "-"}</Text>
             {lead_jenis && <Text style={styles.metaSubValue}>{lead_jenis}</Text>}
             {alamat_klien && <Text style={styles.metaSubValue}>{alamat_klien}</Text>}
             {telepon_klien && <Text style={styles.metaSubValue}>Tel {telepon_klien}</Text>}
@@ -307,7 +320,7 @@ export function InvoicePDF({
 
         {/* ── Footer ── */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{COMPANY.name} — {COMPANY.phone}</Text>
+          <Text style={styles.footerText}>{COMPANY.name} - {COMPANY.phone}</Text>
           <Text style={styles.footerText}>Dokumen ini sah tanpa tanda tangan basah</Text>
         </View>
 

@@ -41,6 +41,15 @@ const styles = StyleSheet.create({
   titleBlock: { alignItems: "flex-end", width: 170 },
   kwitansiTitle: { fontSize: 21, fontWeight: "bold", color: ORANGE },
   kwitansiNumber: { fontSize: 8.5, color: GRAY, marginTop: 3, textAlign: "right", lineHeight: 1.25 },
+  docHeader: {
+    marginTop: 14,
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: ORANGE_MID,
+  },
+  docTitle: { fontSize: 22, fontWeight: "bold", color: ORANGE },
+  docNumber: { fontSize: 9, color: GRAY, marginTop: 4, lineHeight: 1.3 },
 
   // Body card
   card: {
@@ -137,8 +146,11 @@ function formatRp(val: number) {
   return "Rp " + Math.round(val).toLocaleString("id-ID");
 }
 function formatDate(d: string | Date | null) {
-  if (!d) return "—";
+  if (!d) return "-";
   return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+}
+function softBreak(value: string) {
+  return value.replace(/([/\\\-()])/g, "$1\u200B");
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -178,7 +190,7 @@ export function KwitansiPDF({
   jumlah, metode_bayar, detail_bayar, catatan, logoUrl, items, buktiBayar,
   head_finance,
 }: KwitansiPDFProps) {
-  const metodeLabel = detail_bayar ? `${metode_bayar} — ${detail_bayar}` : metode_bayar;
+  const metodeLabel = detail_bayar ? `${metode_bayar} - ${detail_bayar}` : metode_bayar;
 
   return (
     <Document title={`Kwitansi ${nomor_kwitansi}`} author={COMPANY.name}>
@@ -195,10 +207,11 @@ export function KwitansiPDF({
               <Text style={styles.companyContact}>Tel {COMPANY.phone}  Email {COMPANY.email}</Text>
             </View>
           </View>
-          <View style={styles.titleBlock}>
-            <Text style={styles.kwitansiTitle}>KWITANSI</Text>
-            <Text style={styles.kwitansiNumber}>{nomor_kwitansi}</Text>
-          </View>
+        </View>
+
+        <View style={styles.docHeader}>
+          <Text style={styles.docTitle}>KWITANSI</Text>
+          <Text style={styles.docNumber}>{softBreak(nomor_kwitansi)}</Text>
         </View>
 
         {/* ── Body Card ── */}
@@ -207,7 +220,7 @@ export function KwitansiPDF({
           <View style={styles.cardRow}>
             <View style={styles.cardField}>
               <Text style={styles.fieldLabel}>DITERIMA DARI</Text>
-              <Text style={styles.fieldValue}>{klien || "—"}</Text>
+              <Text style={styles.fieldValue}>{klien || "-"}</Text>
               {lead_jenis && <Text style={styles.fieldSub}>{lead_jenis}</Text>}
               {alamat_klien && <Text style={styles.fieldSub}>{alamat_klien}</Text>}
               {telepon_klien && <Text style={styles.fieldSub}>Tel {telepon_klien}</Text>}
@@ -227,7 +240,7 @@ export function KwitansiPDF({
           {/* Metode */}
           <View style={styles.metodeBox}>
             <Text style={styles.metodeLabel}>METODE PEMBAYARAN</Text>
-            <Text style={styles.metodeValue}>{metodeLabel || "—"}</Text>
+            <Text style={styles.metodeValue}>{metodeLabel || "-"}</Text>
           </View>
         </View>
 
@@ -294,7 +307,7 @@ export function KwitansiPDF({
 
         {/* ── Footer ── */}
         <View style={styles.footer} fixed>
-          <Text style={styles.footerText}>{COMPANY.name} — {COMPANY.phone}</Text>
+          <Text style={styles.footerText}>{COMPANY.name} - {COMPANY.phone}</Text>
           <Text style={styles.footerText}>Kwitansi #{nomor_kwitansi}</Text>
         </View>
 
@@ -344,7 +357,7 @@ export function KwitansiPDF({
 
           {/* Footer */}
           <View style={styles.footer} fixed>
-            <Text style={styles.footerText}>{COMPANY.name} — {COMPANY.phone}</Text>
+            <Text style={styles.footerText}>{COMPANY.name} - {COMPANY.phone}</Text>
             <Text style={styles.footerText}>Lampiran Kwitansi #{nomor_kwitansi}</Text>
           </View>
         </Page>
