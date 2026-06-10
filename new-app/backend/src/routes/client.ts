@@ -700,7 +700,8 @@ router.get("/projects/:id/invoices", async (req: Request, res: Response) => {
   const invoices = await prisma.invoice.findMany({
     where: {
       lead_id: project.lead_id,
-      head_finance_at: { not: null },
+      client_portal_project_id: id,
+      status: { in: ["Terbit", "Lunas"] },
     },
     orderBy: { created_at: "desc" },
   });
@@ -780,6 +781,13 @@ router.get("/projects/:id/assignable-invoices", async (req: Request, res: Respon
 router.post("/projects/:id/invoices/:invId/assign", async (req: Request, res: Response) => {
   const projectId = BigInt(req.params.id);
   const invId = BigInt(req.params.invId);
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId }, select: { lead_id: true } });
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invId, lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } },
+  });
+  if (!invoice) return res.status(404).json({ detail: "Invoice Terbit/Lunas untuk project ini tidak ditemukan" });
+
   await prisma.invoice.update({
     where: { id: invId },
     data: { client_portal_project_id: projectId },

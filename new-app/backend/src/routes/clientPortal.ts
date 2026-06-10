@@ -158,9 +158,8 @@ router.get("/me", async (req: Request, res: Response) => {
     prisma.clientPortalGaleri.count({ where: { project_id: projectId } }),
     prisma.clientPortalDokumen.count({ where: { project_id: projectId } }),
     prisma.clientPortalAktivitas.count({ where: { project_id: projectId } }),
-    // Auto-link invoice via lead_id
-    prisma.invoice.count({ where: { lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } } }),
-    prisma.invoice.count({ where: { lead_id: project.lead_id, status: "Lunas" } }),
+    prisma.invoice.count({ where: { client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } } }),
+    prisma.invoice.count({ where: { client_portal_project_id: projectId, status: "Lunas" } }),
   ]);
 
   return res.json({
@@ -189,8 +188,6 @@ router.get("/me", async (req: Request, res: Response) => {
 // Mengembalikan ClientPortalPayment manual + Invoice Terbit/Lunas dari lead yang sama
 router.get("/payments", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
-
-  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId }, select: { lead_id: true } });
 
   const [payments, invoices] = await Promise.all([
     prisma.clientPortalPayment.findMany({

@@ -13,6 +13,19 @@ interface Invoice {
   status: string;
   catatan: string | null;
   kwitansi: { tanggal_bayar: string | null; metode_bayar: string | null; nomor_kwitansi: string | null } | null;
+  source?: "invoice" | "manual";
+}
+
+interface Payment {
+  id: number;
+  nama_termin: string | null;
+  termin_ke: number;
+  tagihan: number;
+  status: string;
+  jatuh_tempo: string | null;
+  tanggal_bayar: string | null;
+  catatan: string | null;
+  source?: string;
 }
 
 interface InvoiceDetail {
@@ -211,16 +224,32 @@ export default function PembayaranPage() {
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([portalApi.me(), portalApi.invoices()])
-      .then(([p, inv]) => {
+    Promise.all([portalApi.me(), portalApi.invoices(), portalApi.payments()])
+      .then(([p, inv, pay]) => {
+        const manualPayments = (pay as Payment[])
+          .filter((item) => item.source === "manual")
+          .map((item) => ({
+            id: `manual-${item.id}`,
+            invoice_number: item.nama_termin || `Termin ${item.termin_ke}`,
+            tanggal: null,
+            overdue_date: item.jatuh_tempo,
+            grand_total: item.tagihan ?? 0,
+            subtotal: item.tagihan ?? 0,
+            ppn_amount: 0,
+            status: item.status === "Sudah Dibayar" ? "Lunas" : "Belum Dibayar",
+            catatan: item.catatan,
+            kwitansi: item.tanggal_bayar ? { tanggal_bayar: item.tanggal_bayar, metode_bayar: null, nomor_kwitansi: null } : null,
+            source: "manual" as const,
+          }));
         setProject(p);
-        setInvoices(inv);
+        setInvoices([...(inv as Invoice[]).map((item) => ({ ...item, source: "invoice" as const })), ...manualPayments]);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
   }, []);
 
   async function handleDownload(inv: Invoice) {
+    if (inv.source === "manual") return;
     setLoadingDetail(inv.id);
     try {
       const detail = await portalApi.invoiceDetail(inv.id);
@@ -260,7 +289,7 @@ export default function PembayaranPage() {
       {/* Summary */}
       <div className="grid grid-cols-3 gap-3 mb-5">
         {[
-          { label: "Total Invoice", value: fmtRupiah(totalTagihan), color: "text-slate-700" },
+          { label: "Total Tagihan", value: fmtRupiah(totalTagihan), color: "text-slate-700" },
           { label: "Sudah Dibayar", value: fmtRupiah(totalLunas), color: "text-green-600" },
           { label: "Belum Dibayar", value: fmtRupiah(totalTagihan - totalLunas), color: "text-orange-500" },
         ].map((s) => (
@@ -271,11 +300,11 @@ export default function PembayaranPage() {
         ))}
       </div>
 
-      <h2 className="text-base font-semibold text-slate-700 mb-3">Daftar Invoice</h2>
+      <h2 className="text-base font-semibold text-slate-700 mb-3">Daftar Pembayaran</h2>
 
       {invoices.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center text-slate-400">
-          Belum ada invoice
+          Belum ada pembayaran
         </div>
       ) : (<>
         {/* Desktop Table */}
@@ -283,7 +312,7 @@ export default function PembayaranPage() {
           <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">No. Invoice</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">Invoice / Termin</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Tanggal</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Jatuh Tempo</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Total</th>
@@ -302,20 +331,24 @@ export default function PembayaranPage() {
                   <td className="px-5 py-4"><StatusBadge status={inv.status} /></td>
                   <td className="px-5 py-4 text-slate-600">{fmtDate(inv.kwitansi?.tanggal_bayar)}</td>
                   <td className="px-5 py-4">
-                    <button
-                      onClick={() => handleDownload(inv)}
-                      disabled={loadingDetail === inv.id}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 rounded-lg hover:bg-orange-100 transition disabled:opacity-50"
-                    >
-                      {loadingDetail === inv.id ? (
-                        <div className="w-3.5 h-3.5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-                      ) : (
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                          <path d="M7 2v7m0 0L4.5 6.5M7 9l2.5-2.5M2 11h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      )}
-                      Download
-                    </button>
+                    {inv.source === "manual" ? (
+                      <span className="text-xs text-slate-400">Manual</span>
+                    ) : (
+                      <button
+                        onClick={() => handleDownload(inv)}
+                        disabled={loadingDetail === inv.id}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 rounded-lg hover:bg-orange-100 transition disabled:opacity-50"
+                      >
+                        {loadingDetail === inv.id ? (
+                          <div className="w-3.5 h-3.5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M7 2v7m0 0L4.5 6.5M7 9l2.5-2.5M2 11h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+                        )}
+                        Download
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -363,20 +396,22 @@ export default function PembayaranPage() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => handleDownload(inv)}
-                disabled={loadingDetail === inv.id}
-                className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-orange-600 bg-orange-50 rounded-xl hover:bg-orange-100 transition disabled:opacity-50"
-              >
-                {loadingDetail === inv.id ? (
-                  <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-                ) : (
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                    <path d="M8 2v8m0 0L5 7.5M8 10l3-2.5M2.5 12.5h11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                )}
-                Download Invoice
-              </button>
+              {inv.source !== "manual" && (
+                <button
+                  onClick={() => handleDownload(inv)}
+                  disabled={loadingDetail === inv.id}
+                  className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-orange-600 bg-orange-50 rounded-xl hover:bg-orange-100 transition disabled:opacity-50"
+                >
+                  {loadingDetail === inv.id ? (
+                    <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                      <path d="M8 2v8m0 0L5 7.5M8 10l3-2.5M2.5 12.5h11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                  )}
+                  Download Invoice
+                </button>
+              )}
             </div>
           ))}
         </div>
