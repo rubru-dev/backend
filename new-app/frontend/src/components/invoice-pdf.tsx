@@ -17,44 +17,51 @@ const GRAY = "#78716c";
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
-  page: { padding: 40, fontSize: 10, color: DARK, backgroundColor: "#ffffff" },
+  page: {
+    paddingTop: 36,
+    paddingHorizontal: 40,
+    paddingBottom: 76,
+    fontSize: 10,
+    color: DARK,
+    backgroundColor: "#ffffff",
+  },
 
   // Header
   header: {
     flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start",
     marginBottom: 0, paddingBottom: 16, borderBottomWidth: 3, borderBottomColor: ORANGE,
   },
-  logoBlock: { flexDirection: "row", alignItems: "center", gap: 10 },
-  logo: { width: 52, height: 52, objectFit: "contain" },
-  companyInfo: { justifyContent: "center" },
+  logoBlock: { flexDirection: "row", alignItems: "center", width: 330 },
+  logo: { width: 48, height: 48, objectFit: "contain", marginRight: 10 },
+  companyInfo: { justifyContent: "center", width: 270 },
   companyName: { fontSize: 16, fontWeight: "bold", color: ORANGE },
   companyTagline: { fontSize: 8, color: GRAY, marginTop: 1 },
-  companyContact: { fontSize: 7.5, color: GRAY, marginTop: 2 },
+  companyContact: { fontSize: 7, color: GRAY, marginTop: 2, lineHeight: 1.25 },
 
   // Invoice title block (right side)
-  titleBlock: { alignItems: "flex-end" },
+  titleBlock: { alignItems: "flex-end", width: 170 },
   invoiceTitle: {
-    fontSize: 26, fontWeight: "bold", color: ORANGE,
-    letterSpacing: 2,
+    fontSize: 24, fontWeight: "bold", color: ORANGE,
   },
-  invoiceNumber: { fontSize: 10, color: GRAY, marginTop: 3 },
+  invoiceNumber: { fontSize: 8.5, color: GRAY, marginTop: 3, textAlign: "right", lineHeight: 1.25 },
 
   // Orange accent bar
   accentBar: { height: 4, backgroundColor: ORANGE, marginBottom: 20, borderRadius: 2 },
 
   // Meta info
-  metaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 20, marginTop: 16 },
-  metaBlock: { flex: 1 },
+  metaRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 18, marginTop: 16 },
+  metaBlock: { width: 270 },
+  metaBlockRight: { width: 180, alignItems: "flex-end" },
   metaLabelBox: {
     backgroundColor: ORANGE, paddingHorizontal: 6, paddingVertical: 2,
     borderRadius: 2, marginBottom: 4, alignSelf: "flex-start",
   },
   metaLabelText: { fontSize: 7, color: "white", fontWeight: "bold", letterSpacing: 0.5 },
   metaValue: { fontSize: 11, fontWeight: "bold", color: GRAY },
-  metaSubValue: { fontSize: 8.5, color: GRAY, marginTop: 2 },
+  metaSubValue: { fontSize: 8, color: GRAY, marginTop: 2, lineHeight: 1.25 },
 
   // Table
-  table: { marginTop: 4 },
+  table: { marginTop: 4, width: "100%" },
   tableHead: {
     flexDirection: "row", backgroundColor: GRAY,
     paddingVertical: 7, paddingHorizontal: 8, borderRadius: 3,
@@ -68,15 +75,15 @@ const styles = StyleSheet.create({
     flexDirection: "row", paddingVertical: 6, paddingHorizontal: 8,
     borderBottomWidth: 1, borderBottomColor: "#e7e5e4", backgroundColor: ORANGE_LIGHT,
   },
-  col1: { flex: 3 },
-  col2: { flex: 1, textAlign: "right" },
-  col3: { flex: 1.5, textAlign: "right" },
-  col4: { flex: 1.5, textAlign: "right" },
-  cellText: { fontSize: 9, color: DARK },
+  col1: { width: 230, paddingRight: 8 },
+  col2: { width: 40, textAlign: "right" },
+  col3: { width: 100, textAlign: "right" },
+  col4: { width: 105, textAlign: "right" },
+  cellText: { fontSize: 8.5, color: DARK, lineHeight: 1.25 },
 
   // Totals
   totalWrapper: { flexDirection: "row", justifyContent: "flex-end", marginTop: 10 },
-  totalBlock: { width: 220 },
+  totalBlock: { width: 235 },
   totalLine: { flexDirection: "row", justifyContent: "space-between", paddingVertical: 3 },
   totalLabel: { fontSize: 9, color: GRAY },
   totalValue: { fontSize: 9, color: DARK },
@@ -95,8 +102,8 @@ const styles = StyleSheet.create({
   },
   bankTitle: { fontSize: 7.5, color: ORANGE, fontWeight: "bold", marginBottom: 6, letterSpacing: 0.5 },
   bankRow: { flexDirection: "row", marginBottom: 3 },
-  bankLabel: { fontSize: 8, color: GRAY, width: 85 },
-  bankValue: { fontSize: 8, color: DARK, fontWeight: "bold" },
+  bankLabel: { fontSize: 8, color: GRAY, width: 90 },
+  bankValue: { fontSize: 8, color: DARK, fontWeight: "bold", flex: 1, lineHeight: 1.25 },
 
   // Catatan
   catatan: {
@@ -104,10 +111,10 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3, borderLeftColor: ORANGE, borderRadius: 2,
   },
   catatanLabel: { fontSize: 7.5, color: ORANGE, fontWeight: "bold", marginBottom: 2 },
-  catatanText: { fontSize: 9, color: DARK },
+  catatanText: { fontSize: 8.5, color: DARK, lineHeight: 1.3 },
 
   // Signatures
-  signRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 36 },
+  signRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 28 },
   signBlock: { alignItems: "center", width: 180 },
   signTitleBox: {
     paddingHorizontal: 10, paddingVertical: 3,
@@ -126,7 +133,7 @@ const styles = StyleSheet.create({
     borderTopWidth: 1, borderTopColor: ORANGE_MID, paddingTop: 6,
     flexDirection: "row", justifyContent: "space-between",
   },
-  footerText: { fontSize: 7.5, color: GRAY },
+  footerText: { fontSize: 7, color: GRAY },
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -186,7 +193,7 @@ export function InvoicePDF({
               <Text style={styles.companyName}>{COMPANY.name}</Text>
               <Text style={styles.companyTagline}>{COMPANY.tagline}</Text>
               <Text style={styles.companyContact}>{COMPANY.address}</Text>
-              <Text style={styles.companyContact}>📞 {COMPANY.phone}  ✉ {COMPANY.email}</Text>
+              <Text style={styles.companyContact}>Tel {COMPANY.phone}  Email {COMPANY.email}</Text>
             </View>
           </View>
           <View style={styles.titleBlock}>
@@ -202,9 +209,9 @@ export function InvoicePDF({
             <Text style={styles.metaValue}>{klien || "—"}</Text>
             {lead_jenis && <Text style={styles.metaSubValue}>{lead_jenis}</Text>}
             {alamat_klien && <Text style={styles.metaSubValue}>{alamat_klien}</Text>}
-            {telepon_klien && <Text style={styles.metaSubValue}>📞 {telepon_klien}</Text>}
+            {telepon_klien && <Text style={styles.metaSubValue}>Tel {telepon_klien}</Text>}
           </View>
-          <View style={[styles.metaBlock, { alignItems: "flex-end" }]}>
+          <View style={styles.metaBlockRight}>
             <View style={[styles.metaLabelBox, { alignSelf: "flex-end" }]}>
               <Text style={styles.metaLabelText}>TANGGAL INVOICE</Text>
             </View>

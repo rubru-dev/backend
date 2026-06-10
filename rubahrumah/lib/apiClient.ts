@@ -1,4 +1,6 @@
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000") + "/api/v1/client-portal";
+const API_BASE =
+  (typeof window === "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000") : "") +
+  "/api/v1/client-portal";
 // Images are proxied via Next.js rewrite /storage/* → backend/storage/*
 // so no absolute URL prefix is needed.
 export const STORAGE_BASE = "";
