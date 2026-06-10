@@ -258,7 +258,7 @@ function TabPembayaran({ pid }: { pid: number }) {
 
   const { mutate: save, isPending } = useMutation({
     mutationFn: (data: any) => editing ? clientApi.updatePayment(pid, editing.id, data) : clientApi.createPayment(pid, data),
-    onSuccess: () => { toast.success(editing ? "Termin diperbarui" : "Termin ditambahkan"); qc.invalidateQueries({ queryKey: ["client-payments", pid] }); setShowForm(false); },
+    onSuccess: () => { toast.success(editing ? "Termin diperbarui" : "Pembayaran manual dikonfirmasi ke portal klien"); qc.invalidateQueries({ queryKey: ["client-payments", pid] }); setShowForm(false); },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menyimpan"),
   });
 
@@ -375,16 +375,16 @@ function TabPembayaran({ pid }: { pid: number }) {
         </DialogContent>
       </Dialog>
 
-      {/* Termin manual (internal) */}
+      {/* Pembayaran manual ke portal klien */}
       <div>
         <div className="flex justify-between items-center mb-3">
-          <h3 className="text-sm font-semibold text-gray-700">Termin Pembayaran (Internal)</h3>
+          <h3 className="text-sm font-semibold text-gray-700">Pembayaran Manual (Client Portal)</h3>
           <div className="flex gap-4 text-xs text-gray-500">
             <span>Total: <strong className="text-gray-800">{fmtRp(totalTagihan)}</strong></span>
             <span>Terbayar: <strong className="text-green-600">{fmtRp(totalLunas)}</strong></span>
             <span>Sisa: <strong className="text-red-600">{fmtRp(totalTagihan - totalLunas)}</strong></span>
           </div>
-          <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />Tambah Termin</Button>
+          <Button size="sm" onClick={openCreate}><Plus className="w-4 h-4 mr-1" />Tambah Manual</Button>
         </div>
         <Card>
           <CardContent className="p-0">
@@ -431,7 +431,7 @@ function TabPembayaran({ pid }: { pid: number }) {
 
       <Dialog open={showForm} onOpenChange={setShowForm}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>{editing ? "Edit Termin" : "Tambah Termin"}</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Pembayaran Manual" : "Tambah Pembayaran Manual"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <div><Label>No. Termin</Label><Input type="number" value={form.termin_ke} onChange={(e) => setForm((f: any) => ({ ...f, termin_ke: e.target.value }))} /></div>
@@ -455,7 +455,7 @@ function TabPembayaran({ pid }: { pid: number }) {
           </div>
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowForm(false)}>Batal</Button>
-            <Button disabled={isPending} onClick={() => save(form)}>{isPending ? "Menyimpan..." : "Simpan"}</Button>
+            <Button disabled={isPending} onClick={() => save(form)}>{isPending ? "Mengonfirmasi..." : "Konfirmasi"}</Button>
           </div>
         </DialogContent>
       </Dialog>

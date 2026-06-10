@@ -63,7 +63,7 @@ function fmtRupiah(n: number) {
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const isLunas = status === "Lunas";
+  const isLunas = status === "Lunas" || status === "Sudah Dibayar";
   return (
     <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${
       isLunas ? "bg-green-50 text-green-600" : "bg-orange-50 text-orange-600"
@@ -217,32 +217,17 @@ function InvoicePrintModal({ detail, onClose }: { detail: InvoiceDetail; onClose
 }
 
 export default function PembayaranPage() {
-  const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [payments, setPayments] = useState<Payment[]>([]);
   const [project, setProject] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [viewDetail, setViewDetail] = useState<InvoiceDetail | null>(null);
   const [loadingDetail, setLoadingDetail] = useState<string | null>(null);
 
   useEffect(() => {
-    Promise.all([portalApi.me(), portalApi.invoices(), portalApi.payments()])
-      .then(([p, inv, pay]) => {
-        const manualPayments = (pay as Payment[])
-          .filter((item) => item.source === "manual")
-          .map((item) => ({
-            id: `manual-${item.id}`,
-            invoice_number: item.nama_termin || `Termin ${item.termin_ke}`,
-            tanggal: null,
-            overdue_date: item.jatuh_tempo,
-            grand_total: item.tagihan ?? 0,
-            subtotal: item.tagihan ?? 0,
-            ppn_amount: 0,
-            status: item.status === "Sudah Dibayar" ? "Lunas" : "Belum Dibayar",
-            catatan: item.catatan,
-            kwitansi: item.tanggal_bayar ? { tanggal_bayar: item.tanggal_bayar, metode_bayar: null, nomor_kwitansi: null } : null,
-            source: "manual" as const,
-          }));
+    Promise.all([portalApi.me(), portalApi.payments()])
+      .then(([p, pay]) => {
         setProject(p);
-        setInvoices([...(inv as Invoice[]).map((item) => ({ ...item, source: "invoice" as const })), ...manualPayments]);
+        setPayments(pay as Payment[]);
       })
       .catch(console.error)
       .finally(() => setLoading(false));
@@ -270,8 +255,10 @@ export default function PembayaranPage() {
     );
   }
 
-  const totalTagihan = invoices.reduce((s, inv) => s + (inv.grand_total ?? 0), 0);
-  const totalLunas = invoices.filter((inv) => inv.status === "Lunas").reduce((s, inv) => s + (inv.grand_total ?? 0), 0);
+  const totalTagihan = payments.reduce((s, item) => s + (item.tagihan ?? 0), 0);
+  const totalLunas = payments
+    .filter((item) => item.status === "Sudah Dibayar" || item.status === "Lunas")
+    .reduce((s, item) => s + (item.tagihan ?? 0), 0);
 
   return (
     <div>
@@ -302,7 +289,7 @@ export default function PembayaranPage() {
 
       <h2 className="text-base font-semibold text-slate-700 mb-3">Daftar Pembayaran</h2>
 
-      {invoices.length === 0 ? (
+      {payments.length === 0 ? (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-10 text-center text-slate-400">
           Belum ada pembayaran
         </div>
@@ -312,44 +299,23 @@ export default function PembayaranPage() {
           <table className="w-full text-sm min-w-[640px]">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">Invoice / Termin</th>
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">Tanggal</th>
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">Jatuh Tempo</th>
-                <th className="text-left px-5 py-4 text-slate-400 font-medium">Total</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">No</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">Nama Termin</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">Tagihan</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Status</th>
+                <th className="text-left px-5 py-4 text-slate-400 font-medium">Jatuh Tempo</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Tgl Bayar</th>
-                <th className="px-5 py-4"></th>
               </tr>
             </thead>
             <tbody>
-              {invoices.map((inv) => (
-                <tr key={inv.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
-                  <td className="px-5 py-4 text-slate-700 font-medium">{inv.invoice_number}</td>
-                  <td className="px-5 py-4 text-slate-600">{fmtDate(inv.tanggal)}</td>
-                  <td className="px-5 py-4 text-slate-600">{fmtDate(inv.overdue_date)}</td>
-                  <td className="px-5 py-4 text-slate-700 font-medium">{fmtRupiah(inv.grand_total)}</td>
-                  <td className="px-5 py-4"><StatusBadge status={inv.status} /></td>
-                  <td className="px-5 py-4 text-slate-600">{fmtDate(inv.kwitansi?.tanggal_bayar)}</td>
-                  <td className="px-5 py-4">
-                    {inv.source === "manual" ? (
-                      <span className="text-xs text-slate-400">Manual</span>
-                    ) : (
-                      <button
-                        onClick={() => handleDownload(inv)}
-                        disabled={loadingDetail === inv.id}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-orange-600 bg-orange-50 rounded-lg hover:bg-orange-100 transition disabled:opacity-50"
-                      >
-                        {loadingDetail === inv.id ? (
-                          <div className="w-3.5 h-3.5 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                            <path d="M7 2v7m0 0L4.5 6.5M7 9l2.5-2.5M2 11h10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                          </svg>
-                        )}
-                        Download
-                      </button>
-                    )}
-                  </td>
+              {payments.map((item) => (
+                <tr key={item.id} className="border-b border-slate-50 last:border-0 hover:bg-slate-50/50">
+                  <td className="px-5 py-4 text-slate-700 font-medium">{item.termin_ke}</td>
+                  <td className="px-5 py-4 text-slate-700 font-medium">{item.nama_termin || `Termin ${item.termin_ke}`}</td>
+                  <td className="px-5 py-4 text-slate-700 font-medium">{fmtRupiah(item.tagihan)}</td>
+                  <td className="px-5 py-4"><StatusBadge status={item.status} /></td>
+                  <td className="px-5 py-4 text-slate-600">{fmtDate(item.jatuh_tempo)}</td>
+                  <td className="px-5 py-4 text-slate-600">{fmtDate(item.tanggal_bayar)}</td>
                 </tr>
               ))}
             </tbody>
@@ -358,60 +324,38 @@ export default function PembayaranPage() {
 
         {/* Mobile Cards */}
         <div className="md:hidden space-y-3">
-          {invoices.map((inv) => (
-            <div key={inv.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
+          {payments.map((item) => (
+            <div key={item.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-[#0F4C75]">{inv.invoice_number}</span>
-                <StatusBadge status={inv.status} />
+                <span className="text-sm font-bold text-[#0F4C75]">{item.nama_termin || `Termin ${item.termin_ke}`}</span>
+                <StatusBadge status={item.status} />
               </div>
               <div className="space-y-1.5 text-sm">
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Total</span>
-                  <span className="text-slate-700 font-medium">{fmtRupiah(inv.grand_total)}</span>
+                  <span className="text-slate-400">No</span>
+                  <span className="text-slate-700 font-medium">{item.termin_ke}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-400">Tanggal</span>
-                  <span className="text-slate-600">{fmtDate(inv.tanggal)}</span>
+                  <span className="text-slate-400">Tagihan</span>
+                  <span className="text-slate-700 font-medium">{fmtRupiah(item.tagihan)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Jatuh Tempo</span>
-                  <span className="text-slate-600">{fmtDate(inv.overdue_date)}</span>
+                  <span className="text-slate-600">{fmtDate(item.jatuh_tempo)}</span>
                 </div>
-                {inv.kwitansi?.tanggal_bayar && (
+                {item.tanggal_bayar && (
                   <div className="flex justify-between">
                     <span className="text-slate-400">Tgl Bayar</span>
-                    <span className="text-slate-600">{fmtDate(inv.kwitansi.tanggal_bayar)}</span>
+                    <span className="text-slate-600">{fmtDate(item.tanggal_bayar)}</span>
                   </div>
                 )}
-                {inv.kwitansi?.metode_bayar && (
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Metode Bayar</span>
-                    <span className="text-slate-600">{inv.kwitansi.metode_bayar}</span>
-                  </div>
-                )}
-                {inv.catatan && (
+                {item.catatan && (
                   <div className="flex justify-between">
                     <span className="text-slate-400">Catatan</span>
-                    <span className="text-slate-600">{inv.catatan}</span>
+                    <span className="text-slate-600">{item.catatan}</span>
                   </div>
                 )}
               </div>
-              {inv.source !== "manual" && (
-                <button
-                  onClick={() => handleDownload(inv)}
-                  disabled={loadingDetail === inv.id}
-                  className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium text-orange-600 bg-orange-50 rounded-xl hover:bg-orange-100 transition disabled:opacity-50"
-                >
-                  {loadingDetail === inv.id ? (
-                    <div className="w-4 h-4 border-2 border-orange-400 border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                      <path d="M8 2v8m0 0L5 7.5M8 10l3-2.5M2.5 12.5h11" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
-                    </svg>
-                  )}
-                  Download Invoice
-                </button>
-              )}
             </div>
           ))}
         </div>
