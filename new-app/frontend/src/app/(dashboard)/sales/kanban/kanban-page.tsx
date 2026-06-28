@@ -215,8 +215,7 @@ export function SalesKanbanPage({
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Number(v) / 1000000}jt`} />
                     <Tooltip formatter={(v) => formatRupiah(Number(v))} />
-                    <Bar dataKey="closing" name="Closing" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="lost" name="Lost" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="closing" name="Total Sales" fill="#10b981" radius={[4, 4, 0, 0]} />
                   </BarChart>
                 </ResponsiveContainer>
               </CardContent>
