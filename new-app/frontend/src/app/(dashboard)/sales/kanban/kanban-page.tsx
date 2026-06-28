@@ -2,17 +2,20 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Printer, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { SalesKanbanBoard } from "./kanban-board";
 import { salesKanbanApi } from "@/lib/api/kanban";
 import type { KanbanColumn } from "@/types";
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+const FULL_MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const YEARS = Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
 
 function formatRupiah(value: number): string {
   return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
@@ -117,12 +120,20 @@ export function SalesKanbanPage({
     return Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key));
   }, [allColumns]);
 
+  const chartData = useMemo(() => {
+    return monthlyData.filter((item) => {
+      const [year, month] = item.key.split("-").map(Number);
+      if (year !== filterYear) return false;
+      return filterMonth === null || month === filterMonth;
+    });
+  }, [monthlyData, filterMonth, filterYear]);
+
   const filteredMonthLabel = filterMonth === null ? "Semua bulan" : `${MONTHS[filterMonth - 1]} ${filterYear}`;
 
   async function handlePrint() {
     setPdfLoading(true);
     try {
-      const html = `<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:20px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.card{border:1px solid #ddd;padding:12px;border-radius:8px}table{width:100%;border-collapse:collapse;margin-top:16px}td,th{border-bottom:1px solid #eee;padding:8px;text-align:left}.num{text-align:right}</style></head><body><h1>${summaryTitle}</h1><p>Filter: ${filteredMonthLabel}</p><div class="grid"><div class="card">Total Kartu<br><b>${stats.totalCards}</b></div><div class="card">Closing<br><b>${formatRupiah(stats.closingTotal)}</b></div><div class="card">Lost<br><b>${formatRupiah(stats.lostTotal)}</b></div></div><table><thead><tr><th>Kolom</th><th class="num">Kartu</th><th class="num">Proyeksi</th></tr></thead><tbody>${stats.byColumn.map((c) => `<tr><td>${c.title}</td><td class="num">${c.count}</td><td class="num">${formatRupiah(c.total)}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
+      const html = `<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:20px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.card{border:1px solid #ddd;padding:12px;border-radius:8px}table{width:100%;border-collapse:collapse;margin-top:16px}td,th{border-bottom:1px solid #eee;padding:8px;text-align:left}.num{text-align:right}</style></head><body><h1>${summaryTitle}</h1><p>Filter: ${filteredMonthLabel}</p><div class="grid"><div class="card">Total Sales<br><b>${formatRupiah(stats.byColumn.reduce((s, c) => s + c.total, 0))}</b></div><div class="card">Closing<br><b>${formatRupiah(stats.closingTotal)}</b></div><div class="card">Lost<br><b>${formatRupiah(stats.lostTotal)}</b></div></div><table><thead><tr><th>Kolom</th><th class="num">Kartu</th><th class="num">Proyeksi</th></tr></thead><tbody>${stats.byColumn.map((c) => `<tr><td>${c.title}</td><td class="num">${c.count}</td><td class="num">${formatRupiah(c.total)}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
       const w = window.open("", "_blank", "width=900,height=700");
       if (!w) return alert("Popup diblokir. Izinkan popup untuk halaman ini.");
       w.document.write(html);
@@ -170,9 +181,25 @@ export function SalesKanbanPage({
         </TabsContent>
 
         <TabsContent value="summary" className="space-y-4">
-          <div className="text-sm text-muted-foreground">Filter aktif: {filteredMonthLabel}</div>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-            <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Total Kartu</p><p className="text-2xl font-bold">{stats.totalCards}</p></CardContent></Card>
+          <div className="flex flex-wrap items-center gap-2 rounded-md border bg-white p-3">
+            <span className="text-sm font-medium text-muted-foreground">Filter Summary:</span>
+            <Select value={filterMonth === null ? "all" : String(filterMonth)} onValueChange={(v) => setFilterMonth(v === "all" ? null : Number(v))}>
+              <SelectTrigger className="h-8 w-40 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Semua Bulan</SelectItem>
+                {FULL_MONTHS.map((month, index) => <SelectItem key={month} value={String(index + 1)}>{month}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={String(filterYear)} onValueChange={(v) => setFilterYear(Number(v))}>
+              <SelectTrigger className="h-8 w-28 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {YEARS.map((year) => <SelectItem key={year} value={String(year)}>{year}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <span className="text-xs text-muted-foreground">Aktif: {filteredMonthLabel}</span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Total Proyek Sales</p><p className="text-lg font-bold text-emerald-600">{formatRupiah(stats.byColumn.reduce((s, c) => s + c.total, 0))}</p></CardContent></Card>
             <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Closing {filterMonth ? filteredMonthLabel : "Semua Bulan"}</p><p className="text-lg font-bold text-emerald-600">{formatRupiah(stats.closingTotal)}</p><p className="text-[10px] text-muted-foreground">{stats.closingCount} kartu</p></CardContent></Card>
             <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Total Lost</p><p className="text-lg font-bold text-red-500">{formatRupiah(stats.lostTotal)}</p><p className="text-[10px] text-muted-foreground">{stats.lostCount} kartu</p></CardContent></Card>
@@ -183,14 +210,14 @@ export function SalesKanbanPage({
               <CardHeader><CardTitle className="text-sm">Total Sales dari Bulan ke Bulan</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={260}>
-                  <LineChart data={monthlyData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Number(v) / 1000000}jt`} />
                     <Tooltip formatter={(v) => formatRupiah(Number(v))} />
-                    <Line type="monotone" dataKey="closing" name="Closing" stroke="#10b981" strokeWidth={2} dot={false} />
-                    <Line type="monotone" dataKey="lost" name="Lost" stroke="#ef4444" strokeWidth={2} dot={false} />
-                  </LineChart>
+                    <Bar dataKey="closing" name="Closing" fill="#10b981" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="lost" name="Lost" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                  </BarChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
@@ -198,7 +225,7 @@ export function SalesKanbanPage({
               <CardHeader><CardTitle className="text-sm">Perbandingan W1, W2, W3, W4 dan Lost per Bulan</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={260}>
-                  <BarChart data={monthlyData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                  <BarChart data={chartData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
                     <XAxis dataKey="label" tick={{ fontSize: 11 }} />
                     <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
