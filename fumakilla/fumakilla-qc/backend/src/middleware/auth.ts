@@ -35,6 +35,31 @@ export async function authenticate(req: AuthRequest, res: Response, next: NextFu
   }
 }
 
+export async function authenticateFile(req: Request, res: Response, next: NextFunction) {
+  const headerToken = req.headers.authorization?.startsWith("Bearer ")
+    ? req.headers.authorization.slice(7)
+    : null;
+  const queryToken = typeof req.query.t === "string" ? req.query.t : null;
+  const token = headerToken || queryToken;
+
+  if (!token) return res.status(401).end();
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "") as { sub?: string };
+    if (!decoded.sub) return res.status(401).end();
+
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.sub },
+      select: { id: true, isActive: true },
+    });
+
+    if (!user || !user.isActive) return res.status(401).end();
+    return next();
+  } catch {
+    return res.status(401).end();
+  }
+}
+
 export function requireRole(...roles: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user || !roles.includes(req.user.role)) {

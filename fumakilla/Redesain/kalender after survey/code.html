@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fumakilla ERP - Survey Report #8829</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "primary-fixed": "#d0e4ff",
+                    "on-primary-fixed-variant": "#03497a",
+                    "primary": "#285f90",
+                    "on-secondary-container": "#7a0c65",
+                    "surface-container-lowest": "#ffffff",
+                    "on-error-container": "#93000a",
+                    "secondary-container": "#fe83d9",
+                    "surface-container-highest": "#e0e2ec",
+                    "on-primary": "#ffffff",
+                    "inverse-on-surface": "#eff0fa",
+                    "on-primary-container": "#fdfcff",
+                    "on-secondary": "#ffffff",
+                    "on-primary-fixed": "#001d35",
+                    "error": "#ba1a1a",
+                    "surface": "#f9f9ff",
+                    "secondary": "#9e3284",
+                    "on-surface-variant": "#414753",
+                    "on-tertiary-fixed-variant": "#4a4642",
+                    "background": "#f9f9ff",
+                    "tertiary-fixed": "#e9e1db",
+                    "surface-tint": "#2b6193",
+                    "on-tertiary": "#ffffff",
+                    "on-background": "#181c22",
+                    "error-container": "#ffdad6",
+                    "tertiary-container": "#79746f",
+                    "surface-variant": "#e0e2ec",
+                    "on-error": "#ffffff",
+                    "on-secondary-fixed-variant": "#81156b",
+                    "outline-variant": "#c1c6d5",
+                    "on-tertiary-fixed": "#1e1b18",
+                    "on-secondary-fixed": "#3b002f",
+                    "primary-container": "#4478ab",
+                    "surface-dim": "#d8dae3",
+                    "secondary-fixed-dim": "#ffade2",
+                    "outline": "#717785",
+                    "inverse-primary": "#9ccaff",
+                    "surface-bright": "#f9f9ff",
+                    "surface-container": "#ecedf7",
+                    "on-surface": "#181c22",
+                    "tertiary": "#605b57",
+                    "primary-fixed-dim": "#9ccaff",
+                    "tertiary-fixed-dim": "#ccc5c0",
+                    "surface-container-low": "#f2f3fd",
+                    "inverse-surface": "#2d3038",
+                    "secondary-fixed": "#ffd8ed",
+                    "on-tertiary-container": "#fffbff",
+                    "surface-container-high": "#e6e8f1"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xl": "32px",
+                    "xs": "4px",
+                    "md": "16px",
+                    "lg": "24px",
+                    "gutter": "16px",
+                    "sm": "8px",
+                    "margin": "24px",
+                    "base": "8px"
+            },
+            "fontFamily": {
+                    "label-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-md": ["Inter"],
+                    "headline-lg": ["Inter"],
+                    "body-md": ["Inter"]
+            },
+            "fontSize": {
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      }
+      .glass-card {
+        background: rgba(255, 255, 255, 0.7);
+        backdrop-filter: blur(8px);
+      }
+      body {
+        font-family: 'Inter', sans-serif;
+        background-color: #f9f9ff;
+      }
+    </style>
+</head>
+<body class="text-on-surface">
+<!-- Sidebar Navigation (Mandatory Shared Component) -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant flex flex-col p-md space-y-base z-50">
+<div class="mb-lg px-sm">
+<h1 class="font-headline-md text-headline-md text-primary font-bold">Service Operations</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Admin Console</p>
+</div>
+<nav class="flex-grow space-y-1">
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md p-sm bg-primary-container text-on-primary-container font-bold rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="assignment_turned_in">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Surveys</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Customers</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="support_agent">support_agent</span>
+<span class="font-label-md text-label-md">Inquiries</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="request_quote">request_quote</span>
+<span class="font-label-md text-label-md">Quotations</span>
+</a>
+</nav>
+<div class="pt-md border-t border-outline-variant space-y-1">
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-md p-sm text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-md text-label-md">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="ml-64 min-h-screen">
+<!-- Top Navigation Bar (Mandatory Shared Component) -->
+<header class="flex justify-between items-center w-full px-lg h-16 sticky top-0 z-40 bg-surface-bright shadow-sm">
+<div class="flex items-center gap-lg">
+<span class="font-headline-md text-headline-md font-bold text-primary">Fumakilla ERP</span>
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline" data-icon="search">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full font-label-md text-label-md w-64 focus:ring-2 focus:ring-primary" placeholder="Search orders, clients..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-sm hover:bg-surface-container-high rounded-full transition-all duration-200">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="notifications">notifications</span>
+</button>
+<button class="p-sm hover:bg-surface-container-high rounded-full transition-all duration-200">
+<span class="material-symbols-outlined text-on-surface-variant" data-icon="help">help</span>
+</button>
+<div class="h-8 w-8 rounded-full overflow-hidden border border-outline-variant ml-sm">
+<img class="w-full h-full object-cover" data-alt="A professional studio portrait of a corporate male user in his 40s, wearing a clean white work uniform with a subtle blue logo. The lighting is soft and professional, set against a neutral gray background. The overall aesthetic is clean, corporate, and reliable, consistent with a high-end SaaS platform." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAmIbo60w5D4UCrFBNzz950ukZOI0D1lsgebE3SHFJk5gWhD8YXiNFk6mP27rzj8Olyl8TESREclG6gJuIm11HWtY6VbGihfofxGlwcYFmVi-5-MbMnc4FoD1AQaNFbLCbzV-FsGM9LJpO-iX5eg_BpjhNjXnEQg8gowjylzNP7v0a_735QdWfS6z1Cdl7_m63oe2Kat1zwU1LEWDm3SZQiiAVj0fjpzvCIgybs9PgSuuLZ1_6vVebWIcZA7RkiYycEWSvCLjBwrf0"/>
+</div>
+</div>
+</header>
+<!-- Page Content: Survey Report Dashboard -->
+<div class="p-lg max-w-7xl mx-auto space-y-lg">
+<!-- Report Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div>
+<nav class="flex items-center gap-xs text-outline mb-xs">
+<span class="font-label-md text-label-md">Surveys</span>
+<span class="material-symbols-outlined text-[16px]" data-icon="chevron_right">chevron_right</span>
+<span class="font-label-md text-label-md text-primary">Report #8829</span>
+</nav>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Laporan Hasil Survey Rubru Pest</h2>
+<div class="flex items-center gap-md mt-xs">
+<span class="px-md py-1 bg-primary-container text-on-primary-container rounded-full font-label-md text-label-md font-bold">Survey ID: #8829</span>
+<span class="flex items-center gap-xs text-on-surface-variant font-label-md text-label-md">
+<span class="material-symbols-outlined text-[18px]" data-icon="calendar_today">calendar_today</span>
+                            30 Mei 2026
+                        </span>
+</div>
+</div>
+<div class="flex gap-sm">
+<button class="flex items-center gap-xs px-lg py-sm bg-surface-container-highest text-on-surface-variant font-label-md text-label-md rounded-lg hover:bg-outline-variant transition-colors">
+<span class="material-symbols-outlined" data-icon="download">download</span> PDF Export
+                    </button>
+<button class="flex items-center gap-xs px-lg py-sm bg-primary text-on-primary font-label-md text-label-md rounded-lg hover:opacity-90 transition-opacity shadow-sm">
+<span class="material-symbols-outlined" data-icon="send">send</span> Submit Report
+                    </button>
+</div>
+</div>
+<!-- Bento Grid - Key Information -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-md">
+<!-- Customer -->
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] flex items-start gap-md border border-outline-variant/30">
+<div class="p-sm bg-primary-fixed text-on-primary-fixed-variant rounded-lg">
+<span class="material-symbols-outlined" data-icon="person">person</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">Customer</p>
+<p class="font-body-lg text-body-lg font-bold">Ardito</p>
+</div>
+</div>
+<!-- Surveyor -->
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] flex items-start gap-md border border-outline-variant/30">
+<div class="p-sm bg-secondary-container text-on-secondary-container rounded-lg">
+<span class="material-symbols-outlined" data-icon="engineering">engineering</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">Surveyor</p>
+<p class="font-body-lg text-body-lg font-bold">Mr. A</p>
+</div>
+</div>
+<!-- Location -->
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] flex items-start gap-md border border-outline-variant/30">
+<div class="p-sm bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-lg">
+<span class="material-symbols-outlined" data-icon="location_on">location_on</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">Location</p>
+<p class="font-body-lg text-body-lg font-bold">Jakarta</p>
+</div>
+</div>
+<!-- Property Type -->
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] flex items-start gap-md border border-outline-variant/30">
+<div class="p-sm bg-primary-container text-on-primary-container rounded-lg">
+<span class="material-symbols-outlined" data-icon="home">home</span>
+</div>
+<div>
+<p class="font-label-md text-label-md text-on-surface-variant">Type</p>
+<p class="font-body-lg text-body-lg font-bold">Rumah 120m2</p>
+</div>
+</div>
+</div>
+<!-- Content Split Layout -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+<!-- Left/Middle Section (Main Details) -->
+<div class="lg:col-span-2 space-y-lg">
+<!-- Findings Table Section -->
+<section class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] border border-outline-variant/30 overflow-hidden">
+<div class="flex items-center justify-between mb-lg">
+<h3 class="font-headline-md text-headline-md text-on-surface flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" data-icon="search_insights">search_insights</span>
+                                Detail Temuan Lapangan
+                            </h3>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-outline-variant">
+<th class="pb-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Area</th>
+<th class="pb-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Indikasi/Kondisi</th>
+<th class="pb-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-center">Status</th>
+<th class="pb-md font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Tingkat Keparahan</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/50">
+<tr>
+<td class="py-lg">
+<p class="font-body-md text-body-md font-bold">Sela Dapur</p>
+<p class="font-label-md text-label-md text-on-surface-variant">Area Belakang</p>
+</td>
+<td class="py-lg font-body-md text-body-md">Ditemukan Jalur Raya Aktif</td>
+<td class="py-lg text-center">
+<span class="px-md py-1 bg-error-container text-on-error-container rounded-full font-label-md text-label-md">Critical</span>
+</td>
+<td class="py-lg">
+<div class="flex items-center gap-sm">
+<div class="flex-grow h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-error w-4/5"></div>
+</div>
+<span class="font-label-md text-label-md font-bold text-error">Parah</span>
+</div>
+</td>
+</tr>
+<tr>
+<td class="py-lg">
+<p class="font-body-md text-body-md font-bold">Gudang</p>
+<p class="font-label-md text-label-md text-on-surface-variant">Samping Tangga</p>
+</td>
+<td class="py-lg font-body-md text-body-md">Kondisi Lembab & Berdebu</td>
+<td class="py-lg text-center">
+<span class="px-md py-1 bg-secondary-container text-on-secondary-container rounded-full font-label-md text-label-md">Warning</span>
+</td>
+<td class="py-lg">
+<div class="flex items-center gap-sm">
+<div class="flex-grow h-2 bg-surface-container-high rounded-full overflow-hidden">
+<div class="h-full bg-secondary w-2/5"></div>
+</div>
+<span class="font-label-md text-label-md font-bold text-secondary">Sedang</span>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<!-- Recommendations & Requirements -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-lg">
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] border border-outline-variant/30">
+<h3 class="font-body-lg text-body-lg font-bold mb-md flex items-center gap-sm text-primary">
+<span class="material-symbols-outlined" data-icon="recommend">recommend</span> Rekomendasi Treatment
+                            </h3>
+<ul class="space-y-sm">
+<li class="flex items-start gap-sm font-body-md text-body-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="check_circle">check_circle</span>
+                                    Injeksi Termitisida pada jalur rayap aktif di dapur.
+                                </li>
+<li class="flex items-start gap-sm font-body-md text-body-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="check_circle">check_circle</span>
+                                    Fogging area gudang untuk pencegahan hama terbang.
+                                </li>
+<li class="flex items-start gap-sm font-body-md text-body-md text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px] text-primary" data-icon="check_circle">check_circle</span>
+                                    Pembersihan area lembab di bawah tangga.
+                                </li>
+</ul>
+</div>
+<div class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] border border-outline-variant/30">
+<h3 class="font-body-lg text-body-lg font-bold mb-md flex items-center gap-sm text-secondary">
+<span class="material-symbols-outlined" data-icon="build">build</span> Kebutuhan Alat & Material
+                            </h3>
+<div class="flex flex-wrap gap-sm">
+<span class="px-sm py-1 bg-surface-container-high rounded text-label-md font-label-md text-on-surface">1x Sprayer 5L</span>
+<span class="px-sm py-1 bg-surface-container-high rounded text-label-md font-label-md text-on-surface">Termitisida A-12</span>
+<span class="px-sm py-1 bg-surface-container-high rounded text-label-md font-label-md text-on-surface">Umpan Tikus Box</span>
+<span class="px-sm py-1 bg-surface-container-high rounded text-label-md font-label-md text-on-surface">Safety Equipment</span>
+</div>
+</div>
+</div>
+<!-- Photo Gallery (High Fidelity) -->
+<section class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] border border-outline-variant/30">
+<h3 class="font-headline-md text-headline-md text-on-surface mb-lg flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary" data-icon="photo_library">photo_library</span>
+                            Dokumentasi Foto
+                        </h3>
+<div class="grid grid-cols-1 sm:grid-cols-3 gap-md">
+<div class="group relative aspect-video rounded-lg overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="A detailed high-resolution wide-angle photograph of a modern residential kitchen's main area. The lighting is natural but reveals specific focus points for maintenance. The style is clean and documentary-like, emphasizing structural details of cabinets and floor junctions. Part of a professional property maintenance report." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJMARy5SAXKHY7uVJ6OwR1wjLaCVVBRFjl16cENp9D5VDE5bcH2QLZpfVwAfOpQfUD48KhkV3x1cCQHncl26q7taWAzt3R9HAx4rnyw5pisfVNxcPJtNtvTjpaZPHG7Y5Lp4qS3NetsdvAJM7M8VDLxuYKZ_lTx-QVNQvc-0BbkxCY1rhIPpjj0WdP4jZEpdjy_7e5b3JRFsR6EIUmKA7YcKFciZN5HKboacVWB-JIEeMVPO1cF6OKYFx377Q08PuoXlOAK8Si3uE"/>
+<div class="absolute inset-x-0 bottom-0 p-sm bg-gradient-to-t from-black/80 to-transparent">
+<p class="text-white font-label-md text-label-md">Area Dapur Utama</p>
+</div>
+</div>
+<div class="group relative aspect-video rounded-lg overflow-hidden border border-outline-variant">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="A sharp, medium-shot photograph of a storage room corner, showing shadows and moisture spots on the wall. The lighting is slightly dim to reflect the actual environment, captured for a technical survey. The image is clear and professional, with a focus on hygiene and structural condition." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAh87nqRI3h53guSyRJg1yXus5pl7DUU6R60TTcH4LAL7pKn8o--asnuRpdsBOJ4Uxg96nHyraexr30WOwV4fy1Ahc0QP9o1SmD9DTbYeCWz3f61YEDkoU9GYF2g7LWaACweyREgPh9S7F__AL8v0t_oyfA--Nmn24pODRP2Zn8u0ziBkOU_EHxzIa8qsO0Wqt0zhOqJklK2isrfbG-_lU1gKjagQ53GEAUDCpGU_Jn1xHQmvY-c5arDsjZFe460U-zH1JWjtS5eU0"/>
+<div class="absolute inset-x-0 bottom-0 p-sm bg-gradient-to-t from-black/80 to-transparent">
+<p class="text-white font-label-md text-label-md">Sudut Gudang</p>
+</div>
+</div>
+<div class="group relative aspect-video rounded-lg overflow-hidden border-2 border-error">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" data-alt="An extreme macro photograph showing the detailed mud tubes of termite activity along a wooden structure in a dark kitchen crevice. The focus is sharp on the destructive trails, illuminated by a flashlight for clarity. The image is part of a critical pest management evidence gallery." src="https://lh3.googleusercontent.com/aida-public/AB6AXuATl9waiB-TFuMhzBgrtVm6_WOaXvzbjn8zfYbqjUo-oaUJ0ezVbBF0eFvSq7Fduo_UYrtVoVUVjYqQKiZMIVamMnBBRDUVsGngWk8v7Oam_kG3Bx0-LLKeHtoMOuRG6sraazbMigzQ2ChUP4IPkz6-D4yiVdqslGckzc-BChtepn12IujRjW7q-xA8ubVPuwaHenu_ZJSDdqc_Y4NsSZb0cNsa7rOt3V0EkB-ufBODzGQaTAOcS6oJfubZO81366c9rVt3XMDGzks"/>
+<div class="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-error/20">
+<span class="material-symbols-outlined text-white text-4xl" data-icon="zoom_in">zoom_in</span>
+</div>
+<div class="absolute inset-x-0 bottom-0 p-sm bg-gradient-to-t from-error/90 to-transparent">
+<p class="text-white font-label-md text-label-md font-bold">CRITICAL: Detail Jalur Rayap</p>
+</div>
+</div>
+</div>
+</section>
+</div>
+<!-- Right Sidebar Content (Summary & Status) -->
+<div class="space-y-lg">
+<!-- Pest Indicators -->
+<section class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] border border-outline-variant/30">
+<h3 class="font-body-lg text-body-lg font-bold mb-lg text-on-surface">Jenis Hama</h3>
+<div class="space-y-md">
+<div class="flex items-center justify-between p-md rounded-lg bg-error-container/10 border border-error/20">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-error" data-icon="bug_report">bug_report</span>
+<span class="font-body-md text-body-md font-bold">Rayap</span>
+</div>
+<span class="px-md py-1 bg-error text-white rounded-full font-label-md text-label-md">Found</span>
+</div>
+<div class="flex items-center justify-between p-md rounded-lg bg-surface-container-high border border-outline-variant/30 opacity-60">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-outline" data-icon="pest_control_rodent">pest_control_rodent</span>
+<span class="font-body-md text-body-md font-bold">Tikus</span>
+</div>
+<span class="px-md py-1 bg-outline-variant text-on-surface-variant rounded-full font-label-md text-label-md">Not Found</span>
+</div>
+<div class="flex items-center justify-between p-md rounded-lg bg-surface-container-high border border-outline-variant/30 opacity-60">
+<div class="flex items-center gap-md">
+<span class="material-symbols-outlined text-outline" data-icon="pest_control">pest_control</span>
+<span class="font-body-md text-body-md font-bold">Kecoa</span>
+</div>
+<span class="px-md py-1 bg-outline-variant text-on-surface-variant rounded-full font-label-md text-label-md">Not Found</span>
+</div>
+</div>
+</section>
+<!-- Survey Area Overview -->
+<section class="bg-primary text-on-primary p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.2)]">
+<h3 class="font-body-lg text-body-lg font-bold mb-md">Area yang Disurvey</h3>
+<div class="space-y-sm">
+<div class="flex justify-between items-center border-b border-white/20 pb-sm">
+<span class="font-label-md text-label-md opacity-80">Dapur</span>
+<span class="font-label-md text-label-md font-bold bg-error-container text-on-error-container px-sm rounded">Termite Indication</span>
+</div>
+<div class="flex justify-between items-center border-b border-white/20 pb-sm">
+<span class="font-label-md text-label-md opacity-80">Kamar Mandi</span>
+<span class="font-label-md text-label-md font-bold">Clean</span>
+</div>
+<div class="flex justify-between items-center">
+<span class="font-label-md text-label-md opacity-80">Ruang Tamu</span>
+<span class="font-label-md text-label-md font-bold">Clean</span>
+</div>
+</div>
+</section>
+<!-- Verification & Signature -->
+<section class="bg-surface-container-lowest p-lg rounded-xl shadow-[0px_4px_12px_rgba(0,0,0,0.05)] border border-outline-variant/30 text-center">
+<p class="font-label-md text-label-md text-on-surface-variant mb-md">Authorized By</p>
+<div class="h-32 w-full bg-surface-container-low border border-dashed border-outline-variant rounded-lg flex items-center justify-center mb-md overflow-hidden relative group cursor-pointer">
+<span class="material-symbols-outlined text-outline group-hover:hidden" data-icon="gesture">gesture</span>
+<!-- Placeholder for digital signature interaction -->
+<div class="absolute inset-0 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 bg-primary/10 transition-opacity">
+<p class="font-label-md text-label-md text-primary font-bold">Click to Sign</p>
+</div>
+</div>
+<p class="font-body-md text-body-md font-bold">Rubru Pest Manajemen</p>
+<p class="font-label-md text-label-md text-on-surface-variant">Quality Assurance Unit</p>
+</section>
+</div>
+</div>
+<!-- Global Footer -->
+<footer class="mt-xl pt-lg border-t border-outline-variant flex flex-col md:flex-row justify-between items-center gap-md text-on-surface-variant">
+<div class="flex items-center gap-md">
+<span class="font-headline-md text-headline-md text-primary opacity-50 font-bold">Fumakilla</span>
+<p class="font-label-md text-label-md">© 2026 Fumakilla Service Operations Hub. All rights reserved.</p>
+</div>
+<div class="flex gap-lg">
+<a class="font-label-md text-label-md hover:text-primary transition-colors" href="#">Privacy Policy</a>
+<a class="font-label-md text-label-md hover:text-primary transition-colors" href="#">Service Level Agreement</a>
+<a class="font-label-md text-label-md hover:text-primary transition-colors" href="#">Support Center</a>
+</div>
+</footer>
+</div>
+</main>
+<script>
+        // Micro-interaction for hover effects or simple tab switching if needed
+        document.querySelectorAll('nav a').forEach(link => {
+            link.addEventListener('click', (e) => {
+                // For demo purposes only
+                if(link.textContent.trim() !== 'Logout') {
+                    e.preventDefault();
+                }
+            });
+        });
+    </script>
+</body></html>

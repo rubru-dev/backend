@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fumakilla ERP - Data Customer</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    body {
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      width: 6px;
+    }
+    .custom-scrollbar::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    .custom-scrollbar::-webkit-scrollbar-thumb {
+      background: #c1c6d5;
+      border-radius: 10px;
+    }
+    .glass-card {
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(10px);
+    }
+  </style>
+<script id="tailwind-config">
+    tailwind.config = {
+      darkMode: "class",
+      theme: {
+        extend: {
+          "colors": {
+            "on-surface": "#181c22",
+            "surface-dim": "#d8dae3",
+            "on-tertiary-container": "#fffbff",
+            "outline-variant": "#c1c6d5",
+            "secondary-fixed-dim": "#ffade2",
+            "on-secondary-fixed": "#3b002f",
+            "surface-container-low": "#f2f3fd",
+            "on-secondary": "#ffffff",
+            "on-primary-fixed-variant": "#03497a",
+            "primary-fixed-dim": "#9ccaff",
+            "tertiary": "#605b57",
+            "primary": "#285f90",
+            "surface-bright": "#f9f9ff",
+            "on-surface-variant": "#414753",
+            "on-secondary-container": "#7a0c65",
+            "tertiary-fixed-dim": "#ccc5c0",
+            "secondary": "#9e3284",
+            "on-error": "#ffffff",
+            "surface-variant": "#e0e2ec",
+            "secondary-container": "#fe83d9",
+            "on-tertiary-fixed-variant": "#4a4642",
+            "on-primary-fixed": "#001d35",
+            "background": "#f9f9ff",
+            "surface-container-highest": "#e0e2ec",
+            "on-tertiary-fixed": "#1e1b18",
+            "on-secondary-fixed-variant": "#81156b",
+            "on-error-container": "#93000a",
+            "outline": "#717785",
+            "primary-container": "#4478ab",
+            "on-primary-container": "#fdfcff",
+            "tertiary-fixed": "#e9e1db",
+            "secondary-fixed": "#ffd8ed",
+            "inverse-surface": "#2d3038",
+            "on-background": "#181c22",
+            "tertiary-container": "#79746f",
+            "on-tertiary": "#ffffff",
+            "surface-container": "#ecedf7",
+            "on-primary": "#ffffff",
+            "surface-container-lowest": "#ffffff",
+            "inverse-primary": "#9ccaff",
+            "inverse-on-surface": "#eff0fa",
+            "error-container": "#ffdad6",
+            "surface-container-high": "#e6e8f1",
+            "surface-tint": "#2b6193",
+            "surface": "#f9f9ff",
+            "primary-fixed": "#d0e4ff",
+            "error": "#ba1a1a"
+          },
+          "borderRadius": {
+            "DEFAULT": "0.25rem",
+            "lg": "0.5rem",
+            "xl": "0.75rem",
+            "full": "9999px"
+          },
+          "spacing": {
+            "xs": "4px",
+            "base": "8px",
+            "margin": "24px",
+            "lg": "24px",
+            "sm": "8px",
+            "gutter": "16px",
+            "xl": "32px",
+            "md": "16px"
+          },
+          "fontFamily": {
+            "headline-md": ["Inter"],
+            "headline-lg": ["Inter"],
+            "label-md": ["Inter"],
+            "body-md": ["Inter"],
+            "body-lg": ["Inter"]
+          },
+          "fontSize": {
+            "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+            "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+            "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+            "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+            "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+          }
+        },
+      },
+    }
+  </script>
+</head>
+<body class="bg-background text-on-surface flex min-h-screen">
+<!-- SideNavBar Anchor -->
+<aside class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant z-50 p-md space-y-base transition-colors duration-150">
+<div class="flex items-center gap-3 mb-xl px-2">
+<div class="w-10 h-10 bg-primary flex items-center justify-center rounded-lg shadow-sm">
+<span class="material-symbols-outlined text-on-primary" style="font-variation-settings: 'FILL' 1;">eco</span>
+</div>
+<div>
+<h1 class="font-headline-md text-label-md text-primary leading-tight">Service Operations</h1>
+<p class="text-[10px] text-outline font-bold tracking-widest uppercase">Admin Console</p>
+</div>
+</div>
+<button class="w-full bg-primary text-on-primary py-3 px-4 rounded-xl font-bold text-body-md flex items-center justify-center gap-2 mb-lg hover:bg-primary-container transition-all shadow-md active:scale-95">
+<span class="material-symbols-outlined text-[20px]">add_circle</span>
+      New Service Order
+    </button>
+<nav class="flex-1 space-y-1 overflow-y-auto custom-scrollbar">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<!-- Active State Logic: Customers matches the Data Customer page context -->
+<a class="flex items-center gap-3 px-4 py-3 bg-primary-container text-on-primary-container font-bold rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">group</span>
+<span class="font-label-md text-label-md">Customers</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">support_agent</span>
+<span class="font-label-md text-label-md">Inquiries</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Surveys</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">request_quote</span>
+<span class="font-label-md text-label-md">Quotations</span>
+</a>
+</nav>
+<div class="pt-base border-t border-outline-variant space-y-1">
+<a class="flex items-center gap-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-3 px-4 py-3 text-error hover:bg-error-container/20 rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 md:ml-64 flex flex-col min-h-screen">
+<!-- TopNavBar Anchor -->
+<header class="flex justify-between items-center w-full px-lg h-16 sticky top-0 z-40 bg-surface-bright shadow-sm">
+<div class="flex items-center gap-lg">
+<!-- Search Bar -->
+<div class="relative hidden sm:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full w-[320px] focus:ring-2 focus:ring-primary/20 text-body-md transition-all" placeholder="Cari data, pelanggan, atau nomor..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<div class="flex items-center gap-sm pr-md border-r border-outline-variant">
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="p-2 text-on-surface-variant hover:text-primary transition-colors">
+<span class="material-symbols-outlined">help</span>
+</button>
+</div>
+<div class="flex items-center gap-3 pl-2">
+<div class="text-right hidden sm:block">
+<p class="font-label-md text-label-md text-on-surface font-bold leading-none">ERP Fumakilla</p>
+<p class="text-[10px] text-outline uppercase font-bold tracking-tighter">Premium Support</p>
+</div>
+<img class="w-10 h-10 rounded-full border-2 border-primary-container object-cover" data-alt="Close-up professional portrait of a tech-savvy customer service executive with a friendly expression. The lighting is bright and clean with a soft blue background tint, maintaining a corporate yet approachable aesthetic consistent with the Fumakilla ERP brand's professional reliability." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbMM0fDyAsFKkDh20uXsEb2pvFSLyx9JGwzCk0iPCgx-8JqwM7tmPqq2io25-WvmgnOewDfyhiTZ971o5C6IJ6gzwvubhp_87RvPvhuY5QVFEHWIxs5Yii-dbPp6srxs9xzEQDBf9oKQFUFiv2vt7ciKWxavg47aVfVxvobRvJhw7jFyhw2WG-Z8zeLevHRsKrFvxyIcgiweoJyEWgz-BnExminUh4e9qWyQjSuVun4ifDnLM6BZQvF2RCMczFAhuQufxsnwGwJ7g"/>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<section class="p-lg md:p-xl space-y-xl max-w-7xl mx-auto w-full">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div>
+<nav class="flex items-center gap-2 text-outline text-[11px] font-bold uppercase tracking-widest mb-2">
+<a class="hover:text-primary transition-colors" href="#">Dashboard</a>
+<span class="material-symbols-outlined text-[12px]">chevron_right</span>
+<span class="text-primary">Data Customer</span>
+</nav>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Data Customer</h2>
+<p class="text-on-surface-variant text-body-lg max-w-2xl mt-2">
+            Kelola profil pelanggan, treatment, agreement, PIC, dan informasi billing secara terpusat dalam satu dashboard operasional yang efisien.
+          </p>
+</div>
+<button class="bg-primary text-on-primary px-6 py-3 rounded-xl font-bold flex items-center gap-2 hover:bg-primary-container transition-all shadow-lg active:scale-95 group">
+<span class="material-symbols-outlined transition-transform group-hover:rotate-90">add</span>
+          + Customer Baru
+        </button>
+</div>
+<!-- Bento Metrics Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
+<div class="bg-surface-container-lowest p-lg rounded-2xl shadow-sm border border-outline-variant hover:border-primary transition-all group">
+<div class="flex justify-between items-start mb-base">
+<div class="w-10 h-10 bg-primary-fixed rounded-xl flex items-center justify-center text-primary group-hover:bg-primary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">group</span>
+</div>
+<span class="text-green-600 bg-green-50 px-2 py-1 rounded text-[11px] font-bold">+12%</span>
+</div>
+<p class="text-outline font-label-md text-label-md uppercase tracking-wider">Total Customer</p>
+<h3 class="text-headline-md font-headline-md text-on-surface">1,284</h3>
+</div>
+<div class="bg-surface-container-lowest p-lg rounded-2xl shadow-sm border border-outline-variant hover:border-secondary transition-all group">
+<div class="flex justify-between items-start mb-base">
+<div class="w-10 h-10 bg-secondary-fixed rounded-xl flex items-center justify-center text-secondary group-hover:bg-secondary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">description</span>
+</div>
+<span class="text-primary bg-primary-fixed px-2 py-1 rounded text-[11px] font-bold">Stable</span>
+</div>
+<p class="text-outline font-label-md text-label-md uppercase tracking-wider">Active Contracts</p>
+<h3 class="text-headline-md font-headline-md text-on-surface">942</h3>
+</div>
+<div class="bg-surface-container-lowest p-lg rounded-2xl shadow-sm border border-outline-variant hover:border-tertiary transition-all group">
+<div class="flex justify-between items-start mb-base">
+<div class="w-10 h-10 bg-tertiary-fixed rounded-xl flex items-center justify-center text-tertiary group-hover:bg-tertiary group-hover:text-white transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">location_on</span>
+</div>
+<span class="text-orange-600 bg-orange-50 px-2 py-1 rounded text-[11px] font-bold">87% Coverage</span>
+</div>
+<p class="text-outline font-label-md text-label-md uppercase tracking-wider">Treatment Areas</p>
+<h3 class="text-headline-md font-headline-md text-on-surface">15 Cities</h3>
+</div>
+<div class="bg-surface-container-lowest p-lg rounded-2xl shadow-sm border border-outline-variant hover:border-primary-container transition-all group">
+<div class="flex justify-between items-start mb-base">
+<div class="w-10 h-10 bg-surface-container-high rounded-xl flex items-center justify-center text-outline group-hover:bg-primary-container group-hover:text-on-primary-container transition-colors">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">payments</span>
+</div>
+<span class="text-green-600 bg-green-50 px-2 py-1 rounded text-[11px] font-bold">+Rp 12.4M</span>
+</div>
+<p class="text-outline font-label-md text-label-md uppercase tracking-wider">Monthly Recurring</p>
+<h3 class="text-headline-md font-headline-md text-on-surface">Rp 482.5M</h3>
+</div>
+</div>
+<!-- High Fidelity Data Table -->
+<div class="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant overflow-hidden">
+<div class="p-lg border-b border-outline-variant flex flex-col md:flex-row justify-between items-center gap-md">
+<div class="flex items-center gap-gutter w-full md:w-auto">
+<div class="relative flex-1 md:flex-none">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">filter_list</span>
+<select class="pl-10 pr-8 py-2 bg-white border border-outline-variant rounded-lg text-body-md focus:ring-2 focus:ring-primary/20 appearance-none min-w-[140px]">
+<option>Semua Status</option>
+<option>Kontrak</option>
+<option>Non-Kontrak</option>
+</select>
+</div>
+<div class="relative flex-1 md:flex-none">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">segment</span>
+<select class="pl-10 pr-8 py-2 bg-white border border-outline-variant rounded-lg text-body-md focus:ring-2 focus:ring-primary/20 appearance-none min-w-[140px]">
+<option>Semua Segment</option>
+<option>Residensial</option>
+<option>Komersial</option>
+</select>
+</div>
+</div>
+<p class="text-label-md text-outline">Menampilkan 1-10 dari 1,284 customer</p>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low">
+<th class="px-lg py-4 font-bold text-label-md text-outline uppercase tracking-wider">Nama Customer</th>
+<th class="px-lg py-4 font-bold text-label-md text-outline uppercase tracking-wider">Nama Perusahaan</th>
+<th class="px-lg py-4 font-bold text-label-md text-outline uppercase tracking-wider">Alamat Treatment</th>
+<th class="px-lg py-4 font-bold text-label-md text-outline uppercase tracking-wider">Status</th>
+<th class="px-lg py-4 font-bold text-label-md text-outline uppercase tracking-wider">Segment</th>
+<th class="px-lg py-4 font-bold text-label-md text-outline uppercase tracking-wider text-center">Aksi</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-lg py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-primary-container/20 text-primary flex items-center justify-center rounded-full font-bold text-[12px]">T</div>
+<div>
+<p class="font-bold text-on-surface text-body-md">Test Customer</p>
+<p class="text-[12px] text-outline">CUS-2024-499906</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-5 text-body-md font-medium text-on-surface-variant">PT. ABC Makmur Abadi</td>
+<td class="px-lg py-5 text-body-md text-on-surface-variant">Jl. Sudirman Kav 21, Jakarta Pusat</td>
+<td class="px-lg py-5">
+<span class="px-3 py-1 rounded-full text-[11px] font-bold bg-surface-variant text-on-surface-variant uppercase tracking-tight">Non-Kontrak</span>
+</td>
+<td class="px-lg py-5 text-body-md text-outline">—</td>
+<td class="px-lg py-5">
+<div class="flex items-center justify-center gap-2">
+<button class="p-2 hover:bg-primary-container/10 text-primary rounded-lg transition-all" title="View Details">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high text-outline rounded-lg transition-all" title="Edit">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-2 hover:bg-error-container/20 text-error rounded-lg transition-all" title="Delete">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-lg py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-secondary-container/20 text-secondary flex items-center justify-center rounded-full font-bold text-[12px]">H</div>
+<div>
+<p class="font-bold text-on-surface text-body-md">Harkat Hotel &amp; Resorts</p>
+<p class="text-[12px] text-outline">CUS-2024-510221</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-5 text-body-md font-medium text-on-surface-variant">PT. Harkat Hospitality</td>
+<td class="px-lg py-5 text-body-md text-on-surface-variant">Kawasan Mega Kuningan, Jakarta Selatan</td>
+<td class="px-lg py-5">
+<span class="px-3 py-1 rounded-full text-[11px] font-bold bg-green-100 text-green-700 uppercase tracking-tight">Kontrak Aktif</span>
+</td>
+<td class="px-lg py-5">
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant text-[11px] font-bold">Komersial</span>
+</td>
+<td class="px-lg py-5">
+<div class="flex items-center justify-center gap-2">
+<button class="p-2 hover:bg-primary-container/10 text-primary rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high text-outline rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-2 hover:bg-error-container/20 text-error rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low/50 transition-colors">
+<td class="px-lg py-5">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 bg-tertiary-container/20 text-tertiary flex items-center justify-center rounded-full font-bold text-[12px]">R</div>
+<div>
+<p class="font-bold text-on-surface text-body-md">Residence Permata Hijau</p>
+<p class="text-[12px] text-outline">CUS-2024-520113</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-5 text-body-md font-medium text-on-surface-variant">Individu</td>
+<td class="px-lg py-5 text-body-md text-on-surface-variant">Blok D No. 12, Permata Hijau</td>
+<td class="px-lg py-5">
+<span class="px-3 py-1 rounded-full text-[11px] font-bold bg-orange-100 text-orange-700 uppercase tracking-tight">Pending Renew</span>
+</td>
+<td class="px-lg py-5">
+<span class="px-2 py-0.5 rounded bg-surface-container text-on-surface-variant text-[11px] font-bold">Residensial</span>
+</td>
+<td class="px-lg py-5">
+<div class="flex items-center justify-center gap-2">
+<button class="p-2 hover:bg-primary-container/10 text-primary rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="p-2 hover:bg-surface-container-high text-outline rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">edit</span>
+</button>
+<button class="p-2 hover:bg-error-container/20 text-error rounded-lg transition-all">
+<span class="material-symbols-outlined text-[20px]">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-lg flex justify-between items-center border-t border-outline-variant bg-surface-container-lowest">
+<button class="px-4 py-2 text-body-md text-outline hover:text-primary flex items-center gap-1 transition-colors">
+<span class="material-symbols-outlined text-[18px]">chevron_left</span> Sebelumnya
+          </button>
+<div class="flex gap-1">
+<button class="w-8 h-8 flex items-center justify-center rounded-lg bg-primary text-on-primary font-bold text-body-md">1</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface text-body-md transition-colors">2</button>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface text-body-md transition-colors">3</button>
+<span class="px-2 text-outline">...</span>
+<button class="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-surface-container-high text-on-surface text-body-md transition-colors">12</button>
+</div>
+<button class="px-4 py-2 text-body-md text-on-surface hover:text-primary flex items-center gap-1 font-bold transition-colors">
+            Selanjutnya <span class="material-symbols-outlined text-[18px]">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+</main>
+<!-- Mobile Floating Action Button -->
+<button class="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center z-50 active:scale-95 transition-transform">
+<span class="material-symbols-outlined text-[28px]">add</span>
+</button>
+<!-- Mobile Bottom Nav -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-surface-bright flex justify-around items-center h-16 shadow-[0_-4px_10px_rgba(0,0,0,0.05)] z-50 border-t border-outline-variant">
+<button class="flex flex-col items-center text-outline-variant">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold mt-1">Home</span>
+</button>
+<button class="flex flex-col items-center text-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">group</span>
+<span class="text-[10px] font-bold mt-1">Customers</span>
+</button>
+<button class="flex flex-col items-center text-outline-variant">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+<span class="text-[10px] font-bold mt-1">Surveys</span>
+</button>
+<button class="flex flex-col items-center text-outline-variant">
+<span class="material-symbols-outlined">settings</span>
+<span class="text-[10px] font-bold mt-1">Account</span>
+</button>
+</nav>
+<script>
+    // Micro-interaction for hover effects on table rows
+    document.querySelectorAll('tbody tr').forEach(row => {
+      row.addEventListener('mouseenter', () => {
+        row.classList.add('translate-x-1');
+      });
+      row.addEventListener('mouseleave', () => {
+        row.classList.remove('translate-x-1');
+      });
+    });
+
+    // Simple search box focus effect
+    const searchInput = document.querySelector('input[type="text"]');
+    searchInput.addEventListener('focus', () => {
+      searchInput.parentElement.classList.add('scale-105');
+    });
+    searchInput.addEventListener('blur', () => {
+      searchInput.parentElement.classList.remove('scale-105');
+    });
+  </script>
+</body></html>

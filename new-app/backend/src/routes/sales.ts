@@ -142,10 +142,31 @@ function salesBoardCols(cols: Array<{ id: number; title: string; urutan: number;
   }));
 }
 
-async function getSalesBoard() {
+function salesKanbanSourceWhere(source?: string) {
+  if (source === "rkr") return { lead: { modul: "telemarketing" } };
+  if (source === "golden") return { lead: { modul: "golden" } };
+  if (source === "filter-air") return { lead: { modul: "filter-air" } };
+  return {
+    OR: [
+      { lead_id: null },
+      { lead: { modul: null } },
+      { lead: { modul: { in: ["sales-admin", "database-client"] } } },
+    ],
+  };
+}
+
+function salesKanbanLeadWhere(source?: string) {
+  if (source === "rkr") return { modul: "telemarketing" };
+  if (source === "golden") return { modul: "golden" };
+  if (source === "filter-air") return { modul: "filter-air" };
+  return { OR: [{ modul: null }, { modul: { in: ["sales-admin", "database-client"] } }] };
+}
+
+async function getSalesBoard(source?: string) {
   return prisma.salesKanbanColumn.findMany({
     include: {
       cards: {
+        where: salesKanbanSourceWhere(source),
         include: {
           labels: true,
           assigned_user: true,
@@ -224,7 +245,8 @@ async function carryoverOutstandingToMonth(month: number, year: number) {
 }
 
 // GET /kanban — auto-ensures permanent columns exist on every load
-router.get("/kanban", async (_req: Request, res: Response) => {
+router.get("/kanban", async (req: Request, res: Response) => {
+  const source = String(req.query.source ?? "rubru");
   const existingTitles = (await prisma.salesKanbanColumn.findMany({ select: { title: true, urutan: true } }));
   const titleSet = new Set(existingTitles.map((c) => c.title));
   const missing = PERMANENT_COLUMNS.filter((t) => !titleSet.has(t));
@@ -241,7 +263,7 @@ router.get("/kanban", async (_req: Request, res: Response) => {
   }
   const now = new Date();
   await carryoverOutstandingToMonth(now.getMonth() + 1, now.getFullYear());
-  const cols = await getSalesBoard();
+  const cols = await getSalesBoard(source);
   return res.json({ columns: salesBoardCols(cols as unknown as Parameters<typeof salesBoardCols>[0]) });
 });
 
@@ -294,7 +316,7 @@ router.post("/kanban/columns/reorder", async (req: Request, res: Response) => {
 
 // POST /kanban/carryover — carry permanent column cards from prev month into the requested month
 router.post("/kanban/carryover", async (req: Request, res: Response) => {
-  const { month, year } = req.body as { month: number; year: number };
+  const { month, year, source } = req.body as { month: number; year: number; source?: string };
 
   // Refuse to carry over into a future month
   const now = new Date();
@@ -321,13 +343,13 @@ router.post("/kanban/carryover", async (req: Request, res: Response) => {
   for (const col of permCols) {
     // Cards from previous month in this column
     const prevCards = await prisma.salesKanbanCard.findMany({
-      where: { column_id: col.id, created_at: { gte: prevStart, lte: prevEnd } },
+      where: { column_id: col.id, created_at: { gte: prevStart, lte: prevEnd }, ...salesKanbanSourceWhere(source) },
     });
     if (prevCards.length === 0) continue;
 
     // Titles already in target month — skip duplicates
     const existing = await prisma.salesKanbanCard.findMany({
-      where: { column_id: col.id, created_at: { gte: targetStart, lte: targetEnd } },
+      where: { column_id: col.id, created_at: { gte: targetStart, lte: targetEnd }, ...salesKanbanSourceWhere(source) },
       select: { title: true },
     });
     const existingTitles = new Set(existing.map((c) => c.title));
@@ -338,6 +360,7 @@ router.post("/kanban/carryover", async (req: Request, res: Response) => {
       const created = await prisma.salesKanbanCard.create({
         data: {
           column_id: col.id,
+          lead_id: card.lead_id,
           title: card.title,
           description: card.description ?? null,
           color: card.color ?? null,
@@ -434,8 +457,10 @@ router.delete("/kanban/comments/:id", async (req: Request, res: Response) => {
 });
 
 // GET /kanban/leads — leads dropdown for card creation
-router.get("/kanban/leads", async (_req: Request, res: Response) => {
+router.get("/kanban/leads", async (req: Request, res: Response) => {
+  const source = String(req.query.source ?? "rubru");
   const leads = await prisma.lead.findMany({
+    where: salesKanbanLeadWhere(source),
     select: { id: true, nama: true },
     orderBy: { nama: "asc" },
   });
@@ -447,7 +472,8 @@ router.get("/kanban/metrics", async (req: Request, res: Response) => {
   const now = new Date();
   const year = parseInt(req.query.year as string) || now.getFullYear();
   const month = parseInt(req.query.month as string) || (now.getMonth() + 1);
-  const cols = await getSalesBoard();
+  const source = String(req.query.source ?? "rubru");
+  const cols = await getSalesBoard(source);
 
   const byColumn = cols.map((col) => ({
     column_id: col.id,
@@ -462,7 +488,7 @@ router.get("/kanban/metrics", async (req: Request, res: Response) => {
   const end = new Date(year, month - 1, lastDay, 23, 59, 59);
 
   const monthlyCards = await prisma.salesKanbanCard.findMany({
-    where: { created_at: { gte: start, lte: end } },
+    where: { created_at: { gte: start, lte: end }, ...salesKanbanSourceWhere(source) },
   });
 
   const daily: Record<number, number> = {};

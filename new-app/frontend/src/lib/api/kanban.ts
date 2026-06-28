@@ -90,8 +90,8 @@ export const bdKanbanApi = {
 
 // ── Sales Kanban — same structure, different prefix ────────────────────────────
 export const salesKanbanApi = {
-  getBoard: async (): Promise<BoardResponse> => {
-    const { data } = await apiClient.get<BoardResponse>("/sales/kanban");
+  getBoard: async (source?: string): Promise<BoardResponse> => {
+    const { data } = await apiClient.get<BoardResponse>("/sales/kanban", { params: source ? { source } : undefined });
     return data;
   },
 
@@ -131,22 +131,22 @@ export const salesKanbanApi = {
   },
 
   // Metrics
-  getMetrics: async (year: number, month: number): Promise<KanbanMetrics> => {
+  getMetrics: async (year: number, month: number, source?: string): Promise<KanbanMetrics> => {
     const { data } = await apiClient.get<KanbanMetrics>("/sales/kanban/metrics", {
-      params: { year, month },
+      params: { year, month, source },
     });
     return data;
   },
 
   // Carry-over: copy expired Follow Up Admin cards into the next month
-  carryover: async (payload: { month: number; year: number }): Promise<{ copied: number }> => {
+  carryover: async (payload: { month: number; year: number; source?: string }): Promise<{ copied: number }> => {
     const { data } = await apiClient.post<{ copied: number }>("/sales/kanban/carryover", payload);
     return data;
   },
 
   // Leads dropdown for card creation
-  getLeads: async (): Promise<{ id: number; nama: string }[]> => {
-    const { data } = await apiClient.get<{ id: number; nama: string }[]>("/sales/kanban/leads");
+  getLeads: async (source?: string): Promise<{ id: number; nama: string }[]> => {
+    const { data } = await apiClient.get<{ id: number; nama: string }[]>("/sales/kanban/leads", { params: source ? { source } : undefined });
     return data;
   },
 

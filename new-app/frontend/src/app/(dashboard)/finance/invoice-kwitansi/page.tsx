@@ -74,15 +74,15 @@ const DESIGN_PACKAGE_NOTES: Record<string, { label: string; termin1Days: string;
   Basic: {
     label: "Paket Desain Basic",
     termin1Days: "4 Hari Kerja",
-    termin1Items: ["Desain 3D Eksterior/Fasad - 2 View", "Gambar Kerja 2D - Layout Eksisting", "Gambar Kerja 2D - Layout Perubahan"],
+    termin1Items: ["Desain 3D Eksterior/Fasad/Interior - 3 View", "Gambar Kerja 2D - Layout Eksisting", "Gambar Kerja 2D - Layout Perubahan"],
     termin2Days: "3 Hari Kerja",
-    termin2Items: ["Gambar Interior 3D", "RAB (Rencana Anggaran Biaya)"],
+    termin2Items: ["Gambar Kerja 2D", "RAB (Rencana Anggaran Biaya)"],
   },
   Standart: {
     label: "Paket Desain Standart",
     termin1Days: "7 Hari Kerja",
     termin1Items: [
-      "Desain 3D Eksterior/Fasad - 2 View",
+      "Desain 3D Eksterior/Fasad/Interior - 3 View",
       "Gambar Kerja 2D - Detail Fasad",
       "Gambar Kerja 2D - Layout Struktur Pondasi",
       "Gambar Kerja 2D - Layout Struktur Kolom",

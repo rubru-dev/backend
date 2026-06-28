@@ -20,11 +20,11 @@ const PACKAGES = {
     timeline: "4 - 7 Hari",
     termin1: {
       days: "4 Hari Kerja",
-      items: ["Desain 3D Eksterior/Fasad - 2 View", "Gambar Kerja 2D - Layout Eksisting", "Gambar Kerja 2D - Layout Perubahan"],
+      items: ["Desain 3D Eksterior/Fasad/Interior - 3 View", "Gambar Kerja 2D - Layout Eksisting", "Gambar Kerja 2D - Layout Perubahan"],
     },
     termin2: {
       days: "3 Hari Kerja",
-      items: ["Gambar Interior 3D", "RAB (Rencana Anggaran Biaya)"],
+      items: ["Gambar Kerja 2D", "RAB (Rencana Anggaran Biaya)"],
     },
   },
   "Paket Desain Standart": {
@@ -32,7 +32,7 @@ const PACKAGES = {
     termin1: {
       days: "7 Hari Kerja",
       items: [
-        "Desain 3D Eksterior/Fasad - 2 View",
+        "Desain 3D Eksterior/Fasad/Interior - 3 View",
         "Gambar Kerja 2D - Detail Fasad",
         "Gambar Kerja 2D - Layout Struktur Pondasi",
         "Gambar Kerja 2D - Layout Struktur Kolom",

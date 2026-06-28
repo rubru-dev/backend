@@ -1,3 +1,11 @@
+export function fileUrl(dbPath?: string | null) {
+  if (!dbPath) return "";
+  const token = typeof window !== "undefined" ? localStorage.getItem("fqc_token") || "" : "";
+  const subpath = dbPath.replace(/^\/uploads\//, "");
+  const base = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4003/api";
+  return `${base}/files/${subpath}${token ? `?t=${encodeURIComponent(token)}` : ""}`;
+}
+
 export function formatDate(dateStr?: string | null) {
   if (!dateStr) return "-";
   return new Date(dateStr).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });

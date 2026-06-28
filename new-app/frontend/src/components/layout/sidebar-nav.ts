@@ -123,7 +123,10 @@ export const NAV_GROUPS: NavGroup[] = [
     permission: "sales.view",
     roles: ["Sales"],
     items: [
-      { label: "Kanban Sales",      href: "/sales/kanban",          icon: "Kanban",        permission: "sales.kanban" },
+      { label: "Kanban Sales Rubru",      href: "/sales/kanban",             icon: "Kanban",        permission: "sales.kanban" },
+      { label: "Kanban Sales RKR",        href: "/sales/kanban-rkr",         icon: "Kanban",        permission: "sales.kanban" },
+      { label: "Kanban Sales Golden",     href: "/sales/kanban-golden",      icon: "Kanban",        permission: "sales.kanban" },
+      { label: "Kanban Sales Filter Air", href: "/sales/kanban-filter-air",  icon: "Kanban",        permission: "sales.kanban" },
       { label: "Laporan Harian",    href: "/sales/laporan-harian",  icon: "ClipboardList", permission: "sales.laporan_harian" },
       { label: "Addendum Kontrak",  href: "/sales/addendum",        icon: "FileSignature", permission: "sales.view" },
     ],

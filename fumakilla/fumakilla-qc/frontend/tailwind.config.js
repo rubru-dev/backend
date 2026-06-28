@@ -3,20 +3,14 @@ module.exports = {
   content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./hooks/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
   theme: {
     extend: {
-      fontFamily: { sans: ["IBM Plex Sans", "Arial", "sans-serif"] },
+      fontFamily: { sans: ["Inter", "Arial", "sans-serif"] },
       colors: {
-        accent: { DEFAULT: "#0F6E56", light: "#E1F5EE", dark: "#085041" },
-        pass: { DEFAULT: "#3B6D11", bg: "#EAF3DE" },
-        fail: { DEFAULT: "#A32D2D", bg: "#FCEBEB" },
-        hold: { DEFAULT: "#854F0B", bg: "#FAEEDA" },
-        info: { DEFAULT: "#185FA5", bg: "#E6F1FB" },
-        surface: "#f7f7f5",
-        bdr: "#e5e5e3",
-        tp: "#1a1a18",
-        ts: "#6b6b68",
-        tm: "#9d9d9a"
+        accent: { DEFAULT: "#285f90", light: "#e9f2ff", dark: "#03497a" },
+        pass: { DEFAULT: "#16713b", bg: "#dcf6e4" }, fail: { DEFAULT: "#ba1a1a", bg: "#ffdad6" }, hold: { DEFAULT: "#9a4f00", bg: "#ffdfbd" }, info: { DEFAULT: "#285f90", bg: "#d0e4ff" },
+        surface: "#f9f9ff", bdr: "#c1c6d5", tp: "#181c22", ts: "#5d6270", tm: "#8c92a0"
       },
-      borderRadius: { DEFAULT: "6px" }
+      borderRadius: { DEFAULT: "8px", lg: "12px", xl: "16px" },
+      boxShadow: { card: "0 8px 24px rgba(37, 50, 79, .08)" }
     }
   },
   plugins: []

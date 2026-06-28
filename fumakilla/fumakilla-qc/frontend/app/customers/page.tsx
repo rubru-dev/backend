@@ -1,0 +1,24 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import api from "@/lib/api";
+import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
+import { useAuth } from "@/hooks/useAuth";
+
+function DeleteCustomerModal({ customer, onClose, onDeleted }: { customer: any; onClose: () => void; onDeleted: () => void }) {
+  const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  const remove = async () => { setSaving(true); setError(""); try { await api.delete(`/erp/customers/${customer.id}`); onDeleted(); } catch (requestError: any) { setError(requestError.response?.data?.error || "Customer gagal dihapus."); } finally { setSaving(false); } };
+  return <Modal open title="Hapus customer" tone="danger" onClose={onClose}><div className="space-y-5"><div><p className="text-base font-bold">Hapus {customer.name}?</p><p className="mt-2 text-sm text-red-100">Inquiry, quotation, survey, file, dan data lain yang terhubung ke customer ini juga akan terhapus permanen.</p></div>{error && <p className="text-sm font-medium text-red-200">{error}</p>}<div className="flex justify-end gap-3"><button className="danger-cancel" disabled={saving} onClick={onClose}>Batal</button><button className="danger-confirm" disabled={saving} onClick={remove}>{saving ? "Menghapus..." : "Ya, Hapus Customer"}</button></div></div></Modal>;
+}
+
+function NewCustomerModal({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
+  const [form, setForm] = useState({ name: "", company: "", email: "", phone: "" }); const [saving, setSaving] = useState(false); const [error, setError] = useState("");
+  const submit = async (event: React.FormEvent) => { event.preventDefault(); setSaving(true); setError(""); try { await api.post("/erp/customers", form); onSaved(); } catch (requestError: any) { setError(requestError.response?.data?.error || "Customer gagal disimpan."); } finally { setSaving(false); } };
+  return <Modal open title="Customer Baru" onClose={onClose}><form onSubmit={submit} className="space-y-4"><p className="text-sm text-ts">Data lengkap dapat dilanjutkan dari halaman detail customer.</p><label className="block text-sm font-semibold">Nama customer <span className="text-red-700">*</span><input className="mt-2" required value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} /></label><label className="block text-sm font-semibold">Perusahaan<input className="mt-2" value={form.company} onChange={(event) => setForm({ ...form, company: event.target.value })} /></label><label className="block text-sm font-semibold">Email<input className="mt-2" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} /></label><label className="block text-sm font-semibold">Telepon<input className="mt-2" value={form.phone} onChange={(event) => setForm({ ...form, phone: event.target.value })} /></label>{error && <p className="text-sm text-red-700">{error}</p>}<div className="flex justify-end gap-3"><button type="button" className="btn" onClick={onClose}>Batal</button><button className="btn btn-primary" disabled={saving}>{saving ? "Menyimpan..." : "Simpan Customer"}</button></div></form></Modal>;
+}
+
+export default function CustomersPage() {
+  const router = useRouter(); const { user } = useAuth(); const { data, loading, reload } = useGet<any>("/erp/customers?limit=100"); const [target, setTarget] = useState<any>(null); const [newOpen, setNewOpen] = useState(false); const admin = user?.role === "ADMIN";
+  return <div className="p-9"><PageTitle title="Data Customer" subtitle="Kelola profil pelanggan, treatment, agreement, PIC, dan informasi billing." actions={<button className="btn btn-primary" onClick={() => setNewOpen(true)}>+ Customer Baru</button>} /><div className="card mt-7 overflow-hidden">{loading ? <Loading /> : <table><thead><tr><th>Nama Customer</th><th>Nama Perusahaan</th><th>Alamat Treatment</th><th>Status</th><th>Segment</th>{admin && <th className="text-right">Aksi</th>}</tr></thead><tbody>{data?.data?.map((item: any) => <tr className="table-row" key={item.id} onClick={() => router.push(`/customers/${item.id}`)}><td><b className="text-accent">{item.name}</b><p className="mt-1 text-xs text-ts">{item.code}</p></td><td>{item.company || "-"}</td><td>{item.treatmentAddress || "-"}</td><td><Status value={item.status} /></td><td>{item.segment || "-"}</td>{admin && <td className="text-right"><button className="text-sm font-semibold text-red-700" onClick={(event) => { event.stopPropagation(); setTarget(item); }}>Hapus</button></td>}</tr>)}</tbody></table>}</div>{target && <DeleteCustomerModal customer={target} onClose={() => setTarget(null)} onDeleted={() => { setTarget(null); reload(); }} />}{newOpen && <NewCustomerModal onClose={() => setNewOpen(false)} onSaved={() => { setNewOpen(false); reload(); }} />}</div>;
+}

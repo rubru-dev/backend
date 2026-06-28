@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+
+<html class="light" lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Fumakilla Service Ops - Dashboard Operasional</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts: Inter -->
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "surface-container": "#ecedf7",
+                        "on-secondary-container": "#7a0c65",
+                        "inverse-on-surface": "#eff0fa",
+                        "on-tertiary-container": "#fffbff",
+                        "secondary-container": "#fe83d9",
+                        "on-secondary-fixed": "#3b002f",
+                        "on-primary-fixed": "#001d35",
+                        "surface-container-lowest": "#ffffff",
+                        "primary-fixed": "#d0e4ff",
+                        "outline": "#717785",
+                        "secondary-fixed-dim": "#ffade2",
+                        "on-tertiary-fixed-variant": "#4a4642",
+                        "error-container": "#ffdad6",
+                        "on-tertiary-fixed": "#1e1b18",
+                        "tertiary-fixed": "#e9e1db",
+                        "inverse-surface": "#2d3038",
+                        "error": "#ba1a1a",
+                        "tertiary": "#605b57",
+                        "surface": "#f9f9ff",
+                        "on-surface-variant": "#414753",
+                        "inverse-primary": "#9ccaff",
+                        "surface-dim": "#d8dae3",
+                        "surface-container-low": "#f2f3fd",
+                        "on-secondary-fixed-variant": "#81156b",
+                        "tertiary-fixed-dim": "#ccc5c0",
+                        "surface-variant": "#e0e2ec",
+                        "primary-fixed-dim": "#9ccaff",
+                        "on-error": "#ffffff",
+                        "surface-bright": "#f9f9ff",
+                        "tertiary-container": "#79746f",
+                        "surface-tint": "#2b6193",
+                        "secondary-fixed": "#ffd8ed",
+                        "primary-container": "#4478ab",
+                        "on-secondary": "#ffffff",
+                        "on-primary": "#ffffff",
+                        "on-error-container": "#93000a",
+                        "background": "#f9f9ff",
+                        "secondary": "#9e3284",
+                        "surface-container-highest": "#e0e2ec",
+                        "outline-variant": "#c1c6d5",
+                        "on-surface": "#181c22",
+                        "surface-container-high": "#e6e8f1",
+                        "on-tertiary": "#ffffff",
+                        "on-background": "#181c22",
+                        "on-primary-fixed-variant": "#03497a",
+                        "on-primary-container": "#fdfcff",
+                        "primary": "#285f90"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "xl": "32px",
+                        "xs": "4px",
+                        "sm": "8px",
+                        "lg": "24px",
+                        "md": "16px",
+                        "margin": "24px",
+                        "base": "8px",
+                        "gutter": "16px"
+                    },
+                    "fontFamily": {
+                        "label-md": ["Inter"],
+                        "body-lg": ["Inter"],
+                        "headline-lg": ["Inter"],
+                        "body-md": ["Inter"],
+                        "headline-md": ["Inter"]
+                    },
+                    "fontSize": {
+                        "label-md": ["12px", { "lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500" }],
+                        "body-lg": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "700" }],
+                        "body-md": ["14px", { "lineHeight": "20px", "fontWeight": "400" }],
+                        "headline-md": ["24px", { "lineHeight": "32px", "fontWeight": "600" }]
+                    }
+                },
+            },
+        }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; background-color: #f9f9ff; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            vertical-align: middle;
+        }
+        .sidebar-scroll::-webkit-scrollbar { width: 4px; }
+        .sidebar-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.1); border-radius: 10px; }
+        .card-shadow { box-shadow: 0px 4px 12px rgba(0,0,0,0.05); }
+    </style>
+</head>
+<body class="text-on-background bg-background overflow-x-hidden">
+<!-- SideNavBar (Authority: JSON) -->
+<aside class="hidden md:flex flex-col h-full p-md border-r border-outline-variant dark:border-outline bg-surface-container dark:bg-surface-dim h-screen w-64 fixed left-0 top-0 z-50">
+<div class="mb-xl px-sm">
+<h1 class="font-headline-sm text-headline-sm font-black text-primary dark:text-primary-fixed-dim">Fumakilla ERP</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Service Operations</p>
+</div>
+<nav class="flex-1 space-y-1 sidebar-scroll overflow-y-auto">
+<!-- Dashboard Active (Active State Logic applied) -->
+<a class="flex items-center gap-md px-md py-sm bg-primary-container text-on-primary-container font-bold rounded-lg scale-95 active:scale-90 transition-transform cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest dark:hover:bg-inverse-surface transition-all scale-95 active:scale-90 cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="font-label-md text-label-md">Customers</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest dark:hover:bg-inverse-surface transition-all scale-95 active:scale-90 cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="font-label-md text-label-md">Inquiries</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest dark:hover:bg-inverse-surface transition-all scale-95 active:scale-90 cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="assignment">assignment</span>
+<span class="font-label-md text-label-md">Surveys</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest dark:hover:bg-inverse-surface transition-all scale-95 active:scale-90 cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="description">description</span>
+<span class="font-label-md text-label-md">Quotations</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest dark:hover:bg-inverse-surface transition-all scale-95 active:scale-90 cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="contract">contract</span>
+<span class="font-label-md text-label-md">Agreements</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest dark:hover:bg-inverse-surface transition-all scale-95 active:scale-90 cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="history_toggle_off">history_toggle_off</span>
+<span class="font-label-md text-label-md">Renewals</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant dark:text-surface-variant hover:bg-surface-container-high hover:bg-surface-container-highest dark:hover:bg-inverse-surface transition-all scale-95 active:scale-90 cursor-pointer" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="font-label-md text-label-md">Admin Settings</span>
+</a>
+</nav>
+<div class="pt-md mt-md border-t border-outline-variant space-y-1">
+<a class="flex items-center gap-md px-md py-sm text-on-surface-variant hover:bg-surface-container-high transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="contact_support">contact_support</span>
+<span class="font-label-md text-label-md">Support</span>
+</a>
+<a class="flex items-center gap-md px-md py-sm text-error hover:bg-error-container transition-all" href="#">
+<span class="material-symbols-outlined" data-icon="logout">logout</span>
+<span class="font-label-md text-label-md">Sign Out</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Wrapper -->
+<main class="md:ml-64 min-h-screen flex flex-col">
+<!-- TopNavBar (Authority: JSON) -->
+<header class="flex justify-between items-center w-full px-lg py-sm sticky top-0 z-40 bg-surface-container-lowest dark:bg-inverse-surface shadow-sm dark:shadow-none">
+<div class="flex items-center flex-1">
+<div class="relative w-full max-w-md">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center text-outline">
+<span class="material-symbols-outlined" data-icon="search">search</span>
+</span>
+<input class="block w-full pl-10 pr-3 py-2 bg-surface-container-low border-none rounded-lg font-body-md text-body-md focus:ring-2 focus:ring-primary focus:bg-white transition-all" placeholder="Cari data, pelanggan, atau nomor" type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md ml-lg">
+<div class="flex items-center gap-sm text-on-surface-variant">
+<button class="p-2 rounded-full hover:bg-surface-container-low transition-colors cursor-pointer active:opacity-80">
+<span class="material-symbols-outlined" data-icon="help">help</span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-low transition-colors cursor-pointer active:opacity-80 relative">
+<span class="material-symbols-outlined" data-icon="notifications">notifications</span>
+<span class="absolute top-1.5 right-1.5 w-2 h-2 bg-error rounded-full"></span>
+</button>
+</div>
+<div class="h-8 w-px bg-outline-variant mx-sm"></div>
+<div class="flex items-center gap-sm cursor-pointer hover:bg-surface-container-low p-1 rounded-lg transition-colors">
+<img class="w-8 h-8 rounded-full object-cover border border-outline-variant" data-alt="A professional headshot of a corporate manager in a clean white office setting, wearing a navy blue blazer. The lighting is bright and high-key, matching a modern light-mode interface. The image captures a sense of reliability and expert leadership within a tech-forward corporate environment." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBt6bBU_vjg5CpSiRZzVe0UUUmQirJ8Dkxm-bzBlu8Vy7QUhXYs7t-NJRdOq96FTeQzCVky40s4o0wjSX_vK_GL_elLQrYk3S_QFqz6yqq9GAsTzIfj2KE4YHNukPxQRs-madou8iSZv4ZP23tQCgS-x6QjUYo-iuZ5qAk6jXhTPIiGJnDG3JCIEyFbwBCo2kYyR2kPRRiCq8Yn4if1wd2g8eSVpa66zRlLCqf4aPxrSo9MSYztW6_rHJ-_CKpaJEf4lMu-JdteB8Q"/>
+<div class="hidden sm:block text-right">
+<p class="font-label-md text-label-md text-primary font-bold">Admin Fumakilla</p>
+<p class="text-[10px] text-outline uppercase tracking-wider">Super Admin</p>
+</div>
+</div>
+</div>
+</header>
+<!-- Canvas Area -->
+<div class="p-lg md:p-xl flex-1 space-y-lg">
+<!-- Breadcrumbs & Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div>
+<nav class="flex text-outline text-[10px] font-bold tracking-widest uppercase mb-xs gap-1 items-center">
+<a class="hover:text-primary" href="#">DASHBOARD</a>
+<span class="material-symbols-outlined text-[14px]" data-icon="chevron_right">chevron_right</span>
+<span class="text-primary">DASHBOARD OPERASIONAL</span>
+</nav>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Dashboard Operasional</h2>
+<p class="text-on-surface-variant font-body-md text-body-md mt-1">Pantau aktivitas sales dan layanan Fumakilla secara terpusat.</p>
+</div>
+<button class="flex items-center gap-sm px-lg py-sm bg-primary text-white rounded-lg font-bold shadow-md hover:brightness-110 active:scale-95 transition-all">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+<span>Tambah Inquiry</span>
+</button>
+</div>
+<!-- Bento Metrics Grid -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-md">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest p-lg rounded-xl card-shadow border border-outline-variant/30 group hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-sm">
+<p class="text-[11px] font-bold text-outline tracking-wider uppercase">Inquiry Baru</p>
+<span class="material-symbols-outlined text-primary-container" data-icon="assignment_late">assignment_late</span>
+</div>
+<div class="flex items-baseline gap-xs">
+<span class="text-4xl font-black text-on-surface">0</span>
+<span class="text-on-surface-variant font-label-md">unit</span>
+</div>
+<p class="text-[12px] text-on-surface-variant mt-md flex items-center gap-1">
+<span class="text-primary font-bold">Perlu</span> ditindaklanjuti
+                    </p>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest p-lg rounded-xl card-shadow border border-outline-variant/30 group hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-sm">
+<p class="text-[11px] font-bold text-outline tracking-wider uppercase">Quotation Terkirim</p>
+<span class="material-symbols-outlined text-secondary" data-icon="outgoing_mail">outgoing_mail</span>
+</div>
+<div class="flex items-baseline gap-xs">
+<span class="text-4xl font-black text-on-surface">0</span>
+<span class="text-on-surface-variant font-label-md">dokumen</span>
+</div>
+<p class="text-[12px] text-on-surface-variant mt-md">
+                        Menunggu respons klien
+                    </p>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest p-lg rounded-xl card-shadow border border-outline-variant/30 group hover:border-primary/50 transition-colors">
+<div class="flex justify-between items-start mb-sm">
+<p class="text-[11px] font-bold text-outline tracking-wider uppercase">Survey Selesai</p>
+<span class="material-symbols-outlined text-tertiary" data-icon="task_alt">task_alt</span>
+</div>
+<div class="flex items-baseline gap-xs">
+<span class="text-4xl font-black text-on-surface">0</span>
+<span class="text-on-surface-variant font-label-md">lokasi</span>
+</div>
+<p class="text-[12px] text-on-surface-variant mt-md">
+                        Siap untuk penawaran
+                    </p>
+</div>
+<!-- Card 4: Productivity -->
+<div class="bg-surface-container-lowest p-lg rounded-xl card-shadow border border-outline-variant/30 bg-gradient-to-br from-white to-primary/5">
+<div class="flex justify-between items-start mb-sm">
+<p class="text-[11px] font-bold text-outline tracking-wider uppercase">Produktivitas Tim</p>
+<span class="material-symbols-outlined text-primary" data-icon="trending_up">trending_up</span>
+</div>
+<div class="flex items-baseline gap-xs">
+<span class="text-4xl font-black text-primary">92%</span>
+</div>
+<div class="w-full bg-surface-container mt-md h-1.5 rounded-full overflow-hidden">
+<div class="bg-primary h-full w-[92%] rounded-full shadow-[0_0_8px_rgba(40,95,144,0.4)]"></div>
+</div>
+<p class="text-[11px] text-outline mt-sm font-medium">Target Operasional: 100%</p>
+</div>
+</div>
+<!-- Main Interactive Section: Table & Activity -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+<!-- Table: Inquiry Terbaru -->
+<div class="lg:col-span-2 space-y-md">
+<div class="bg-surface-container-lowest rounded-xl card-shadow border border-outline-variant/30 overflow-hidden">
+<div class="p-md flex items-center justify-between border-b border-outline-variant/30">
+<h3 class="font-headline-md text-headline-md text-on-surface">Inquiry Terbaru</h3>
+<button class="text-primary text-[12px] font-bold hover:underline">Lihat Semua</button>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low text-outline text-[11px] font-bold uppercase tracking-wider">
+<th class="px-md py-3">Nomor</th>
+<th class="px-md py-3">Pelanggan</th>
+<th class="px-md py-3">Layanan</th>
+<th class="px-md py-3 text-center">Status</th>
+</tr>
+</thead>
+<tbody class="font-body-md text-body-md text-on-surface">
+<tr class="border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors">
+<td class="px-md py-4 font-bold text-primary">#INQ-20260624-001</td>
+<td class="px-md py-4">Test Client</td>
+<td class="px-md py-4">Pest Control</td>
+<td class="px-md py-4 text-center">
+<span class="px-3 py-1 bg-green-100 text-green-700 rounded-full text-[10px] font-black uppercase">Completed</span>
+</td>
+</tr>
+<!-- Empty states or more rows can be added here -->
+<tr class="border-b border-outline-variant/10 hover:bg-surface-container-low/50 transition-colors">
+<td class="px-md py-4 font-bold text-primary">#INQ-20260624-002</td>
+<td class="px-md py-4">PT Maju Mundur</td>
+<td class="px-md py-4">Termite Control</td>
+<td class="px-md py-4 text-center">
+<span class="px-3 py-1 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-[10px] font-black uppercase">Progress</span>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+</div>
+<!-- Visual Asset: Map Section -->
+<div class="bg-surface-container-lowest rounded-xl card-shadow border border-outline-variant/30 overflow-hidden relative min-h-[300px]">
+<div class="absolute top-md left-md z-10 bg-white/90 backdrop-blur-md p-md rounded-lg shadow-sm border border-outline-variant/20">
+<h4 class="font-bold text-on-surface">Cakupan Wilayah</h4>
+<p class="text-[12px] text-on-surface-variant">Operasional aktif di Jabodetabek &amp; Jawa Barat</p>
+</div>
+<div class="w-full h-[300px] bg-surface-variant/20 flex items-center justify-center grayscale-[0.5] opacity-80" data-alt="A clean, minimalist topographical map of a metropolitan city area featuring professional blue and white accents. The map shows simplified street layouts with subtle markers indicating service hubs. The visual style is modern, corporate, and integrates seamlessly into a high-end SaaS dashboard, utilizing soft shadows and a light-mode aesthetic." data-location="Jakarta, Indonesia" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuAdgUA3asLpgCql-Qt3z_HufoZ-uDmdE6ZYt1S1lcdlxE1P0C7jPwmRM0h-iLp_DFUstMPHxmsxzFAavmtxhF2YCAp3aRVe_CgQCr0EoLj5-ceIO1YQm8c6rGMRPSKYo-TorEz-EwQIMZS5s-9AELh4GXF32jAzXIOApzTXllngrzI6O8E15q1LkIhF3v-RAbloqUq_kVF4uzznPZs9l_T5dKOyVSlfV7CZTOBn8zO0SAY-QiQezSV36yW-Div-JtzC-e8L75cEn5E')">
+</div>
+</div>
+</div>
+<!-- Activity Feed: Aktivitas Terbaru -->
+<div class="lg:col-span-1">
+<div class="bg-surface-container-lowest rounded-xl card-shadow border border-outline-variant/30 h-full flex flex-col">
+<div class="p-md border-b border-outline-variant/30">
+<h3 class="font-headline-md text-headline-md text-on-surface">Aktivitas Terbaru</h3>
+</div>
+<div class="p-md space-y-lg flex-1 overflow-y-auto max-h-[600px] sidebar-scroll">
+<div class="relative pl-md border-l-2 border-primary-container">
+<div class="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-primary ring-4 ring-white"></div>
+<p class="text-body-md font-medium text-on-surface">Admin Fumakilla membuat inquiry <span class="font-bold text-primary">INQ-20260624-001</span></p>
+<p class="text-[11px] text-outline mt-1">24/6/2026, 22.59.22</p>
+</div>
+<div class="relative pl-md border-l-2 border-error/30">
+<div class="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-error ring-4 ring-white"></div>
+<p class="text-body-md font-medium text-on-surface">Admin Fumakilla menghapus inquiry <span class="font-bold text-on-surface">INQ-20260624-001</span></p>
+<p class="text-[11px] text-outline mt-1">24/6/2026, 22.59.13</p>
+</div>
+<div class="relative pl-md border-l-2 border-primary-container">
+<div class="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-primary ring-4 ring-white"></div>
+<p class="text-body-md font-medium text-on-surface">Admin Fumakilla membuat inquiry <span class="font-bold text-primary">INQ-20260624-001</span></p>
+<p class="text-[11px] text-outline mt-1">24/6/2026, 22.54.59</p>
+</div>
+<div class="relative pl-md border-l-2 border-error/30">
+<div class="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-error ring-4 ring-white"></div>
+<p class="text-body-md font-medium text-on-surface">Admin Fumakilla menghapus customer <span class="font-bold text-on-surface">PT Maju Mundur</span></p>
+<p class="text-[11px] text-outline mt-1">24/6/2026, 22.50.08</p>
+</div>
+<div class="relative pl-md border-l-2 border-outline-variant">
+<div class="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-outline ring-4 ring-white"></div>
+<p class="text-body-md font-medium text-on-surface">Sistem mendeteksi pembaruan data otomatis</p>
+<p class="text-[11px] text-outline mt-1">24/6/2026, 22.45.00</p>
+</div>
+<!-- Repeat items to fill space -->
+<div class="relative pl-md border-l-2 border-primary-container">
+<div class="absolute -left-[7px] top-0 w-3 h-3 rounded-full bg-primary ring-4 ring-white"></div>
+<p class="text-body-md font-medium text-on-surface">Admin Fumakilla menyetujui quotation <span class="font-bold text-primary">QUO-7781</span></p>
+<p class="text-[11px] text-outline mt-1">24/6/2026, 22.30.12</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Footer / Insight Banner (Authority: Global Visual Tokens) -->
+<footer class="mt-auto px-lg py-md bg-surface-container-low border-t border-outline-variant/20 flex flex-col md:flex-row justify-between items-center gap-md">
+<p class="text-[12px] text-on-surface-variant">© 2026 Fumakilla Service Operations System. All rights reserved.</p>
+<div class="flex items-center gap-lg">
+<div class="flex items-center gap-sm">
+<span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+<span class="text-[12px] font-medium text-on-surface-variant">Server Status: Optimal</span>
+</div>
+<div class="flex items-center gap-sm">
+<span class="material-symbols-outlined text-primary text-[18px]" data-icon="cloud_done">cloud_done</span>
+<span class="text-[12px] font-medium text-on-surface-variant">Data Synced</span>
+</div>
+</div>
+</footer>
+</main>
+<!-- Mobile BottomNavBar (Responsive Pivot Rule) -->
+<nav class="md:hidden fixed bottom-0 left-0 right-0 bg-surface-container-lowest border-t border-outline-variant flex justify-around items-center py-sm z-50 shadow-[0_-4px_12px_rgba(0,0,0,0.05)]">
+<a class="flex flex-col items-center gap-1 text-primary" href="#">
+<span class="material-symbols-outlined" data-icon="dashboard">dashboard</span>
+<span class="text-[10px] font-bold">Dashboard</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="group">group</span>
+<span class="text-[10px]">Client</span>
+</a>
+<div class="relative -top-6">
+<button class="w-12 h-12 bg-primary text-white rounded-full shadow-lg flex items-center justify-center">
+<span class="material-symbols-outlined" data-icon="add">add</span>
+</button>
+</div>
+<a class="flex flex-col items-center gap-1 text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="chat_bubble">chat_bubble</span>
+<span class="text-[10px]">Inquiry</span>
+</a>
+<a class="flex flex-col items-center gap-1 text-on-surface-variant" href="#">
+<span class="material-symbols-outlined" data-icon="settings">settings</span>
+<span class="text-[10px]">Admin</span>
+</a>
+</nav>
+<script>
+        // Simple Interaction logic
+        document.querySelectorAll('.active\\:scale-90').forEach(button => {
+            button.addEventListener('mousedown', () => {
+                button.classList.add('scale-90');
+            });
+            button.addEventListener('mouseup', () => {
+                button.classList.remove('scale-90');
+            });
+        });
+
+        // Search highlight effect
+        const searchInput = document.querySelector('input[type="text"]');
+        searchInput.addEventListener('focus', () => {
+            searchInput.parentElement.classList.add('ring-2', 'ring-primary');
+        });
+        searchInput.addEventListener('blur', () => {
+            searchInput.parentElement.classList.remove('ring-2', 'ring-primary');
+        });
+    </script>
+</body></html>

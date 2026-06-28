@@ -1,44 +1,78 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 
-export default function LoginPage() {
-  const router = useRouter();
-  const [email, setEmail] = useState("admin@fumakilla.co.id");
-  const [password, setPassword] = useState("fumakilla2026");
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const router = useRouter();
 
-  async function submit(e: FormEvent) {
-    e.preventDefault();
-    setLoading(true);
+  async function submit(event: React.FormEvent) {
+    event.preventDefault();
     setError("");
+    setLoading(true);
     try {
-      const res = await api.post("/auth/login", { email, password });
-      localStorage.setItem("fqc_token", res.data.token);
-      localStorage.setItem("fqc_user", JSON.stringify(res.data.user));
+      const { data } = await api.post("/auth/login", { email, password });
+      localStorage.setItem("fqc_token", data.token);
+      localStorage.setItem("fqc_user", JSON.stringify(data.user));
       router.push("/dashboard");
-    } catch (err: any) {
-      setError(err.response?.data?.error || "Login gagal");
+    } catch (requestError: any) {
+      setError(requestError.response?.data?.error || "Login gagal. Periksa kembali data Anda.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-surface p-6">
-      <form onSubmit={submit} className="card w-full max-w-sm p-6">
-        <div className="mb-6 text-center">
-          <div className="text-4xl font-bold text-accent">FQC</div>
-          <p className="mt-1 text-sm text-ts">Quality Control System - PT. Fumakilla Indonesia</p>
+    <main className="relative min-h-screen overflow-hidden bg-[#f9f9ff] p-5 lg:grid lg:grid-cols-[1.1fr_.9fr] lg:p-0">
+      <section className="relative hidden min-h-screen overflow-hidden bg-[#285f90] p-12 text-white lg:flex lg:flex-col lg:justify-between">
+        <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full border border-[#d0e4ff]/25" />
+        <div className="absolute bottom-[-150px] left-[-80px] h-96 w-96 rounded-full border border-[#d0e4ff]/20" />
+        <div className="relative">
+          <div className="flex items-center gap-3">
+            <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#d0e4ff] text-xl font-bold text-[#03497a]">F</span>
+            <div>
+              <p className="text-xl font-bold">Fumakilla ERP</p>
+              <p className="text-[11px] font-semibold tracking-[.16em] text-[#d0e4ff]">SERVICE OPERATIONS</p>
+            </div>
+          </div>
+          <div className="mt-24 max-w-lg">
+            <p className="text-xs font-bold tracking-[.18em] text-[#d0e4ff]">OPERATIONS CONTROL CENTER</p>
+            <h1 className="mt-5 text-5xl font-bold leading-tight">Satu tempat untuk operasional layanan yang lebih terukur.</h1>
+            <p className="mt-6 max-w-md text-base leading-7 text-white/75">Kelola inquiry, pelanggan, penawaran, renewal, jadwal survey, dan laporan tim dari satu sistem.</p>
+          </div>
         </div>
-        {error && <div className="mb-3 rounded bg-fail-bg p-3 text-sm text-fail">{error}</div>}
-        <div className="mb-3"><label>Email</label><input value={email} onChange={(e) => setEmail(e.target.value)} /></div>
-        <div className="mb-5"><label>Password</label><input type="password" value={password} onChange={(e) => setPassword(e.target.value)} /></div>
-        <button className="btn btn-primary w-full" disabled={loading}>{loading ? "Masuk..." : "Login"}</button>
-      </form>
+      </section>
+
+      <section className="flex min-h-[calc(100vh-40px)] items-center justify-center lg:min-h-screen lg:p-12">
+        <form onSubmit={submit} className="w-full max-w-md">
+          <div className="mb-10 lg:hidden">
+            <div className="flex items-center gap-3">
+              <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-xl font-bold text-white">F</span>
+              <div><p className="text-xl font-bold">Fumakilla ERP</p><p className="text-[11px] font-semibold tracking-[.16em] text-accent">SERVICE OPERATIONS</p></div>
+            </div>
+          </div>
+          <p className="text-xs font-bold tracking-[.16em] text-accent">SELAMAT DATANG</p>
+          <h2 className="mt-3 text-4xl font-bold tracking-tight">Masuk ke akun Anda</h2>
+          <p className="mt-3 text-sm leading-6 text-ts">Gunakan akun kerja Anda untuk mengakses sistem operasional Fumakilla.</p>
+
+          <div className="mt-8 space-y-5">
+            <label className="block text-sm font-semibold text-tp">Email kerja
+              <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" autoComplete="email" placeholder="nama@fumakilla.co.id" className="mt-2" required />
+            </label>
+            <label className="block text-sm font-semibold text-tp">Password
+              <input value={password} onChange={(event) => setPassword(event.target.value)} type="password" autoComplete="current-password" placeholder="Masukkan password" className="mt-2" required />
+            </label>
+            {error && <div role="alert" className="rounded-lg border border-red-200 bg-[#ffdad6] px-4 py-3 text-sm text-[#93000a]">{error}</div>}
+            <button disabled={loading} className="btn btn-primary w-full" type="submit">{loading ? "Memverifikasi..." : "Masuk ke aplikasi →"}</button>
+          </div>
+          <p className="mt-8 border-t border-bdr pt-5 text-center text-xs text-ts">Fumakilla ERP · Internal Service Operations</p>
+        </form>
+      </section>
     </main>
   );
 }

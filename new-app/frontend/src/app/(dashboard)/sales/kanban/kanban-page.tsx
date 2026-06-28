@@ -1,218 +1,130 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Printer, TrendingUp } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Printer, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/layout/page-header";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { SalesKanbanBoard } from "./kanban-board";
 import { salesKanbanApi } from "@/lib/api/kanban";
 import type { KanbanColumn } from "@/types";
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "Mei", "Jun", "Jul", "Agu", "Sep", "Okt", "Nov", "Des"];
+
 function formatRupiah(value: number): string {
-  return new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    maximumFractionDigits: 0,
-  }).format(value);
+  return new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(value);
 }
 
-export function SalesKanbanPage() {
+function dedupKey(card: NonNullable<KanbanColumn["cards"]>[number]) {
+  return card.lead ? `lead-${card.lead.id}-${card.projeksi_sales ?? 0}` : `card-${card.id}-${card.projeksi_sales ?? 0}`;
+}
+
+function sumProyeksiDedup(cards: KanbanColumn["cards"] = []) {
+  const seen = new Set<string>();
+  let total = 0;
+  for (const card of cards) {
+    if (card.projeksi_sales == null) continue;
+    const key = dedupKey(card);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    total += card.projeksi_sales;
+  }
+  return total;
+}
+
+function filterColumns(columns: KanbanColumn[], month: number | null, year: number) {
+  if (month === null) return columns;
+  return columns.map((col) => ({
+    ...col,
+    cards: (col.cards ?? []).filter((card) => {
+      if (!card.created_at) return false;
+      const d = new Date(card.created_at);
+      return d.getMonth() + 1 === month && d.getFullYear() === year;
+    }),
+  }));
+}
+
+type SalesKanbanPageProps = {
+  source?: "rubru" | "rkr" | "golden" | "filter-air";
+  title?: string;
+  summaryTitle?: string;
+  description?: string;
+};
+
+export function SalesKanbanPage({
+  source = "rubru",
+  title = "Kanban Sales Rubru",
+  summaryTitle = "Summary Sales Rubru",
+  description = "Pipeline sales Rubru - drag, custom warna, tambah kolom & kartu, proyeksi sales",
+}: SalesKanbanPageProps) {
   const [pdfLoading, setPdfLoading] = useState(false);
+  const now = new Date();
+  const [filterMonth, setFilterMonth] = useState<number | null>(null);
+  const [filterYear, setFilterYear] = useState(now.getFullYear());
 
   const { data, isLoading, refetch, isFetching } = useQuery({
-    queryKey: ["/sales/kanban"],
-    queryFn: () => salesKanbanApi.getBoard(),
+    queryKey: ["/sales/kanban", source],
+    queryFn: () => salesKanbanApi.getBoard(source),
     staleTime: 30_000,
   });
 
-  const columns: KanbanColumn[] = data?.columns ?? [];
+  const allColumns = data?.columns ?? [];
+  const columns = useMemo(() => filterColumns(allColumns, filterMonth, filterYear), [allColumns, filterMonth, filterYear]);
 
-  // ── Compute metrics from board data ───────────────────────────────────────
-  // Deduplicate by (lead.id, projeksi_sales) — same lead+same value counts once
-  function sumProyeksiDedup(cards: KanbanColumn["cards"]): number {
-    const seen = new Set<string>();
-    let total = 0;
-    for (const card of cards ?? []) {
-      if (card.projeksi_sales == null) continue;
-      const key = card.lead ? `lead-${card.lead.id}-${card.projeksi_sales}` : `card-${card.id}-${card.projeksi_sales}`;
-      if (!seen.has(key)) { seen.add(key); total += card.projeksi_sales; }
+  const stats = useMemo(() => {
+    const byColumn = columns.map((col) => ({
+      id: col.id,
+      title: col.title,
+      color: col.color ?? "#94a3b8",
+      count: col.cards?.length ?? 0,
+      total: sumProyeksiDedup(col.cards ?? []),
+      cards: col.cards ?? [],
+    }));
+    const closing = byColumn.find((c) => c.title === "Closing");
+    const lost = byColumn.find((c) => c.title === "Lost");
+    return {
+      byColumn,
+      totalCards: byColumn.reduce((sum, col) => sum + col.count, 0),
+      closingTotal: closing?.total ?? 0,
+      closingCount: closing?.count ?? 0,
+      lostTotal: lost?.total ?? 0,
+      lostCount: lost?.count ?? 0,
+    };
+  }, [columns]);
+
+  const monthlyData = useMemo(() => {
+    const buckets = new Map<string, { key: string; label: string; closing: number; lost: number; lostCount: number; w1: number; w2: number; w3: number; w4: number }>();
+    for (const col of allColumns) {
+      for (const card of col.cards ?? []) {
+        if (!card.created_at) continue;
+        const d = new Date(card.created_at);
+        if (Number.isNaN(d.getTime())) continue;
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+        const bucket = buckets.get(key) ?? { key, label: `${MONTHS[d.getMonth()]} ${d.getFullYear()}`, closing: 0, lost: 0, lostCount: 0, w1: 0, w2: 0, w3: 0, w4: 0 };
+        const value = card.projeksi_sales ?? 0;
+        if (col.title === "Closing") bucket.closing += value;
+        if (col.title === "Lost") { bucket.lost += value; bucket.lostCount += 1; }
+        if (col.title === "W1") bucket.w1 += 1;
+        if (col.title === "W2") bucket.w2 += 1;
+        if (col.title === "W3") bucket.w3 += 1;
+        if (col.title === "W4") bucket.w4 += 1;
+        buckets.set(key, bucket);
+      }
     }
-    return total;
-  }
+    return Array.from(buckets.values()).sort((a, b) => a.key.localeCompare(b.key));
+  }, [allColumns]);
 
-  const closingCol = columns.find((c) => c.title === "Closing");
-  const lostCol = columns.find((c) => c.title === "Lost");
-  const totalProyeksiClosing = sumProyeksiDedup(closingCol?.cards);
-  const totalProyeksiLost = sumProyeksiDedup(lostCol?.cards);
+  const filteredMonthLabel = filterMonth === null ? "Semua bulan" : `${MONTHS[filterMonth - 1]} ${filterYear}`;
 
-  // ── Closing per bulan (group by created_at) ────────────────────────────────
-  const MONTH_NAMES = [
-    "Jan", "Feb", "Mar", "Apr", "Mei", "Jun",
-    "Jul", "Agu", "Sep", "Okt", "Nov", "Des",
-  ];
-  function sumProyeksiByMonth(cards: KanbanColumn["cards"]): { key: string; label: string; total: number; count: number }[] {
-    const buckets = new Map<string, { label: string; total: number; count: number; seen: Set<string> }>();
-    for (const card of cards ?? []) {
-      if (!card.created_at) continue;
-      const d = new Date(card.created_at);
-      if (isNaN(d.getTime())) continue;
-      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-      const label = `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`;
-      let bucket = buckets.get(key);
-      if (!bucket) { bucket = { label, total: 0, count: 0, seen: new Set() }; buckets.set(key, bucket); }
-      bucket.count += 1;
-      if (card.projeksi_sales == null) continue;
-      const dedupKey = card.lead ? `lead-${card.lead.id}-${card.projeksi_sales}` : `card-${card.id}-${card.projeksi_sales}`;
-      if (bucket.seen.has(dedupKey)) continue;
-      bucket.seen.add(dedupKey);
-      bucket.total += card.projeksi_sales;
-    }
-    return Array.from(buckets.entries())
-      .sort(([a], [b]) => b.localeCompare(a))
-      .map(([key, b]) => ({ key, label: b.label, total: b.total, count: b.count }));
-  }
-  const closingPerBulan = sumProyeksiByMonth(closingCol?.cards);
-  const now = new Date();
-  const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-  const closingBulanIni = closingPerBulan.find((m) => m.key === currentMonthKey);
-
-  const colStats = columns.map((col) => ({
-    id: col.id,
-    title: col.title,
-    color: col.color ?? "#e2e8f0",
-    count: col.cards?.length ?? 0,
-    proyeksi: (col.cards ?? []).reduce((s, c) => s + (c.projeksi_sales ?? 0), 0),
-    cards: col.cards ?? [],
-  }));
-
-  // ── PDF ────────────────────────────────────────────────────────────────────
   async function handlePrint() {
     setPdfLoading(true);
     try {
-      const fmt = formatRupiah;
-      const now = new Date();
-
-      const columnSections = colStats.map((col) => {
-        const cardRows = col.cards.map((card, i) => `
-          <tr>
-            <td class="num" style="width:28px">${i + 1}</td>
-            <td>
-              <strong>${card.title}</strong>
-              ${card.description ? `<br/><span style="color:#64748b;font-size:10px">${card.description.slice(0, 120)}${card.description.length > 120 ? "..." : ""}</span>` : ""}
-            </td>
-            <td>${card.deadline ?? "—"}</td>
-            <td class="num">${card.projeksi_sales != null ? fmt(card.projeksi_sales) : "—"}</td>
-          </tr>`).join("");
-
-        return `
-        <div class="section">
-          <div class="section-title" style="border-left:4px solid ${col.color};padding-left:8px">
-            ${col.title}
-            <span style="font-weight:400;color:#64748b"> — ${col.count} kartu</span>
-            ${col.proyeksi > 0 ? `&nbsp;|&nbsp;<span style="color:#16a34a">${fmt(col.proyeksi)}</span>` : ""}
-          </div>
-          ${col.cards.length > 0 ? `
-          <table>
-            <thead>
-              <tr>
-                <th class="num">#</th>
-                <th>Judul / Deskripsi</th>
-                <th>Deadline</th>
-                <th class="num">Proyeksi Sales</th>
-              </tr>
-            </thead>
-            <tbody>${cardRows}</tbody>
-          </table>` : `<p style="color:#94a3b8;font-size:11px;padding:6px 0">Tidak ada kartu</p>`}
-        </div>`;
-      }).join("");
-
-      const html = `<!DOCTYPE html>
-<html lang="id">
-<head>
-  <meta charset="UTF-8"/>
-  <title>Laporan Kanban Sales</title>
-  <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Segoe UI', Arial, sans-serif; font-size: 12px; color: #1a1a1a; background: #fff; padding: 24px 32px; }
-    h1 { font-size: 20px; font-weight: 700; color: #1e293b; margin-bottom: 2px; }
-    .subtitle { font-size: 12px; color: #64748b; margin-bottom: 4px; }
-    .meta { font-size: 11px; color: #94a3b8; margin-bottom: 24px; }
-    .section { margin-bottom: 24px; }
-    .section-title { font-size: 13px; font-weight: 700; color: #334155; border-bottom: 2px solid #e2e8f0; padding-bottom: 6px; margin-bottom: 10px; }
-    .cards-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 20px; }
-    .card { border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px 14px; background: #f8fafc; }
-    .card-label { font-size: 10px; color: #64748b; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-    .card-value { font-size: 20px; font-weight: 700; color: #1e293b; }
-    .card-value-green { font-size: 14px; font-weight: 700; color: #16a34a; }
-    table { width: 100%; border-collapse: collapse; font-size: 11px; margin-top: 4px; }
-    th { background: #f1f5f9; text-align: left; padding: 7px 10px; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; }
-    td { padding: 6px 10px; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
-    tr:last-child td { border-bottom: none; }
-    .num { text-align: right; font-variant-numeric: tabular-nums; }
-    .footer { margin-top: 32px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #94a3b8; display: flex; justify-content: space-between; }
-    /* Letterhead */
-    .letterhead { display: flex; align-items: center; gap: 16px; margin-bottom: 10px; }
-    .letterhead-logo { height: 64px; width: auto; object-fit: contain; flex-shrink: 0; }
-    .letterhead-info { flex: 1; }
-    .company-name { font-size: 15px; font-weight: 700; color: #1e293b; letter-spacing: 0.02em; text-transform: uppercase; }
-    .company-detail { font-size: 11px; color: #475569; margin-top: 2px; line-height: 1.5; }
-    .letterhead-divider { border: none; border-top: 2px solid #1e293b; margin: 10px 0 16px; }
-    @media print {
-      body { padding: 16px 20px; }
-      .cards-row { grid-template-columns: repeat(4, 1fr); }
-    }
-  </style>
-</head>
-<body>
-  <!-- Letterhead -->
-  <div class="letterhead">
-    <img src="${window.location.origin}/images/logo.png" alt="Logo" class="letterhead-logo" onerror="this.style.display='none'"/>
-    <div class="letterhead-info">
-      <div class="company-name">PT. Rubah Rumah Inovasi Pemuda</div>
-      <div class="company-detail">Telp: 081376405550</div>
-      <div class="company-detail">Jl. Pandu II No.420. Sepanjang Jaya. Kec. Rawalumbu. Kota Bekasi. Jawa Barat 17116</div>
-    </div>
-  </div>
-  <hr class="letterhead-divider"/>
-
-  <!-- Header -->
-  <div class="section">
-    <h1>Laporan Kanban Sales</h1>
-    <div class="subtitle">Pipeline sales — proyeksi per kolom</div>
-    <div class="meta">Dibuat: ${now.toLocaleDateString("id-ID", { weekday: "long", year: "numeric", month: "long", day: "numeric", hour: "2-digit", minute: "2-digit" })}</div>
-  </div>
-
-  <!-- Ringkasan -->
-  <div class="section">
-    <div class="section-title">Ringkasan</div>
-    <div class="cards-row" style="grid-template-columns: repeat(2, 1fr)">
-      <div class="card">
-        <div class="card-label">Total Proyek Sales (Closing)</div>
-        <div class="card-value-green">${fmt(totalProyeksiClosing)}</div>
-      </div>
-      <div class="card">
-        <div class="card-label">Total Lost Proyeksi Sales</div>
-        <div class="card-value" style="color:#ef4444">${fmt(totalProyeksiLost)}</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Per Kolom -->
-  ${columnSections}
-
-  <div class="footer">
-    <span>PT. Rubah Rumah Inovasi Pemuda — Laporan Kanban Sales</span>
-    <span>Dibuat otomatis oleh sistem</span>
-  </div>
-
-  <script>window.onload = function() { window.print(); }</script>
-</body>
-</html>`;
-
+      const html = `<!doctype html><html><head><title>${title}</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:20px}.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.card{border:1px solid #ddd;padding:12px;border-radius:8px}table{width:100%;border-collapse:collapse;margin-top:16px}td,th{border-bottom:1px solid #eee;padding:8px;text-align:left}.num{text-align:right}</style></head><body><h1>${summaryTitle}</h1><p>Filter: ${filteredMonthLabel}</p><div class="grid"><div class="card">Total Kartu<br><b>${stats.totalCards}</b></div><div class="card">Closing<br><b>${formatRupiah(stats.closingTotal)}</b></div><div class="card">Lost<br><b>${formatRupiah(stats.lostTotal)}</b></div></div><table><thead><tr><th>Kolom</th><th class="num">Kartu</th><th class="num">Proyeksi</th></tr></thead><tbody>${stats.byColumn.map((c) => `<tr><td>${c.title}</td><td class="num">${c.count}</td><td class="num">${formatRupiah(c.total)}</td></tr>`).join("")}</tbody></table><script>window.onload=function(){window.print()}</script></body></html>`;
       const w = window.open("", "_blank", "width=900,height=700");
-      if (!w) { alert("Popup diblokir. Izinkan popup untuk halaman ini."); return; }
+      if (!w) return alert("Popup diblokir. Izinkan popup untuk halaman ini.");
       w.document.write(html);
       w.document.close();
     } finally {
@@ -223,8 +135,8 @@ export function SalesKanbanPage() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Kanban Sales"
-        description="Pipeline sales — drag, custom warna, tambah kolom & kartu, proyeksi sales"
+        title={title}
+        description={description}
         actions={
           <div className="flex gap-2">
             <Button variant="outline" size="sm" onClick={handlePrint} disabled={pdfLoading || isLoading}>
@@ -238,91 +150,97 @@ export function SalesKanbanPage() {
         }
       />
 
-      {/* ── Metrics Summary ── */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Total Proyek Sales (Closing)</p>
-            <p className="text-lg font-bold mt-1 text-emerald-600">{formatRupiah(totalProyeksiClosing)}</p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">Akumulasi semua bulan</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">
-              Closing {MONTH_NAMES[now.getMonth()]} {now.getFullYear()}
-            </p>
-            <p className="text-lg font-bold mt-1 text-emerald-600">
-              {formatRupiah(closingBulanIni?.total ?? 0)}
-            </p>
-            <p className="text-[10px] text-muted-foreground mt-0.5">
-              {closingBulanIni?.count ?? 0} kartu bulan ini
-            </p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="pt-4 pb-3">
-            <p className="text-xs text-muted-foreground">Total Lost Proyeksi Sales</p>
-            <p className="text-lg font-bold mt-1 text-red-500">{formatRupiah(totalProyeksiLost)}</p>
-          </CardContent>
-        </Card>
-      </div>
+      <Tabs defaultValue="kanban" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="kanban">Kanban</TabsTrigger>
+          <TabsTrigger value="summary">{summaryTitle}</TabsTrigger>
+        </TabsList>
 
-      {/* ── Closing per bulan breakdown ── */}
-      {closingPerBulan.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-xs font-medium text-muted-foreground">Closing per Bulan</p>
-          <div className="flex flex-wrap gap-2">
-            {closingPerBulan.map((m) => (
-              <div
-                key={m.key}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm bg-card ${
-                  m.key === currentMonthKey ? "border-emerald-400 bg-emerald-50" : ""
-                }`}
-                style={{ borderLeftColor: "#10b981", borderLeftWidth: 3 }}
-              >
-                <span className="font-medium text-xs">{m.label}</span>
-                <span className="text-muted-foreground text-xs">{m.count} kartu</span>
-                {m.total > 0 && (
-                  <span className="text-emerald-600 font-semibold text-xs flex items-center gap-1">
-                    <TrendingUp className="h-3 w-3" />
-                    {formatRupiah(m.total)}
-                  </span>
-                )}
-              </div>
-            ))}
+        <TabsContent value="kanban" className="space-y-4">
+          <SalesKanbanBoard
+            initialColumns={allColumns}
+            isLoading={isLoading}
+            onRefresh={refetch}
+            source={source}
+            filterMonth={filterMonth}
+            filterYear={filterYear}
+            onFilterMonthChange={setFilterMonth}
+            onFilterYearChange={setFilterYear}
+          />
+        </TabsContent>
+
+        <TabsContent value="summary" className="space-y-4">
+          <div className="text-sm text-muted-foreground">Filter aktif: {filteredMonthLabel}</div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Total Kartu</p><p className="text-2xl font-bold">{stats.totalCards}</p></CardContent></Card>
+            <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Total Proyek Sales</p><p className="text-lg font-bold text-emerald-600">{formatRupiah(stats.byColumn.reduce((s, c) => s + c.total, 0))}</p></CardContent></Card>
+            <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Closing {filterMonth ? filteredMonthLabel : "Semua Bulan"}</p><p className="text-lg font-bold text-emerald-600">{formatRupiah(stats.closingTotal)}</p><p className="text-[10px] text-muted-foreground">{stats.closingCount} kartu</p></CardContent></Card>
+            <Card><CardContent className="pt-4"><p className="text-xs text-muted-foreground">Total Lost</p><p className="text-lg font-bold text-red-500">{formatRupiah(stats.lostTotal)}</p><p className="text-[10px] text-muted-foreground">{stats.lostCount} kartu</p></CardContent></Card>
           </div>
-        </div>
-      )}
 
-      {/* ── Per-column proyeksi breakdown ── */}
-      {colStats.some((c) => c.proyeksi > 0) && (
-        <div className="flex flex-wrap gap-2">
-          {colStats.filter((c) => c.count > 0).map((col) => (
-            <div
-              key={col.id}
-              className="flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm bg-card"
-              style={{ borderLeftColor: col.color, borderLeftWidth: 3 }}
-            >
-              <span className="font-medium text-xs">{col.title}</span>
-              <span className="text-muted-foreground text-xs">{col.count} kartu</span>
-              {col.proyeksi > 0 && (
-                <span className="text-emerald-600 font-semibold text-xs flex items-center gap-1">
-                  <TrendingUp className="h-3 w-3" />
-                  {formatRupiah(col.proyeksi)}
-                </span>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Total Sales dari Bulan ke Bulan</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <LineChart data={monthlyData} margin={{ top: 8, right: 12, left: 8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} tickFormatter={(v) => `${Number(v) / 1000000}jt`} />
+                    <Tooltip formatter={(v) => formatRupiah(Number(v))} />
+                    <Line type="monotone" dataKey="closing" name="Closing" stroke="#10b981" strokeWidth={2} dot={false} />
+                    <Line type="monotone" dataKey="lost" name="Lost" stroke="#ef4444" strokeWidth={2} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader><CardTitle className="text-sm">Perbandingan W1, W2, W3, W4 dan Lost per Bulan</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={260}>
+                  <BarChart data={monthlyData} margin={{ top: 8, right: 12, left: -8, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                    <XAxis dataKey="label" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} allowDecimals={false} />
+                    <Tooltip />
+                    <Bar dataKey="w1" name="W1" fill="#3b82f6" />
+                    <Bar dataKey="w2" name="W2" fill="#22c55e" />
+                    <Bar dataKey="w3" name="W3" fill="#eab308" />
+                    <Bar dataKey="w4" name="W4" fill="#f97316" />
+                    <Bar dataKey="lostCount" name="Lost" fill="#ef4444" />
+                  </BarChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          </div>
 
-      {/* ── Board ── */}
-      <SalesKanbanBoard
-        initialColumns={data?.columns ?? []}
-        isLoading={isLoading}
-        onRefresh={refetch}
-      />
+          <Card>
+            <CardHeader><CardTitle className="text-sm">Summary per Kartu dari Filter</CardTitle></CardHeader>
+            <CardContent className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {stats.byColumn.map((col) => (
+                <div key={col.id} className="rounded-md border p-3" style={{ borderLeft: `4px solid ${col.color}` }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-medium">{col.title}</p>
+                    <span className="text-xs text-muted-foreground">{col.count} kartu</span>
+                  </div>
+                  <p className="mt-1 text-sm font-semibold text-emerald-600">{formatRupiah(col.total)}</p>
+                  <div className="mt-3 space-y-2">
+                    {col.cards.length ? col.cards.map((card) => (
+                      <div key={card.id} className="rounded border bg-slate-50 px-2 py-1.5 text-xs">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="font-medium leading-snug">{card.lead?.nama ?? card.title}</span>
+                          <span className="shrink-0 font-semibold text-emerald-600">{formatRupiah(card.projeksi_sales ?? 0)}</span>
+                        </div>
+                        {card.created_at && <p className="mt-0.5 text-[10px] text-muted-foreground">{new Date(card.created_at).toLocaleDateString("id-ID")}</p>}
+                      </div>
+                    )) : <p className="text-xs text-muted-foreground">Tidak ada kartu pada filter ini.</p>}
+                  </div>
+                </div>
+              ))}
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

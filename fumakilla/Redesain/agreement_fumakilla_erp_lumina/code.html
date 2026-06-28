@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Daftar Agreement | Fumakilla ERP</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-background": "#181c22",
+                    "inverse-primary": "#9ccaff",
+                    "outline-variant": "#c1c6d5",
+                    "on-surface-variant": "#414753",
+                    "on-secondary": "#ffffff",
+                    "inverse-on-surface": "#eff0fa",
+                    "background": "#f9f9ff",
+                    "on-tertiary-fixed-variant": "#4a4642",
+                    "surface-container-high": "#e6e8f1",
+                    "on-tertiary": "#ffffff",
+                    "outline": "#717785",
+                    "on-tertiary-container": "#fffbff",
+                    "on-secondary-fixed-variant": "#81156b",
+                    "tertiary-container": "#79746f",
+                    "surface-container-highest": "#e0e2ec",
+                    "on-error": "#ffffff",
+                    "secondary-fixed-dim": "#ffade2",
+                    "on-secondary-container": "#7a0c65",
+                    "error-container": "#ffdad6",
+                    "on-primary-fixed": "#001d35",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-fixed": "#d0e4ff",
+                    "primary": "#285f90",
+                    "on-primary": "#ffffff",
+                    "surface": "#f9f9ff",
+                    "on-surface": "#181c22",
+                    "on-secondary-fixed": "#3b002f",
+                    "on-error-container": "#93000a",
+                    "surface-variant": "#e0e2ec",
+                    "secondary": "#9e3284",
+                    "surface-tint": "#2b6193",
+                    "on-primary-container": "#fdfcff",
+                    "on-primary-fixed-variant": "#03497a",
+                    "primary-fixed-dim": "#9ccaff",
+                    "on-tertiary-fixed": "#1e1b18",
+                    "tertiary-fixed-dim": "#ccc5c0",
+                    "surface-container-low": "#f2f3fd",
+                    "error": "#ba1a1a",
+                    "secondary-fixed": "#ffd8ed",
+                    "tertiary": "#605b57",
+                    "surface-bright": "#f9f9ff",
+                    "surface-dim": "#d8dae3",
+                    "secondary-container": "#fe83d9",
+                    "inverse-surface": "#2d3038",
+                    "primary-container": "#4478ab",
+                    "tertiary-fixed": "#e9e1db",
+                    "surface-container": "#ecedf7"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xl": "32px",
+                    "md": "16px",
+                    "lg": "24px",
+                    "xs": "4px",
+                    "margin": "24px",
+                    "base": "8px",
+                    "sm": "8px",
+                    "gutter": "16px"
+            },
+            "fontFamily": {
+                    "headline-md": ["Inter"],
+                    "label-md": ["Inter"],
+                    "body-md": ["Inter"],
+                    "body-lg": ["Inter"],
+                    "headline-lg": ["Inter"]
+            },
+            "fontSize": {
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                    "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                    "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        .sidebar-item-active {
+            background-color: #4478ab; /* primary-container fallback */
+            color: #fdfcff;
+        }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #f1f1f1; }
+        ::-webkit-scrollbar-thumb { background: #c1c6d5; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex overflow-hidden">
+<!-- SideNavBar (Shared Component) -->
+<aside class="h-screen w-64 fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant flex flex-col p-md space-y-base z-50">
+<div class="flex items-center space-x-3 px-2 py-4 mb-4">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">pest_control</span>
+</div>
+<div>
+<h1 class="font-headline-md text-headline-md text-primary leading-tight">Service Operations</h1>
+<p class="font-label-md text-label-md text-on-surface-variant">Admin Console</p>
+</div>
+</div>
+<button class="bg-secondary text-on-secondary py-3 px-4 rounded-xl font-bold flex items-center justify-center space-x-2 shadow-sm hover:opacity-90 transition-all mb-6">
+<span class="material-symbols-outlined">add</span>
+<span>New Service Order</span>
+</button>
+<nav class="flex-1 space-y-1">
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-md text-label-md">Dashboard</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-md text-label-md">Customers</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">support_agent</span>
+<span class="font-label-md text-label-md">Inquiries</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors duration-150" href="#">
+<span class="material-symbols-outlined">assignment_turned_in</span>
+<span class="font-label-md text-label-md">Surveys</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 bg-primary-container text-on-primary-container font-bold rounded-lg transition-colors duration-150" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">request_quote</span>
+<span class="font-label-md text-label-md">Quotations</span>
+</a>
+</nav>
+<div class="pt-4 border-t border-outline-variant space-y-1">
+<a class="flex items-center space-x-3 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="font-label-md text-label-md">Settings</span>
+</a>
+<a class="flex items-center space-x-3 px-4 py-3 text-error hover:bg-error-container rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="font-label-md text-label-md">Logout</span>
+</a>
+</div>
+</aside>
+<!-- Main Content Canvas -->
+<main class="flex-1 ml-64 min-h-screen flex flex-col">
+<!-- TopAppBar (Shared Component) -->
+<header class="flex justify-between items-center w-full px-lg h-16 sticky top-0 z-40 bg-surface-bright shadow-sm">
+<div class="flex items-center space-x-8">
+<span class="text-headline-md font-headline-md font-bold text-primary">Fumakilla ERP</span>
+<div class="relative hidden lg:block">
+<span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="pl-10 pr-4 py-2 bg-surface-container-low border-none rounded-full w-64 focus:ring-2 focus:ring-primary transition-all text-body-md" placeholder="Cari agreement..." type="text"/>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+<button class="w-10 h-10 flex items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+<div class="h-8 w-px bg-outline-variant mx-2"></div>
+<div class="flex items-center space-x-3 pl-2">
+<img class="w-9 h-9 rounded-full object-cover border border-primary-container" data-alt="A professional corporate headshot of a service manager in a crisp blue shirt, set against a clean, out-of-focus modern office background. The lighting is bright and professional, following the Lumina Digital tech-forward aesthetic with subtle cool tones and sharp focus." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDH89ER2_J9a2m3YYJ72r7XIOgyM_NtSnyEe2NcG-hod9DPwIIgiCaXS0_MfpOIqi1WVxV2cUQVKKUsSAzNphHYkR4YvsSRWPFTOQScJtLNKd3l3EgpfsJfbJ5F7lsebsmDH8g5oQYfCNxT2ifydXNXqZmgVmWikO7_-12irtlM77eEbVrpC0jxqAyUXA664RJumnd1CekYZXldVBvSDYcvCKcJXjcF91hkSw-54uLtoPsOsT-4yMXpYtto0HFJCMKpXrJQYB5iqSo"/>
+<span class="font-label-md text-label-md font-semibold text-on-background hidden sm:block">Admin Service</span>
+</div>
+</div>
+</header>
+<!-- Content Area -->
+<section class="p-lg space-y-lg flex-1 overflow-y-auto">
+<!-- Page Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+<div>
+<nav class="flex items-center space-x-2 text-label-md text-outline mb-2">
+<span>Management</span>
+<span class="material-symbols-outlined text-[12px]">chevron_right</span>
+<span class="text-primary font-bold">Daftar Agreement</span>
+</nav>
+<h2 class="font-headline-lg text-headline-lg text-on-background">Daftar Agreement</h2>
+<p class="text-body-md text-on-surface-variant">Kelola kontrak dan persetujuan layanan pelanggan secara real-time.</p>
+</div>
+<div class="flex items-center space-x-base">
+<button class="flex items-center space-x-2 px-4 py-2 rounded-lg border border-outline-variant text-primary font-semibold hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[20px]">download</span>
+<span class="text-label-md">Export PDF</span>
+</button>
+<button class="flex items-center space-x-2 px-4 py-2 rounded-lg bg-primary text-on-primary font-semibold hover:bg-primary-container transition-colors shadow-sm">
+<span class="material-symbols-outlined text-[20px]">add_circle</span>
+<span class="text-label-md">Tambah Agreement</span>
+</button>
+</div>
+</div>
+<!-- Dashboard Stats / Filter Row (Asymmetric Layout) -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-gutter">
+<div class="md:col-span-8 glass-card rounded-xl p-6 shadow-sm flex flex-wrap items-center gap-6">
+<div class="flex flex-col">
+<span class="text-label-md text-outline uppercase tracking-wider mb-1">Total Aktif</span>
+<span class="text-headline-md font-bold text-primary">1,284</span>
+</div>
+<div class="h-10 w-px bg-outline-variant"></div>
+<div class="flex flex-col">
+<span class="text-label-md text-outline uppercase tracking-wider mb-1">Expiring Soon</span>
+<span class="text-headline-md font-bold text-secondary">42</span>
+</div>
+<div class="h-10 w-px bg-outline-variant"></div>
+<div class="flex-1 min-w-[200px]">
+<label class="text-label-md font-semibold text-on-surface-variant block mb-2">Filter Service Type</label>
+<select class="w-full bg-surface-container-low border-none rounded-lg text-body-md focus:ring-2 focus:ring-primary py-2 px-3">
+<option>All Services</option>
+<option>Pest Control</option>
+<option>Termite Treatment</option>
+<option>Disinfection</option>
+<option>Air Purification</option>
+</select>
+</div>
+</div>
+<div class="md:col-span-4 bg-primary rounded-xl p-6 shadow-md text-on-primary relative overflow-hidden flex flex-col justify-center">
+<div class="relative z-10">
+<h3 class="text-label-md font-bold uppercase tracking-widest opacity-80 mb-1">Retention Rate</h3>
+<div class="flex items-baseline space-x-2">
+<span class="text-[40px] font-bold">94.2%</span>
+<span class="text-primary-fixed-dim flex items-center font-bold text-label-md">
+<span class="material-symbols-outlined text-[16px]">arrow_upward</span>
+                                2.1%
+                            </span>
+</div>
+</div>
+<div class="absolute -right-4 -bottom-4 opacity-20 transform rotate-12">
+<span class="material-symbols-outlined text-[120px]">verified_user</span>
+</div>
+</div>
+</div>
+<!-- Main Table Card -->
+<div class="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low border-b border-outline-variant">
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Agreement No</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Customer Name</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Service Type</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Period (Start/End)</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Status</th>
+<th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-center">Actions</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant">
+<!-- Row 1: Active -->
+<tr class="hover:bg-surface-container-low transition-colors group">
+<td class="px-6 py-4">
+<span class="font-bold text-primary text-body-md">AGR/2023/1024</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-bold text-on-surface text-body-md">PT. Digital Solusi Pratama</span>
+<span class="text-label-md text-outline">Jakarta South</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-label-md font-semibold">Pest Control</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center space-x-2 text-body-md text-on-surface-variant">
+<span>01 Jan 2024</span>
+<span class="material-symbols-outlined text-[14px]">arrow_right_alt</span>
+<span>31 Dec 2024</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="inline-flex items-center space-x-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+<span class="text-label-md font-bold uppercase">Active</span>
+</div>
+</td>
+<td class="px-6 py-4 text-center">
+<button class="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 2: Expiring Soon -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4">
+<span class="font-bold text-primary text-body-md">AGR/2023/0988</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-bold text-on-surface text-body-md">Grand Mirage Hotel</span>
+<span class="text-label-md text-outline">Bali</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 bg-secondary-fixed text-on-secondary-fixed-variant rounded-full text-label-md font-semibold">Termite Control</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center space-x-2 text-body-md text-on-surface-variant">
+<span>15 May 2023</span>
+<span class="material-symbols-outlined text-[14px]">arrow_right_alt</span>
+<span class="text-error font-bold">14 May 2024</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="inline-flex items-center space-x-2 px-3 py-1 bg-amber-50 text-amber-700 rounded-full border border-amber-100">
+<div class="w-1.5 h-1.5 rounded-full bg-amber-500"></div>
+<span class="text-label-md font-bold uppercase">Expiring Soon</span>
+</div>
+</td>
+<td class="px-6 py-4 text-center">
+<button class="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 3: Active -->
+<tr class="hover:bg-surface-container-low transition-colors">
+<td class="px-6 py-4">
+<span class="font-bold text-primary text-body-md">AGR/2023/1105</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-bold text-on-surface text-body-md">Logistics Hub West</span>
+<span class="text-label-md text-outline">Tangerang</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 bg-tertiary-fixed text-on-tertiary-fixed-variant rounded-full text-label-md font-semibold">Disinfection</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center space-x-2 text-body-md text-on-surface-variant">
+<span>20 Oct 2023</span>
+<span class="material-symbols-outlined text-[14px]">arrow_right_alt</span>
+<span>19 Oct 2024</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="inline-flex items-center space-x-2 px-3 py-1 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+<div class="w-1.5 h-1.5 rounded-full bg-emerald-500"></div>
+<span class="text-label-md font-bold uppercase">Active</span>
+</div>
+</td>
+<td class="px-6 py-4 text-center">
+<button class="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+<!-- Row 4: Terminated -->
+<tr class="hover:bg-surface-container-low transition-colors bg-surface-container-lowest opacity-70">
+<td class="px-6 py-4">
+<span class="font-bold text-outline text-body-md line-through">AGR/2022/0541</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex flex-col">
+<span class="font-bold text-on-surface-variant text-body-md">Bakery Corner Mall</span>
+<span class="text-label-md text-outline">Jakarta Center</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="px-3 py-1 bg-surface-variant text-on-surface-variant rounded-full text-label-md font-semibold">Food Safety</span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center space-x-2 text-body-md text-outline">
+<span>05 Feb 2022</span>
+<span class="material-symbols-outlined text-[14px]">arrow_right_alt</span>
+<span>04 Feb 2023</span>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="inline-flex items-center space-x-2 px-3 py-1 bg-error-container text-error rounded-full border border-error-container">
+<div class="w-1.5 h-1.5 rounded-full bg-error"></div>
+<span class="text-label-md font-bold uppercase">Terminated</span>
+</div>
+</td>
+<td class="px-6 py-4 text-center">
+<button class="p-2 rounded-full hover:bg-surface-container-high text-on-surface-variant">
+<span class="material-symbols-outlined">more_vert</span>
+</button>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<!-- Pagination -->
+<div class="bg-surface-container-low px-6 py-4 flex items-center justify-between border-t border-outline-variant">
+<span class="text-body-md text-on-surface-variant">Menampilkan <span class="font-bold">1-10</span> dari <span class="font-bold">1,284</span> agreement</span>
+<div class="flex items-center space-x-2">
+<button class="p-2 rounded-lg border border-outline-variant text-outline hover:bg-white transition-colors disabled:opacity-50" disabled="">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-10 h-10 rounded-lg bg-primary text-on-primary font-bold shadow-sm">1</button>
+<button class="w-10 h-10 rounded-lg text-on-surface-variant hover:bg-white transition-colors">2</button>
+<button class="w-10 h-10 rounded-lg text-on-surface-variant hover:bg-white transition-colors">3</button>
+<button class="p-2 rounded-lg border border-outline-variant text-outline hover:bg-white transition-colors">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Floating Quick Actions (Asymmetric Card) -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-gutter">
+<div class="lg:col-span-1 glass-card rounded-xl p-6 border-l-4 border-l-primary flex items-start space-x-4">
+<div class="bg-primary-fixed p-3 rounded-lg text-primary">
+<span class="material-symbols-outlined">info</span>
+</div>
+<div>
+<h4 class="font-bold text-on-background mb-1">Contract Guide</h4>
+<p class="text-body-md text-on-surface-variant">Read the latest standard operating procedure for Fumakilla 2024 agreements.</p>
+<a class="text-primary font-bold text-label-md mt-2 inline-block hover:underline" href="#">View Document →</a>
+</div>
+</div>
+<div class="lg:col-span-2 relative h-40 rounded-xl overflow-hidden shadow-sm group">
+<div class="absolute inset-0 bg-cover bg-center group-hover:scale-105 transition-transform duration-700" data-alt="A futuristic, high-tech industrial facility with a sleek clean aesthetic, featuring robotic disinfection units and glowing blue accent lighting. The environment is impeccably clean, representing the high standard of Fumakilla's professional service operations in a modern light-mode corporate setting." style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuBvbOIal2XMuQ8X08Z5LXfkagQXPJ2EcNWayutU50d9SuKYk5Q65cZVnGEoiPdEYTsOQruhFRSReXOs7Mu6d4q3SoAFd9dLYb69A0XICiZekpGVxMfFABw05BDLqLqxKOxGk9ZRi1r-u0RZfjZpcfKtZCpzxlWQKVGMDn77bxLqcqEvQdGGar3wr7TLkJ3t7gXruli9U2GL7N4ZHVWMVga4HJIgGWEQycYkq-JdtKLmYkmuScywnKyWuerkI4P_T2lSOFFXiQaWX8A')"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-primary/80 to-transparent flex items-center px-8">
+<div class="text-on-primary max-w-sm">
+<h3 class="font-headline-md text-headline-md mb-2">Advance Scheduling</h3>
+<p class="text-body-md opacity-90">Implement dynamic routing and AI-driven service frequency for better compliance.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</main>
+<!-- Contextual FAB (Only on Dashboard/Main Screens) -->
+<button class="fixed bottom-8 right-8 w-16 h-16 rounded-full bg-primary text-on-primary shadow-xl flex items-center justify-center hover:scale-110 active:scale-95 transition-all z-50 group">
+<span class="material-symbols-outlined text-[32px]">add</span>
+<span class="absolute right-full mr-4 bg-on-surface text-surface px-4 py-2 rounded-lg text-label-md opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap shadow-lg">Buat Draft Kontrak</span>
+</button>
+<script>
+        // Simple Micro-interaction: Row Hover effect highlighting
+        document.querySelectorAll('tbody tr').forEach(row => {
+            row.addEventListener('mouseenter', () => {
+                row.style.cursor = 'pointer';
+            });
+        });
+
+        // Search Bar Focus Effect
+        const searchInput = document.querySelector('input[type="text"]');
+        searchInput.addEventListener('focus', () => {
+            searchInput.classList.add('w-80');
+        });
+        searchInput.addEventListener('blur', () => {
+            searchInput.classList.remove('w-80');
+        });
+    </script>
+</body></html>

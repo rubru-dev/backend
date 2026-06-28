@@ -1,0 +1,458 @@
+<!DOCTYPE html>
+
+<html lang="id"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Manajemen Renewal | Fumakilla ERP</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Inter', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.8);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #c1c6d5; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #717785; }
+    </style>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-background": "#181c22",
+                      "inverse-primary": "#9ccaff",
+                      "outline-variant": "#c1c6d5",
+                      "on-surface-variant": "#414753",
+                      "on-secondary": "#ffffff",
+                      "inverse-on-surface": "#eff0fa",
+                      "background": "#f9f9ff",
+                      "on-tertiary-fixed-variant": "#4a4642",
+                      "surface-container-high": "#e6e8f1",
+                      "on-tertiary": "#ffffff",
+                      "outline": "#717785",
+                      "on-tertiary-container": "#fffbff",
+                      "on-secondary-fixed-variant": "#81156b",
+                      "tertiary-container": "#79746f",
+                      "surface-container-highest": "#e0e2ec",
+                      "on-error": "#ffffff",
+                      "secondary-fixed-dim": "#ffade2",
+                      "on-secondary-container": "#7a0c65",
+                      "error-container": "#ffdad6",
+                      "on-primary-fixed": "#001d35",
+                      "surface-container-lowest": "#ffffff",
+                      "primary-fixed": "#d0e4ff",
+                      "primary": "#285f90",
+                      "on-primary": "#ffffff",
+                      "surface": "#f9f9ff",
+                      "on-surface": "#181c22",
+                      "on-secondary-fixed": "#3b002f",
+                      "on-error-container": "#93000a",
+                      "surface-variant": "#e0e2ec",
+                      "secondary": "#9e3284",
+                      "surface-tint": "#2b6193",
+                      "on-primary-container": "#fdfcff",
+                      "on-primary-fixed-variant": "#03497a",
+                      "primary-fixed-dim": "#9ccaff",
+                      "on-tertiary-fixed": "#1e1b18",
+                      "tertiary-fixed-dim": "#ccc5c0",
+                      "surface-container-low": "#f2f3fd",
+                      "error": "#ba1a1a",
+                      "secondary-fixed": "#ffd8ed",
+                      "tertiary": "#605b57",
+                      "surface-bright": "#f9f9ff",
+                      "surface-dim": "#d8dae3",
+                      "secondary-container": "#fe83d9",
+                      "inverse-surface": "#2d3038",
+                      "primary-container": "#4478ab",
+                      "tertiary-fixed": "#e9e1db",
+                      "surface-container": "#ecedf7"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "xl": "32px",
+                      "md": "16px",
+                      "lg": "24px",
+                      "xs": "4px",
+                      "margin": "24px",
+                      "base": "8px",
+                      "sm": "8px",
+                      "gutter": "16px"
+              },
+              "fontFamily": {
+                      "headline-md": ["Inter"],
+                      "label-md": ["Inter"],
+                      "body-md": ["Inter"],
+                      "body-lg": ["Inter"],
+                      "headline-lg": ["Inter"]
+              },
+              "fontSize": {
+                      "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                      "label-md": ["12px", {"lineHeight": "16px", "letterSpacing": "0.5px", "fontWeight": "500"}],
+                      "body-md": ["14px", {"lineHeight": "20px", "fontWeight": "400"}],
+                      "body-lg": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                      "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}]
+              }
+            },
+          },
+        }
+    </script>
+</head>
+<body class="bg-background text-on-background min-h-screen flex">
+<!-- SideNavBar -->
+<aside class="hidden md:flex flex-col h-screen w-64 fixed left-0 top-0 bg-surface-container-low border-r border-outline-variant z-40 transition-colors duration-150">
+<div class="p-md space-y-base flex flex-col h-full">
+<div class="flex items-center gap-base px-xs py-md">
+<div class="w-10 h-10 rounded-lg bg-primary flex items-center justify-center text-on-primary">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">pest_control</span>
+</div>
+<div>
+<h1 class="font-headline-md text-label-md font-bold text-primary leading-tight">Service Operations</h1>
+<p class="text-[10px] text-on-surface-variant uppercase tracking-widest font-bold">Admin Console</p>
+</div>
+</div>
+<div class="mt-lg space-y-xs flex-1">
+<a class="flex items-center gap-md px-md py-base text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px]">dashboard</span>
+<span class="font-label-md">Dashboard</span>
+</a>
+<a class="flex items-center gap-md px-md py-base bg-primary-container text-on-primary-container font-bold rounded-lg transition-colors" href="#">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">assignment_turned_in</span>
+<span class="font-label-md">Manajemen Renewal</span>
+</a>
+<a class="flex items-center gap-md px-md py-base text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px]">group</span>
+<span class="font-label-md">Customers</span>
+</a>
+<a class="flex items-center gap-md px-md py-base text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px]">support_agent</span>
+<span class="font-label-md">Inquiries</span>
+</a>
+<a class="flex items-center gap-md px-md py-base text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px]">request_quote</span>
+<span class="font-label-md">Quotations</span>
+</a>
+</div>
+<button class="w-full py-md bg-secondary text-on-secondary rounded-xl font-bold flex items-center justify-center gap-base shadow-sm hover:opacity-90 transition-opacity">
+<span class="material-symbols-outlined">add</span>
+<span class="font-label-md">New Service Order</span>
+</button>
+<div class="pt-md border-t border-outline-variant space-y-xs">
+<a class="flex items-center gap-md px-md py-base text-on-surface-variant hover:bg-surface-container-high rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+<span class="font-label-md">Settings</span>
+</a>
+<a class="flex items-center gap-md px-md py-base text-error hover:bg-error-container/30 rounded-lg transition-colors group" href="#">
+<span class="material-symbols-outlined text-[20px]">logout</span>
+<span class="font-label-md">Logout</span>
+</a>
+</div>
+</div>
+</aside>
+<!-- Main Content Area -->
+<main class="flex-1 md:ml-64 flex flex-col min-h-screen overflow-hidden">
+<!-- TopNavBar -->
+<header class="flex justify-between items-center w-full px-lg h-16 sticky top-0 z-50 bg-surface-bright shadow-sm transition-all duration-200 ease-in-out">
+<div class="flex items-center gap-lg">
+<div class="md:hidden">
+<span class="material-symbols-outlined text-on-surface">menu</span>
+</div>
+<div class="relative group hidden sm:block">
+<span class="material-symbols-outlined absolute left-md top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="pl-xl pr-md py-xs bg-surface-container-low border-none rounded-full w-64 focus:ring-2 focus:ring-primary/20 text-body-md" placeholder="Cari kontrak atau klien..." type="text"/>
+</div>
+</div>
+<div class="flex items-center gap-md">
+<button class="p-xs hover:bg-surface-container-high rounded-full relative">
+<span class="material-symbols-outlined text-on-surface-variant">notifications</span>
+<span class="absolute top-1 right-1 w-2 h-2 bg-error rounded-full"></span>
+</button>
+<button class="p-xs hover:bg-surface-container-high rounded-full">
+<span class="material-symbols-outlined text-on-surface-variant">help</span>
+</button>
+<div class="h-8 w-[1px] bg-outline-variant mx-xs"></div>
+<div class="flex items-center gap-base cursor-pointer hover:bg-surface-container-low p-xs rounded-lg transition-colors">
+<img class="w-8 h-8 rounded-full object-cover" data-alt="A professional headshot of a middle-aged male corporate executive in a modern office. He is wearing a crisp white shirt and a blue blazer, smiling warmly at the camera. The background shows a soft-focus, brightly lit office interior with modern furniture and neutral tones, aligning with a high-end corporate ERP aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuANQ3eEvh9ZG3idJtmi4akznNUVHidVElV2Q9WCQK3NQ4xPTomcmlmD133OV14vFhAnCJofayCACwr0ffZIshACe6PJo7jFmPEa8Bdn-YvtGvzG2qAoy0nOFJ2gqv5kAJfvxsu8BV_gRkzBCY1DJP_0IfMPFC4YT5fGyQx-bXy2-qK9m9sIqCFChPReOmyh8kiaV5xdTCZfYa_O7gfsy5Um1mJhmowJVL3HslZKVbtFAU3vgXpbVdOsl9nDLXlfAOuYNksZe4ZsoMA"/>
+<span class="font-label-md hidden lg:block">Budi Santoso</span>
+</div>
+</div>
+</header>
+<!-- Canvas -->
+<div class="p-lg space-y-lg flex-1 overflow-y-auto">
+<!-- Header Section -->
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-md">
+<div>
+<h2 class="font-headline-lg text-headline-lg text-on-surface">Manajemen Renewal</h2>
+<p class="text-body-md text-on-surface-variant mt-xs">Pantau dan kelola perpanjangan kontrak layanan Fumakilla secara efisien.</p>
+</div>
+<div class="flex items-center gap-sm bg-surface-container-high p-xs rounded-xl self-start">
+<button class="px-md py-base font-label-md bg-surface-container-lowest text-primary shadow-sm rounded-lg">Critical Renewals</button>
+<button class="px-md py-base font-label-md text-on-surface-variant hover:text-on-surface transition-colors">Awaiting Action</button>
+<button class="px-md py-base font-label-md text-on-surface-variant hover:text-on-surface transition-colors">Completed</button>
+</div>
+</div>
+<!-- Bento Stats -->
+<div class="grid grid-cols-1 md:grid-cols-4 gap-md">
+<div class="md:col-span-2 glass-card rounded-xl p-lg relative overflow-hidden flex flex-col justify-between min-h-[160px]">
+
+<div class="relative z-10">
+<span class="px-md py-xs bg-error-container text-on-error-container rounded-full text-[10px] font-bold uppercase tracking-wider">H-3 Months Alert</span>
+<h3 class="text-headline-md font-headline-md mt-md">24 Kontrak Kritis</h3>
+<p class="text-body-md text-on-surface-variant">Membutuhkan perhatian segera sebelum masa berlaku habis.</p>
+</div>
+<div class="relative z-10 flex justify-end">
+<button class="flex items-center gap-xs text-primary font-bold hover:underline">
+                            Lihat Semua <span class="material-symbols-outlined">arrow_forward</span>
+</button>
+</div>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-lg flex flex-col justify-between">
+<div>
+<span class="material-symbols-outlined text-secondary">pending_actions</span>
+<h4 class="text-label-md text-on-surface-variant mt-sm">Menunggu Tindakan</h4>
+</div>
+<p class="text-headline-md font-headline-md">15</p>
+</div>
+<div class="bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-lg flex flex-col justify-between">
+<div>
+<span class="material-symbols-outlined text-primary">task_alt</span>
+<h4 class="text-label-md text-on-surface-variant mt-sm">Selesai Bulan Ini</h4>
+</div>
+<p class="text-headline-md font-headline-md">48</p>
+</div>
+</div>
+<!-- Main Table Section -->
+<section class="bg-surface-container-lowest rounded-2xl shadow-sm overflow-hidden border border-outline-variant/20">
+<div class="p-lg border-b border-outline-variant/30 flex flex-col md:flex-row md:items-center justify-between gap-md">
+<div class="flex items-center gap-md">
+<h3 class="font-headline-md text-body-lg font-bold">Daftar Kontrak Mendatang</h3>
+<span class="px-base py-xs bg-primary-container text-on-primary-container rounded text-[11px] font-bold">24 TOTAL</span>
+</div>
+<div class="flex items-center gap-base">
+<div class="flex items-center gap-xs px-md py-base border border-outline-variant rounded-lg text-body-md cursor-pointer hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">filter_list</span>
+<span>Filter</span>
+</div>
+<div class="flex items-center gap-xs px-md py-base border border-outline-variant rounded-lg text-body-md cursor-pointer hover:bg-surface-container-low transition-colors">
+<span class="material-symbols-outlined text-[18px]">download</span>
+<span>Export</span>
+</div>
+</div>
+</div>
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="bg-surface-container-low/50">
+<th class="px-lg py-md text-label-md text-on-surface-variant font-bold uppercase tracking-wider">Klien / Perusahaan</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant font-bold uppercase tracking-wider">Layanan</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant font-bold uppercase tracking-wider">Masa Berlaku</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant font-bold uppercase tracking-wider">Status</th>
+<th class="px-lg py-md text-label-md text-on-surface-variant font-bold uppercase tracking-wider text-right">Aksi Cepat</th>
+</tr>
+</thead>
+<tbody class="divide-y divide-outline-variant/20">
+<!-- Row 1 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-lg py-lg">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-primary font-bold">PT</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">PT. Indah Makmur Sejahtera</p>
+<p class="text-label-md text-on-surface-variant">ID: FUMA-2023-089</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex flex-col gap-xs">
+<span class="px-base py-xs bg-secondary-fixed text-on-secondary-fixed-variant rounded text-[10px] font-bold w-fit uppercase">Pest Control</span>
+<p class="text-body-md">Annual Maintenance Gold</p>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex flex-col">
+<p class="text-body-md font-bold text-error">15 Okt 2024</p>
+<p class="text-label-md text-on-surface-variant">Tersisa 14 Hari</p>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex items-center gap-xs">
+<span class="w-2 h-2 rounded-full bg-error animate-pulse"></span>
+<span class="font-label-md text-error font-bold uppercase">Critical</span>
+</div>
+</td>
+<td class="px-lg py-lg text-right">
+<div class="flex items-center justify-end gap-base">
+<button class="p-base hover:bg-surface-container-high rounded-lg text-primary transition-colors flex items-center gap-xs" title="Send Notification">
+<span class="material-symbols-outlined text-[20px]">mail</span>
+<span class="hidden xl:inline text-label-md">Kirim Notif</span>
+</button>
+<button class="p-base bg-primary text-on-primary rounded-lg shadow-sm hover:opacity-90 transition-opacity flex items-center gap-xs">
+<span class="material-symbols-outlined text-[20px]">description</span>
+<span class="hidden xl:inline text-label-md">Draft Agreement</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 2 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-lg py-lg">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-primary font-bold">BB</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Bank BCA TBK</p>
+<p class="text-label-md text-on-surface-variant">ID: FUMA-2023-112</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex flex-col gap-xs">
+<span class="px-base py-xs bg-tertiary-fixed text-on-tertiary-fixed-variant rounded text-[10px] font-bold w-fit uppercase">Hygiene Service</span>
+<p class="text-body-md">Office Sanitation Package</p>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex flex-col">
+<p class="text-body-md font-bold text-on-surface">22 Nov 2024</p>
+<p class="text-label-md text-on-surface-variant">Tersisa 52 Hari</p>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex items-center gap-xs">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+<span class="font-label-md text-secondary font-bold uppercase">Pending</span>
+</div>
+</td>
+<td class="px-lg py-lg text-right">
+<div class="flex items-center justify-end gap-base">
+<button class="p-base hover:bg-surface-container-high rounded-lg text-primary transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined text-[20px]">mail</span>
+<span class="hidden xl:inline text-label-md">Kirim Notif</span>
+</button>
+<button class="p-base bg-primary text-on-primary rounded-lg shadow-sm hover:opacity-90 transition-opacity flex items-center gap-xs">
+<span class="material-symbols-outlined text-[20px]">description</span>
+<span class="hidden xl:inline text-label-md">Draft Agreement</span>
+</button>
+</div>
+</td>
+</tr>
+<!-- Row 3 -->
+<tr class="hover:bg-surface-container-low/30 transition-colors">
+<td class="px-lg py-lg">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full bg-surface-container-highest flex items-center justify-center text-primary font-bold">HM</div>
+<div>
+<p class="font-body-md font-bold text-on-surface">Hotel Mulia Jakarta</p>
+<p class="text-label-md text-on-surface-variant">ID: FUMA-2023-005</p>
+</div>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex flex-col gap-xs">
+<span class="px-base py-xs bg-secondary-fixed text-on-secondary-fixed-variant rounded text-[10px] font-bold w-fit uppercase">Pest Control</span>
+<p class="text-body-md">Luxury Hospitality Care</p>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex flex-col">
+<p class="text-body-md font-bold text-on-surface">10 Jan 2025</p>
+<p class="text-label-md text-on-surface-variant">Tersisa 101 Hari</p>
+</div>
+</td>
+<td class="px-lg py-lg">
+<div class="flex items-center gap-xs">
+<span class="w-2 h-2 rounded-full bg-outline-variant"></span>
+<span class="font-label-md text-on-surface-variant font-bold uppercase">Upcoming</span>
+</div>
+</td>
+<td class="px-lg py-lg text-right">
+<div class="flex items-center justify-end gap-base">
+<button class="p-base hover:bg-surface-container-high rounded-lg text-primary transition-colors flex items-center gap-xs">
+<span class="material-symbols-outlined text-[20px]">mail</span>
+<span class="hidden xl:inline text-label-md">Kirim Notif</span>
+</button>
+<button class="p-base bg-surface-container-highest text-on-surface-variant rounded-lg cursor-not-allowed flex items-center gap-xs opacity-50">
+<span class="material-symbols-outlined text-[20px]">description</span>
+<span class="hidden xl:inline text-label-md">Draft Agreement</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-md bg-surface-container-low/30 border-t border-outline-variant/30 flex items-center justify-between">
+<p class="text-label-md text-on-surface-variant">Menampilkan 1-10 dari 24 kontrak</p>
+<div class="flex items-center gap-xs">
+<button class="p-xs hover:bg-surface-container-high rounded border border-outline-variant/30">
+<span class="material-symbols-outlined">chevron_left</span>
+</button>
+<button class="w-8 h-8 flex items-center justify-center bg-primary text-on-primary rounded font-bold text-label-md">1</button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-surface-container-high rounded text-label-md">2</button>
+<button class="w-8 h-8 flex items-center justify-center hover:bg-surface-container-high rounded text-label-md">3</button>
+<button class="p-xs hover:bg-surface-container-high rounded border border-outline-variant/30">
+<span class="material-symbols-outlined">chevron_right</span>
+</button>
+</div>
+</div>
+</section>
+</div>
+<!-- FAB for Quick Search (Contextual to Home/Dashboard) -->
+<button class="fixed bottom-lg right-lg w-14 h-14 bg-primary text-on-primary rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform z-[60] md:hidden" id="quick-action-fab">
+<span class="material-symbols-outlined">add</span>
+</button>
+</main>
+<!-- Bottom Navigation for Mobile -->
+<nav class="md:hidden fixed bottom-0 left-0 w-full bg-surface-bright shadow-[0_-2px_10px_rgba(0,0,0,0.05)] z-50 flex items-center justify-around h-16">
+<a class="flex flex-col items-center gap-xs text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="text-[10px] font-bold">Home</span>
+</a>
+<a class="flex flex-col items-center gap-xs text-primary" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">assignment_turned_in</span>
+<span class="text-[10px] font-bold">Renewals</span>
+</a>
+<a class="flex flex-col items-center gap-xs text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="text-[10px] font-bold">Clients</span>
+</a>
+<a class="flex flex-col items-center gap-xs text-on-surface-variant" href="#">
+<span class="material-symbols-outlined">person</span>
+<span class="text-[10px] font-bold">Profile</span>
+</a>
+</nav>
+<script>
+        // Simple Micro-interaction for hover states and button feedback
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('click', function(e) {
+                if (this.disabled) return;
+                const ripple = document.createElement('div');
+                ripple.classList.add('ripple');
+                this.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 600);
+            });
+        });
+
+        // Toggle mobile sidebar (mock functionality)
+        const menuBtn = document.querySelector('.material-symbols-outlined[textContent="menu"]');
+        if (menuBtn) {
+            menuBtn.addEventListener('click', () => {
+                alert('Mobile Sidebar Navigation Triggered');
+            });
+        }
+    </script>
+</body></html>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Download, Eye, Plus, Save, Search, Trash2 } from "lucide-react";
+import { Download, Eye, PenLine, Plus, Save, Search, Trash2 } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuthStore } from "@/store/authStore";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { SignatureDialog } from "@/components/signature-dialog";
 import { penawaranApi } from "@/lib/api/penawaran";
 
 type OfferRow = { uraian: string; keterangan?: string; qty: string; hargaSatuan: string; satuan?: string; harga?: string };
@@ -37,6 +38,26 @@ type SavedOffer = {
   clientName: string;
   roName: string;
   total: number;
+};
+
+type SavedDiscountRequest = {
+  id: string;
+  createdAt: string;
+  clientId: string;
+  salutation: "Mr" | "Mrs";
+  roId: string;
+  tanggal: string;
+  jenisPenawaran: string;
+  clientName: string;
+  roName: string;
+  hargaNormal: number;
+  tipeDiskon: "nominal" | "persen";
+  nilaiDiskon: number;
+  nominalDiskon: number;
+  hargaSetelahDiskon: number;
+  alasan: string;
+  status: string;
+  roSignature?: string | null;
 };
 
 function rawClientName(c: any) {
@@ -96,6 +117,12 @@ export default function PenawaranRkrPage() {
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction | null>(null);
+  const [tipeDiskon, setTipeDiskon] = useState<"nominal" | "persen">("nominal");
+  const [nilaiDiskon, setNilaiDiskon] = useState("");
+  const [statusDiskon, setStatusDiskon] = useState("Draft");
+  const [alasanDiskon, setAlasanDiskon] = useState("");
+  const [roSignature, setRoSignature] = useState<string | null>(null);
+  const [signatureOpen, setSignatureOpen] = useState(false);
   const [rows, setRows] = useState<OfferRow[]>([
     { uraian: "", keterangan: "", qty: "", satuan: "m2", hargaSatuan: "" },
     { uraian: "", keterangan: "", qty: "", satuan: "m2", hargaSatuan: "" },
@@ -104,6 +131,10 @@ export default function PenawaranRkrPage() {
   const { data: savedOffers = [], refetch: refetchOffers } = useQuery<SavedOffer[]>({
     queryKey: ["penawaran-rkr-offers"],
     queryFn: () => penawaranApi.list<SavedOffer>("rkr", "offer"),
+  });
+  const { data: savedDiscounts = [], refetch: refetchDiscounts } = useQuery<SavedDiscountRequest[]>({
+    queryKey: ["penawaran-rkr-discounts"],
+    queryFn: () => penawaranApi.list<SavedDiscountRequest>("rkr", "discount"),
   });
 
   const { data } = useQuery({
@@ -149,6 +180,12 @@ export default function PenawaranRkrPage() {
   const selectedRo = employees.find((e) => String(e.id) === roId);
 
   const total = useMemo(() => rows.reduce((sum, row) => sum + (parseVolume(row.qty) * parseMoney(row.hargaSatuan || row.harga || "")), 0), [rows]);
+  const nominalDiskon = useMemo(() => {
+    const raw = Number(nilaiDiskon) || 0;
+    return tipeDiskon === "persen" ? Math.round(total * Math.min(raw, 100) / 100) : Math.min(raw, total || raw);
+  }, [nilaiDiskon, tipeDiskon, total]);
+  const hargaSetelahDiskon = Math.max(total - nominalDiskon, 0);
+  const persenDiskon = total > 0 ? (nominalDiskon / total) * 100 : 0;
 
   function updateRow(index: number, patch: Partial<OfferRow>) {
     setRows((prev) => prev.map((row, i) => i === index ? { ...row, ...patch } : row));
@@ -199,6 +236,58 @@ export default function PenawaranRkrPage() {
     await penawaranApi.save("rkr", "offer", offer);
     await refetchOffers();
     setActiveTab("list");
+  }
+
+  async function saveDiscountRequest() {
+    const request: SavedDiscountRequest = {
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+      clientId: String(client?.id ?? clientId),
+      salutation,
+      roId,
+      tanggal,
+      jenisPenawaran,
+      clientName: namaAsli,
+      roName: selectedRo?.nama || "[Nama RO]",
+      hargaNormal: total,
+      tipeDiskon,
+      nilaiDiskon: Number(nilaiDiskon) || 0,
+      nominalDiskon,
+      hargaSetelahDiskon,
+      alasan: alasanDiskon,
+      status: statusDiskon,
+      roSignature,
+    };
+    await penawaranApi.save("rkr", "discount", request);
+    await refetchDiscounts();
+    setActiveTab("diskon");
+  }
+
+  function loadDiscountRequest(request: SavedDiscountRequest, shouldPrint = false) {
+    setClientId(request.clientId);
+    setSalutation(request.salutation);
+    setRoId(request.roId);
+    setTanggal(request.tanggal);
+    setJenisPenawaran(request.jenisPenawaran);
+    setTipeDiskon(request.tipeDiskon);
+    setNilaiDiskon(String(request.nilaiDiskon));
+    setStatusDiskon(request.status);
+    setAlasanDiskon(request.alasan);
+    setRoSignature(request.roSignature ?? null);
+    setShowPreview(true);
+    setActiveTab("diskon");
+    if (shouldPrint) setTimeout(() => void downloadDiscountPdf(), 100);
+  }
+
+  async function downloadDiscountPdf() {
+    setShowPreview(true);
+    setDownloadingPdf(true);
+    try {
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      await downloadOfferPdf(".discount-page", `Pengajuan Diskon RKR - ${name} - ${formatDateFile(tanggal)}`);
+    } finally {
+      setDownloadingPdf(false);
+    }
   }
 
   function loadOffer(offer: SavedOffer, shouldPrint = false) {
@@ -258,6 +347,7 @@ export default function PenawaranRkrPage() {
         <TabsList>
           <TabsTrigger value="generate">Generate</TabsTrigger>
           <TabsTrigger value="list">List Penawaran</TabsTrigger>
+          <TabsTrigger value="diskon">Pengajuan Diskon</TabsTrigger>
         </TabsList>
         <TabsContent value="generate" className="mt-4">
       <div className="grid gap-4 rounded-lg border bg-white p-4">
@@ -383,9 +473,77 @@ export default function PenawaranRkrPage() {
             )}
           </div>
         </TabsContent>
+        <TabsContent value="diskon" className="mt-4 space-y-4">
+          <div className="grid gap-4 rounded-lg border bg-white p-4 lg:grid-cols-[1fr_320px]">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div>
+                <Label>Harga Normal</Label>
+                <Input type="number" min={0} value={total || ""} readOnly />
+              </div>
+              <div>
+                <Label>Tipe Diskon</Label>
+                <Select value={tipeDiskon} onValueChange={(value) => setTipeDiskon(value as "nominal" | "persen")}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="nominal">Nominal</SelectItem><SelectItem value="persen">Persen</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label>{tipeDiskon === "persen" ? "Diskon (%)" : "Diskon (Rp)"}</Label>
+                <Input type="number" min={0} value={nilaiDiskon} onChange={(e) => setNilaiDiskon(nonNegativeNumber(e.target.value))} />
+              </div>
+              <div>
+                <Label>Status</Label>
+                <Select value={statusDiskon} onValueChange={setStatusDiskon}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="Draft">Draft</SelectItem><SelectItem value="Diajukan">Diajukan</SelectItem><SelectItem value="Disetujui">Disetujui</SelectItem><SelectItem value="Ditolak">Ditolak</SelectItem></SelectContent>
+                </Select>
+              </div>
+              <div className="md:col-span-2">
+                <Label>Alasan Pengajuan</Label>
+                <Input value={alasanDiskon} onChange={(e) => setAlasanDiskon(e.target.value)} placeholder="Contoh: penyesuaian budget client / promo closing" />
+              </div>
+              <div className="md:col-span-3">
+                <Label>Tanda Tangan RO</Label>
+                <div className="mt-1 flex flex-wrap items-center gap-3 rounded-md border bg-slate-50 p-3">
+                  {roSignature ? <img src={roSignature} alt="Tanda tangan RO" className="h-16 max-w-40 object-contain" /> : <span className="text-sm text-muted-foreground">Belum ada tanda tangan RO.</span>}
+                  <Button type="button" variant="outline" size="sm" onClick={() => setSignatureOpen(true)}><PenLine className="h-4 w-4 mr-2" /> Upload / Digital</Button>
+                  {roSignature && <Button type="button" variant="ghost" size="sm" onClick={() => setRoSignature(null)}><Trash2 className="h-4 w-4 mr-2 text-red-500" /> Hapus</Button>}
+                </div>
+              </div>
+            </div>
+            <div className="rounded-lg border bg-slate-50 p-3 text-sm">
+              <p className="font-semibold">Ringkasan Diskon</p>
+              <div className="mt-3 space-y-2">
+                <div className="flex justify-between"><span>Harga normal</span><span>{total ? fmtMoney(total) : "-"}</span></div>
+                <div className="flex justify-between text-red-600"><span>Diskon</span><span>-{nominalDiskon ? fmtMoney(nominalDiskon) : "-"}</span></div>
+                <div className="flex justify-between"><span>Persentase</span><span>{persenDiskon ? `${persenDiskon.toFixed(1)}%` : "-"}</span></div>
+                <div className="border-t pt-2 flex justify-between font-bold"><span>Harga akhir</span><span>{hargaSetelahDiskon ? fmtMoney(hargaSetelahDiskon) : "-"}</span></div>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <Button className="flex-1" onClick={() => askConfirm({ title: "Konfirmasi Simpan", description: "Simpan pengajuan diskon RKR ini?", confirmLabel: "Simpan", onConfirm: saveDiscountRequest })}><Save className="h-4 w-4 mr-2" /> Simpan</Button>
+                <Button className="flex-1" variant="outline" onClick={() => askConfirm({ title: "Konfirmasi PDF", description: "Download PDF pengajuan diskon ini?", confirmLabel: "Download PDF", onConfirm: downloadDiscountPdf })} disabled={downloadingPdf}><Download className="h-4 w-4 mr-2" /> PDF</Button>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border bg-white">
+            <div className="grid grid-cols-[1.2fr_1fr_1fr_1fr_150px] gap-3 border-b px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
+              <span>Client</span><span>Jenis</span><span>Diskon</span><span>Status</span><span className="text-right">Aksi</span>
+            </div>
+            {savedDiscounts.length ? savedDiscounts.map((request) => (
+              <div key={request.id} className="grid grid-cols-[1.2fr_1fr_1fr_1fr_150px] items-center gap-3 border-b px-4 py-3 text-sm last:border-b-0">
+                <span className="font-medium">{request.salutation}. {request.clientName}</span><span>{request.jenisPenawaran}</span><span>{fmtMoney(request.nominalDiskon)}</span><span>{request.status}</span>
+                <div className="flex justify-end gap-1">
+                  <Button size="sm" variant="outline" onClick={() => loadDiscountRequest(request)}>Buka</Button>
+                  <Button size="sm" onClick={() => loadDiscountRequest(request, true)} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
+                  {isSuperAdmin && <Button size="icon" variant="ghost" onClick={() => askConfirm({ title: "Konfirmasi Hapus", description: "Hapus pengajuan diskon ini?", confirmLabel: "Hapus", variant: "destructive", onConfirm: async () => { await penawaranApi.remove(request.id); await refetchDiscounts(); } })}><Trash2 className="h-4 w-4 text-red-500" /></Button>}
+                </div>
+              </div>
+            )) : <div className="px-4 py-8 text-center text-sm text-muted-foreground">Belum ada pengajuan diskon tersimpan.</div>}
+          </div>
+        </TabsContent>
       </Tabs>
 
-      {showPreview && (
+      {showPreview && activeTab !== "diskon" && (
         <div className="offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white px-[1.5cm] py-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
           <Letterhead />
           <h2 className="mb-8 text-center text-[14px] font-bold">Penawaran {jenisPenawaran} Ruangkeruang</h2>
@@ -459,6 +617,43 @@ export default function PenawaranRkrPage() {
           </div>
         </div>
       )}
+      {showPreview && activeTab === "diskon" && (
+        <div className="discount-page offer-page mx-auto max-w-[794px] min-h-[1123px] border bg-white px-[1.5cm] py-[0.5cm] shadow-sm text-[12px] leading-5 text-black">
+          <Letterhead />
+          <h2 className="mb-5 mt-6 text-center text-[14px] font-bold leading-none">FORM PENGAJUAN DISKON RKR</h2>
+          <div className="mb-5 grid grid-cols-[150px_1fr] gap-y-1">
+            <span>Tanggal Pengajuan</span><span>: {formatDateID(tanggal)}</span>
+            <span>Nama Client</span><span>: {name}</span>
+            <span>Jenis Penawaran</span><span>: {jenisPenawaran}</span>
+            <span>Relationship Officer</span><span>: {selectedRo?.nama || "[Nama RO]"}</span>
+            <span>Status</span><span>: {statusDiskon}</span>
+          </div>
+          <p className="text-justify">Berdasarkan penawaran Ruangkeruang untuk {name}, berikut pengajuan diskon yang diajukan untuk pertimbangan dan persetujuan internal.</p>
+          <table className="my-4 w-full border-collapse text-[12px]">
+            <tbody>
+              <tr><td className="w-1/2 border border-black p-2 font-bold">Harga Normal</td><td className="border border-black p-2 text-right">{total ? fmtMoney(total) : "[Isi nominal]"}</td></tr>
+              <tr><td className="border border-black p-2 font-bold">Diskon Diajukan</td><td className="border border-black p-2 text-right">{nominalDiskon ? fmtMoney(nominalDiskon) : "[Isi diskon]"}</td></tr>
+              <tr><td className="border border-black p-2 font-bold">Harga Setelah Diskon</td><td className="border border-black p-2 text-right font-bold">{hargaSetelahDiskon ? fmtMoney(hargaSetelahDiskon) : "[Isi nominal]"}</td></tr>
+            </tbody>
+          </table>
+          <div className="mt-4"><p className="font-bold">Alasan Pengajuan :</p><p className="mt-1 min-h-12 text-justify">{alasanDiskon || "[Isi alasan pengajuan diskon]"}</p></div>
+          <p className="mt-6 text-justify">Demikian form pengajuan diskon ini dibuat untuk menjadi dasar pertimbangan persetujuan.</p>
+          <p className="mt-8 text-right">Bekasi, {formatDateID(tanggal)}</p>
+          <div className="mt-6 grid grid-cols-2 gap-8 text-center">
+            <div><p>Diajukan Oleh,</p><div className="mx-auto flex h-24 w-44 items-center justify-center">{roSignature && <img src={roSignature} alt="Tanda tangan RO" className="max-h-20 max-w-40 object-contain" />}</div><p className="font-bold">{selectedRo?.nama || "[Nama RO]"}</p><p>Relationship Officer</p></div>
+            <div><p>Disetujui Oleh,</p><div className="h-24" /><p className="font-bold">Management</p></div>
+          </div>
+        </div>
+      )}
+      <SignatureDialog
+        open={signatureOpen}
+        onOpenChange={setSignatureOpen}
+        title="Tanda Tangan RO"
+        onSave={(signature) => {
+          setRoSignature(signature);
+          setSignatureOpen(false);
+        }}
+      />
       <ConfirmDialog
         open={Boolean(confirmAction)}
         onOpenChange={(open) => !open && setConfirmAction(null)}

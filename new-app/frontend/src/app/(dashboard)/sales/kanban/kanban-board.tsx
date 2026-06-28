@@ -532,24 +532,34 @@ export interface SalesKanbanBoardProps {
   initialColumns: KanbanColumn[];
   isLoading?: boolean;
   onRefresh: () => void;
+  source?: string;
+  filterMonth: number | null;
+  filterYear: number;
+  onFilterMonthChange: (month: number | null) => void;
+  onFilterYearChange: (year: number) => void;
 }
 
-export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh }: SalesKanbanBoardProps) {
+export function SalesKanbanBoard({
+  initialColumns,
+  isLoading = false,
+  onRefresh,
+  source = "rubru",
+  filterMonth,
+  filterYear,
+  onFilterMonthChange,
+  onFilterYearChange,
+}: SalesKanbanBoardProps) {
   const [columns, setColumns] = useState<KanbanColumn[]>(initialColumns);
   const isDraggingRef = useRef(false);
 
   const { data: leadsData } = useQuery({
-    queryKey: ["/sales/kanban/leads"],
-    queryFn: () => salesKanbanApi.getLeads(),
+    queryKey: ["/sales/kanban/leads", source],
+    queryFn: () => salesKanbanApi.getLeads(source),
     staleTime: 60_000,
   });
   const leads = leadsData ?? [];
 
   // ── Month filter ─────────────────────────────────────────────────────────
-  const now = new Date();
-  const [filterMonth, setFilterMonth] = useState<number | null>(null); // null = semua
-  const [filterYear, setFilterYear] = useState(now.getFullYear());
-
   // Computed filtered columns — only affects display, full state unchanged
   const displayColumns = useMemo(() => {
     if (filterMonth === null) return columns;
@@ -586,7 +596,7 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
     const targetYear  = srcMonth === 12 ? srcYear + 1 : srcYear;
     setCarryoverLoading(true);
     try {
-      const { copied } = await salesKanbanApi.carryover({ month: targetMonth, year: targetYear });
+      const { copied } = await salesKanbanApi.carryover({ month: targetMonth, year: targetYear, source });
       onRefresh();
       toast.success(copied > 0 ? `${copied} kartu berhasil di-carryover` : "Tidak ada kartu baru untuk di-carryover");
     } catch {
@@ -594,7 +604,7 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
     } finally {
       setCarryoverLoading(false);
     }
-  }, [filterMonth, filterYear, onRefresh]);
+  }, [filterMonth, filterYear, onRefresh, source]);
 
   // ── Drag handlers — COPY behavior ────────────────────────────────────────
   const onDragStart = useCallback(() => {
@@ -787,7 +797,7 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
 
         <Select
           value={filterMonth === null ? "all" : String(filterMonth)}
-          onValueChange={(v) => setFilterMonth(v === "all" ? null : Number(v))}
+          onValueChange={(v) => onFilterMonthChange(v === "all" ? null : Number(v))}
         >
           <SelectTrigger className="h-8 w-36 text-sm">
             <SelectValue />
@@ -802,7 +812,7 @@ export function SalesKanbanBoard({ initialColumns, isLoading = false, onRefresh 
 
         <Select
           value={String(filterYear)}
-          onValueChange={(v) => setFilterYear(Number(v))}
+          onValueChange={(v) => onFilterYearChange(Number(v))}
         >
           <SelectTrigger className="h-8 w-24 text-sm">
             <SelectValue />
