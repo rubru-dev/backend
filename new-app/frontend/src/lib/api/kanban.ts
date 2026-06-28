@@ -24,6 +24,7 @@ export interface CardPayload {
   label_ids?: number[];
   urutan?: number;
   projeksi_sales?: number | null;
+  created_at?: string;
 }
 
 export interface MoveCardPayload {

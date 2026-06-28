@@ -382,7 +382,7 @@ router.post("/kanban/carryover", async (req: Request, res: Response) => {
 
 // POST /kanban/cards
 router.post("/kanban/cards", async (req: Request, res: Response) => {
-  const { column_id, title, description, deadline, assigned_user_id, lead_id, tipe_pekerjaan, color, urutan, projeksi_sales } = req.body;
+  const { column_id, title, description, deadline, assigned_user_id, lead_id, tipe_pekerjaan, color, urutan, projeksi_sales, created_at } = req.body;
   const card = await prisma.salesKanbanCard.create({
     data: {
       column_id,
@@ -395,6 +395,8 @@ router.post("/kanban/cards", async (req: Request, res: Response) => {
       projeksi_sales: projeksi_sales != null ? projeksi_sales : undefined,
       color: color ?? null,
       urutan: urutan ?? 0,
+      created_at: created_at ? new Date(created_at) : undefined,
+      updated_at: created_at ? new Date(created_at) : undefined,
     },
   });
   return res.status(201).json({ id: card.id, message: "Card dibuat" });

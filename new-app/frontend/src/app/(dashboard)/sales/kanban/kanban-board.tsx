@@ -77,6 +77,11 @@ function formatRupiah(value: number): string {
   }).format(value);
 }
 
+function cardCreatedAtForFilter(filterMonth: number | null, filterYear: number) {
+  if (filterMonth === null) return new Date().toISOString();
+  return new Date(filterYear, filterMonth - 1, 1, 9, 0, 0).toISOString();
+}
+
 // ── Card Detail Modal ─────────────────────────────────────────────────────────
 function CardDetailModal({
   card, open, onClose, onSave, onDelete,
@@ -636,6 +641,7 @@ export function SalesKanbanBoard({
     if (source.droppableId === destination.droppableId) return;
 
     const destColumnId = Number(destination.droppableId);
+    const createdAt = cardCreatedAtForFilter(filterMonth, filterYear);
 
     // NOTE: IDs are strings at runtime (BigInt serialized via .toString()), compare as strings
     const srcCard = columns.flatMap((c) => c.cards ?? []).find((c) => String(c.id) === draggableId);
@@ -647,7 +653,7 @@ export function SalesKanbanBoard({
       ...srcCard,
       id: tempId,
       column_id: destColumnId,
-      created_at: new Date().toISOString(),
+      created_at: createdAt,
       comments_count: 0,
     };
 
@@ -668,6 +674,7 @@ export function SalesKanbanBoard({
         projeksi_sales: srcCard.projeksi_sales ?? undefined,
         lead_id: srcCard.lead?.id ?? undefined,
         column_id: destColumnId,
+        created_at: createdAt,
       });
       // Replace temp ID with the real ID from server
       setColumns((prev) =>
@@ -687,7 +694,7 @@ export function SalesKanbanBoard({
         }))
       );
     }
-  }, [columns]);
+  }, [columns, filterMonth, filterYear]);
 
   // ── Column handlers ──────────────────────────────────────────────────────
   async function handleAddColumn(title: string) {
@@ -720,14 +727,15 @@ export function SalesKanbanBoard({
 
   // ── Card handlers ────────────────────────────────────────────────────────
   async function handleAddCard(columnId: number, leadId: number, leadNama: string) {
+    const createdAt = cardCreatedAtForFilter(filterMonth, filterYear);
     try {
-      const res = await salesKanbanApi.createCard({ title: leadNama, lead_id: leadId, column_id: columnId });
+      const res = await salesKanbanApi.createCard({ title: leadNama, lead_id: leadId, column_id: columnId, created_at: createdAt });
       const newCard: KanbanCard = {
         id: res.id, column_id: columnId, title: leadNama,
         lead: { id: leadId, nama: leadNama },
         description: null, assigned_user_id: null, deadline: null, color: null,
         projeksi_sales: null, urutan: 0, comments_count: 0, labels: [],
-        created_at: new Date().toISOString(),
+        created_at: createdAt,
       };
       setColumns((prev) =>
         prev.map((col) => col.id === columnId ? { ...col, cards: [...(col.cards ?? []), newCard] } : col)
