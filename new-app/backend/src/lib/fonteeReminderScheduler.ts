@@ -79,6 +79,21 @@ async function sendMessages(rule: any, messages: string[]): Promise<void> {
   }
 }
 
+// ── Super Admin notification ──────────────────────────────────────────────────
+
+async function getSuperAdminNumbers(): Promise<string[]> {
+  const users = await prisma.user.findMany({
+    where: { roles: { some: { role: { name: "Super Admin" } } }, whatsapp_number: { not: null } },
+    select: { whatsapp_number: true },
+  });
+  return users.map((u) => u.whatsapp_number!);
+}
+
+async function notifySuperAdmin(msg: string): Promise<void> {
+  const numbers = await getSuperAdminNumbers();
+  for (const wa of numbers) await sendFonnte(wa, msg).catch(() => {});
+}
+
 // ── Feature processors ────────────────────────────────────────────────────────
 
 async function processRule(rule: any): Promise<number> {
@@ -103,8 +118,13 @@ async function processRule(rule: any): Promise<number> {
           select: { nama_pekerjaan: true },
         }),
       ]);
-      for (const t of [...sipil, ...interior]) {
+      const allTasks = [...sipil, ...interior];
+      for (const t of allTasks) {
         messages.push(fillTemplate(tpl, { ...baseVars, nama: t.nama_pekerjaan ?? "—", item: t.nama_pekerjaan ?? "—" }));
+      }
+      if (allTasks.length > 0) {
+        const lines = allTasks.map((t) => `• ${t.nama_pekerjaan ?? "—"}`).join("\n");
+        notifySuperAdmin(`👑 *[Super Admin] Deadline Task — Sisa ${daysBefore} Hari*\n📅 ${tanggalStr}\n${lines}`).catch(() => {});
       }
       break;
     }
@@ -117,6 +137,10 @@ async function processRule(rule: any): Promise<number> {
       for (const t of tasks) {
         const namaProyek = (t.termin as any)?.proyek_berjalan?.nama_proyek ?? "—";
         messages.push(fillTemplate(tpl, { ...baseVars, nama: namaProyek, item: t.nama_pekerjaan ?? "—" }));
+      }
+      if (tasks.length > 0) {
+        const lines = tasks.map((t) => `• ${(t.termin as any)?.proyek_berjalan?.nama_proyek ?? "—"} → ${t.nama_pekerjaan ?? "—"}`).join("\n");
+        notifySuperAdmin(`👑 *[Super Admin] Item Sipil Belum Selesai — Sisa ${daysBefore} Hari*\n📅 ${tanggalStr}\n${lines}`).catch(() => {});
       }
       break;
     }
@@ -136,15 +160,24 @@ async function processRule(rule: any): Promise<number> {
           include: { lead: { select: { nama: true } } },
         }),
       ]);
+      const saLines: string[] = [];
       for (const t of pbTermins) {
-        messages.push(fillTemplate(tpl, { ...baseVars, nama: (t as any).proyek_berjalan?.nama_proyek ?? "—", termin: String(t.urutan + 1) }));
+        const nama = (t as any).proyek_berjalan?.nama_proyek ?? "—";
+        messages.push(fillTemplate(tpl, { ...baseVars, nama, termin: String(t.urutan + 1) }));
+        saLines.push(`• ${nama} — Termin ${t.urutan + 1}`);
       }
       for (const t of piTermins) {
-        messages.push(fillTemplate(tpl, { ...baseVars, nama: (t as any).proyek_interior?.nama_proyek ?? "—", termin: String(t.urutan + 1) }));
+        const nama = (t as any).proyek_interior?.nama_proyek ?? "—";
+        messages.push(fillTemplate(tpl, { ...baseVars, nama, termin: String(t.urutan + 1) }));
+        saLines.push(`• ${nama} — Termin ${t.urutan + 1}`);
       }
       for (const t of desainTimelines) {
         const nama = t.lead?.nama ?? t.jenis_desain ?? "—";
         messages.push(fillTemplate(tpl, { ...baseVars, nama, termin: t.jenis_desain ?? "Desain" }));
+        saLines.push(`• ${nama} — ${t.jenis_desain ?? "Desain"}`);
+      }
+      if (saLines.length > 0) {
+        notifySuperAdmin(`👑 *[Super Admin] Termin Proyek Jatuh Tempo — Sisa ${daysBefore} Hari*\n📅 ${tanggalStr}\n${saLines.join("\n")}`).catch(() => {});
       }
       break;
     }
@@ -159,6 +192,10 @@ async function processRule(rule: any): Promise<number> {
         const jenis = (i as any).desain_timeline?.jenis_desain ?? "—";
         messages.push(fillTemplate(tpl, { ...baseVars, nama: jenis, item: i.item_pekerjaan ?? "—", jenis }));
       }
+      if (items.length > 0) {
+        const lines = items.map((i) => `• ${(i as any).desain_timeline?.jenis_desain ?? "—"}: ${i.item_pekerjaan ?? "—"}`).join("\n");
+        notifySuperAdmin(`👑 *[Super Admin] Item Desain Belum Selesai — Sisa ${daysBefore} Hari*\n📅 ${tanggalStr}\n${lines}`).catch(() => {});
+      }
       break;
     }
 
@@ -170,6 +207,10 @@ async function processRule(rule: any): Promise<number> {
       for (const i of items) {
         const nama = (i as any).interior_timeline?.nama_proyek ?? "—";
         messages.push(fillTemplate(tpl, { ...baseVars, nama, item: i.item_pekerjaan ?? "—" }));
+      }
+      if (items.length > 0) {
+        const lines = items.map((i) => `• ${(i as any).interior_timeline?.nama_proyek ?? "—"}: ${i.item_pekerjaan ?? "—"}`).join("\n");
+        notifySuperAdmin(`👑 *[Super Admin] Item Interior Belum Selesai — Sisa ${daysBefore} Hari*\n📅 ${tanggalStr}\n${lines}`).catch(() => {});
       }
       break;
     }
@@ -195,6 +236,10 @@ async function processRule(rule: any): Promise<number> {
       for (const i of items) {
         messages.push(fillTemplate(tpl, { ...baseVars, nama: i.judul ?? i.title ?? "—" }));
       }
+      if (items.length > 0) {
+        const lines = items.map((i) => `• ${i.judul ?? i.title ?? "—"}`).join("\n");
+        notifySuperAdmin(`👑 *[Super Admin] Konten Belum Selesai — Sisa ${daysBefore} Hari*\n📅 ${tanggalStr}\n${lines}`).catch(() => {});
+      }
       break;
     }
 
@@ -213,9 +258,36 @@ async function processRule(rule: any): Promise<number> {
 
     case "laporan_harian_siang":
     case "laporan_harian_sore": {
-      // Selalu pakai tanggal WIB hari ini, bukan dari days_before
       const hariIni = formatTanggalID(new Date());
       messages.push(fillTemplate(tpl, { days_before: "0", tanggal: hariIni }));
+      // Cari siapa yang belum isi laporan harian hari ini → kirim ke Super Admin
+      const { year: ly, month: lm, day: ld } = getJakartaDateParts();
+      const todayS = new Date(Date.UTC(ly, lm - 1, ld));
+      const todayE = new Date(Date.UTC(ly, lm - 1, ld + 1));
+      const [sudahIsi, semuaUser] = await Promise.all([
+        prisma.laporanHarian.findMany({
+          where: { tanggal_mulai: { gte: todayS, lt: todayE } },
+          select: { user_id: true },
+          distinct: ["user_id"],
+        }),
+        prisma.user.findMany({
+          where: {
+            whatsapp_number: { not: null },
+            NOT: [
+              { email: { startsWith: "deleted+" } },
+              { roles: { some: { role: { name: "Tukang" } } } },
+            ],
+          },
+          select: { id: true, name: true },
+        }),
+      ]);
+      const sudahSet = new Set(sudahIsi.map((l) => l.user_id?.toString()));
+      const belumIsi = semuaUser.filter((u) => !sudahSet.has(u.id.toString()));
+      if (belumIsi.length > 0) {
+        const label = rule.feature === "laporan_harian_siang" ? "Siang (12:00)" : "Sore (16:50)";
+        const lines = belumIsi.map((u) => `• ${u.name}`).join("\n");
+        notifySuperAdmin(`👑 *[Super Admin] Laporan Harian Belum Diisi — ${label}*\n📅 ${hariIni}\n${belumIsi.length} karyawan:\n${lines}`).catch(() => {});
+      }
       break;
     }
 
@@ -224,24 +296,32 @@ async function processRule(rule: any): Promise<number> {
       const visits = await prisma.kalenderVisit.findMany({
         where: { tanggal: { gte: start, lt: end } },
         include: {
-          pics: { include: { user: { select: { whatsapp_number: true } } } },
+          pics: { include: { user: { select: { whatsapp_number: true, name: true } } } },
         },
       });
       const prio: string = rule.priority_manual ?? "sedang";
       const priorityLine = `${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
       let sentCount = 0;
+      const saLines: string[] = [];
       for (const visit of visits) {
+        const namaProyek = (visit as any).nama_projek ?? "—";
         const msg = fillTemplate(tpl, {
           ...baseVars,
-          nama_proyek: (visit as any).nama_projek ?? "—",
+          nama_proyek: namaProyek,
           jam: (visit as any).jam ?? "—",
           keterangan: (visit as any).keterangan ?? "",
         });
         const fullMsg = `${msg}\n${priorityLine}`;
+        const picNames: string[] = [];
         for (const pic of (visit as any).pics) {
           const wa = pic.user?.whatsapp_number;
           if (wa) { await sendFonnte(wa, fullMsg).catch(() => {}); sentCount++; }
+          if (pic.user?.name) picNames.push(pic.user.name);
         }
+        saLines.push(`• ${namaProyek} — Jam: ${(visit as any).jam ?? "—"} — PIC: ${picNames.join(", ") || "—"}`);
+      }
+      if (saLines.length > 0) {
+        notifySuperAdmin(`👑 *[Super Admin] Jadwal Kunjungan Besok*\n📅 ${tanggalStr}\n${saLines.join("\n")}`).catch(() => {});
       }
       return sentCount;
     }
@@ -288,7 +368,7 @@ async function checkAbsenReminders(): Promise<void> {
     const userWhere: any = { whatsapp_number: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
     if (roleIds.length > 0) userWhere.roles = { some: { role_id: { in: roleIds } } };
 
-    const allUsers = await prisma.user.findMany({ where: userWhere, select: { id: true, whatsapp_number: true } });
+    const allUsers = await prisma.user.findMany({ where: userWhere, select: { id: true, name: true, whatsapp_number: true } });
     const checkedIn = await prisma.absenKaryawan.findMany({
       where: { tanggal: { gte: todayStart, lt: todayEnd }, jam_masuk: { not: null } },
       select: { user_id: true },
@@ -302,6 +382,10 @@ async function checkAbsenReminders(): Promise<void> {
     const fullMsg = `${msg}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
     for (const u of notYetMasuk) {
       await sendFonnte(u.whatsapp_number!, fullMsg).catch(() => {});
+    }
+    if (notYetMasuk.length > 0) {
+      const lines = notYetMasuk.map((u) => `• ${u.name}`).join("\n");
+      notifySuperAdmin(`👑 *[Super Admin] Belum Absen Masuk*\n⏰ Jam masuk: ${jamMasukStr}\n${notYetMasuk.length} karyawan:\n${lines}`).catch(() => {});
     }
     console.log(`[AbsenReminder] Masuk: ${notYetMasuk.length} reminder terkirim`);
   }
@@ -323,7 +407,7 @@ async function checkAbsenReminders(): Promise<void> {
         jam_masuk: { not: null },
         jam_keluar: null,
       },
-      include: { user: { select: { id: true, whatsapp_number: true } } },
+      include: { user: { select: { id: true, name: true, whatsapp_number: true } } },
     });
 
     // Filter by role if needed
@@ -341,6 +425,10 @@ async function checkAbsenReminders(): Promise<void> {
     for (const absen of masukTapiBelumKeluar) {
       const wa = (absen as any).user?.whatsapp_number;
       if (wa) await sendFonnte(wa, fullMsg).catch(() => {});
+    }
+    if (masukTapiBelumKeluar.length > 0) {
+      const lines = masukTapiBelumKeluar.map((a) => `• ${(a as any).user?.name ?? "—"}`).join("\n");
+      notifySuperAdmin(`👑 *[Super Admin] Belum Absen Keluar*\n⏰ Jam pulang: ${jamPulangStr}\n${masukTapiBelumKeluar.length} karyawan:\n${lines}`).catch(() => {});
     }
     console.log(`[AbsenReminder] Keluar: ${masukTapiBelumKeluar.length} reminder terkirim`);
   }
