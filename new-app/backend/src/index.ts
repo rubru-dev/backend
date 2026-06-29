@@ -9,7 +9,7 @@ import { authenticate } from "./middleware/auth";
 import { PrismaClient } from "@prisma/client";
 import { syncCamerasToMediaMTX } from "./lib/mediamtx";
 import { startMetaAutoRefresh } from "./lib/metaAutoRefresh";
-import { startKalenderVisitReminder } from "./lib/kalenderVisitReminder";
+import { startReminderScheduler } from "./lib/fonteeReminderScheduler";
 
 const prismaSync = new PrismaClient();
 
@@ -155,8 +155,9 @@ app.listen(config.port, async () => {
   // Auto-refresh Meta token setiap 45 hari
   startMetaAutoRefresh();
 
-  // Reminder WhatsApp PIC Kalender Visit (harian jam 08:00 WIB)
-  startKalenderVisitReminder();
+  // Reminder WhatsApp otomatis berdasarkan FonteeReminderRule (cek setiap jam + 16:50 + absen)
+  // Termasuk kalender_visit_reminder (menggantikan hardcoded kalenderVisitReminder)
+  startReminderScheduler();
 
   // Sync RTSP cameras to MediaMTX (graceful — won't crash if MediaMTX isn't running)
   try {

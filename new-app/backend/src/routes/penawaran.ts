@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { triggerEventReminder } from "../lib/fontee";
 
 const router = Router();
 const TYPES = new Set(["desain", "rkr", "golden", "filter-air"]);
@@ -75,7 +76,13 @@ router.post("/:type/offers", async (req: Request, res: Response) => {
       updated_at = now()
     RETURNING id, type, kind, data, created_by, created_at, updated_at
   `;
-  return res.status(201).json(mapRow(rows[0]));
+  const result = mapRow(rows[0]);
+  triggerEventReminder("penawaran_baru", {
+    jenis: type,
+    kind,
+    nama: String(data.klien ?? data.nama ?? data.client ?? "—"),
+  }).catch(() => {});
+  return res.status(201).json(result);
 });
 
 router.delete("/offers/:id", async (req: Request, res: Response) => {

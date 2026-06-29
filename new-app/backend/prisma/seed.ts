@@ -140,11 +140,13 @@ async function main() {
     { name: "admin.settings", module: "admin", label: "Sub-menu: Pengaturan" },
     // Projek Sipil tab-level
     { name: "projek.form_bast",          module: "projek", label: "Sub-menu: Form BAST" },
-    { name: "projek_sipil.termin",      module: "projek_sipil", label: "Tab: Daftar Termin Sipil" },
-    { name: "projek_sipil.gantt",       module: "projek_sipil", label: "Tab: Gantt Chart Sipil" },
-    { name: "projek_sipil.docs",        module: "projek_sipil", label: "Tab: Docs/Link Sipil" },
-    { name: "projek_sipil.rapp",        module: "projek_sipil", label: "Tab: RAPP Sipil" },
-    { name: "projek_sipil.stock_opname",module: "projek_sipil", label: "Tab: Stock Opname Sipil" },
+    { name: "projek_sipil.termin",       module: "projek_sipil", label: "Tab: Daftar Termin Sipil" },
+    { name: "projek_sipil.gantt",        module: "projek_sipil", label: "Tab: Gantt Chart Sipil" },
+    { name: "projek_sipil.docs",         module: "projek_sipil", label: "Tab: Docs/Link Sipil" },
+    { name: "projek_sipil.rapp",         module: "projek_sipil", label: "Tab: RAPP Sipil" },
+    { name: "projek_sipil.stock_opname", module: "projek_sipil", label: "Tab: Stock Opname Sipil" },
+    { name: "projek_sipil.dokumentasi",  module: "projek_sipil", label: "Tab: Dokumentasi Foto Sipil" },
+    { name: "projek_sipil.checklist",    module: "projek_sipil", label: "Tab: Form Checklist Sipil" },
     // Projek Desain tab-level
     { name: "projek_desain.gantt",  module: "projek_desain", label: "Tab: Gantt Chart Desain" },
     { name: "projek_desain.docs",   module: "projek_desain", label: "Tab: Docs/Link Desain" },
@@ -968,11 +970,7 @@ async function main() {
       trigger_type: "event", priority_manual: "tinggi",
       message_template: "📋 *Purchase Request Menunggu TTD*\nNomor: *{nomor_pr}*\nTotal: *Rp {total}*\nSilakan review dan tandatangani di sistem.",
     },
-    {
-      feature: "approval_needed", label: "Approval / Persetujuan Tertunda", days_before: 0, send_time: "08:00",
-      trigger_type: "event", priority_manual: "sedang",
-      message_template: "✅ *Persetujuan Dibutuhkan*\nModul: *{modul}*\nItem: *{nama}*\nDiajukan oleh: *{pengaju}*\nSilakan buka sistem untuk menyetujui.",
-    },
+    // approval_needed dinonaktifkan — tidak digunakan lagi
     {
       feature: "lead_new", label: "Lead Baru Masuk", days_before: 0, send_time: "08:00",
       trigger_type: "event", priority_manual: "sedang",
@@ -998,7 +996,56 @@ async function main() {
       trigger_type: "event", priority_manual: "sedang",
       message_template: "💰 *Gajian Siap*\nProyek: *{nama_proyek}*\nPeriode: *{periode}*\nTotal gaji: *Rp {total}*\nSilakan konfirmasi penerimaan.",
     },
+    // ── New rules ──────────────────────────────────────────────────────────────
+    {
+      feature: "penawaran_baru", label: "Penawaran Baru Dibuat", days_before: 0, send_time: "08:00",
+      trigger_type: "event", priority_manual: "sedang",
+      message_template: "📄 *Penawaran Baru*\nKlien: *{nama}*\nJenis: *{jenis}*\nPenawaran baru telah dibuat. Silakan review di sistem.",
+    },
+    {
+      feature: "laporan_harian_siang", label: "Reminder Laporan Harian — Siang", days_before: 0, send_time: "12:00",
+      trigger_type: "deadline", priority_manual: "rendah",
+      message_template: "📋 *Reminder Laporan Harian*\nJangan lupa mengisi laporan harian sebelum jam 17:00.\nAkses melalui menu Laporan Harian di sistem.",
+    },
+    {
+      feature: "laporan_harian_sore", label: "Reminder Laporan Harian — Sore", days_before: 0, send_time: "16:50",
+      trigger_type: "deadline", priority_manual: "sedang",
+      message_template: "⏰ *Reminder Terakhir — Laporan Harian*\nSegera isi laporan harian hari ini!\n10 menit lagi jam kantor berakhir.",
+    },
+    {
+      feature: "absen_masuk_reminder", label: "Reminder Absen Masuk Karyawan", days_before: 0, send_time: "06:50",
+      trigger_type: "deadline", priority_manual: "sedang",
+      message_template: "⏰ *Reminder Absen Masuk*\nJam masuk {jam_masuk} — segera lakukan absensi masuk melalui aplikasi!",
+    },
+    {
+      feature: "absen_keluar_reminder", label: "Reminder Absen Keluar Karyawan", days_before: 0, send_time: "17:05",
+      trigger_type: "deadline", priority_manual: "rendah",
+      message_template: "🏠 *Reminder Absen Keluar*\nJam pulang {jam_pulang} telah lewat. Jangan lupa absen keluar melalui aplikasi!",
+    },
+    {
+      feature: "kalender_visit_assign", label: "Kalender Visit — Notif Saat Assign", days_before: 0, send_time: "08:00",
+      trigger_type: "event", priority_manual: "sedang",
+      message_template: "📅 *Anda Dijadwalkan untuk Kunjungan*\nProyek: *{nama_proyek}*\nTanggal: *{tanggal}*\nJam: *{jam}*\n{keterangan}\nSilakan konfirmasi kehadiran melalui aplikasi.",
+    },
+    {
+      feature: "kalender_visit_reminder", label: "Kalender Visit — Reminder H-1 (Configurable)", days_before: 1, send_time: "08:00",
+      trigger_type: "deadline", priority_manual: "sedang",
+      message_template: "🔔 *Reminder Kunjungan Besok*\nProyek: *{nama_proyek}*\nTanggal: *{tanggal}*\nJam: *{jam}*\n{keterangan}\nMohon siapkan segala kebutuhan sebelum kunjungan.",
+    },
+    {
+      feature: "dokumentasi_projek_upload", label: "Upload Dokumentasi Projek", days_before: 0, send_time: "08:00",
+      trigger_type: "event", priority_manual: "rendah",
+      message_template: "📷 *Dokumentasi Baru Diupload*\nProyek: *{nama_proyek}*\nTask: *{nama_task}*\nJumlah foto: *{jumlah_foto}*\nOleh: *{uploader}*",
+    },
   ];
+  // Disable rules yang tidak lagi digunakan
+  for (const disabledFeature of ["approval_needed", "invoice_sign_admin"]) {
+    const ex = await prisma.fonteeReminderRule.findFirst({ where: { feature: disabledFeature } });
+    if (ex && (ex as any).is_active) {
+      await (prisma.fonteeReminderRule as any).update({ where: { id: ex.id }, data: { is_active: false } });
+    }
+  }
+
   for (const rule of DEFAULT_REMINDER_RULES) {
     const existing = await prisma.fonteeReminderRule.findFirst({ where: { feature: rule.feature } });
     if (!existing) {

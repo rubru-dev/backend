@@ -39,5 +39,56 @@ export async function sendFonnteToUserIds(userIds: bigint[], message: string) {
   }
 }
 
+const PRIORITY_EMOJI: Record<string, string> = { rendah: "🟢", sedang: "🟡", tinggi: "🔴" };
+
+export async function triggerEventReminder(feature: string, vars: Record<string, string>): Promise<void> {
+  const rule: any = await (prisma.fonteeReminderRule as any).findFirst({
+    where: { feature, is_active: true, trigger_type: "event" },
+  });
+  if (!rule) return;
+
+  const tpl: string = rule.message_template ?? "";
+  if (!tpl) return;
+
+  const roleIds = (rule.role_ids as bigint[]) ?? [];
+  if (roleIds.length === 0) return;
+
+  const users = await prisma.user.findMany({
+    where: { roles: { some: { role_id: { in: roleIds } } }, whatsapp_number: { not: null } },
+    select: { whatsapp_number: true },
+  });
+  if (users.length === 0) return;
+
+  const message = tpl.replace(/\{([^}]+)\}/g, (_: string, key: string) => vars[key] ?? `{${key}}`);
+  const prio: string = rule.priority_manual ?? "sedang";
+  const fullMsg = `${message}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
+
+  for (const u of users) {
+    await sendFonnte(u.whatsapp_number!, fullMsg).catch(() => {});
+  }
+}
+
+/** Send a FonteeReminderRule event to a specific list of user IDs (bypasses role_ids) */
+export async function triggerEventReminderToUsers(feature: string, userIds: bigint[], vars: Record<string, string>): Promise<void> {
+  const rule: any = await (prisma.fonteeReminderRule as any).findFirst({
+    where: { feature, is_active: true },
+  });
+  if (!rule?.message_template) return;
+  if (userIds.length === 0) return;
+
+  const users = await prisma.user.findMany({
+    where: { id: { in: userIds }, whatsapp_number: { not: null } },
+    select: { whatsapp_number: true },
+  });
+  if (users.length === 0) return;
+
+  const message = (rule.message_template as string).replace(/\{([^}]+)\}/g, (_: string, key: string) => vars[key] ?? `{${key}}`);
+  const prio: string = rule.priority_manual ?? "sedang";
+  const fullMsg = `${message}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
+  for (const u of users) {
+    await sendFonnte(u.whatsapp_number!, fullMsg).catch(() => {});
+  }
+}
+
 export const FRONTEND_URL = config.frontendUrl;
 export const CLIENT_URL = config.clientUrl;

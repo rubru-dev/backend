@@ -856,8 +856,8 @@ export default function ProyekSipilDetailPage() {
   const canTabDocs       = sa || hasPermission("projek_sipil", "docs");
   const canTabRapp       = sa || hasPermission("projek_sipil", "rapp");
   const canTabStockOpname= sa || hasPermission("projek_sipil", "stock_opname");
-  const canTabDokumentasi= true;
-  const canTabChecklist  = true;
+  const canTabDokumentasi= sa || hasPermission("projek_sipil", "dokumentasi");
+  const canTabChecklist  = sa || hasPermission("projek_sipil", "checklist");
   const defaultTab = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabDocs ? "docs" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : "dokumentasi";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
@@ -1000,6 +1000,10 @@ export default function ProyekSipilDetailPage() {
   const [soTab, setSoTab] = useState<"items" | "log">("items");
   const [soForm, setSoForm] = useState({ item_ref_type: "", item_ref_id: "", item_nama: "", item_satuan: "", qty_pakai: "", tanggal: new Date().toISOString().slice(0, 10), catatan: "" });
   const [soDialog, setSoDialog] = useState(false);
+  const KATEGORI_OPTIONS = ["Alat", "Material", "Vendor", "Lainnya"];
+  const EMPTY_MANUAL_FORM = { item_nama: "", item_kategori: "Material", item_satuan: "", qty_pakai: "", tanggal: new Date().toISOString().slice(0, 10), catatan: "" };
+  const [soManualDialog, setSoManualDialog] = useState(false);
+  const [soManualForm, setSoManualForm] = useState(EMPTY_MANUAL_FORM);
 
   const { data: rappSummary = [], isLoading: loadingRapp } = useQuery<any[]>({
     queryKey: ["sipil-rapp-summary", id],
@@ -1019,7 +1023,9 @@ export default function ProyekSipilDetailPage() {
       toast.success("Penggunaan dicatat");
       qc.invalidateQueries({ queryKey: ["sipil-usage-logs", id] });
       setSoDialog(false);
+      setSoManualDialog(false);
       setSoForm({ item_ref_type: "", item_ref_id: "", item_nama: "", item_satuan: "", qty_pakai: "", tanggal: new Date().toISOString().slice(0, 10), catatan: "" });
+      setSoManualForm(EMPTY_MANUAL_FORM);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
@@ -1476,7 +1482,7 @@ export default function ProyekSipilDetailPage() {
 
         {/* Stock Opname */}
         <TabsContent value="stock-opname" className="mt-4 space-y-4">
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex gap-1">
               <button onClick={() => setSoTab("items")} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${soTab === "items" ? "bg-teal-600 text-white" : "text-muted-foreground hover:text-foreground"}`}>
                 <Boxes className="h-3.5 w-3.5 inline mr-1.5" />Item RAPP
@@ -1486,10 +1492,15 @@ export default function ProyekSipilDetailPage() {
                 {usageLogs.length > 0 && <span className="ml-1.5 bg-teal-100 text-teal-700 text-xs rounded-full px-1.5 py-0.5">{usageLogs.length}</span>}
               </button>
             </div>
-            <Button variant="outline" size="sm" disabled={downloadingSoPdf} onClick={handleDownloadSoPDF}>
-              {downloadingSoPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
-              Download PDF
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => { setSoManualForm(EMPTY_MANUAL_FORM); setSoManualDialog(true); }}>
+                <Plus className="h-3.5 w-3.5 mr-1" />Catat Manual
+              </Button>
+              <Button variant="outline" size="sm" disabled={downloadingSoPdf} onClick={handleDownloadSoPDF}>
+                {downloadingSoPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <FileDown className="h-3.5 w-3.5 mr-1" />}
+                Download PDF
+              </Button>
+            </div>
           </div>
 
           {soTab === "items" && (
@@ -1585,6 +1596,7 @@ export default function ProyekSipilDetailPage() {
                     <TableRow>
                       <TableHead>Tanggal</TableHead>
                       <TableHead>Item</TableHead>
+                      <TableHead>Kategori</TableHead>
                       <TableHead className="text-right">Qty Pakai</TableHead>
                       <TableHead>Sat</TableHead>
                       <TableHead>Catatan</TableHead>
@@ -1598,7 +1610,11 @@ export default function ProyekSipilDetailPage() {
                         <TableCell className="text-sm whitespace-nowrap">
                           {new Date(log.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}
                         </TableCell>
-                        <TableCell className="font-medium text-sm">{log.item_nama}</TableCell>
+                        <TableCell className="font-medium text-sm">
+                          {log.item_nama}
+                          {log.item_ref_type === "manual" && <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 rounded px-1">manual</span>}
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">{log.item_kategori ?? (log.item_ref_type === "manual" ? "—" : log.item_ref_type)}</TableCell>
                         <TableCell className="text-right text-sm font-medium text-teal-700">
                           {log.qty_pakai.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
                         </TableCell>
@@ -1875,6 +1891,54 @@ export default function ProyekSipilDetailPage() {
             </div>
             <div className="flex justify-end pt-1">
               <Button variant="outline" onClick={() => { setFotoTask(null); setFotoFiles([]); }}>Tutup</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Catat Manual (tanpa referensi RAPP) */}
+      <Dialog open={soManualDialog} onOpenChange={setSoManualDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle><Plus className="h-4 w-4 inline mr-2" />Catat Penggunaan Manual</DialogTitle></DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div>
+              <Label>Nama Item *</Label>
+              <Input placeholder="Contoh: Mesin Bor, Semen 50kg, dll" value={soManualForm.item_nama} onChange={(e) => setSoManualForm({ ...soManualForm, item_nama: e.target.value })} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Kategori</Label>
+                <select className="w-full border rounded-md px-3 py-2 text-sm bg-background" value={soManualForm.item_kategori} onChange={(e) => setSoManualForm({ ...soManualForm, item_kategori: e.target.value })}>
+                  {KATEGORI_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
+                </select>
+              </div>
+              <div>
+                <Label>Satuan</Label>
+                <Input placeholder="pcs, kg, m², dll" value={soManualForm.item_satuan} onChange={(e) => setSoManualForm({ ...soManualForm, item_satuan: e.target.value })} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label>Qty Dipakai *</Label>
+                <Input type="number" min="0" step="0.001" placeholder="0" value={soManualForm.qty_pakai} onChange={(e) => setSoManualForm({ ...soManualForm, qty_pakai: e.target.value })} />
+              </div>
+              <div>
+                <Label>Tanggal *</Label>
+                <Input type="date" value={soManualForm.tanggal} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setSoManualForm({ ...soManualForm, tanggal: e.target.value })} />
+              </div>
+            </div>
+            <div>
+              <Label>Catatan</Label>
+              <Input placeholder="Keterangan (opsional)" value={soManualForm.catatan} onChange={(e) => setSoManualForm({ ...soManualForm, catatan: e.target.value })} />
+            </div>
+            <div className="flex justify-end gap-2 pt-1">
+              <Button variant="outline" onClick={() => setSoManualDialog(false)}>Batal</Button>
+              <Button
+                disabled={!soManualForm.item_nama || !soManualForm.qty_pakai || parseFloat(soManualForm.qty_pakai) <= 0 || addUsageMut.isPending}
+                onClick={() => addUsageMut.mutate({ item_ref_type: "manual", item_kategori: soManualForm.item_kategori, item_nama: soManualForm.item_nama, item_satuan: soManualForm.item_satuan || null, qty_pakai: soManualForm.qty_pakai, tanggal: soManualForm.tanggal, catatan: soManualForm.catatan || null })}
+              >
+                {addUsageMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : "Simpan"}
+              </Button>
             </div>
           </div>
         </DialogContent>

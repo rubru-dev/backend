@@ -4,6 +4,7 @@ import path from "path";
 import fs from "fs";
 import { prisma } from "../lib/prisma";
 import { config } from "../config";
+import { triggerEventReminder, triggerEventReminderToUsers } from "../lib/fontee";
 
 const router = Router();
 
@@ -247,6 +248,15 @@ router.post("/tasks/sipil/:taskId/fotos", picUpload.array("fotos", 20), async (r
     );
   }
 
+  const namaProyek = (task as any).termin?.proyek_berjalan?.nama_proyek ?? "—";
+  const namaTask = task.nama_pekerjaan ?? "—";
+  triggerEventReminder("dokumentasi_projek_upload", {
+    jenis: "sipil",
+    nama_proyek: namaProyek,
+    nama_task: namaTask,
+    jumlah_foto: String(fotos.length),
+    uploader: user.name ?? "—",
+  }).catch(() => {});
   return res.status(201).json(
     fotos.map((f) => ({
       id: String(f.id),
@@ -320,6 +330,14 @@ router.post("/tasks/interior/:taskId/fotos", picUpload.array("fotos", 20), async
     );
   }
 
+  const namaProyekInterior = (task as any).termin?.proyek_interior?.nama_proyek ?? "—";
+  triggerEventReminder("dokumentasi_projek_upload", {
+    jenis: "interior",
+    nama_proyek: namaProyekInterior,
+    nama_task: task.nama_pekerjaan ?? "—",
+    jumlah_foto: String(fotos.length),
+    uploader: user.name ?? "—",
+  }).catch(() => {});
   return res.status(201).json(
     fotos.map((f) => ({
       id: String(f.id),
@@ -493,6 +511,14 @@ router.post("/kalender-visit", async (req: Request, res: Response) => {
       pics: { include: { user: { select: { id: true, name: true } } } },
     },
   });
+  const picIds = pic_user_ids.map((uid: string | number) => BigInt(uid));
+  const tglStr = visit.tanggal.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  triggerEventReminderToUsers("kalender_visit_assign", picIds, {
+    nama_proyek: nama_projek,
+    tanggal: tglStr,
+    jam: jam ?? "—",
+    keterangan: keterangan ?? "",
+  }).catch(() => {});
   return res.status(201).json(visit);
 });
 
@@ -531,6 +557,16 @@ router.patch("/kalender-visit/:id", async (req: Request, res: Response) => {
       pics: { include: { user: { select: { id: true, name: true } } } },
     },
   });
+  if (Array.isArray(pic_user_ids) && pic_user_ids.length > 0) {
+    const tglStr = (updated.tanggal as Date).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    const newPicIds = pic_user_ids.map((uid: string | number) => BigInt(uid));
+    triggerEventReminderToUsers("kalender_visit_assign", newPicIds, {
+      nama_proyek: updated.nama_projek,
+      tanggal: tglStr,
+      jam: updated.jam ?? "—",
+      keterangan: updated.keterangan ?? "",
+    }).catch(() => {});
+  }
   return res.json(updated);
 });
 

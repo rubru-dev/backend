@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { config } from "../config";
 import { getPagination, paginateResponse } from "../middleware/pagination";
+import { requirePermission } from "../middleware/requireRole";
 
 const router = Router();
 
@@ -250,7 +251,7 @@ router.delete("/projeks/:id", async (req: Request, res: Response) => {
 });
 
 // POST /projeks/:id/termins
-router.post("/projeks/:id/termins", async (req: Request, res: Response) => {
+router.post("/projeks/:id/termins", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
   const p = await prisma.proyekBerjalan.findUnique({ where: { id: proyekId } });
   if (!p) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
@@ -283,7 +284,7 @@ router.post("/projeks/:id/termins", async (req: Request, res: Response) => {
 });
 
 // PATCH /termins/:id
-router.patch("/termins/:id", async (req: Request, res: Response) => {
+router.patch("/termins/:id", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const t = await prisma.proyekBerjalanTermin.findUnique({
     where: { id },
@@ -317,7 +318,7 @@ router.patch("/termins/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /termins/:id
-router.delete("/termins/:id", async (req: Request, res: Response) => {
+router.delete("/termins/:id", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const t = await prisma.proyekBerjalanTermin.findUnique({ where: { id } });
   if (!t) return res.status(404).json({ detail: "Termin tidak ditemukan" });
@@ -326,7 +327,7 @@ router.delete("/termins/:id", async (req: Request, res: Response) => {
 });
 
 // POST /termins/:id/tasks
-router.post("/termins/:id/tasks", async (req: Request, res: Response) => {
+router.post("/termins/:id/tasks", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
   const t = await prisma.proyekBerjalanTermin.findUnique({ where: { id: terminId } });
   if (!t) return res.status(404).json({ detail: "Termin tidak ditemukan" });
@@ -354,7 +355,7 @@ router.post("/termins/:id/tasks", async (req: Request, res: Response) => {
 });
 
 // PATCH /tasks/:id
-router.patch("/tasks/:id", async (req: Request, res: Response) => {
+router.patch("/tasks/:id", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const task = await prisma.proyekBerjalanTask.findUnique({
     where: { id },
@@ -393,7 +394,7 @@ router.patch("/tasks/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /tasks/:id
-router.delete("/tasks/:id", async (req: Request, res: Response) => {
+router.delete("/tasks/:id", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const task = await prisma.proyekBerjalanTask.findUnique({ where: { id } });
   if (!task) return res.status(404).json({ detail: "Pekerjaan tidak ditemukan" });
@@ -474,7 +475,7 @@ router.get("/termins/:id/rapp", async (req: Request, res: Response) => {
 });
 
 // POST /termins/:id/rapp/material-kategori
-router.post("/termins/:id/rapp/material-kategori", async (req: Request, res: Response) => {
+router.post("/termins/:id/rapp/material-kategori", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
   const { kode, nama } = req.body;
   const last = await prisma.rappMaterialKategori.findFirst({
@@ -488,7 +489,7 @@ router.post("/termins/:id/rapp/material-kategori", async (req: Request, res: Res
 });
 
 // PATCH /rapp/material-kategori/:id
-router.patch("/rapp/material-kategori/:id", async (req: Request, res: Response) => {
+router.patch("/rapp/material-kategori/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { kode, nama } = req.body;
   const updates: Record<string, unknown> = {};
@@ -499,14 +500,14 @@ router.patch("/rapp/material-kategori/:id", async (req: Request, res: Response) 
 });
 
 // DELETE /rapp/material-kategori/:id
-router.delete("/rapp/material-kategori/:id", async (req: Request, res: Response) => {
+router.delete("/rapp/material-kategori/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappMaterialKategori.delete({ where: { id } });
   return res.json({ message: "OK" });
 });
 
 // POST /rapp/material-kategori/:id/items
-router.post("/rapp/material-kategori/:id/items", async (req: Request, res: Response) => {
+router.post("/rapp/material-kategori/:id/items", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const kategoriId = BigInt(req.params.id);
   const { material, vol, sat, harga_satuan } = req.body;
   const last = await prisma.rappMaterialItem.findFirst({
@@ -531,7 +532,7 @@ router.post("/rapp/material-kategori/:id/items", async (req: Request, res: Respo
 });
 
 // PATCH /rapp/material-items/:id
-router.patch("/rapp/material-items/:id", async (req: Request, res: Response) => {
+router.patch("/rapp/material-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { material, vol, sat, harga_satuan } = req.body;
   const updates: Record<string, unknown> = {};
@@ -550,14 +551,14 @@ router.patch("/rapp/material-items/:id", async (req: Request, res: Response) => 
 });
 
 // DELETE /rapp/material-items/:id
-router.delete("/rapp/material-items/:id", async (req: Request, res: Response) => {
+router.delete("/rapp/material-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappMaterialItem.delete({ where: { id } });
   return res.json({ message: "OK" });
 });
 
 // POST /termins/:id/rapp/sipil-items
-router.post("/termins/:id/rapp/sipil-items", async (req: Request, res: Response) => {
+router.post("/termins/:id/rapp/sipil-items", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
   const { nama, vol, sat, harga_satuan, keterangan, jumlah } = req.body;
   const last = await prisma.rappSipilItem.findFirst({
@@ -583,7 +584,7 @@ router.post("/termins/:id/rapp/sipil-items", async (req: Request, res: Response)
 });
 
 // PATCH /rapp/sipil-items/:id
-router.patch("/rapp/sipil-items/:id", async (req: Request, res: Response) => {
+router.patch("/rapp/sipil-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { nama, vol, sat, harga_satuan, keterangan, jumlah } = req.body;
   const updates: Record<string, unknown> = {};
@@ -605,14 +606,14 @@ router.patch("/rapp/sipil-items/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /rapp/sipil-items/:id
-router.delete("/rapp/sipil-items/:id", async (req: Request, res: Response) => {
+router.delete("/rapp/sipil-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappSipilItem.delete({ where: { id } });
   return res.json({ message: "OK" });
 });
 
 // POST /termins/:id/rapp/vendor-kategori
-router.post("/termins/:id/rapp/vendor-kategori", async (req: Request, res: Response) => {
+router.post("/termins/:id/rapp/vendor-kategori", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
   const { nama } = req.body;
   const last = await prisma.rappVendorKategori.findFirst({
@@ -626,7 +627,7 @@ router.post("/termins/:id/rapp/vendor-kategori", async (req: Request, res: Respo
 });
 
 // PATCH /rapp/vendor-kategori/:id
-router.patch("/rapp/vendor-kategori/:id", async (req: Request, res: Response) => {
+router.patch("/rapp/vendor-kategori/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { nama } = req.body;
   if (nama !== undefined) await prisma.rappVendorKategori.update({ where: { id }, data: { nama } });
@@ -634,14 +635,14 @@ router.patch("/rapp/vendor-kategori/:id", async (req: Request, res: Response) =>
 });
 
 // DELETE /rapp/vendor-kategori/:id
-router.delete("/rapp/vendor-kategori/:id", async (req: Request, res: Response) => {
+router.delete("/rapp/vendor-kategori/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappVendorKategori.delete({ where: { id } });
   return res.json({ message: "OK" });
 });
 
 // POST /rapp/vendor-kategori/:id/items
-router.post("/rapp/vendor-kategori/:id/items", async (req: Request, res: Response) => {
+router.post("/rapp/vendor-kategori/:id/items", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const kategoriId = BigInt(req.params.id);
   const { nama, vol, sat, harga_satuan } = req.body;
   const last = await prisma.rappVendorItem.findFirst({
@@ -665,7 +666,7 @@ router.post("/rapp/vendor-kategori/:id/items", async (req: Request, res: Respons
 });
 
 // PATCH /rapp/vendor-items/:id
-router.patch("/rapp/vendor-items/:id", async (req: Request, res: Response) => {
+router.patch("/rapp/vendor-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { nama, vol, sat, harga_satuan } = req.body;
   const updates: Record<string, unknown> = {};
@@ -684,7 +685,7 @@ router.patch("/rapp/vendor-items/:id", async (req: Request, res: Response) => {
 });
 
 // DELETE /rapp/vendor-items/:id
-router.delete("/rapp/vendor-items/:id", async (req: Request, res: Response) => {
+router.delete("/rapp/vendor-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappVendorItem.delete({ where: { id } });
   return res.json({ message: "OK" });
@@ -744,7 +745,8 @@ router.get("/projeks/:id/stock-opname/logs", async (req: Request, res: Response)
   const mapped = logs.map((l) => ({
     id: String(l.id),
     item_ref_type: l.item_ref_type,
-    item_ref_id: String(l.item_ref_id),
+    item_ref_id: l.item_ref_id ? String(l.item_ref_id) : null,
+    item_kategori: l.item_kategori,
     item_nama: l.item_nama,
     item_satuan: l.item_satuan,
     qty_pakai: parseFloat(String(l.qty_pakai)),
@@ -757,16 +759,20 @@ router.get("/projeks/:id/stock-opname/logs", async (req: Request, res: Response)
 });
 
 // POST /projeks/:id/stock-opname/logs
-router.post("/projeks/:id/stock-opname/logs", async (req: Request, res: Response) => {
+router.post("/projeks/:id/stock-opname/logs", requirePermission("projek_sipil", "stock_opname"), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
-  const { item_ref_type, item_ref_id, item_nama, item_satuan, qty_pakai, tanggal, catatan } = req.body;
-  if (!item_ref_type || !item_ref_id || !item_nama || !qty_pakai || !tanggal)
-    return res.status(400).json({ detail: "item_ref_type, item_ref_id, item_nama, qty_pakai, tanggal wajib diisi" });
+  const { item_ref_type, item_ref_id, item_kategori, item_nama, item_satuan, qty_pakai, tanggal, catatan } = req.body;
+  const isManual = item_ref_type === "manual";
+  if (!item_ref_type || !item_nama || !qty_pakai || !tanggal)
+    return res.status(400).json({ detail: "item_ref_type, item_nama, qty_pakai, tanggal wajib diisi" });
+  if (!isManual && !item_ref_id)
+    return res.status(400).json({ detail: "item_ref_id wajib diisi untuk item dari RAPP" });
   const log = await prisma.sipilUsageLog.create({
     data: {
       proyek_id: proyekId,
       item_ref_type,
-      item_ref_id: BigInt(item_ref_id),
+      item_ref_id: item_ref_id ? BigInt(item_ref_id) : null,
+      item_kategori: item_kategori ?? null,
       item_nama,
       item_satuan: item_satuan ?? null,
       qty_pakai: parseFloat(qty_pakai),
@@ -779,7 +785,7 @@ router.post("/projeks/:id/stock-opname/logs", async (req: Request, res: Response
 });
 
 // DELETE /stock-opname/logs/:id
-router.delete("/stock-opname/logs/:id", async (req: Request, res: Response) => {
+router.delete("/stock-opname/logs/:id", requirePermission("projek_sipil", "stock_opname"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.sipilUsageLog.delete({ where: { id } });
   return res.json({ message: "OK" });
@@ -799,7 +805,7 @@ router.get("/projeks/:id/links", async (req: Request, res: Response) => {
 });
 
 // POST /projeks/:id/links (supports JSON url OR multipart file upload)
-router.post("/projeks/:id/links", docsUpload.single("file"), async (req: Request, res: Response) => {
+router.post("/projeks/:id/links", requirePermission("projek_sipil", "docs"), docsUpload.single("file"), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
   const { title, catatan } = req.body;
   let url: string = req.body.url ?? "";
@@ -815,7 +821,7 @@ router.post("/projeks/:id/links", docsUpload.single("file"), async (req: Request
 });
 
 // DELETE /links/:id
-router.delete("/links/:id", async (req: Request, res: Response) => {
+router.delete("/links/:id", requirePermission("projek_sipil", "docs"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const link = await prisma.projectLink.findUnique({ where: { id } });
   if (link?.url?.startsWith("/storage/sipil-docs/")) {
@@ -839,7 +845,7 @@ router.get("/tasks/:id/fotos", async (req: Request, res: Response) => {
 });
 
 // POST /tasks/:id/fotos
-router.post("/tasks/:id/fotos", docsUpload.array("fotos", 10), async (req: Request, res: Response) => {
+router.post("/tasks/:id/fotos", requirePermission("projek_sipil", "dokumentasi"), docsUpload.array("fotos", 10), async (req: Request, res: Response) => {
   const taskId = BigInt(req.params.id);
   const task = await prisma.proyekBerjalanTask.findUnique({ where: { id: taskId } });
   if (!task) return res.status(404).json({ detail: "Task tidak ditemukan" });
@@ -852,11 +858,19 @@ router.post("/tasks/:id/fotos", docsUpload.array("fotos", 10), async (req: Reque
       })
     )
   );
+  const { triggerEventReminder: triggerEvt } = await import("../lib/fontee");
+  triggerEvt("dokumentasi_projek_upload", {
+    jenis: "sipil",
+    nama_proyek: "Projek Sipil",
+    nama_task: task.nama_pekerjaan ?? "—",
+    jumlah_foto: String(files.length),
+    uploader: req.user?.name ?? "—",
+  }).catch(() => {});
   return res.status(201).json(created.map((f) => ({ ...f, id: String(f.id), task_id: String(f.task_id) })));
 });
 
 // DELETE /tasks/fotos/:fotoId
-router.delete("/tasks/fotos/:fotoId", async (req: Request, res: Response) => {
+router.delete("/tasks/fotos/:fotoId", requirePermission("projek_sipil", "dokumentasi"), async (req: Request, res: Response) => {
   const fotoId = BigInt(req.params.fotoId);
   const foto = await prisma.proyekBerjalanTaskFoto.findUnique({ where: { id: fotoId } });
   if (!foto) return res.status(404).json({ detail: "Foto tidak ditemukan" });
@@ -889,7 +903,7 @@ router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
 });
 
 // POST /projeks/:id/checklist
-router.post("/projeks/:id/checklist", docsUpload.array("gambar", 10), async (req: Request, res: Response) => {
+router.post("/projeks/:id/checklist", requirePermission("projek_sipil", "checklist"), docsUpload.array("gambar", 10), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
   const proyek = await prisma.proyekBerjalan.findUnique({ where: { id: proyekId } });
   if (!proyek) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
@@ -912,7 +926,7 @@ router.post("/projeks/:id/checklist", docsUpload.array("gambar", 10), async (req
 });
 
 // PATCH /checklist/:cid
-router.patch("/checklist/:cid", docsUpload.fields([{ name: "gambar", maxCount: 10 }, { name: "gambar_selesai", maxCount: 10 }]), async (req: Request, res: Response) => {
+router.patch("/checklist/:cid", requirePermission("projek_sipil", "checklist"), docsUpload.fields([{ name: "gambar", maxCount: 10 }, { name: "gambar_selesai", maxCount: 10 }]), async (req: Request, res: Response) => {
   const cid = BigInt(req.params.cid);
   const existing = await prisma.checklistSipil.findUnique({ where: { id: cid } });
   if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
@@ -952,7 +966,7 @@ router.patch("/checklist/:cid", docsUpload.fields([{ name: "gambar", maxCount: 1
 });
 
 // DELETE /checklist/:cid
-router.delete("/checklist/:cid", async (req: Request, res: Response) => {
+router.delete("/checklist/:cid", requirePermission("projek_sipil", "checklist"), async (req: Request, res: Response) => {
   const cid = BigInt(req.params.cid);
   const existing = await prisma.checklistSipil.findUnique({ where: { id: cid } });
   if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });

@@ -117,6 +117,14 @@ enum ComplaintPriority {
   HIGH
   URGENT
 }
+enum AgreementStatus {
+  DRAFT
+  SENT
+  SIGNED
+  ACTIVE
+  EXPIRED
+  CANCELLED
+}
 
 model Customer {
   id        String   @id @default(cuid())
@@ -190,6 +198,7 @@ model Customer {
   orderSheets OrderSheet[]
   complaints      Complaint[]
   agreementReports AgreementReport[]
+  agreements      Agreement[]
 }
 
 model CustomerFile {
@@ -263,9 +272,10 @@ model Quotation {
   updatedAt     DateTime        @updatedAt
   ownerId       String
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  inquiry  Inquiry? @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
-  owner    User     @relation("QuotationOwner", fields: [ownerId], references: [id])
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  inquiry    Inquiry?    @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
+  owner      User        @relation("QuotationOwner", fields: [ownerId], references: [id])
+  agreements Agreement[]
 }
 
 model Renewal {
@@ -740,4 +750,49 @@ model AgreementReport {
 
   @@index([customerId])
   @@index([tahun, bulan])
+}
+
+model Agreement {
+  id                  String          @id @default(cuid())
+  number              String          @unique
+  tanggal             DateTime        @default(now())
+  customerId          String
+  quotationId         String?
+  jenisLayanan        String          @default("Pest Control")
+  lokasiPekerjaan     String          @default("") @db.Text
+  areaPekerjaan       String?         @db.Text
+  tanggalMulai        DateTime
+  tanggalBerakhir     DateTime
+  durasiKontrak       Int?
+  serviceSchedule     Json            @default("[]")
+  nilaiKontrak        Decimal         @db.Decimal(15, 2)
+  ppn                 Decimal?        @db.Decimal(15, 2)
+  grandTotal          Decimal?        @db.Decimal(15, 2)
+  metodePembayaran    String?
+  terminPembayaran    Json            @default("[]")
+  rekening            String?
+  garansi             String?
+  status              AgreementStatus @default(DRAFT)
+  picFumakillaNama    String?
+  picFumakillaJabatan String?
+  picFumakillaKontak  String?
+  picKlienNama        String?
+  picKlienJabatan     String?
+  picKlienKontak      String?
+  ttdFumakillaNama    String?
+  ttdFumakillaJabatan String?
+  ttdFumakillaTanggal DateTime?
+  ttdKlienNama        String?
+  ttdKlienJabatan     String?
+  ttdKlienTanggal     DateTime?
+  notes               String?         @db.Text
+  createdAt           DateTime        @default(now())
+  updatedAt           DateTime        @updatedAt
+
+  customer  Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quotation Quotation? @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([status])
+  @@index([tanggalBerakhir])
 }

@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { sendFonnte, sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
+import { sendFonnte, sendFonntToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/fontee";
 import { syncInstagram, syncInstagramAccountLevel, syncYouTube } from "../lib/socialSync";
 
 const router = Router();
@@ -2335,6 +2335,14 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
         roleNames: calendarNotificationRoles(modul),
         message: msg,
       });
+      // Trigger rule-based reminder (customizable via admin settings)
+      const tglStr = new Date(effectiveSurveyDate).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      triggerEventReminder("survey_scheduled", {
+        nama: updatedLead.nama ?? "—",
+        tanggal: tglStr,
+        alamat: updatedLead.alamat ?? "—",
+        pic: b.pic_survey,
+      }).catch(() => {});
     }
   }
 
@@ -2588,6 +2596,19 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
         roleNames: calendarNotificationRoles(modul),
         message: msg,
       });
+    }
+  }
+  // Trigger rule-based reminder (customizable via admin settings)
+  if (tanggal_survey || pic_survey) {
+    const surveyDate = tanggal_survey ?? updatedLead.tanggal_survey;
+    if (surveyDate) {
+      const tglStr = new Date(surveyDate).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
+      triggerEventReminder("survey_scheduled", {
+        nama: lead?.nama ?? "—",
+        tanggal: tglStr,
+        alamat: lead?.alamat ?? "—",
+        pic: pic_survey ?? lead?.pic_survey ?? "—",
+      }).catch(() => {});
     }
   }
 

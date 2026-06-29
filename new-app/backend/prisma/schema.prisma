@@ -1085,7 +1085,8 @@ model SipilUsageLog {
   id            BigInt         @id @default(autoincrement())
   proyek_id     BigInt
   item_ref_type String         @db.VarChar(50)
-  item_ref_id   BigInt
+  item_ref_id   BigInt?
+  item_kategori String?        @db.VarChar(100)
   item_nama     String         @db.VarChar(500)
   item_satuan   String?        @db.VarChar(100)
   qty_pakai     Decimal        @db.Decimal(15, 4)

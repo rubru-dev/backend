@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
+import { sendFonntToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/fontee";
 import fs from "fs";
 import path from "path";
 import { config } from "../config";
@@ -989,8 +989,11 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
   });
   const clientName = leadDisplayName((inv as any).lead) || "—";
   const totalAmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(inv.grand_total));
-  const invoiceMsg = `🧾 *Invoice Baru Dibuat*\n\nInvoice untuk klien: *${clientName}*\nNomor: ${inv.invoice_number}\nTotal: ${totalAmt}\n\nSilakan review dan tanda tangani.\n\n🔗 ${FRONTEND_URL}/finance/invoice-kwitansi`;
-  sendFonntToRoles(["Admin Finance", "Head Finance"], invoiceMsg).catch(() => {});
+  triggerEventReminder("invoice_sign_head", {
+    nomor_invoice: inv.invoice_number ?? "—",
+    klien: clientName,
+    total: String(Number(inv.grand_total)),
+  }).catch(() => {});
   return res.status(201).json(invoiceDictFrontend(inv));
 });
 
@@ -1135,6 +1138,15 @@ router.post("/invoices/:id/sign-head", requirePermission("finance", "sign_head")
     where: { id },
     data: { head_finance_id: req.user!.id, head_finance_at: new Date(), head_finance_signature: signature_data, status: newStatus },
   });
+  const invFull = await prisma.invoice.findUnique({ where: { id }, include: { lead: true } });
+  const clientName2 = leadDisplayName((invFull as any)?.lead) || "—";
+  triggerEventReminder("invoice_sign_head", {
+    nomor_invoice: inv.invoice_number ?? "—",
+    klien: clientName2,
+    total: String(Number(inv.grand_total ?? 0)),
+    status: newStatus,
+    aksi: "Ditandatangani — Status: Terbit",
+  }).catch(() => {});
   return res.json({ message: "Tanda tangan Head Finance disimpan", status: newStatus });
 });
 
@@ -1376,9 +1388,13 @@ router.post("/reimburse", async (req: Request, res: Response) => {
     include: REIMBURSE_INCLUDE,
   });
   const submitterName = req.user!.name;
-  const reimburseAmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(total);
-  const reimburseMsg = `💸 *Pengajuan Reimburse Baru*\n\nDiajukan oleh: *${submitterName}*\nKategori: ${kategori || "—"}\nTotal: ${reimburseAmt}\n\nSilakan review dan setujui.\n\n🔗 ${FRONTEND_URL}/finance/reimburse`;
-  sendFonntToRoles(["Admin Finance"], reimburseMsg).catch(() => {});
+  const reimburseAmt = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(total);
+  triggerEventReminder("pr_sign_head", {
+    nomor_pr: `RBR-${String(reimburse.id)}`,
+    total: reimburseAmt,
+    pengaju: submitterName,
+    kategori: kategori || "—",
+  }).catch(() => {});
   return res.status(201).json(reimburseDict(reimburse));
 });
 
@@ -1402,6 +1418,13 @@ router.post("/reimburse/:id/sign-head", requirePermission("finance", "sign_head"
     },
     include: REIMBURSE_INCLUDE,
   });
+  const reimburseAmt2 = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Number(updated.total ?? 0));
+  triggerEventReminder("pr_sign_head", {
+    nomor_pr: `RBR-${String(updated.id)}`,
+    total: reimburseAmt2,
+    pengaju: (updated as any).user?.name ?? "—",
+    aksi: "Disetujui oleh Head Finance",
+  }).catch(() => {});
   return res.json({ message: "Tanda tangan Head Finance disimpan", data: reimburseDict(updated) });
 });
 
@@ -2512,12 +2535,21 @@ router.post("/adm-projek/:id/tukang/absen-foto", async (req: Request, res: Respo
 // POST /finance/adm-projek/:id/tukang/absen-foto/:aid/approve
 router.post("/adm-projek/:id/tukang/absen-foto/:aid/approve", async (req: Request, res: Response) => {
   const aid = BigInt(req.params.aid);
-  const p = await prisma.tukangAbsenFoto.findUnique({ where: { id: aid } });
+  const p = await prisma.tukangAbsenFoto.findUnique({
+    where: { id: aid },
+    include: { tukang: { include: { user: true, adm_finance_project: { select: { nama_proyek: true } } } } },
+  });
   if (!p) return res.status(404).json({ detail: "Data tidak ditemukan" });
   await prisma.tukangAbsenFoto.update({
     where: { id: aid },
     data: { status: "Disetujui", approved_by: req.user!.id, approved_at: new Date() },
   });
+  const tukangWa = (p.tukang as any)?.user?.whatsapp_number;
+  if (tukangWa) {
+    const proyekNama = (p.tukang as any)?.adm_finance_project?.nama_proyek ?? "—";
+    const tanggalStr = p.tanggal.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "long", year: "numeric" });
+    triggerEventReminder("absen_tukang_approved", { nama_proyek: proyekNama, tanggal: tanggalStr }).catch(() => {});
+  }
   return res.json({ message: "Absen disetujui" });
 });
 
@@ -2740,6 +2772,14 @@ router.post("/adm-projek/:id/tukang/gajian", async (req: Request, res: Response)
       },
     });
   }
+
+  const admProject = await prisma.admFinanceProject.findUnique({ where: { id: pid }, select: { nama_proyek: true } });
+  const periodeStr = `${startDate.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })} — ${endDate.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}`;
+  triggerEventReminder("gajian_tukang_ready", {
+    nama_proyek: admProject?.nama_proyek ?? "—",
+    periode: periodeStr,
+    total: new Intl.NumberFormat("id-ID").format(totalGaji),
+  }).catch(() => {});
 
   return res.status(201).json({ id: g.id });
 });
