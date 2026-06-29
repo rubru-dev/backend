@@ -213,8 +213,9 @@ async function processRule(rule: any): Promise<number> {
 
     case "laporan_harian_siang":
     case "laporan_harian_sore": {
-      // Tidak ada query data — langsung kirim ke semua role users
-      messages.push(fillTemplate(tpl, { ...baseVars, tanggal: formatTanggalID(new Date()) }));
+      // Selalu pakai tanggal WIB hari ini, bukan dari days_before
+      const hariIni = formatTanggalID(new Date());
+      messages.push(fillTemplate(tpl, { days_before: "0", tanggal: hariIni }));
       break;
     }
 
@@ -372,21 +373,28 @@ export async function runDeadlineReminders(currentHour?: number, currentMinute =
 // ── Scheduler setup ───────────────────────────────────────────────────────────
 
 export function startReminderScheduler(): void {
-  // Deadline rules dengan send_time :00 (tiap jam tepat)
+  const tz = { timezone: "Asia/Jakarta" };
+
+  // Deadline rules — tiap jam tepat WIB
   cron.schedule("0 * * * *", () => {
     const { hour } = getJakartaTimeParts();
     runDeadlineReminders(hour, 0).catch((err) => console.error("[ReminderScheduler] Error:", err));
-  });
+  }, tz);
 
-  // Laporan harian sore jam 16:50 (khusus non-:00)
+  // Laporan harian sore jam 16:50 WIB
   cron.schedule("50 16 * * 1-5", () => {
     runDeadlineReminders(16, 50).catch((err) => console.error("[ReminderScheduler] 16:50 error:", err));
-  });
+  }, tz);
 
-  // Absen masuk/keluar check setiap 3 menit (precision ±2 menit)
+  // Laporan harian siang jam 12:00 WIB (backup — kalau jam 12:00 hourly terlewat)
+  cron.schedule("0 12 * * 1-6", () => {
+    runDeadlineReminders(12, 0).catch((err) => console.error("[ReminderScheduler] 12:00 error:", err));
+  }, tz);
+
+  // Absen masuk/keluar check setiap 3 menit, jam 06:00–18:00 WIB, Senin–Sabtu
   cron.schedule("*/3 6-18 * * 1-6", () => {
     checkAbsenReminders().catch((err) => console.error("[AbsenReminder] Error:", err));
-  });
+  }, tz);
 
-  console.log("✓ Fontee reminder scheduler aktif (tiap jam + 16:50 + absen check)");
+  console.log("✓ Fontee reminder scheduler aktif — WIB (tiap jam + 16:50 + 12:00 + absen check)");
 }
