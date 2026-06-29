@@ -372,6 +372,7 @@ router.post("/leads", async (req: Request, res: Response) => {
       modul: b.modul ?? null,
     },
   });
+  triggerEventReminder("lead_new", { nama: lead.nama, sumber: b.sumber_leads ?? "-", modul: b.modul ?? "bd" }).catch(() => {});
   return res.status(201).json({ id: lead.id, nama: lead.nama, message: "Lead berhasil dibuat" });
 });
 
@@ -497,6 +498,7 @@ router.get("/follow-up", async (req: Request, res: Response) => {
 
 router.post("/follow-up", async (req: Request, res: Response) => {
   const { lead_id, tanggal, catatan, next_follow_up } = req.body;
+  const fuLead = await prisma.lead.findUnique({ where: { id: BigInt(lead_id) }, select: { nama: true } });
   await prisma.followUpClient.create({
     data: {
       lead_id,
@@ -506,6 +508,12 @@ router.post("/follow-up", async (req: Request, res: Response) => {
       next_follow_up: next_follow_up ? new Date(next_follow_up) : null,
     },
   });
+  triggerEventReminder("follow_up_new", {
+    nama: fuLead?.nama ?? "-",
+    user: req.user!.name ?? req.user!.email,
+    catatan: catatan ?? "-",
+    next_follow_up: next_follow_up ? new Date(next_follow_up).toLocaleDateString("id-ID") : "-",
+  }).catch(() => {});
   return res.status(201).json({ message: "Follow up ditambahkan" });
 });
 
@@ -2254,6 +2262,7 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
     }
   }
 
+  triggerEventReminder("lead_new", { nama: lead.nama, sumber: b.sumber_leads ?? "-", modul }).catch(() => {});
   return res.status(201).json({ id: lead.id, nama: lead.nama, message: "Lead berhasil dibuat" });
 });
 
@@ -2423,6 +2432,12 @@ router.post("/:modul/leads/:id/follow-up", async (req: Request, res: Response) =
       ...attachment,
     },
   });
+  triggerEventReminder("follow_up_new", {
+    nama: lead.nama,
+    user: req.user!.name ?? req.user!.email,
+    catatan: req.body.catatan ?? "-",
+    next_follow_up: req.body.next_follow_up ? new Date(req.body.next_follow_up).toLocaleDateString("id-ID") : "-",
+  }).catch(() => {});
   return res.status(201).json({ message: "Follow up dicatat" });
 });
 
