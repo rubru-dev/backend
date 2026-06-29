@@ -381,14 +381,9 @@ export function startReminderScheduler(): void {
     runDeadlineReminders(hour, 0).catch((err) => console.error("[ReminderScheduler] Error:", err));
   }, tz);
 
-  // Laporan harian sore jam 16:50 WIB
+  // Laporan harian sore jam 16:50 WIB (satu-satunya send_time non-:00)
   cron.schedule("50 16 * * 1-5", () => {
     runDeadlineReminders(16, 50).catch((err) => console.error("[ReminderScheduler] 16:50 error:", err));
-  }, tz);
-
-  // Laporan harian siang jam 12:00 WIB (backup — kalau jam 12:00 hourly terlewat)
-  cron.schedule("0 12 * * 1-6", () => {
-    runDeadlineReminders(12, 0).catch((err) => console.error("[ReminderScheduler] 12:00 error:", err));
   }, tz);
 
   // Absen masuk/keluar check setiap 3 menit, jam 06:00–18:00 WIB, Senin–Sabtu
@@ -396,5 +391,5 @@ export function startReminderScheduler(): void {
     checkAbsenReminders().catch((err) => console.error("[AbsenReminder] Error:", err));
   }, tz);
 
-  console.log("✓ Fontee reminder scheduler aktif — WIB (tiap jam + 16:50 + 12:00 + absen check)");
+  console.log("✓ Fontee reminder scheduler aktif — WIB (tiap jam + 16:50 + absen check)");
 }
