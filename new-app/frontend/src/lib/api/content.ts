@@ -165,6 +165,7 @@ export const sipilApi = {
   getRappSummary: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/stock-opname/rapp`).then((r) => r.data),
   getUsageLogs: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/stock-opname/logs`).then((r) => r.data.items ?? r.data),
   addUsageLog: (projekId: string, data: any) => apiClient.post(`/sipil/projeks/${projekId}/stock-opname/logs`, data).then((r) => r.data),
+  addUsageLogBatch: (projekId: string, items: any[]) => apiClient.post(`/sipil/projeks/${projekId}/stock-opname/logs/batch`, { items }).then((r) => r.data),
   deleteUsageLog: (logId: string) => apiClient.delete(`/sipil/stock-opname/logs/${logId}`).then((r) => r.data),
   // Docs/Link
   getLinks: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/links`).then((r) => r.data),

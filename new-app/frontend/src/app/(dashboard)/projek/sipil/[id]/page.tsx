@@ -1001,9 +1001,10 @@ export default function ProyekSipilDetailPage() {
   const [soForm, setSoForm] = useState({ item_ref_type: "", item_ref_id: "", item_nama: "", item_satuan: "", qty_pakai: "", tanggal: new Date().toISOString().slice(0, 10), catatan: "" });
   const [soDialog, setSoDialog] = useState(false);
   const KATEGORI_OPTIONS = ["Alat", "Material", "Vendor", "Lainnya"];
-  const EMPTY_MANUAL_FORM = { item_nama: "", item_kategori: "Material", item_satuan: "", qty_pakai: "", tanggal: new Date().toISOString().slice(0, 10), catatan: "" };
+  type ManualRow = { id: number; item_nama: string; item_kategori: string; item_satuan: string; qty_pakai: string; tanggal: string; catatan: string };
+  const newRow = (): ManualRow => ({ id: Date.now() + Math.random(), item_nama: "", item_kategori: "Material", item_satuan: "", qty_pakai: "", tanggal: new Date().toISOString().slice(0, 10), catatan: "" });
   const [soManualDialog, setSoManualDialog] = useState(false);
-  const [soManualForm, setSoManualForm] = useState(EMPTY_MANUAL_FORM);
+  const [soManualRows, setSoManualRows] = useState<ManualRow[]>([newRow()]);
 
   const { data: rappSummary = [], isLoading: loadingRapp } = useQuery<any[]>({
     queryKey: ["sipil-rapp-summary", id],
@@ -1023,11 +1024,19 @@ export default function ProyekSipilDetailPage() {
       toast.success("Penggunaan dicatat");
       qc.invalidateQueries({ queryKey: ["sipil-usage-logs", id] });
       setSoDialog(false);
-      setSoManualDialog(false);
       setSoForm({ item_ref_type: "", item_ref_id: "", item_nama: "", item_satuan: "", qty_pakai: "", tanggal: new Date().toISOString().slice(0, 10), catatan: "" });
-      setSoManualForm(EMPTY_MANUAL_FORM);
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
+  const addBatchMut = useMutation({
+    mutationFn: (items: any[]) => sipilApi.addUsageLogBatch(id, items),
+    onSuccess: (res) => {
+      toast.success(`${res.count} item berhasil dicatat`);
+      qc.invalidateQueries({ queryKey: ["sipil-usage-logs", id] });
+      setSoManualDialog(false);
+      setSoManualRows([newRow()]);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan"),
   });
   const deleteUsageMut = useMutation({
     mutationFn: (lid: string) => sipilApi.deleteUsageLog(lid),
@@ -1493,7 +1502,7 @@ export default function ProyekSipilDetailPage() {
               </button>
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setSoManualForm(EMPTY_MANUAL_FORM); setSoManualDialog(true); }}>
+              <Button variant="outline" size="sm" onClick={() => { setSoManualRows([newRow()]); setSoManualDialog(true); }}>
                 <Plus className="h-3.5 w-3.5 mr-1" />Catat Manual
               </Button>
               <Button variant="outline" size="sm" disabled={downloadingSoPdf} onClick={handleDownloadSoPDF}>
@@ -1896,49 +1905,124 @@ export default function ProyekSipilDetailPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Dialog Catat Manual (tanpa referensi RAPP) */}
-      <Dialog open={soManualDialog} onOpenChange={setSoManualDialog}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle><Plus className="h-4 w-4 inline mr-2" />Catat Penggunaan Manual</DialogTitle></DialogHeader>
+      {/* Dialog Catat Manual — multi-baris */}
+      <Dialog open={soManualDialog} onOpenChange={(v) => { if (!v) { setSoManualDialog(false); setSoManualRows([newRow()]); } }}>
+        <DialogContent className="max-w-5xl w-full">
+          <DialogHeader>
+            <DialogTitle><Plus className="h-4 w-4 inline mr-2" />Catat Penggunaan Manual</DialogTitle>
+            <p className="text-xs text-muted-foreground pt-0.5">Tambah sebanyak baris yang dibutuhkan — semua disimpan sekaligus.</p>
+          </DialogHeader>
           <div className="space-y-3 pt-1">
-            <div>
-              <Label>Nama Item *</Label>
-              <Input placeholder="Contoh: Mesin Bor, Semen 50kg, dll" value={soManualForm.item_nama} onChange={(e) => setSoManualForm({ ...soManualForm, item_nama: e.target.value })} />
+            <div className="overflow-x-auto rounded-md border">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-muted/50 text-xs text-muted-foreground">
+                    <th className="text-left px-2 py-2 font-medium w-[200px]">Nama Item *</th>
+                    <th className="text-left px-2 py-2 font-medium w-[110px]">Kategori</th>
+                    <th className="text-left px-2 py-2 font-medium w-[90px]">Satuan</th>
+                    <th className="text-left px-2 py-2 font-medium w-[90px]">Qty *</th>
+                    <th className="text-left px-2 py-2 font-medium w-[130px]">Tanggal *</th>
+                    <th className="text-left px-2 py-2 font-medium">Catatan</th>
+                    <th className="w-8" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {soManualRows.map((row, idx) => (
+                    <tr key={row.id} className="hover:bg-muted/20">
+                      <td className="px-1 py-1">
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="Nama item..."
+                          value={row.item_nama}
+                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_nama: e.target.value } : r))}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        <select
+                          className="w-full border rounded-md px-2 py-1.5 text-sm bg-background h-8"
+                          value={row.item_kategori}
+                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_kategori: e.target.value } : r))}
+                        >
+                          {KATEGORI_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="pcs, kg..."
+                          value={row.item_satuan}
+                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_satuan: e.target.value } : r))}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input
+                          className="h-8 text-sm"
+                          type="number"
+                          min="0"
+                          step="0.001"
+                          placeholder="0"
+                          value={row.qty_pakai}
+                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, qty_pakai: e.target.value } : r))}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input
+                          className="h-8 text-sm"
+                          type="date"
+                          value={row.tanggal}
+                          max={new Date().toISOString().slice(0, 10)}
+                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, tanggal: e.target.value } : r))}
+                        />
+                      </td>
+                      <td className="px-1 py-1">
+                        <Input
+                          className="h-8 text-sm"
+                          placeholder="Keterangan..."
+                          value={row.catatan}
+                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, catatan: e.target.value } : r))}
+                        />
+                      </td>
+                      <td className="px-1 py-1 text-center">
+                        <button
+                          className="text-muted-foreground hover:text-destructive disabled:opacity-30"
+                          disabled={soManualRows.length === 1}
+                          onClick={() => setSoManualRows((rows) => rows.filter((r) => r.id !== row.id))}
+                          title="Hapus baris"
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Kategori</Label>
-                <select className="w-full border rounded-md px-3 py-2 text-sm bg-background" value={soManualForm.item_kategori} onChange={(e) => setSoManualForm({ ...soManualForm, item_kategori: e.target.value })}>
-                  {KATEGORI_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
-                </select>
+            <Button
+              variant="outline"
+              size="sm"
+              className="text-xs"
+              onClick={() => setSoManualRows((rows) => [...rows, newRow()])}
+            >
+              <Plus className="h-3 w-3 mr-1" />Tambah Baris
+            </Button>
+            <div className="flex items-center justify-between pt-1 border-t">
+              <span className="text-xs text-muted-foreground">{soManualRows.length} baris</span>
+              <div className="flex gap-2">
+                <Button variant="outline" onClick={() => { setSoManualDialog(false); setSoManualRows([newRow()]); }}>Batal</Button>
+                <Button
+                  disabled={soManualRows.some((r) => !r.item_nama || !r.qty_pakai || parseFloat(r.qty_pakai) <= 0) || addBatchMut.isPending}
+                  onClick={() => addBatchMut.mutate(soManualRows.map((r) => ({
+                    item_kategori: r.item_kategori,
+                    item_nama: r.item_nama,
+                    item_satuan: r.item_satuan || null,
+                    qty_pakai: r.qty_pakai,
+                    tanggal: r.tanggal,
+                    catatan: r.catatan || null,
+                  })))}
+                >
+                  {addBatchMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : `Simpan ${soManualRows.length} Item`}
+                </Button>
               </div>
-              <div>
-                <Label>Satuan</Label>
-                <Input placeholder="pcs, kg, m², dll" value={soManualForm.item_satuan} onChange={(e) => setSoManualForm({ ...soManualForm, item_satuan: e.target.value })} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Qty Dipakai *</Label>
-                <Input type="number" min="0" step="0.001" placeholder="0" value={soManualForm.qty_pakai} onChange={(e) => setSoManualForm({ ...soManualForm, qty_pakai: e.target.value })} />
-              </div>
-              <div>
-                <Label>Tanggal *</Label>
-                <Input type="date" value={soManualForm.tanggal} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setSoManualForm({ ...soManualForm, tanggal: e.target.value })} />
-              </div>
-            </div>
-            <div>
-              <Label>Catatan</Label>
-              <Input placeholder="Keterangan (opsional)" value={soManualForm.catatan} onChange={(e) => setSoManualForm({ ...soManualForm, catatan: e.target.value })} />
-            </div>
-            <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={() => setSoManualDialog(false)}>Batal</Button>
-              <Button
-                disabled={!soManualForm.item_nama || !soManualForm.qty_pakai || parseFloat(soManualForm.qty_pakai) <= 0 || addUsageMut.isPending}
-                onClick={() => addUsageMut.mutate({ item_ref_type: "manual", item_kategori: soManualForm.item_kategori, item_nama: soManualForm.item_nama, item_satuan: soManualForm.item_satuan || null, qty_pakai: soManualForm.qty_pakai, tanggal: soManualForm.tanggal, catatan: soManualForm.catatan || null })}
-              >
-                {addUsageMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : "Simpan"}
-              </Button>
             </div>
           </div>
         </DialogContent>

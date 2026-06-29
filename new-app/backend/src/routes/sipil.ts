@@ -791,6 +791,34 @@ router.delete("/stock-opname/logs/:id", requirePermission("projek_sipil", "stock
   return res.json({ message: "OK" });
 });
 
+// POST /projeks/:id/stock-opname/logs/batch
+router.post("/projeks/:id/stock-opname/logs/batch", requirePermission("projek_sipil", "stock_opname"), async (req: Request, res: Response) => {
+  const proyekId = BigInt(req.params.id);
+  const { items } = req.body;
+  if (!Array.isArray(items) || items.length === 0)
+    return res.status(400).json({ detail: "items harus array dan tidak boleh kosong" });
+
+  const rows = items.map((item: any, idx: number) => {
+    if (!item.item_nama || !item.qty_pakai || !item.tanggal)
+      throw Object.assign(new Error(`Baris ${idx + 1}: item_nama, qty_pakai, tanggal wajib diisi`), { status: 400 });
+    return {
+      proyek_id: proyekId,
+      item_ref_type: "manual" as const,
+      item_ref_id: null,
+      item_kategori: item.item_kategori ?? null,
+      item_nama: String(item.item_nama),
+      item_satuan: item.item_satuan ?? null,
+      qty_pakai: parseFloat(item.qty_pakai),
+      tanggal: new Date(item.tanggal),
+      catatan: item.catatan ?? null,
+      created_by: req.user!.id,
+    };
+  });
+
+  const created = await prisma.$transaction(rows.map((r) => prisma.sipilUsageLog.create({ data: r })));
+  return res.status(201).json({ count: created.length, ids: created.map((l) => String(l.id)) });
+});
+
 // ── Docs/Link ──────────────────────────────────────────────────────────────
 
 // GET /projeks/:id/links
