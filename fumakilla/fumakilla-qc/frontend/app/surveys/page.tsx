@@ -226,10 +226,22 @@ function SurveyDetailPanel({ survey, segment, onSaved }: { survey: any; segment:
       {segment === "B2C" && (
         <div className="mt-5 border-t border-[#d9ddeb] pt-5">
           <div className="flex items-center justify-between">
-            <h4 className="font-bold">Data Survey B2C</h4>
-            <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
-              {showForm ? "Tutup Form" : b2cFilled ? "Edit Data B2C" : "Isi Data B2C"}
-            </button>
+            <div>
+              <h4 className="font-bold">Data Survey B2C</h4>
+              <p className="mt-1 text-xs text-ts">Isi data temuan survey B2C, lalu buat laporan dokumen resmi.</p>
+            </div>
+            <div className="flex gap-2">
+              <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
+                {showForm ? "Tutup Form" : b2cFilled ? "Edit Data B2C" : "Isi Data B2C"}
+              </button>
+              <button
+                className="btn"
+                style={{ borderColor: "#1a4d8c", color: "#1a4d8c" }}
+                onClick={() => router.push(`/b2c-report/${survey.id}`)}
+              >
+                📄 Buka Report B2C
+              </button>
+            </div>
           </div>
           {showForm ? (
             <div className="mt-4">
@@ -337,9 +349,17 @@ export default function Surveys() {
                     </td>
                     {seg === "B2C" && (
                       <td>
-                        {Array.isArray(item.b2cFloorDescriptions) && item.b2cFloorDescriptions.length > 0
-                          ? <span className="badge badge-completed">Terisi</span>
-                          : <span className="badge badge-new">Belum diisi</span>}
+                        <div className="flex items-center gap-2">
+                          {Array.isArray(item.b2cFloorDescriptions) && item.b2cFloorDescriptions.length > 0
+                            ? <span className="badge badge-completed">Terisi</span>
+                            : <span className="badge badge-new">Belum diisi</span>}
+                          <button
+                            className="rounded border border-[#1a4d8c] px-2 py-1 text-xs font-medium text-[#1a4d8c] hover:bg-[#f0f5ff]"
+                            onClick={e => { e.stopPropagation(); router.push(`/b2c-report/${item.id}`); }}
+                          >
+                            📄 Report
+                          </button>
+                        </div>
                       </td>
                     )}
                     {seg === "B2B" && (

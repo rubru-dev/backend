@@ -21,11 +21,12 @@ const groups = [
   {
     label: "Modul B",
     icon: "B",
-    paths: ["/agreements", "/service-contracts", "/renewals"],
+    paths: ["/agreements", "/service-contracts", "/renewals", "/monthly-report"],
     items: [
       { href: "/agreements", label: "Agreement" },
       { href: "/service-contracts", label: "Service Execution" },
       { href: "/renewals", label: "Renewal" },
+      { href: "/monthly-report", label: "Monthly Report" },
     ],
   },
   {

@@ -23,6 +23,11 @@ model User {
   surveyAssignments SurveyPicAssignment[] @relation("SurveyPicAssignments")
   reports           DailyReport[]
   activities        ActivityLog[]
+  ownedWorkPlans    WorkPlan[]            @relation("WorkPlanOwner")
+  createdWorkPlans  WorkPlan[]            @relation("WorkPlanCreator")
+  taggedWorkPlans   WorkPlanTaggedUser[]  @relation("WorkPlanTaggedUsers")
+  workPlanCheckpoints WorkPlanCheckpoint[] @relation("WorkPlanCheckpointUser")
+  workPlanLogs      WorkPlanAuditLog[]    @relation("WorkPlanAuditActor")
 }
 
 enum Role {
@@ -69,6 +74,48 @@ enum ServiceContractStatus {
 enum WorkStatus {
   PENDING
   COMPLETED
+}
+enum WorkPlanStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+enum WorkPlanCheckpointType {
+  CHECK_IN
+  CHECK_OUT
+}
+enum VendorStatus {
+  ACTIVE
+  INACTIVE
+  BLACKLISTED
+}
+enum OrderSheetStatus {
+  DRAFT
+  FINAL
+  SENT
+  COMPLETED
+  CANCELLED
+}
+enum ComplaintSource {
+  CUSTOMER
+  INTERNAL
+  VENDOR
+}
+enum ComplaintStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_VENDOR
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+  CANCELLED
+}
+enum ComplaintPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
 }
 
 model Customer {
@@ -140,6 +187,9 @@ model Customer {
   files      CustomerFile[]
   invoices   OutstandingInvoice[]
   serviceContracts ServiceContract[]
+  orderSheets OrderSheet[]
+  complaints      Complaint[]
+  agreementReports AgreementReport[]
 }
 
 model CustomerFile {
@@ -190,23 +240,28 @@ model Inquiry {
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   owner    User     @relation(fields: [ownerId], references: [id])
-  quotations Quotation[]
-  surveys    Survey[]
+  quotations  Quotation[]
+  surveys     Survey[]
+  pestReports PestMonthlyReport[]
 }
 
 model Quotation {
-  id          String          @id @default(cuid())
-  number      String          @unique
-  customerId  String
-  inquiryId   String?
-  title       String
-  amount      Decimal         @db.Decimal(15, 2)
-  status      QuotationStatus @default(DRAFT)
-  validUntil  DateTime?
-  notes       String?         @db.Text
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  ownerId     String
+  id            String          @id @default(cuid())
+  number        String          @unique
+  customerId    String
+  inquiryId     String?
+  title         String
+  amount        Decimal         @db.Decimal(15, 2)
+  status        QuotationStatus @default(DRAFT)
+  validUntil    DateTime?
+  notes         String?         @db.Text
+  quotationDate DateTime        @default(now())
+  segmentType   String          @default("B2B")
+  hasilSurvey   Json            @default("[]")
+  priceData     Json            @default("{}")
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  ownerId       String
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   inquiry  Inquiry? @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
@@ -265,6 +320,7 @@ model Survey {
   b2cVendorName String?
   b2cExistingPestControl String? @db.Text
   b2cPointNotes String[] @default([])
+  b2cReportData Json?
   status      SurveyStatus @default(SCHEDULED)
   notes       String?      @db.Text
   createdAt   DateTime     @default(now())
@@ -381,6 +437,81 @@ model ActivityLog {
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
 }
 
+model WorkPlan {
+  id          String         @id @default(cuid())
+  title       String
+  description String?        @db.Text
+  workDate    DateTime       @db.Date
+  startTime   String
+  endTime     String?
+  location    String?
+  status      WorkPlanStatus @default(PLANNED)
+  ownerId     String
+  createdById String
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  owner       User                 @relation("WorkPlanOwner", fields: [ownerId], references: [id])
+  createdBy   User                 @relation("WorkPlanCreator", fields: [createdById], references: [id])
+  taggedUsers WorkPlanTaggedUser[]
+  checkpoints WorkPlanCheckpoint[]
+  logs        WorkPlanAuditLog[]
+
+  @@index([workDate])
+  @@index([ownerId])
+  @@index([status])
+}
+
+model WorkPlanTaggedUser {
+  workPlanId String
+  userId     String
+  createdAt  DateTime @default(now())
+
+  workPlan WorkPlan @relation(fields: [workPlanId], references: [id], onDelete: Cascade)
+  user     User     @relation("WorkPlanTaggedUsers", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([workPlanId, userId])
+}
+
+model WorkPlanCheckpoint {
+  id          String                 @id @default(cuid())
+  workPlanId  String
+  userId      String
+  type        WorkPlanCheckpointType
+  note        String?                @db.Text
+  filePath    String?
+  fileName    String?
+  mimeType    String?
+  size        Int?
+  latitude    Float?
+  longitude   Float?
+  accuracy    Float?
+  createdAt   DateTime               @default(now())
+
+  workPlan WorkPlan @relation(fields: [workPlanId], references: [id], onDelete: Cascade)
+  user     User     @relation("WorkPlanCheckpointUser", fields: [userId], references: [id])
+
+  @@unique([workPlanId, userId, type])
+  @@index([workPlanId])
+  @@index([userId])
+}
+
+model WorkPlanAuditLog {
+  id          String   @id @default(cuid())
+  workPlanId  String
+  actorId     String?
+  action      String
+  message     String
+  metadata    Json?
+  createdAt   DateTime @default(now())
+
+  workPlan WorkPlan @relation(fields: [workPlanId], references: [id], onDelete: Cascade)
+  actor    User?    @relation("WorkPlanAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([workPlanId])
+  @@index([createdAt])
+}
+
 model OutstandingInvoice {
   id          String   @id @default(cuid())
   customerId  String
@@ -458,4 +589,155 @@ model VendorTreatment {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   contract    ServiceContract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+}
+
+model Vendor {
+  id                String       @id @default(cuid())
+  code              String       @unique
+  name              String
+  vendorType        String       @default("Pest Control")
+  serviceCategories String[]     @default([])
+  picName           String?
+  phone             String?
+  email             String?
+  address           String?      @db.Text
+  coverageArea      String?
+  npwpNumber        String?
+  bankName          String?
+  bankAccountName   String?
+  bankAccountNo     String?
+  rating            Int?
+  status            VendorStatus @default(ACTIVE)
+  notes             String?      @db.Text
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
+
+  orderSheets OrderSheet[]
+  complaints  Complaint[]
+}
+
+model OrderSheet {
+  id                  String           @id @default(cuid())
+  number              String           @unique
+  orderDate           DateTime         @default(now()) @db.Date
+  status              OrderSheetStatus @default(DRAFT)
+  createdByName       String?
+  picInternal         String?
+  agreementRef        String?
+  quotationRef        String?
+  customerId          String
+  vendorId            String?
+  customerSnapshot    Json             @default("{}")
+  jobTitle            String
+  serviceType         String?
+  workMethod          String?
+  priority            String?
+  workDate            DateTime?        @db.Date
+  workTime            String?
+  estimatedDuration   String?
+  technicianCount     String?
+  specialInstruction  String?          @db.Text
+  jobDescription      String?          @db.Text
+  treatmentLocations  Json             @default("[]")
+  materials           Json             @default("[]")
+  vendorTechnicians   Json             @default("[]")
+  costItems           Json             @default("[]")
+  subtotal            Decimal?         @db.Decimal(15, 2)
+  ppnPercent          Decimal?         @db.Decimal(5, 2)
+  ppnAmount           Decimal?         @db.Decimal(15, 2)
+  grandTotal          Decimal?         @db.Decimal(15, 2)
+  terms               String[]         @default([])
+  supportingDocuments Json             @default("[]")
+  preparedByName      String?
+  approvedByName      String?
+  receivedByName      String?
+  preparedAt          DateTime?
+  approvedAt          DateTime?
+  receivedAt          DateTime?
+  notes               String?          @db.Text
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  customer Customer @relation(fields: [customerId], references: [id])
+  vendor   Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  complaints Complaint[]
+
+  @@index([orderDate])
+  @@index([status])
+  @@index([customerId])
+  @@index([vendorId])
+}
+
+model Complaint {
+  id              String            @id @default(cuid())
+  number          String            @unique
+  complaintDate   DateTime          @default(now()) @db.Date
+  customerId      String
+  vendorId        String?
+  orderSheetId    String?
+  segmentType     String
+  source          ComplaintSource   @default(CUSTOMER)
+  internalTeam    String?
+  complaintType   String
+  priority        ComplaintPriority @default(NORMAL)
+  status          ComplaintStatus   @default(OPEN)
+  subject         String
+  description     String            @db.Text
+  location        String?
+  reportedByName  String?
+  reportedByPhone String?
+  picInternal     String?
+  dueDate         DateTime?         @db.Date
+  rootCause       String?           @db.Text
+  correctiveAction String?          @db.Text
+  resolutionNotes String?           @db.Text
+  resolvedAt      DateTime?
+  closedAt        DateTime?
+  followUps       Json              @default("[]")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vendor     Vendor?     @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  orderSheet OrderSheet? @relation(fields: [orderSheetId], references: [id], onDelete: SetNull)
+
+  @@index([complaintDate])
+  @@index([customerId])
+  @@index([vendorId])
+  @@index([orderSheetId])
+  @@index([segmentType])
+  @@index([status])
+  @@index([source])
+}
+
+model PestMonthlyReport {
+  id        String   @id @default(cuid())
+  inquiryId String
+  inquiry   Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  bulan     Int
+  tahun     Int
+  segment   String
+  pagesData Json?
+  rekData   Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([inquiryId])
+  @@index([segment])
+  @@index([tahun, bulan])
+}
+
+model AgreementReport {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  bulan      Int
+  tahun      Int
+  pagesData  Json?
+  rekData    Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([customerId])
+  @@index([tahun, bulan])
 }
