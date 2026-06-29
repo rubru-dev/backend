@@ -1435,7 +1435,7 @@ model RappInteriorVendorItem {
 
 model FonteeReminderRule {
   id               BigInt   @id @default(autoincrement())
-  feature          String   @db.VarChar(100)
+  feature          String   @unique @db.VarChar(100)
   label            String   @db.VarChar(255)
   days_before      Int      @default(3)
   send_time        String   @default("08:00") @db.VarChar(5)

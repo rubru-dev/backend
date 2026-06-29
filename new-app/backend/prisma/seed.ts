@@ -1047,33 +1047,26 @@ async function main() {
   ];
   // Disable rules yang tidak lagi digunakan
   for (const disabledFeature of ["approval_needed", "invoice_sign_admin"]) {
-    const ex = await prisma.fonteeReminderRule.findFirst({ where: { feature: disabledFeature } });
-    if (ex && (ex as any).is_active) {
-      await (prisma.fonteeReminderRule as any).update({ where: { id: ex.id }, data: { is_active: false } });
-    }
+    await (prisma.fonteeReminderRule as any).upsert({
+      where: { feature: disabledFeature },
+      create: { feature: disabledFeature, label: disabledFeature, days_before: 0, send_time: "08:00", trigger_type: "event", priority_manual: "sedang", is_active: false, role_ids: [] },
+      update: { is_active: false },
+    });
   }
 
   for (const rule of DEFAULT_REMINDER_RULES) {
-    const existing = await prisma.fonteeReminderRule.findFirst({ where: { feature: rule.feature } });
-    if (!existing) {
-      await (prisma.fonteeReminderRule as any).create({
-        data: { ...rule, is_active: true, role_ids: [] },
-      });
-    } else {
-      const ex = existing as any;
-      const needsUpdate = !ex.message_template || !ex.trigger_type || !ex.priority_manual;
-      if (needsUpdate) {
-        await (prisma.fonteeReminderRule as any).update({
-          where: { id: existing.id },
-          data: {
-            message_template: ex.message_template ?? rule.message_template,
-            trigger_type: ex.trigger_type ?? rule.trigger_type,
-            priority_manual: ex.priority_manual ?? rule.priority_manual,
-            send_time: ex.send_time ?? "08:00",
-          },
-        });
-      }
-    }
+    await (prisma.fonteeReminderRule as any).upsert({
+      where: { feature: rule.feature },
+      create: { ...rule, is_active: true, role_ids: [] },
+      update: {
+        label: rule.label,
+        days_before: rule.days_before,
+        send_time: rule.send_time,
+        trigger_type: rule.trigger_type,
+        priority_manual: rule.priority_manual,
+        message_template: rule.message_template,
+      },
+    });
   }
   console.log("✅  Fontee reminder rules seeded");
 
