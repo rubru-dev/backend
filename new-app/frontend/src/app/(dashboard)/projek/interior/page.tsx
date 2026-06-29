@@ -140,89 +140,141 @@ export default function ProyekInteriorListPage() {
         <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1.5" /> Tambah Proyek</Button>
       </div>
 
-      <Table>
-        <TableHeader>
-          <TableRow className="bg-muted/50">
-            <TableHead>Nama Proyek</TableHead>
-            <TableHead>Klien</TableHead>
-            <TableHead>Lokasi</TableHead>
-            <TableHead className="text-right">Nilai RAB</TableHead>
-            <TableHead>Periode</TableHead>
-            <TableHead>Termin</TableHead>
-            <TableHead>Progress</TableHead>
-            <TableHead className="w-20" />
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {isLoading && Array.from({ length: 4 }).map((_, i) => (
-            <TableRow key={i}>
-              {Array.from({ length: 8 }).map((__, j) => (
-                <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
-              ))}
-            </TableRow>
-          ))}
-          {!isLoading && projeks.map((p) => (
-            <TableRow
-              key={p.id}
-              className="cursor-pointer hover:bg-muted/40 transition-colors"
-              onClick={() => router.push(`/projek/interior/${p.id}`)}
-            >
-              <TableCell>
-                <div className="flex items-center gap-2 font-medium">
-                  <Home className="h-4 w-4 text-orange-500 flex-shrink-0" />
-                  {p.nama_proyek ?? "—"}
-                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
-                </div>
-              </TableCell>
-              <TableCell className="text-sm text-muted-foreground">{p.lead?.nama ?? "—"}</TableCell>
-              <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{p.lokasi ?? "—"}</TableCell>
-              <TableCell className="text-right text-sm">
-                {p.nilai_rab > 0 ? "Rp " + p.nilai_rab.toLocaleString("id-ID") : "—"}
-              </TableCell>
-              <TableCell>
-                {(p.tanggal_mulai || p.tanggal_selesai) ? (
-                  <Badge variant="outline" className="text-xs flex items-center gap-1 whitespace-nowrap">
+      {/* Mobile: kartu */}
+      <div className="block sm:hidden space-y-3">
+        {isLoading && Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="border rounded-lg p-4 space-y-2">
+            <Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-2 w-full mt-1" />
+          </div>
+        ))}
+        {!isLoading && projeks.map((p) => (
+          <div
+            key={p.id}
+            className="border rounded-lg p-4 space-y-2.5 cursor-pointer hover:bg-muted/30 active:bg-muted/50 transition-colors"
+            onClick={() => router.push(`/projek/interior/${p.id}`)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 font-medium min-w-0">
+                <Home className="h-4 w-4 text-orange-500 flex-shrink-0 mt-0.5" />
+                <span className="truncate">{p.nama_proyek ?? "—"}</span>
+              </div>
+              <div className="flex gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" /></Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setConfirmDelete(p.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+              </div>
+            </div>
+            <div className="text-xs text-muted-foreground space-y-1.5">
+              <div className="flex flex-wrap gap-x-3 gap-y-1">
+                {p.lead?.nama && <span>Klien: <span className="text-foreground">{p.lead.nama}</span></span>}
+                {p.lokasi && <span className="truncate">📍 {p.lokasi}</span>}
+                {p.nilai_rab > 0 && <span>Rp {p.nilai_rab.toLocaleString("id-ID")}</span>}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {(p.tanggal_mulai || p.tanggal_selesai) && (
+                  <Badge variant="outline" className="text-xs flex items-center gap-1">
                     <CalendarRange className="h-3 w-3" />
                     {p.tanggal_mulai ? new Date(p.tanggal_mulai).toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "?"}{" – "}
                     {p.tanggal_selesai ? new Date(p.tanggal_selesai).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "?"}
                   </Badge>
-                ) : <span className="text-muted-foreground text-sm">—</span>}
-              </TableCell>
-              <TableCell>
+                )}
                 <Badge variant="outline" className="text-xs flex items-center gap-1">
                   <Layers className="h-3 w-3" />{p.jumlah_termin} termin
                 </Badge>
-              </TableCell>
-              <TableCell className="min-w-[120px]">
-                <div className="flex items-center gap-2">
-                  <Progress value={p.progress} className="h-1.5 flex-1" />
-                  <span className="text-xs text-muted-foreground whitespace-nowrap">{p.progress}%</span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">{p.tasks_selesai}/{p.jumlah_task} selesai</p>
-              </TableCell>
-              <TableCell onClick={(e) => e.stopPropagation()}>
-                <div className="flex gap-1 justify-end">
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setConfirmDelete(p.id)}>
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </Button>
-                </div>
-              </TableCell>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <span>{p.tasks_selesai}/{p.jumlah_task} task selesai</span>
+                <span className="font-medium">{p.progress}%</span>
+              </div>
+              <Progress value={p.progress} className="h-1.5" />
+            </div>
+          </div>
+        ))}
+        {!isLoading && projeks.length === 0 && (
+          <div className="text-center py-16 text-muted-foreground">
+            <Home className="mx-auto h-10 w-10 opacity-20 mb-3" />
+            <p className="font-medium">Belum ada Projek Interior</p>
+            <p className="text-sm mt-1">Klik &quot;Tambah Proyek&quot; untuk membuat yang pertama</p>
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: tabel */}
+      <div className="hidden sm:block overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-muted/50">
+              <TableHead>Nama Proyek</TableHead>
+              <TableHead>Klien</TableHead>
+              <TableHead>Lokasi</TableHead>
+              <TableHead className="text-right">Nilai RAB</TableHead>
+              <TableHead>Periode</TableHead>
+              <TableHead>Termin</TableHead>
+              <TableHead>Progress</TableHead>
+              <TableHead className="w-20" />
             </TableRow>
-          ))}
-          {!isLoading && projeks.length === 0 && (
-            <TableRow>
-              <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
-                <Home className="mx-auto h-10 w-10 opacity-20 mb-3" />
-                <p className="font-medium">Belum ada Projek Interior</p>
-                <p className="text-sm mt-1">Klik &quot;Tambah Proyek&quot; untuk membuat yang pertama</p>
-              </TableCell>
-            </TableRow>
-          )}
-        </TableBody>
-      </Table>
+          </TableHeader>
+          <TableBody>
+            {isLoading && Array.from({ length: 4 }).map((_, i) => (
+              <TableRow key={i}>
+                {Array.from({ length: 8 }).map((__, j) => (
+                  <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
+                ))}
+              </TableRow>
+            ))}
+            {!isLoading && projeks.map((p) => (
+              <TableRow key={p.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => router.push(`/projek/interior/${p.id}`)}>
+                <TableCell>
+                  <div className="flex items-center gap-2 font-medium">
+                    <Home className="h-4 w-4 text-orange-500 flex-shrink-0" />{p.nama_proyek ?? "—"}
+                    <ChevronRight className="h-3.5 w-3.5 text-muted-foreground ml-auto" />
+                  </div>
+                </TableCell>
+                <TableCell className="text-sm text-muted-foreground">{p.lead?.nama ?? "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{p.lokasi ?? "—"}</TableCell>
+                <TableCell className="text-right text-sm">{p.nilai_rab > 0 ? "Rp " + p.nilai_rab.toLocaleString("id-ID") : "—"}</TableCell>
+                <TableCell>
+                  {(p.tanggal_mulai || p.tanggal_selesai) ? (
+                    <Badge variant="outline" className="text-xs flex items-center gap-1 whitespace-nowrap">
+                      <CalendarRange className="h-3 w-3" />
+                      {p.tanggal_mulai ? new Date(p.tanggal_mulai).toLocaleDateString("id-ID", { day: "numeric", month: "short" }) : "?"}{" – "}
+                      {p.tanggal_selesai ? new Date(p.tanggal_selesai).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "?"}
+                    </Badge>
+                  ) : <span className="text-muted-foreground text-sm">—</span>}
+                </TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs flex items-center gap-1">
+                    <Layers className="h-3 w-3" />{p.jumlah_termin} termin
+                  </Badge>
+                </TableCell>
+                <TableCell className="min-w-[120px]">
+                  <div className="flex items-center gap-2">
+                    <Progress value={p.progress} className="h-1.5 flex-1" />
+                    <span className="text-xs text-muted-foreground whitespace-nowrap">{p.progress}%</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">{p.tasks_selesai}/{p.jumlah_task} selesai</p>
+                </TableCell>
+                <TableCell onClick={(e) => e.stopPropagation()}>
+                  <div className="flex gap-1 justify-end">
+                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(p)}><Pencil className="h-3.5 w-3.5" /></Button>
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setConfirmDelete(p.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  </div>
+                </TableCell>
+              </TableRow>
+            ))}
+            {!isLoading && projeks.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                  <Home className="mx-auto h-10 w-10 opacity-20 mb-3" />
+                  <p className="font-medium">Belum ada Projek Interior</p>
+                  <p className="text-sm mt-1">Klik &quot;Tambah Proyek&quot; untuk membuat yang pertama</p>
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialog} onOpenChange={(v) => { setDialog(v); if (!v) { setEditProjek(null); setForm(EMPTY_FORM); setLeadSearch(""); } }}>

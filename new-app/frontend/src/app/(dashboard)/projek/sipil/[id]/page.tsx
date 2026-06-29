@@ -1547,10 +1547,10 @@ export default function ProyekSipilDetailPage() {
                         <TableHeader>
                           <TableRow>
                             <TableHead>Item</TableHead>
-                            <TableHead>Kategori</TableHead>
-                            <TableHead className="text-right">Vol RAPP</TableHead>
-                            <TableHead>Sat</TableHead>
-                            <TableHead className="text-right">Total Dipakai</TableHead>
+                            <TableHead className="hidden sm:table-cell">Kategori</TableHead>
+                            <TableHead className="text-right">Vol</TableHead>
+                            <TableHead className="hidden sm:table-cell">Sat</TableHead>
+                            <TableHead className="text-right">Dipakai</TableHead>
                             <TableHead className="w-20" />
                           </TableRow>
                         </TableHeader>
@@ -1561,17 +1561,20 @@ export default function ProyekSipilDetailPage() {
                             const overuse = item.vol !== null && total > item.vol;
                             return (
                               <TableRow key={key}>
-                                <TableCell className="font-medium text-sm">{item.nama}</TableCell>
-                                <TableCell className="text-xs text-muted-foreground">{item._kategori}</TableCell>
+                                <TableCell className="font-medium text-sm">
+                                  {item.nama}
+                                  <span className="block sm:hidden text-xs text-muted-foreground">{item._kategori} · {item.sat ?? "—"}</span>
+                                </TableCell>
+                                <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{item._kategori}</TableCell>
                                 <TableCell className="text-right text-sm text-muted-foreground">
                                   {item.vol !== null ? item.vol.toLocaleString("id-ID", { maximumFractionDigits: 4 }) : "—"}
                                 </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{item.sat ?? "—"}</TableCell>
+                                <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">{item.sat ?? "—"}</TableCell>
                                 <TableCell className="text-right">
                                   <span className={`text-sm font-medium ${overuse ? "text-red-600" : total > 0 ? "text-teal-700" : "text-muted-foreground"}`}>
                                     {total > 0 ? total.toLocaleString("id-ID", { maximumFractionDigits: 4 }) : "—"}
                                   </span>
-                                  {overuse && <span className="ml-1 text-xs text-red-500">(melebihi RAPP)</span>}
+                                  {overuse && <span className="block text-xs text-red-500">(melebihi)</span>}
                                 </TableCell>
                                 <TableCell>
                                   <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => openCatatDialog(item)}>
@@ -1591,7 +1594,7 @@ export default function ProyekSipilDetailPage() {
           )}
 
           {soTab === "log" && (
-            <div className="border rounded-lg overflow-hidden">
+            <div className="border rounded-lg">
               {loadingLogs ? (
                 <div className="p-4 space-y-2">{[1,2,3].map((i) => <Skeleton key={i} className="h-10 w-full" />)}</div>
               ) : usageLogs.length === 0 ? (
@@ -1605,11 +1608,11 @@ export default function ProyekSipilDetailPage() {
                     <TableRow>
                       <TableHead>Tanggal</TableHead>
                       <TableHead>Item</TableHead>
-                      <TableHead>Kategori</TableHead>
-                      <TableHead className="text-right">Qty Pakai</TableHead>
-                      <TableHead>Sat</TableHead>
-                      <TableHead>Catatan</TableHead>
-                      <TableHead>Dicatat oleh</TableHead>
+                      <TableHead className="hidden sm:table-cell">Kategori</TableHead>
+                      <TableHead className="text-right">Qty</TableHead>
+                      <TableHead className="hidden sm:table-cell">Sat</TableHead>
+                      <TableHead className="hidden md:table-cell">Catatan</TableHead>
+                      <TableHead className="hidden lg:table-cell">Dicatat oleh</TableHead>
                       <TableHead className="w-10" />
                     </TableRow>
                   </TableHeader>
@@ -1623,13 +1626,13 @@ export default function ProyekSipilDetailPage() {
                           {log.item_nama}
                           {log.item_ref_type === "manual" && <span className="ml-1.5 text-xs bg-amber-100 text-amber-700 rounded px-1">manual</span>}
                         </TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{log.item_kategori ?? (log.item_ref_type === "manual" ? "—" : log.item_ref_type)}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{log.item_kategori ?? (log.item_ref_type === "manual" ? "—" : log.item_ref_type)}</TableCell>
                         <TableCell className="text-right text-sm font-medium text-teal-700">
                           {log.qty_pakai.toLocaleString("id-ID", { maximumFractionDigits: 4 })}
                         </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{log.item_satuan ?? "—"}</TableCell>
-                        <TableCell className="text-sm text-muted-foreground">{log.catatan ?? "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{log.created_by?.name ?? "—"}</TableCell>
+                        <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">{log.item_satuan ?? "—"}</TableCell>
+                        <TableCell className="hidden md:table-cell text-sm text-muted-foreground">{log.catatan ?? "—"}</TableCell>
+                        <TableCell className="hidden lg:table-cell text-xs text-muted-foreground">{log.created_by?.name ?? "—"}</TableCell>
                         <TableCell>
                           <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" disabled={deleteUsageMut.isPending} onClick={() => deleteUsageMut.mutate(log.id)}>
                             <Trash2 className="h-3.5 w-3.5" />
@@ -1907,13 +1910,45 @@ export default function ProyekSipilDetailPage() {
 
       {/* Dialog Catat Manual — multi-baris */}
       <Dialog open={soManualDialog} onOpenChange={(v) => { if (!v) { setSoManualDialog(false); setSoManualRows([newRow()]); } }}>
-        <DialogContent className="max-w-5xl w-full">
+        <DialogContent className="w-[calc(100vw-2rem)] max-w-5xl p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle><Plus className="h-4 w-4 inline mr-2" />Catat Penggunaan Manual</DialogTitle>
             <p className="text-xs text-muted-foreground pt-0.5">Tambah sebanyak baris yang dibutuhkan — semua disimpan sekaligus.</p>
           </DialogHeader>
           <div className="space-y-3 pt-1">
-            <div className="overflow-x-auto rounded-md border">
+            {/* Mobile: kartu per baris */}
+            <div className="block sm:hidden space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+              {soManualRows.map((row, idx) => (
+                <div key={row.id} className="border rounded-lg p-3 space-y-2 bg-card">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Baris {idx + 1}</span>
+                    <button
+                      className="text-muted-foreground hover:text-destructive disabled:opacity-30 p-0.5"
+                      disabled={soManualRows.length === 1}
+                      onClick={() => setSoManualRows((rows) => rows.filter((r) => r.id !== row.id))}
+                      title="Hapus baris"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <Input placeholder="Nama item *" value={row.item_nama} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_nama: e.target.value } : r))} />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select className="w-full border rounded-md px-2 py-2 text-sm bg-background" value={row.item_kategori} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_kategori: e.target.value } : r))}>
+                      {KATEGORI_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
+                    </select>
+                    <Input placeholder="Satuan" value={row.item_satuan} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_satuan: e.target.value } : r))} />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input type="number" min="0" step="0.001" placeholder="Qty *" value={row.qty_pakai} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, qty_pakai: e.target.value } : r))} />
+                    <Input type="date" value={row.tanggal} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, tanggal: e.target.value } : r))} />
+                  </div>
+                  <Input placeholder="Catatan (opsional)" value={row.catatan} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, catatan: e.target.value } : r))} />
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: tabel */}
+            <div className="hidden sm:block overflow-x-auto rounded-md border">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50 text-xs text-muted-foreground">
@@ -1927,98 +1962,38 @@ export default function ProyekSipilDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y">
-                  {soManualRows.map((row, idx) => (
+                  {soManualRows.map((row) => (
                     <tr key={row.id} className="hover:bg-muted/20">
+                      <td className="px-1 py-1"><Input className="h-8 text-sm" placeholder="Nama item..." value={row.item_nama} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_nama: e.target.value } : r))} /></td>
                       <td className="px-1 py-1">
-                        <Input
-                          className="h-8 text-sm"
-                          placeholder="Nama item..."
-                          value={row.item_nama}
-                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_nama: e.target.value } : r))}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <select
-                          className="w-full border rounded-md px-2 py-1.5 text-sm bg-background h-8"
-                          value={row.item_kategori}
-                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_kategori: e.target.value } : r))}
-                        >
+                        <select className="w-full border rounded-md px-2 py-1.5 text-sm bg-background h-8" value={row.item_kategori} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_kategori: e.target.value } : r))}>
                           {KATEGORI_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
                         </select>
                       </td>
-                      <td className="px-1 py-1">
-                        <Input
-                          className="h-8 text-sm"
-                          placeholder="pcs, kg..."
-                          value={row.item_satuan}
-                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_satuan: e.target.value } : r))}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input
-                          className="h-8 text-sm"
-                          type="number"
-                          min="0"
-                          step="0.001"
-                          placeholder="0"
-                          value={row.qty_pakai}
-                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, qty_pakai: e.target.value } : r))}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input
-                          className="h-8 text-sm"
-                          type="date"
-                          value={row.tanggal}
-                          max={new Date().toISOString().slice(0, 10)}
-                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, tanggal: e.target.value } : r))}
-                        />
-                      </td>
-                      <td className="px-1 py-1">
-                        <Input
-                          className="h-8 text-sm"
-                          placeholder="Keterangan..."
-                          value={row.catatan}
-                          onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, catatan: e.target.value } : r))}
-                        />
-                      </td>
+                      <td className="px-1 py-1"><Input className="h-8 text-sm" placeholder="pcs, kg..." value={row.item_satuan} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, item_satuan: e.target.value } : r))} /></td>
+                      <td className="px-1 py-1"><Input className="h-8 text-sm" type="number" min="0" step="0.001" placeholder="0" value={row.qty_pakai} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, qty_pakai: e.target.value } : r))} /></td>
+                      <td className="px-1 py-1"><Input className="h-8 text-sm" type="date" value={row.tanggal} max={new Date().toISOString().slice(0, 10)} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, tanggal: e.target.value } : r))} /></td>
+                      <td className="px-1 py-1"><Input className="h-8 text-sm" placeholder="Keterangan..." value={row.catatan} onChange={(e) => setSoManualRows((rows) => rows.map((r) => r.id === row.id ? { ...r, catatan: e.target.value } : r))} /></td>
                       <td className="px-1 py-1 text-center">
-                        <button
-                          className="text-muted-foreground hover:text-destructive disabled:opacity-30"
-                          disabled={soManualRows.length === 1}
-                          onClick={() => setSoManualRows((rows) => rows.filter((r) => r.id !== row.id))}
-                          title="Hapus baris"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
+                        <button className="text-muted-foreground hover:text-destructive disabled:opacity-30" disabled={soManualRows.length === 1} onClick={() => setSoManualRows((rows) => rows.filter((r) => r.id !== row.id))} title="Hapus baris"><X className="h-3.5 w-3.5" /></button>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              className="text-xs"
-              onClick={() => setSoManualRows((rows) => [...rows, newRow()])}
-            >
+
+            <Button variant="outline" size="sm" className="text-xs w-full sm:w-auto" onClick={() => setSoManualRows((rows) => [...rows, newRow()])}>
               <Plus className="h-3 w-3 mr-1" />Tambah Baris
             </Button>
-            <div className="flex items-center justify-between pt-1 border-t">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-between gap-2 pt-1 border-t">
               <span className="text-xs text-muted-foreground">{soManualRows.length} baris</span>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => { setSoManualDialog(false); setSoManualRows([newRow()]); }}>Batal</Button>
+                <Button variant="outline" className="flex-1 sm:flex-none" onClick={() => { setSoManualDialog(false); setSoManualRows([newRow()]); }}>Batal</Button>
                 <Button
+                  className="flex-1 sm:flex-none"
                   disabled={soManualRows.some((r) => !r.item_nama || !r.qty_pakai || parseFloat(r.qty_pakai) <= 0) || addBatchMut.isPending}
-                  onClick={() => addBatchMut.mutate(soManualRows.map((r) => ({
-                    item_kategori: r.item_kategori,
-                    item_nama: r.item_nama,
-                    item_satuan: r.item_satuan || null,
-                    qty_pakai: r.qty_pakai,
-                    tanggal: r.tanggal,
-                    catatan: r.catatan || null,
-                  })))}
+                  onClick={() => addBatchMut.mutate(soManualRows.map((r) => ({ item_kategori: r.item_kategori, item_nama: r.item_nama, item_satuan: r.item_satuan || null, qty_pakai: r.qty_pakai, tanggal: r.tanggal, catatan: r.catatan || null })))}
                 >
                   {addBatchMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : `Simpan ${soManualRows.length} Item`}
                 </Button>

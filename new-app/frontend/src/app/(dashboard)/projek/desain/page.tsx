@@ -1043,9 +1043,9 @@ export default function ProyekDesainPage() {
                           <TableRow>
                             <TableHead className="w-8 pl-4">#</TableHead>
                             <TableHead>Nama Pekerjaan</TableHead>
-                            <TableHead>Tanggal Mulai</TableHead>
-                            <TableHead>Tanggal Selesai</TableHead>
-                            <TableHead>PIC</TableHead>
+                            <TableHead className="hidden sm:table-cell">Tgl Mulai</TableHead>
+                            <TableHead className="hidden sm:table-cell">Tgl Selesai</TableHead>
+                            <TableHead className="hidden md:table-cell">PIC</TableHead>
                             <TableHead>Status</TableHead>
                             <TableHead className="w-20" />
                           </TableRow>
@@ -1061,17 +1061,17 @@ export default function ProyekDesainPage() {
                                 <TableCell className="font-medium">
                                   {item.item_pekerjaan ?? "—"}
                                 </TableCell>
-                                <TableCell className="text-sm">
+                                <TableCell className="hidden sm:table-cell text-sm">
                                   {item.tanggal_mulai
                                     ? new Date(item.tanggal_mulai).toLocaleDateString("id-ID")
                                     : "—"}
                                 </TableCell>
-                                <TableCell className="text-sm">
+                                <TableCell className="hidden sm:table-cell text-sm">
                                   {item.target_selesai
                                     ? new Date(item.target_selesai).toLocaleDateString("id-ID")
                                     : "—"}
                                 </TableCell>
-                                <TableCell className="text-sm">
+                                <TableCell className="hidden md:table-cell text-sm">
                                   {item.pic?.nama ?? (
                                     <span className="text-muted-foreground">—</span>
                                   )}
