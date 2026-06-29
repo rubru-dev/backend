@@ -5,13 +5,21 @@ import { config } from "../config";
 export async function sendFonnte(target: string, message: string) {
   const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
   const cfg = (setting?.value as Record<string, string> | null) ?? {};
-  if (!cfg.api_key || !cfg.base_url) return;
+  if (!cfg.api_key || !cfg.base_url) {
+    console.warn("[Fonnte] api_key atau base_url belum dikonfigurasi");
+    return;
+  }
   try {
-    await axios.post(cfg.base_url, { target, message, countryCode: "62" }, {
+    const res = await axios.post(cfg.base_url, { target, message, countryCode: "62" }, {
       headers: { Authorization: cfg.api_key, "Content-Type": "application/json" },
       timeout: 8000,
     });
-  } catch { /* fire-and-forget */ }
+    if (res.data?.status === false || res.data?.response === false) {
+      console.error(`[Fonnte] Gagal kirim ke ${target}:`, JSON.stringify(res.data));
+    }
+  } catch (err: any) {
+    console.error(`[Fonnte] Error kirim ke ${target}:`, err?.response?.data ?? err?.message);
+  }
 }
 
 /** Send to all users with a specific role name */
