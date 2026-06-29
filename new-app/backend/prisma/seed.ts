@@ -359,6 +359,12 @@ async function main() {
   const desainId = userMap["desain@test.com"];
   const picId    = userMap["pic@test.com"];
 
+  // ── 3–11. Demo Data (skip jika sudah ada) ────────────────────────────────────
+  const demoExists = await prisma.lead.findFirst({ where: { nama: "Budi Santoso", nomor_telepon: "081234567890" } });
+  if (demoExists) {
+    console.log("\n  (skip) Demo data sudah ada, melewati pembuatan data contoh");
+  } else {
+
   // ── 3. Leads ──────────────────────────────────────────────────────────────────
   console.log("\n  Creating leads...");
 
@@ -907,7 +913,8 @@ async function main() {
 
   console.log("  ✓ laporan harian created");
 
-  // ── Done ──────────────────────────────────────────────────────────────────────
+  } // end demo data block
+
   // ── Fontee Reminder Rules ─────────────────────────────────────────────────────
   const DEFAULT_REMINDER_RULES: Array<{
     feature: string; label: string; days_before: number; send_time: string;
