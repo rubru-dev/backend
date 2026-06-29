@@ -64,19 +64,28 @@ async function getUsersForRoleIds(roleIds: bigint[]): Promise<{ whatsapp_number:
   }) as Promise<{ whatsapp_number: string }[]>;
 }
 
-async function sendMessages(rule: any, messages: string[]): Promise<void> {
+async function sendMessages(rule: any, messages: string[]): Promise<number> {
   const roleIds = (rule.role_ids as bigint[]) ?? [];
-  if (roleIds.length === 0 || messages.length === 0) return;
+  if (roleIds.length === 0 || messages.length === 0) {
+    if (roleIds.length === 0) console.warn(`[ReminderScheduler] ${rule.feature}: role_ids kosong, tidak ada penerima`);
+    return 0;
+  }
   const users = await getUsersForRoleIds(roleIds);
-  if (users.length === 0) return;
+  if (users.length === 0) {
+    console.warn(`[ReminderScheduler] ${rule.feature}: tidak ada user dengan WA di role yang dipilih`);
+    return 0;
+  }
   const prio: string = rule.priority_manual ?? "sedang";
   const priorityLine = `${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
+  let sent = 0;
   for (const msg of messages) {
     const fullMsg = `${msg}\n${priorityLine}`;
     for (const u of users) {
       await sendFonnte(u.whatsapp_number, fullMsg).catch(() => {});
+      sent++;
     }
   }
+  return sent;
 }
 
 // ── Super Admin notification ──────────────────────────────────────────────────
@@ -330,8 +339,9 @@ async function processRule(rule: any): Promise<number> {
       break;
   }
 
-  if (messages.length > 0) await sendMessages(rule, messages);
-  return messages.length;
+  if (messages.length === 0) return 0;
+  const sent = await sendMessages(rule, messages);
+  return sent;
 }
 
 // ── Absen karyawan reminder ───────────────────────────────────────────────────
