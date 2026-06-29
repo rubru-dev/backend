@@ -463,15 +463,10 @@ export async function runDeadlineReminders(currentHour?: number, currentMinute =
 export function startReminderScheduler(): void {
   const tz = { timezone: "Asia/Jakarta" };
 
-  // Deadline rules — tiap jam tepat WIB
-  cron.schedule("0 * * * *", () => {
-    const { hour } = getJakartaTimeParts();
-    runDeadlineReminders(hour, 0).catch((err) => console.error("[ReminderScheduler] Error:", err));
-  }, tz);
-
-  // Laporan harian sore jam 16:50 WIB (satu-satunya send_time non-:00)
-  cron.schedule("50 16 * * 1-5", () => {
-    runDeadlineReminders(16, 50).catch((err) => console.error("[ReminderScheduler] 16:50 error:", err));
+  // Deadline rules — tiap menit WIB (supaya send_time bebas, misal 08:00, 14:17, 16:50)
+  cron.schedule("* * * * *", () => {
+    const { hour, minute } = getJakartaTimeParts();
+    runDeadlineReminders(hour, minute).catch((err) => console.error("[ReminderScheduler] Error:", err));
   }, tz);
 
   // Absen masuk/keluar check setiap 3 menit, jam 06:00–18:00 WIB, Senin–Sabtu
@@ -479,5 +474,5 @@ export function startReminderScheduler(): void {
     checkAbsenReminders().catch((err) => console.error("[AbsenReminder] Error:", err));
   }, tz);
 
-  console.log("✓ Fontee reminder scheduler aktif — WIB (tiap jam + 16:50 + absen check)");
+  console.log("✓ Fontee reminder scheduler aktif — WIB (tiap menit + absen check setiap 3 menit)");
 }
