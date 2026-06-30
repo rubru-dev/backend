@@ -1220,7 +1220,7 @@ export default function InvoiceKwitansiPage() {
                   value={form.paket_desain}
                   onChange={e => handleDesignPackageChange(e.target.value)}>
                   <option value="">— Pilih paket —</option>
-                  <option value="Basic">Basic — Rp 2.500.000</option>
+                  <option value="Basic">Basic — Rp 3.500.000</option>
                   <option value="Standart">Standart — Rp 6.800.000</option>
                   <option value="Premium">Premium — Rp 8.500.000</option>
                   <option value="Deluxe">Deluxe — Rp 15.800.000</option>
@@ -1440,7 +1440,7 @@ export default function InvoiceKwitansiPage() {
                   onChange={(e) => setKategoriForm((f) => ({ ...f, paket_desain: e.target.value }))}
                 >
                   <option value="">— Pilih paket —</option>
-                  <option value="Basic">Basic — Rp 2.500.000</option>
+                  <option value="Basic">Basic — Rp 3.500.000</option>
                   <option value="Standart">Standart — Rp 6.800.000</option>
                   <option value="Premium">Premium — Rp 8.500.000</option>
                   <option value="Deluxe">Deluxe — Rp 15.800.000</option>

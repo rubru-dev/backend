@@ -384,8 +384,9 @@ model B2BSurveyReport {
   surveyId  String   @unique
 
   // Page 1 - Cover
-  clientName    String @default("")
-  clientAddress String @default("") @db.Text
+  clientName      String  @default("")
+  clientAddress   String  @default("") @db.Text
+  coverImagePath  String?
 
   // Page 2 - Survey Info
   surveyorNames String @default("")

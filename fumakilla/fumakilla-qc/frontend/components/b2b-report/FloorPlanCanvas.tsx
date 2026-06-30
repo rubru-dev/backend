@@ -6,6 +6,7 @@ export type CanvasObject =
   | { id: string; type: "rect"; x: number; y: number; w: number; h: number; stroke: string; fill: string; fillImageSrc?: string }
   | { id: string; type: "circle"; x: number; y: number; r: number; stroke: string; fill: string; fillImageSrc?: string }
   | { id: string; type: "line"; x1: number; y1: number; x2: number; y2: number; stroke: string }
+  | { id: string; type: "line-plain"; x1: number; y1: number; x2: number; y2: number; stroke: string; lineWidth: number }
   | { id: string; type: "text"; x: number; y: number; text: string; color: string; fontSize: number }
   | { id: string; type: "marker"; x: number; y: number; level: "high" | "mid" | "low"; num: number }
   | { id: string; type: "pest"; x: number; y: number; pestType: string; num: number }
@@ -13,7 +14,7 @@ export type CanvasObject =
   | { id: string; type: "freedraw"; points: { x: number; y: number }[]; color: string; lineWidth: number };
 
 export type CanvasData = {
-  bgImage?: string; // legacy only, migrated to image objects on load
+  bgImage?: string;
   objects: CanvasObject[];
 };
 
@@ -30,10 +31,16 @@ const PEST_COLORS: Record<string, string> = {
   Burung: "#0369a1", Cicak: "#15803d", "Tawon/Lebah": "#a16207", "Kutu SPI": "#9f1239",
   "Rodent/Tikus": "#7c3aed", "Termite/Rayap": "#b45309",
 };
+const PEST_EMOJI: Record<string, string> = {
+  Tikus: "🐀", Kecoa: "🪳", Semut: "🐜", Rayap: "🪲",
+  Lalat: "🪰", Kucing: "🐱", Musang: "🦝", Kelelawar: "🦇",
+  Burung: "🐦", Cicak: "🦎", "Tawon/Lebah": "🐝", "Kutu SPI": "🕷",
+  "Rodent/Tikus": "🐀", "Termite/Rayap": "🪲",
+};
 const PEST_TYPES = ["Tikus", "Kecoa", "Semut", "Rayap", "Lalat", "Kucing", "Musang", "Kelelawar", "Burung", "Cicak", "Tawon/Lebah", "Kutu SPI"];
 const HANDLE_R = 6;
 type Handle = "NW" | "N" | "NE" | "E" | "SE" | "S" | "SW" | "W";
-type Tool = "select" | "rect" | "circle" | "line" | "text" | "freedraw" | { pest: string } | "risk-high" | "risk-mid" | "risk-low";
+type Tool = "select" | "rect" | "circle" | "line" | "line-plain" | "text" | "freedraw" | { pest: string };
 
 function uid() { return Math.random().toString(36).slice(2, 9); }
 
@@ -82,11 +89,10 @@ interface Props {
   width?: number;
   height?: number;
   readOnly?: boolean;
-  showRiskMarkers?: boolean;
 }
 
 const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorPlanCanvas(
-  { initialData, onChange, width = 700, height = 420, readOnly = false, showRiskMarkers = false },
+  { initialData, onChange, width = 700, height = 480, readOnly = false },
   ref
 ) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -94,8 +100,8 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
   const markerCountRef = useRef(0);
   const pestCountRef = useRef(0);
   const liveFreedrawRef = useRef<{ x: number; y: number }[]>([]);
+  const isDrawingFreedraw = useRef(false);
 
-  // Migrate legacy bgImage to image object
   const migrateData = useCallback((d?: CanvasData | null): CanvasObject[] => {
     if (!d) return [];
     const objs = d.objects || [];
@@ -115,8 +121,8 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
   const [activeLineWidth, setActiveLineWidth] = useState(3);
   const [pestInput, setPestInput] = useState("Tikus");
   const [imgLoadTick, setImgLoadTick] = useState(0);
+  const [shapeOpen, setShapeOpen] = useState(false);
 
-  // Drag state
   type DragState =
     | { mode: "move"; id: string; ox: number; oy: number }
     | { mode: "resize"; id: string; handle: Handle; prevMx: number; prevMy: number }
@@ -146,11 +152,9 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
     const ctx = canvas.getContext("2d")!;
     ctx.clearRect(0, 0, width, height);
 
-    // BG
     ctx.fillStyle = "#f8f9fb";
     ctx.fillRect(0, 0, width, height);
 
-    // Grid
     const hasImageBg = objects.some(o => o.type === "image");
     if (!hasImageBg) {
       ctx.strokeStyle = "#e2e8f0"; ctx.lineWidth = 0.5;
@@ -158,7 +162,6 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
       for (let y = 0; y <= height; y += 20) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
     }
 
-    // Sort: images first (background)
     const sorted = [...objects].sort((a, b) => {
       const aImg = a.type === "image" ? -1 : 0;
       const bImg = b.type === "image" ? -1 : 0;
@@ -209,6 +212,10 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
         ctx.lineTo(obj.x2 - 12 * Math.cos(angle + 0.5), obj.y2 - 12 * Math.sin(angle + 0.5));
         ctx.closePath(); ctx.fillStyle = obj.stroke; ctx.fill();
 
+      } else if (obj.type === "line-plain") {
+        ctx.beginPath(); ctx.moveTo(obj.x1, obj.y1); ctx.lineTo(obj.x2, obj.y2);
+        ctx.strokeStyle = obj.stroke; ctx.lineWidth = obj.lineWidth; ctx.lineCap = "round"; ctx.stroke();
+
       } else if (obj.type === "text") {
         ctx.fillStyle = obj.color; ctx.font = `${obj.fontSize || 14}px sans-serif`; ctx.fillText(obj.text, obj.x, obj.y);
 
@@ -223,13 +230,40 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
 
       } else if (obj.type === "pest") {
         const color = PEST_COLORS[obj.pestType] || "#374151";
-        ctx.beginPath(); ctx.arc(obj.x, obj.y, 16, 0, Math.PI * 2);
+        const emoji = PEST_EMOJI[obj.pestType] || "🐜";
+        const R = 14; // radius (smaller pin)
+
+        // Outer circle (white fill, colored border)
+        ctx.beginPath(); ctx.arc(obj.x, obj.y, R, 0, Math.PI * 2);
+        ctx.fillStyle = "white"; ctx.fill();
+        ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.stroke();
+
+        // Emoji — center precisely via actualBoundingBox metrics
+        ctx.save();
+        ctx.font = "12px 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', serif";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "alphabetic";
+        const em = ctx.measureText(emoji);
+        const emojiY = obj.y + (em.actualBoundingBoxAscent - em.actualBoundingBoxDescent) / 2;
+        ctx.fillText(emoji, obj.x, emojiY);
+        ctx.restore();
+
+        // Number badge (top-right of circle)
+        ctx.beginPath(); ctx.arc(obj.x + R - 2, obj.y - R + 2, 6, 0, Math.PI * 2);
         ctx.fillStyle = color; ctx.fill();
-        ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
-        ctx.fillStyle = "#fff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
-        ctx.fillText(obj.pestType.slice(0, 3).toUpperCase(), obj.x, obj.y - 3);
-        ctx.font = "bold 8px sans-serif";
-        ctx.fillText(String(obj.num), obj.x, obj.y + 6);
+        ctx.fillStyle = "#fff"; ctx.font = "bold 6px sans-serif";
+        ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(String(obj.num), obj.x + R - 2, obj.y - R + 2);
+
+        // Name label below
+        const labelText = obj.pestType.length > 6 ? obj.pestType.slice(0, 6) + ".." : obj.pestType;
+        ctx.font = "bold 7px sans-serif";
+        const labelW = ctx.measureText(labelText).width + 4;
+        ctx.fillStyle = "rgba(255,255,255,0.85)";
+        ctx.fillRect(obj.x - labelW / 2, obj.y + R + 2, labelW, 9);
+        ctx.fillStyle = "#111"; ctx.textAlign = "center"; ctx.textBaseline = "top";
+        ctx.fillText(labelText, obj.x, obj.y + R + 3);
+
         ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
 
       } else if (obj.type === "freedraw") {
@@ -249,7 +283,6 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
           ctx.strokeRect(h.x - HANDLE_R, h.y - HANDLE_R, HANDLE_R * 2, HANDLE_R * 2);
         }
       }
-      // Selection outline for circle
       if (isSel && obj.type === "circle") {
         ctx.shadowBlur = 0; ctx.setLineDash([4, 2]); ctx.strokeStyle = "#3b82f6"; ctx.lineWidth = 1;
         ctx.beginPath(); ctx.arc(obj.x, obj.y, obj.r + 4, 0, Math.PI * 2); ctx.stroke();
@@ -259,14 +292,14 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
     }
 
     // Live freedraw preview
-    if (liveFreedrawRef.current.length > 1 && tool === "freedraw") {
+    if (liveFreedrawRef.current.length > 1) {
       ctx.save();
       ctx.beginPath(); ctx.moveTo(liveFreedrawRef.current[0].x, liveFreedrawRef.current[0].y);
       for (const p of liveFreedrawRef.current) ctx.lineTo(p.x, p.y);
       ctx.strokeStyle = activeColor; ctx.lineWidth = activeLineWidth; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
       ctx.restore();
     }
-  }, [objects, selected, width, height, imgLoadTick, tool, activeColor, activeLineWidth]);
+  }, [objects, selected, width, height, imgLoadTick, activeColor, activeLineWidth]);
 
   const getPos = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -279,8 +312,20 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
       if (obj.type === "rect" || obj.type === "image") {
         if (x >= obj.x && x <= obj.x + obj.w && y >= obj.y && y <= obj.y + obj.h) return obj.id;
       } else if (obj.type === "circle" || obj.type === "marker" || obj.type === "pest") {
-        const r = obj.type === "circle" ? obj.r : obj.type === "marker" ? 14 : 16;
+        const r = obj.type === "circle" ? obj.r : obj.type === "marker" ? 14 : 14; // pest radius 14
         if (Math.hypot(x - obj.x, y - obj.y) <= r) return obj.id;
+      } else if (obj.type === "line" || obj.type === "line-plain") {
+        // Jarak titik ke segmen garis
+        const dx = obj.x2 - obj.x1, dy = obj.y2 - obj.y1;
+        const lenSq = dx * dx + dy * dy;
+        const tol = obj.type === "line-plain" ? Math.max(8, obj.lineWidth) : 10;
+        if (lenSq === 0) {
+          if (Math.hypot(x - obj.x1, y - obj.y1) <= tol) return obj.id;
+        } else {
+          const t = Math.max(0, Math.min(1, ((x - obj.x1) * dx + (y - obj.y1) * dy) / lenSq));
+          const px = obj.x1 + t * dx, py = obj.y1 + t * dy;
+          if (Math.hypot(x - px, y - py) <= tol) return obj.id;
+        }
       } else if (obj.type === "text") {
         if (x >= obj.x && x <= obj.x + 100 && y >= obj.y - 16 && y <= obj.y + 4) return obj.id;
       } else if (obj.type === "freedraw") {
@@ -299,7 +344,6 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
     const { x, y } = getPos(e);
 
     if (tool === "select") {
-      // Check resize handles first
       if (selected) {
         const selObj = objects.find(o => o.id === selected);
         if (selObj) {
@@ -316,20 +360,22 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
       if (hit) {
         const obj = objects.find(o => o.id === hit)!;
         const ox = obj.type === "rect" || obj.type === "image" ? x - obj.x
-          : obj.type === "line" ? x - obj.x1 : x - (obj as any).x;
+          : (obj.type === "line" || obj.type === "line-plain") ? x - obj.x1 : x - (obj as any).x;
         const oy = obj.type === "rect" || obj.type === "image" ? y - obj.y
-          : obj.type === "line" ? y - obj.y1 : y - (obj as any).y;
+          : (obj.type === "line" || obj.type === "line-plain") ? y - obj.y1 : y - (obj as any).y;
         dragRef.current = { mode: "move", id: hit, ox, oy };
       }
       return;
     }
 
-    if (tool === "rect" || tool === "circle" || tool === "line") {
+    if (tool === "rect" || tool === "circle" || tool === "line" || tool === "line-plain") {
       dragRef.current = { mode: "draw", sx: x, sy: y };
       return;
     }
 
     if (tool === "freedraw") {
+      // Start freedraw — use dedicated ref, no dragRef
+      isDrawingFreedraw.current = true;
       liveFreedrawRef.current = [{ x, y }];
       return;
     }
@@ -340,14 +386,6 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
         const newObj: CanvasObject = { id: uid(), type: "text", x, y, text, color: activeColor, fontSize: 13 };
         const next = [...objects, newObj]; setObjects(next); emit(next);
       }
-      return;
-    }
-
-    if (tool === "risk-high" || tool === "risk-mid" || tool === "risk-low") {
-      const level = tool.split("-")[1] as "high" | "mid" | "low";
-      markerCountRef.current += 1;
-      const newObj: CanvasObject = { id: uid(), type: "marker", x, y, level, num: markerCountRef.current };
-      const next = [...objects, newObj]; setObjects(next); emit(next);
       return;
     }
 
@@ -372,10 +410,15 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
         }
       }
       setCursor(hitTest(x, y) ? "move" : "default");
-    } else if (tool === "freedraw") {
-      setCursor("crosshair");
     } else {
       setCursor("crosshair");
+    }
+
+    // Freedraw: handled independently (no dragRef needed)
+    if (tool === "freedraw" && isDrawingFreedraw.current && liveFreedrawRef.current.length > 0) {
+      liveFreedrawRef.current = [...liveFreedrawRef.current, { x, y }];
+      setImgLoadTick(t => t + 1);
+      return;
     }
 
     const drag = dragRef.current;
@@ -385,7 +428,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
       const next = objects.map(obj => {
         if (obj.id !== drag.id) return obj;
         if (obj.type === "rect" || obj.type === "image") return { ...obj, x: x - drag.ox, y: y - drag.oy };
-        if (obj.type === "line") {
+        if (obj.type === "line" || obj.type === "line-plain") {
           const dx = x - drag.ox - obj.x1, dy = y - drag.oy - obj.y1;
           return { ...obj, x1: obj.x1 + dx, y1: obj.y1 + dy, x2: obj.x2 + dx, y2: obj.y2 + dy };
         }
@@ -407,12 +450,10 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
         preview.push({ id: "__preview__", type: "circle", x: drag.sx, y: drag.sy, r: Math.hypot(x - drag.sx, y - drag.sy), stroke: activeColor, fill: activeFill });
       } else if (tool === "line") {
         preview.push({ id: "__preview__", type: "line", x1: drag.sx, y1: drag.sy, x2: x, y2: y, stroke: activeColor });
+      } else if (tool === "line-plain") {
+        preview.push({ id: "__preview__", type: "line-plain", x1: drag.sx, y1: drag.sy, x2: x, y2: y, stroke: activeColor, lineWidth: activeLineWidth });
       }
       setObjects(preview);
-
-    } else if (tool === "freedraw" && liveFreedrawRef.current.length > 0) {
-      liveFreedrawRef.current = [...liveFreedrawRef.current, { x, y }];
-      setImgLoadTick(t => t + 1); // force redraw
     }
   };
 
@@ -436,25 +477,48 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
         newObj = { id: uid(), type: "circle", x: drag.sx, y: drag.sy, r: Math.hypot(x - drag.sx, y - drag.sy), stroke: activeColor, fill: activeFill };
       } else if (tool === "line") {
         newObj = { id: uid(), type: "line", x1: drag.sx, y1: drag.sy, x2: x, y2: y, stroke: activeColor };
+      } else if (tool === "line-plain") {
+        newObj = { id: uid(), type: "line-plain", x1: drag.sx, y1: drag.sy, x2: x, y2: y, stroke: activeColor, lineWidth: activeLineWidth };
       }
       const final = newObj ? [...next, newObj] : next;
       setObjects(final); emit(final);
       dragRef.current = null;
     }
 
-    if (tool === "freedraw" && liveFreedrawRef.current.length > 1) {
+    // Commit freedraw
+    if (tool === "freedraw" && isDrawingFreedraw.current && liveFreedrawRef.current.length > 1) {
       const newObj: CanvasObject = { id: uid(), type: "freedraw", points: [...liveFreedrawRef.current], color: activeColor, lineWidth: activeLineWidth };
       const next = [...objects, newObj];
       liveFreedrawRef.current = [];
+      isDrawingFreedraw.current = false;
       setObjects(next); emit(next);
+    } else {
+      isDrawingFreedraw.current = false;
+      liveFreedrawRef.current = [];
     }
   };
 
-  const deleteSelected = () => {
-    if (!selected) return;
-    const next = objects.filter(o => o.id !== selected);
-    setObjects(next); setSelected(null); emit(next);
-  };
+  const deleteSelected = useCallback(() => {
+    setObjects(prev => {
+      const next = prev.filter(o => o.id !== selected);
+      emit(next);
+      return next;
+    });
+    setSelected(null);
+  }, [selected, emit]);
+
+  // Hapus dengan Backspace / Delete keyboard
+  useEffect(() => {
+    if (readOnly) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Backspace" && e.key !== "Delete") return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      deleteSelected();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [deleteSelected, readOnly]);
 
   const addImageObject = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return;
@@ -465,7 +529,7 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
       const img = new Image();
       img.onload = () => {
         imgCache.current.set(src, img);
-        const scale = Math.min((width * 0.8) / img.width, (height * 0.8) / img.height, 1);
+        const scale = Math.min((width * 0.85) / img.width, (height * 0.85) / img.height, 1);
         const w = img.width * scale, h = img.height * scale;
         const x = (width - w) / 2, y = (height - h) / 2;
         const newObj: CanvasObject = { id: uid(), type: "image", x, y, w, h, src };
@@ -505,101 +569,101 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
 
   const selObj = objects.find(o => o.id === selected);
   const canHaveFill = selObj?.type === "rect" || selObj?.type === "circle";
-
-  const Btn = ({ t, label }: { t: Tool; label: string }) => (
-    <button onClick={() => setTool(t)} title={label}
-      className={`px-2 py-1 rounded text-xs font-medium border transition-colors whitespace-nowrap ${JSON.stringify(tool) === JSON.stringify(t) ? "bg-[#1a4d8c] text-white border-[#1a4d8c]" : "bg-white text-[#374151] border-[#d1d5db] hover:border-[#1a4d8c]"}`}>
-      {label}
-    </button>
-  );
+  const isPestTool = typeof tool === "object" && "pest" in tool;
+  const isShapeTool = tool === "rect" || tool === "circle" || tool === "line" || tool === "line-plain" || tool === "text" || tool === "freedraw";
+  const shapeLabel =
+    tool === "rect" ? "□ Kotak" : tool === "circle" ? "○ Lingkaran" :
+    tool === "line" ? "↗ Panah" : tool === "line-plain" ? "— Garis" :
+    tool === "text" ? "T Teks" : tool === "freedraw" ? "✏ Bebas" : "Bentuk";
+  const showWidthPicker = tool === "freedraw" || tool === "line-plain";
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-1.5">
       <style>{`@media print { .fpc-toolbar { display: none !important; } }`}</style>
 
       {!readOnly && (
-        <div className="fpc-toolbar flex flex-wrap items-center gap-1.5 rounded-lg border border-[#d1d5db] bg-[#f9fafb] px-3 py-2">
-          {/* Upload gambar */}
-          <label className="cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1 text-xs font-medium text-[#374151] hover:border-[#1a4d8c] whitespace-nowrap">
-            🖼 Upload Gambar
+        <div className="fpc-toolbar flex items-center gap-1 rounded-lg border border-[#d1d5db] bg-[#f9fafb] px-2 py-1.5 flex-wrap">
+
+          {/* Upload */}
+          <label className="cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1 text-[10px] font-medium text-[#374151] hover:border-[#1a4d8c] whitespace-nowrap">
+            🖼 Upload
             <input type="file" accept="image/*" className="hidden" onChange={addImageObject} />
           </label>
 
-          <span className="text-[#d1d5db]">|</span>
+          <span className="text-[#e5e7eb] text-xs">|</span>
 
-          {/* Tools */}
-          <Btn t="select" label="⊹ Pilih" />
-          <Btn t="rect" label="□ Kotak" />
-          <Btn t="circle" label="○ Lingkaran" />
-          <Btn t="line" label="↗ Panah" />
-          <Btn t="text" label="T Teks" />
-          <Btn t="freedraw" label="✏ Gambar Bebas" />
-
-          <span className="text-[#d1d5db]">|</span>
-
-          {/* Color */}
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-[#6b7280]">Warna:</span>
-            <input type="color" value={activeColor} onChange={e => setActiveColor(e.target.value)}
-              className="h-6 w-8 cursor-pointer rounded border border-[#d1d5db] p-0.5" title="Warna garis/teks" />
-          </div>
-          <div className="flex items-center gap-1">
-            <span className="text-[10px] text-[#6b7280]">Fill:</span>
-            <input type="color" value={activeFill.startsWith("rgba") ? "#3b82f6" : activeFill}
-              onChange={e => setActiveFill(e.target.value + "66")}
-              className="h-6 w-8 cursor-pointer rounded border border-[#d1d5db] p-0.5" title="Warna isi" />
-          </div>
-          {tool === "freedraw" && (
-            <div className="flex items-center gap-1">
-              <span className="text-[10px] text-[#6b7280]">Tebal:</span>
-              <input type="range" min={1} max={20} value={activeLineWidth} onChange={e => setActiveLineWidth(Number(e.target.value))}
-                className="w-16" />
-              <span className="text-[10px] text-[#6b7280]">{activeLineWidth}px</span>
-            </div>
-          )}
-
-          {/* Risk markers (only if showRiskMarkers) */}
-          {showRiskMarkers && (
-            <>
-              <span className="text-[#d1d5db]">|</span>
-              <span className="text-[10px] font-semibold text-[#6b7280]">RISIKO:</span>
-              <Btn t="risk-high" label="🔴 Tinggi" />
-              <Btn t="risk-mid" label="🟡 Sedang" />
-              <Btn t="risk-low" label="🟢 Rendah" />
-            </>
-          )}
-
-          <span className="text-[#d1d5db]">|</span>
-
-          {/* Pest */}
-          <span className="text-[10px] font-semibold text-[#6b7280]">HAMA:</span>
-          <select className="rounded border border-[#d1d5db] bg-white px-1.5 py-1 text-xs"
-            value={typeof tool === "object" && "pest" in tool ? tool.pest : pestInput}
-            onChange={e => { setPestInput(e.target.value); setTool({ pest: e.target.value }); }}>
-            {PEST_TYPES.map(p => <option key={p}>{p}</option>)}
-          </select>
-          <button onClick={() => setTool({ pest: pestInput })}
-            className={`px-2 py-1 rounded text-xs font-medium border transition-colors ${typeof tool === "object" && "pest" in tool ? "bg-[#1a4d8c] text-white border-[#1a4d8c]" : "bg-white text-[#374151] border-[#d1d5db] hover:border-[#1a4d8c]"}`}>
-            🐛 Tempatkan
+          {/* Select */}
+          <button onClick={() => setTool("select")} title="Pilih / Pindah"
+            className={`px-2 py-1 rounded text-[10px] font-medium border transition-colors ${tool === "select" ? "bg-[#1a4d8c] text-white border-[#1a4d8c]" : "bg-white text-[#374151] border-[#d1d5db] hover:border-[#1a4d8c]"}`}>
+            ⊹ Pilih
           </button>
 
-          {/* Selection actions */}
+          {/* Shape dropdown */}
+          <div className="relative">
+            <button onClick={() => setShapeOpen(v => !v)}
+              className={`flex items-center gap-1 px-2 py-1 rounded text-[10px] font-medium border transition-colors ${isShapeTool ? "bg-[#1a4d8c] text-white border-[#1a4d8c]" : "bg-white text-[#374151] border-[#d1d5db] hover:border-[#1a4d8c]"}`}>
+              {isShapeTool ? shapeLabel : "Bentuk"} <span className="opacity-70">▾</span>
+            </button>
+            {shapeOpen && (
+              <div className="absolute top-full left-0 z-20 mt-0.5 bg-white border border-[#d1d5db] rounded-lg shadow-md py-1 min-w-[110px]"
+                   onMouseLeave={() => setShapeOpen(false)}>
+                {([["rect","□ Kotak"],["circle","○ Lingkaran"],["line","↗ Panah"],["line-plain","— Garis"],["text","T Teks"],["freedraw","✏ Bebas"]] as [Tool,string][]).map(([t, lbl]) => (
+                  <button key={String(t)} onClick={() => { setTool(t); setShapeOpen(false); }}
+                    className={`w-full text-left px-3 py-1 text-[10px] hover:bg-[#f0f5ff] hover:text-[#1a4d8c] ${tool === t ? "font-bold text-[#1a4d8c]" : "text-[#374151]"}`}>
+                    {lbl}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <span className="text-[#e5e7eb] text-xs">|</span>
+
+          {/* Colors */}
+          <div className="flex items-center gap-1">
+            <input type="color" value={activeColor} onChange={e => setActiveColor(e.target.value)}
+              className="h-5 w-6 cursor-pointer rounded border border-[#d1d5db] p-0" title="Warna garis / teks" />
+            <input type="color" value={activeFill.startsWith("rgba") ? "#3b82f6" : activeFill}
+              onChange={e => setActiveFill(e.target.value + "66")}
+              className="h-5 w-6 cursor-pointer rounded border border-[#d1d5db] p-0" title="Warna isi (fill)" />
+            {showWidthPicker && (
+              <input type="number" min={1} max={30} value={activeLineWidth} onChange={e => setActiveLineWidth(Number(e.target.value))}
+                className="w-10 rounded border border-[#d1d5db] px-1 py-0.5 text-[10px] text-center" title="Tebal garis" />
+            )}
+          </div>
+
+          <span className="text-[#e5e7eb] text-xs">|</span>
+
+          {/* Hama */}
+          <select className="rounded border border-[#d1d5db] bg-white px-1 py-0.5 text-[10px]"
+            value={typeof tool === "object" && "pest" in tool ? tool.pest : pestInput}
+            onChange={e => { setPestInput(e.target.value); setTool({ pest: e.target.value }); }}>
+            {PEST_TYPES.map(p => {
+              const emoji = PEST_EMOJI[p] || "🐜";
+              return <option key={p} value={p}>{emoji} {p}</option>;
+            })}
+          </select>
+          <button onClick={() => setTool({ pest: pestInput })} title="Aktifkan tool hama"
+            className={`px-2 py-1 rounded text-[10px] font-medium border transition-colors ${isPestTool ? "bg-[#1a4d8c] text-white border-[#1a4d8c]" : "bg-white text-[#374151] border-[#d1d5db] hover:border-[#1a4d8c]"}`}>
+            📍
+          </button>
+
+          {/* Hapus & fill image (saat ada selection) */}
           {selected && (
             <>
-              <span className="text-[#d1d5db]">|</span>
-              <button onClick={deleteSelected} className="rounded border border-red-300 bg-red-50 px-2 py-1 text-xs text-red-600 hover:bg-red-100">
-                🗑 Hapus
+              <span className="text-[#e5e7eb] text-xs">|</span>
+              <button onClick={deleteSelected} title="Hapus objek terpilih (Delete/Backspace)"
+                className="rounded border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-500 hover:bg-red-100">
+                🗑
               </button>
               {canHaveFill && (
-                <>
-                  <label className="cursor-pointer rounded border border-[#1a4d8c] px-2 py-1 text-xs text-[#1a4d8c] hover:bg-[#f0f5ff] whitespace-nowrap">
-                    🖼 Isi Gambar
-                    <input type="file" accept="image/*" className="hidden" onChange={addFillImage} />
-                  </label>
-                  {(selObj as any)?.fillImageSrc && (
-                    <button onClick={removeFillImage} className="rounded border border-[#d1d5db] px-2 py-1 text-xs text-[#6b7280] hover:bg-[#f3f4f6]">Hapus Fill</button>
-                  )}
-                </>
+                <label className="cursor-pointer rounded border border-[#d1d5db] bg-white px-2 py-1 text-[10px] text-[#374151] hover:border-[#1a4d8c] whitespace-nowrap">
+                  🖼 Isi
+                  <input type="file" accept="image/*" className="hidden" onChange={addFillImage} />
+                </label>
+              )}
+              {(selObj as any)?.fillImageSrc && (
+                <button onClick={removeFillImage} className="rounded border border-[#d1d5db] px-1.5 py-1 text-[10px] text-[#6b7280] hover:bg-[#f3f4f6]">× Isi</button>
               )}
             </>
           )}
@@ -615,7 +679,19 @@ const FloorPlanCanvas = forwardRef<FloorPlanCanvasHandle, Props>(function FloorP
           onMouseDown={handleMouseDown}
           onMouseMove={handleMouseMove}
           onMouseUp={handleMouseUp}
-          onMouseLeave={() => { dragRef.current = null; liveFreedrawRef.current = []; }}
+          onMouseLeave={() => {
+            dragRef.current = null;
+            if (isDrawingFreedraw.current && liveFreedrawRef.current.length > 1) {
+              const newObj: CanvasObject = { id: uid(), type: "freedraw", points: [...liveFreedrawRef.current], color: activeColor, lineWidth: activeLineWidth };
+              const next = [...objects, newObj];
+              liveFreedrawRef.current = [];
+              isDrawingFreedraw.current = false;
+              setObjects(next); emit(next);
+            } else {
+              liveFreedrawRef.current = [];
+              isDrawingFreedraw.current = false;
+            }
+          }}
         />
       </div>
     </div>

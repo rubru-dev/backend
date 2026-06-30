@@ -21,7 +21,9 @@ router.get("/:surveyId", async (req, res, next) => {
         pic: { select: { name: true } },
       },
     });
-    res.json({ data: report, survey });
+    // Map topViewImagePath → coverImagePath so frontend stays consistent
+    const mappedReport = report ? { ...report, coverImagePath: report.topViewImagePath } : null;
+    res.json({ data: mappedReport, survey });
   } catch (e) {
     next(e);
   }
@@ -30,20 +32,50 @@ router.get("/:surveyId", async (req, res, next) => {
 router.post("/:surveyId", async (req, res, next) => {
   try {
     const { surveyId } = req.params;
-    const body = { ...req.body };
-    // Ensure JSON fields are objects (not strings) when upserted
+    const raw = { ...req.body };
+
+    // Ensure JSON fields are parsed objects (not strings)
     const jsonFields = ["generalNotes", "canvasDataEnv", "environmentalRisks", "canvasDataPest", "floorPlanCanvasData", "pestSections", "resumeRows"];
     for (const f of jsonFields) {
-      if (typeof body[f] === "string") {
-        try { body[f] = JSON.parse(body[f]); } catch { /* keep as is */ }
+      if (typeof raw[f] === "string") {
+        try { raw[f] = JSON.parse(raw[f]); } catch { /* keep as is */ }
       }
     }
+
+    // Whitelist: only pass fields that exist in the Prisma schema
+    // coverImagePath is stored in topViewImagePath until client regen after server restart
+    const {
+      clientName, clientAddress, coverImagePath,
+      surveyorNames, surveyDate, generalNotes,
+      topViewImagePath, frontViewImagePath, mapImagePath, canvasDataEnv, areaCondition, environmentalRisks,
+      pestConcernImagePath, canvasDataPest, pestConcern, inspectionFocus,
+      floorPlanImagePath, floorPlanCanvasData,
+      pestSections, resumeRows, status,
+    } = raw;
+
+    const body: Record<string, any> = {
+      clientName, clientAddress,
+      surveyorNames, surveyDate, generalNotes,
+      topViewImagePath: coverImagePath ?? topViewImagePath, // map coverImagePath → topViewImagePath
+      frontViewImagePath, mapImagePath, canvasDataEnv, areaCondition, environmentalRisks,
+      pestConcernImagePath, canvasDataPest, pestConcern, inspectionFocus,
+      floorPlanImagePath, floorPlanCanvasData,
+      pestSections, resumeRows, status,
+    };
+
+    // Strip undefined to avoid overwriting with null
+    for (const k of Object.keys(body)) {
+      if (body[k] === undefined) delete body[k];
+    }
+
     const report = await prisma.b2BSurveyReport.upsert({
       where: { surveyId },
       update: body,
       create: { surveyId, ...body },
     });
-    res.json({ data: report });
+
+    // Map back so frontend gets coverImagePath in response
+    res.json({ data: { ...report, coverImagePath: report.topViewImagePath } });
   } catch (e) {
     next(e);
   }
