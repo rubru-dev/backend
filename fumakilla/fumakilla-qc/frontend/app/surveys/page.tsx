@@ -1,14 +1,96 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
 import { LiveSurveyEvidence } from "@/components/erp/live-survey-evidence";
 import { fileUrl } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 const issueOptions = ["Lalat", "Nyamuk", "Semut", "Kecoa", "Serangga lain", "Tikus", "Rayap", "Burung", "Kelelawar", "Tipe Hama lain"];
 const dateLabel = (value: string) => new Date(value).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" });
+
+// Dropdown Export (PDF/PPT). Pakai position:fixed supaya tidak terpotong overflow tabel.
+function ExportMenu({ disabled, onExport }: { disabled: boolean; onExport: (format: "pdf" | "ppt") => void }) {
+  const [open, setOpen] = useState(false);
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0 });
+  useEffect(() => {
+    if (!open) return;
+    const close = () => setOpen(false);
+    window.addEventListener("click", close);
+    window.addEventListener("scroll", close, true);
+    return () => { window.removeEventListener("click", close); window.removeEventListener("scroll", close, true); };
+  }, [open]);
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (disabled) return;
+    const r = btnRef.current!.getBoundingClientRect();
+    setCoords({ top: r.bottom + 4, left: Math.max(8, r.right - 150) });
+    setOpen(o => !o);
+  };
+  return (
+    <span className="inline-block">
+      <button
+        ref={btnRef}
+        disabled={disabled}
+        onClick={toggle}
+        title={disabled ? "Report harus di-approve dulu" : "Export report"}
+        className="rounded border border-[#6b7280] px-2 py-1 text-xs font-medium text-[#6b7280] hover:bg-[#f3f4f6] disabled:cursor-not-allowed disabled:opacity-50"
+      >
+        Export ▾
+      </button>
+      {open && (
+        <div
+          style={{ position: "fixed", top: coords.top, left: coords.left, width: 150 }}
+          className="z-50 overflow-hidden rounded-lg border border-bdr bg-white shadow-lg"
+          onClick={e => e.stopPropagation()}
+        >
+          <button className="flex w-full items-center gap-2 px-3 py-2 text-left text-xs font-medium hover:bg-[#f2f3fd]" onClick={() => { setOpen(false); onExport("pdf"); }}><span className="rounded bg-[#e5252a] px-1.5 py-0.5 text-[10px] font-black tracking-tight text-white">PDF</span>Export PDF</button>
+          <button className="flex w-full items-center gap-2 border-t border-bdr px-3 py-2 text-left text-xs font-medium hover:bg-[#f2f3fd]" onClick={() => { setOpen(false); onExport("ppt"); }}><span className="rounded bg-[#d24726] px-1.5 py-0.5 text-[10px] font-black tracking-tight text-white">PPT</span>Export PPT</button>
+        </div>
+      )}
+    </span>
+  );
+}
+
+function AttendancePhoto({ label, path, capturedAt, lat, lng }: { label: string; path?: string | null; capturedAt?: string | null; lat?: number | null; lng?: number | null }) {
+  const [open, setOpen] = useState(false);
+  const [address, setAddress] = useState("");
+  const hasLocation = lat != null && lng != null;
+  const location = hasLocation ? (address || "Mengambil alamat...") : "Lokasi tidak tersedia";
+  const time = capturedAt ? new Date(capturedAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }) : "Jam tidak tersedia";
+  useEffect(() => {
+    if (!open || !hasLocation || address) return;
+    let cancelled = false;
+    api.get("/erp/reverse-geocode", { params: { lat, lng } })
+      .then(res => { if (!cancelled) setAddress(res.data?.address || "Alamat tidak tersedia"); })
+      .catch(() => { if (!cancelled) setAddress("Alamat tidak tersedia"); });
+    return () => { cancelled = true; };
+  }, [open, hasLocation, lat, lng, address]);
+  if (!path) return <p className="mt-2 text-xs text-ts">Belum {label.toLowerCase()}</p>;
+  return (
+    <>
+      <button type="button" className="mt-2 block w-full overflow-hidden rounded" onClick={() => setOpen(true)} title={`Lihat foto ${label}`}>
+        <img className="max-h-24 w-full object-cover" src={fileUrl(path)} alt={label} />
+      </button>
+      {capturedAt && <p className="mt-1 text-xs text-ts">{time}</p>}
+      {open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" onClick={() => setOpen(false)}>
+          <div className="relative max-h-[90vh] max-w-5xl overflow-hidden rounded-xl bg-black shadow-2xl" onClick={e => e.stopPropagation()}>
+            <img className="max-h-[90vh] max-w-full object-contain" src={fileUrl(path)} alt={label} />
+            <div className="absolute bottom-3 right-3 rounded-lg bg-black/75 px-3 py-2 text-right text-xs font-semibold text-white shadow">
+              <p>{label} - {time}</p>
+              <p className="mt-1">{location}</p>
+            </div>
+            <button className="absolute right-3 top-3 rounded bg-black/70 px-3 py-1 text-sm font-bold text-white" onClick={() => setOpen(false)}>Tutup</button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
 
 function B2CSurveyForm({ survey, onSaved }: { survey: any; onSaved: (item: any) => void }) {
   const { data: vendors } = useGet<any>("/erp/vendor-options");
@@ -178,9 +260,10 @@ function B2CReadView({ survey }: { survey: any }) {
 }
 
 function SurveyDetailPanel({ survey, segment, onSaved }: { survey: any; segment: "B2C" | "B2B"; onSaved: () => void }) {
-  const [showForm, setShowForm] = useState(false);
   const router = useRouter();
-  const b2cFilled = Array.isArray(survey.b2cFloorDescriptions) && survey.b2cFloorDescriptions.length > 0;
+  const b2cFilled = Boolean(survey.b2cReportData && Object.keys(survey.b2cReportData).length > 0);
+  // Report hanya bisa dibuat kalau sudah check in DAN check out
+  const checkedInOut = Boolean(survey.evidenceImagePath && survey.checkoutImagePath);
 
   return (
     <div className="border-t border-[#d9ddeb] bg-[#f8fbff] p-5">
@@ -204,21 +287,11 @@ function SurveyDetailPanel({ survey, segment, onSaved }: { survey: any; segment:
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-lg border border-bdr bg-white p-3">
             <p className="text-[11px] font-bold text-ts">CHECK IN</p>
-            {survey.evidenceImagePath ? (
-              <>
-                <img className="mt-2 max-h-24 w-full rounded object-cover" src={fileUrl(survey.evidenceImagePath)} alt="Check in" />
-                {survey.evidenceCapturedAt && <p className="mt-1 text-xs text-ts">{new Date(survey.evidenceCapturedAt).toLocaleString("id-ID")}</p>}
-              </>
-            ) : <p className="mt-2 text-xs text-ts">Belum check in</p>}
+            <AttendancePhoto label="Check In" path={survey.evidenceImagePath} capturedAt={survey.evidenceCapturedAt} lat={survey.evidenceLatitude} lng={survey.evidenceLongitude} />
           </div>
           <div className="rounded-lg border border-bdr bg-white p-3">
             <p className="text-[11px] font-bold text-ts">CHECK OUT</p>
-            {survey.checkoutImagePath ? (
-              <>
-                <img className="mt-2 max-h-24 w-full rounded object-cover" src={fileUrl(survey.checkoutImagePath)} alt="Check out" />
-                {survey.checkoutCapturedAt && <p className="mt-1 text-xs text-ts">{new Date(survey.checkoutCapturedAt).toLocaleString("id-ID")}</p>}
-              </>
-            ) : <p className="mt-2 text-xs text-ts">Belum check out</p>}
+            <AttendancePhoto label="Check Out" path={survey.checkoutImagePath} capturedAt={survey.checkoutCapturedAt} lat={survey.checkoutLatitude} lng={survey.checkoutLongitude} />
           </div>
         </div>
       </div>
@@ -226,35 +299,20 @@ function SurveyDetailPanel({ survey, segment, onSaved }: { survey: any; segment:
       {segment === "B2C" && (
         <div className="mt-5 border-t border-[#d9ddeb] pt-5">
           <div className="flex items-center justify-between">
-            <div>
-              <h4 className="font-bold">Data Survey B2C</h4>
-              <p className="mt-1 text-xs text-ts">Isi data temuan survey B2C, lalu buat laporan dokumen resmi.</p>
-            </div>
+            <div />
             <div className="flex gap-2">
-              <button className="btn btn-primary" onClick={() => setShowForm((v) => !v)}>
-                {showForm ? "Tutup Form" : b2cFilled ? "Edit Data B2C" : "Isi Data B2C"}
-              </button>
               <button
                 className="btn"
-                style={{ borderColor: "#1a4d8c", color: "#1a4d8c" }}
-                onClick={() => router.push(`/b2c-report/${survey.id}`)}
+                style={{ borderColor: checkedInOut ? "#1a4d8c" : "#c9ced9", color: checkedInOut ? "#1a4d8c" : "#9aa1b2" }}
+                disabled={!checkedInOut}
+                title={!checkedInOut ? "Check in & check out survey harus selesai dulu" : undefined}
+                onClick={() => checkedInOut && router.push(`/b2c-report/${survey.id}`)}
               >
                 📄 Buka Report B2C
               </button>
             </div>
           </div>
-          {showForm ? (
-            <div className="mt-4">
-              <B2CSurveyForm
-                survey={survey}
-                onSaved={() => { setShowForm(false); onSaved(); }}
-              />
-            </div>
-          ) : b2cFilled ? (
-            <div className="mt-4"><B2CReadView survey={survey} /></div>
-          ) : (
-            <p className="mt-3 text-sm text-ts">Data B2C belum diisi. Klik "Isi Data B2C" untuk mulai mengisi.</p>
-          )}
+          {!checkedInOut && <p className="mt-2 text-xs font-medium text-amber-700">⚠ Report hanya bisa dibuat setelah check in dan check out survey selesai.</p>}
         </div>
       )}
 
@@ -267,11 +325,14 @@ function SurveyDetailPanel({ survey, segment, onSaved }: { survey: any; segment:
             </div>
             <button
               className="btn btn-primary"
-              onClick={() => router.push(`/b2b-report/${survey.id}`)}
+              disabled={!checkedInOut}
+              title={!checkedInOut ? "Check in & check out survey harus selesai dulu" : undefined}
+              onClick={() => checkedInOut && router.push(`/b2b-report/${survey.id}`)}
             >
               📄 Buka Report Builder
             </button>
           </div>
+          {!checkedInOut && <p className="mt-2 text-xs font-medium text-amber-700">⚠ Report hanya bisa dibuat setelah check in dan check out survey selesai.</p>}
         </div>
       )}
     </div>
@@ -280,12 +341,18 @@ function SurveyDetailPanel({ survey, segment, onSaved }: { survey: any; segment:
 
 export default function Surveys() {
   const router = useRouter();
+  const { user } = useAuth();
   const { data, loading, reload } = useGet<any>("/erp/surveys");
   const [tab, setTab] = useState<"calendar" | "b2c" | "b2b">("calendar");
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState<any>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const surveys = data?.data || [];
+  const activeFilters = [search, statusFilter].filter(Boolean).length;
+  const clearFilters = () => { setSearch(""); setStatusFilter(""); };
 
   const days = useMemo(() => {
     const start = new Date(month.getFullYear(), month.getMonth(), 1);
@@ -298,10 +365,19 @@ export default function Surveys() {
   }, [month]);
 
   const monthTitle = month.toLocaleDateString("id-ID", { month: "long", year: "numeric" });
-  const b2cSurveys = useMemo(() => surveys.filter((s: any) => (s.inquiry?.segmentType || s.customer?.segmentType) === "B2C"), [surveys]);
-  const b2bSurveys = useMemo(() => surveys.filter((s: any) => (s.inquiry?.segmentType || s.customer?.segmentType) === "B2B"), [surveys]);
+  const applyFilters = (list: any[]) => list.filter((s: any) => {
+    const q = search.toLowerCase();
+    const matchSearch = !search || [s.number, s.customer?.name, s.customer?.company, s.pic?.name].join(" ").toLowerCase().includes(q);
+    const matchStatus = !statusFilter || s.status === statusFilter;
+    return matchSearch && matchStatus;
+  });
+  const b2cSurveys = useMemo(() => applyFilters(surveys.filter((s: any) => (s.inquiry?.segmentType || s.customer?.segmentType) === "B2C")), [surveys, search, statusFilter]);
+  const b2bSurveys = useMemo(() => applyFilters(surveys.filter((s: any) => (s.inquiry?.segmentType || s.customer?.segmentType) === "B2B")), [surveys, search, statusFilter]);
 
   const tabLabel: Record<string, string> = { calendar: "Kalender", b2c: "Report After Survey B2C", b2b: "Report After Survey B2B" };
+  const exportReport = (segment: "B2C" | "B2B", surveyId: string, format: "pdf" | "ppt") => {
+    router.push(`/${segment === "B2C" ? "b2c-report" : "b2b-report"}/${surveyId}?export=${format}`);
+  };
 
   const renderSurveyTable = (rows: any[], seg: "B2C" | "B2B") => (
     <div className="card mt-6 overflow-x-auto">
@@ -317,7 +393,7 @@ export default function Surveys() {
                 <th>PIC Survey</th>
                 <th>Status</th>
                 <th>Check In/Out</th>
-                {seg === "B2C" && <th>Data B2C</th>}
+                {seg === "B2C" && <th>Report B2C</th>}
                 {seg === "B2B" && <th>Report</th>}
               </tr>
             </thead>
@@ -350,26 +426,21 @@ export default function Surveys() {
                     {seg === "B2C" && (
                       <td>
                         <div className="flex items-center gap-2">
-                          {Array.isArray(item.b2cFloorDescriptions) && item.b2cFloorDescriptions.length > 0
-                            ? <span className="badge badge-completed">Terisi</span>
+                          {item.b2cReportData && Object.keys(item.b2cReportData).length > 0
+                            ? <span className="badge badge-completed">{item.b2cReportData.approvedAt ? "Approved" : "Terisi"}</span>
                             : <span className="badge badge-new">Belum diisi</span>}
-                          <button
-                            className="rounded border border-[#1a4d8c] px-2 py-1 text-xs font-medium text-[#1a4d8c] hover:bg-[#f0f5ff]"
-                            onClick={e => { e.stopPropagation(); router.push(`/b2c-report/${item.id}`); }}
-                          >
-                            📄 Report
-                          </button>
+                          <ExportMenu disabled={!item.b2cReportData?.approvedAt} onExport={f => exportReport("B2C", item.id, f)} />
                         </div>
                       </td>
                     )}
                     {seg === "B2B" && (
                       <td>
-                        <button
-                          className="rounded border border-[#1a4d8c] px-2 py-1 text-xs font-medium text-[#1a4d8c] hover:bg-[#f0f5ff]"
-                          onClick={e => { e.stopPropagation(); router.push(`/b2b-report/${item.id}`); }}
-                        >
-                          📄 Report
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {item.b2bReport
+                            ? <span className="badge badge-completed">{item.b2bReport.approvedAt ? "Approved" : "Terisi"}</span>
+                            : <span className="badge badge-new">Belum diisi</span>}
+                          <ExportMenu disabled={!item.b2bReport?.approvedAt} onExport={f => exportReport("B2B", item.id, f)} />
+                        </div>
                       </td>
                     )}
                   </tr>
@@ -396,7 +467,22 @@ export default function Surveys() {
 
   return (
     <div className="p-9">
-      <PageTitle title="Kalender Survey" subtitle="Jadwal survey dari inquiry yang telah dibuat." />
+      <PageTitle title="Kalender Survey" subtitle="Jadwal survey dari inquiry yang telah dibuat." actions={tab !== "calendar" ? <button className="btn" onClick={() => setShowFilters(v => !v)}>Filter{activeFilters > 0 ? ` (${activeFilters})` : ""}</button> : undefined} />
+      {showFilters && tab !== "calendar" && (
+        <section className="card mt-4 p-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <input placeholder="Cari no. survey, customer, PIC..." value={search} onChange={e => setSearch(e.target.value)} />
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="">Semua Status</option>
+              <option value="SCHEDULED">Scheduled</option>
+              <option value="COMPLETED">Done</option>
+              <option value="POSTPONED">Postponed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+            <button className="btn" onClick={clearFilters}>Reset Filter</button>
+          </div>
+        </section>
+      )}
 
       <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
         <div className="flex gap-1 rounded-lg bg-surface p-1">
@@ -484,3 +570,5 @@ export default function Surveys() {
     </div>
   );
 }
+
+

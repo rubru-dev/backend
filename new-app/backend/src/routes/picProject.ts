@@ -621,4 +621,70 @@ router.get("/pic-users", async (_req: Request, res: Response) => {
   return res.json(users);
 });
 
+// ── Laporan PIC Project (terhubung ke Projek Sipil/Interior) ──────────────────
+
+// Opsi nama projek untuk dropdown saat PIC mengisi laporan
+router.get("/laporan-pic/projek-options", async (req: Request, res: Response) => {
+  const type = String(req.query.type || "sipil") === "interior" ? "interior" : "sipil";
+  if (type === "interior") {
+    const rows = await prisma.proyekInterior.findMany({ select: { id: true, nama_proyek: true }, orderBy: { id: "desc" } });
+    return res.json(rows.map((r) => ({ id: r.id, nama: r.nama_proyek || `Interior #${r.id}` })));
+  }
+  const rows = await prisma.proyekBerjalan.findMany({ select: { id: true, nama_proyek: true }, orderBy: { id: "desc" } });
+  return res.json(rows.map((r) => ({ id: r.id, nama: r.nama_proyek || `Sipil #${r.id}` })));
+});
+
+// PIC membuat laporan (teks + banyak gambar)
+router.post("/laporan-pic", picUpload.array("images", 20), async (req: Request, res: Response) => {
+  const user = req.user!;
+  const { project_type, project_id, kegiatan, kendala } = req.body;
+  if (!project_type || !project_id || !kegiatan) {
+    return res.status(400).json({ detail: "Tipe projek, nama projek, dan kegiatan wajib diisi" });
+  }
+  const type = project_type === "interior" ? "interior" : "sipil";
+  const pid = BigInt(project_id);
+  const proj = type === "interior"
+    ? await prisma.proyekInterior.findUnique({ where: { id: pid }, select: { nama_proyek: true } })
+    : await prisma.proyekBerjalan.findUnique({ where: { id: pid }, select: { nama_proyek: true } });
+  const files = (req.files as Express.Multer.File[]) || [];
+  const images = files.map((f) => `/storage/pic-docs/${f.filename}`);
+  const row = await prisma.laporanPicProjek.create({
+    data: {
+      user_id: user.id,
+      project_type: type,
+      project_id: pid,
+      project_nama: proj?.nama_proyek ?? null,
+      kegiatan: String(kegiatan),
+      kendala: kendala ? String(kendala) : null,
+      images,
+    },
+    include: { user: { select: { name: true } } },
+  });
+  return res.status(201).json(row);
+});
+
+// List laporan: per-projek (tab Laporan PIC Project) atau milik sendiri (?mine=1)
+router.get("/laporan-pic", async (req: Request, res: Response) => {
+  const { project_type, project_id, mine } = req.query;
+  const where: any = {};
+  if (mine === "1") where.user_id = req.user!.id;
+  if (project_type) where.project_type = project_type === "interior" ? "interior" : "sipil";
+  if (project_id) where.project_id = BigInt(String(project_id));
+  const rows = await prisma.laporanPicProjek.findMany({
+    where,
+    orderBy: { created_at: "desc" },
+    include: { user: { select: { name: true } } },
+  });
+  return res.json(rows);
+});
+
+// Hapus laporan (pemilik atau Super Admin)
+router.delete("/laporan-pic/:id", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const row = await prisma.laporanPicProjek.findUnique({ where: { id } });
+  if (!row) return res.status(404).json({ detail: "Laporan tidak ditemukan" });
+  await prisma.laporanPicProjek.delete({ where: { id } });
+  return res.json({ success: true });
+});
+
 export default router;

@@ -1,36 +1,81 @@
-import { PrismaClient, Role } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
+// Full permission catalog — must stay in sync with frontend app/admin/roles/page.tsx
+const ALL_PERMISSIONS = [
+  "dashboard.view",
+  "customers.view", "customers.create", "customers.edit", "customers.delete",
+  "inquiries.view", "inquiries.create", "inquiries.edit", "inquiries.delete", "inquiries.change_status",
+  "quotations.view", "quotations.create", "quotations.edit", "quotations.delete", "quotations.change_status",
+  "surveys.view", "surveys.create", "surveys.edit", "surveys.delete", "surveys.change_status", "surveys.b2b_report", "surveys.b2c_report",
+  "after_surveys.view", "after_surveys.submit", "after_surveys.review", "after_surveys.approve",
+  "agreements.view", "agreements.create", "agreements.edit", "agreements.delete", "agreements.change_status", "agreements.activate",
+  "order_sheets.view", "order_sheets.create", "order_sheets.edit", "order_sheets.delete", "order_sheets.change_status",
+  "service_contracts.view",
+  "renewals.view", "renewals.create", "renewals.approve", "renewals.reject",
+  "complaints.view", "complaints.create", "complaints.edit", "complaints.delete", "complaints.change_status", "complaints.resolve", "complaints.close",
+  "work_plans.view", "work_plans.view_all", "work_plans.create", "work_plans.edit", "work_plans.delete", "work_plans.change_status",
+  "monthly_reports.view", "monthly_reports.create", "monthly_reports.edit", "monthly_reports.select_type",
+  "vendors.view", "vendors.create", "vendors.edit", "vendors.delete",
+  "admin.users", "admin.roles", "admin.settings",
+];
+
+// SALES: everything operational, minus admin panel
+const SALES_PERMISSIONS = ALL_PERMISSIONS.filter((p) => !p.startsWith("admin."));
+
+// QA (PIC FI): inquiry, survey & after-survey handling + reports (read-mostly)
+const QA_PERMISSIONS = [
+  "dashboard.view",
+  "customers.view",
+  "inquiries.view", "inquiries.edit", "inquiries.change_status",
+  "quotations.view",
+  "surveys.view", "surveys.change_status", "surveys.b2b_report", "surveys.b2c_report",
+  "after_surveys.view", "after_surveys.submit", "after_surveys.review", "after_surveys.approve",
+  "agreements.view",
+  "service_contracts.view",
+  "complaints.view", "complaints.create", "complaints.change_status",
+  "monthly_reports.view", "monthly_reports.create", "monthly_reports.edit", "monthly_reports.select_type",
+  "work_plans.view", "work_plans.create", "work_plans.edit", "work_plans.change_status",
+];
+
 async function main() {
   const password = await bcrypt.hash("fumakilla2026", 10);
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@fumakilla.co.id" },
-    update: { name: "Admin Fumakilla", password, role: Role.ADMIN, isActive: true },
-    create: { name: "Admin Fumakilla", email: "admin@fumakilla.co.id", password, role: Role.ADMIN },
-  });
-  const surveyor = await prisma.user.upsert({
-    where: { email: "surveyor@fumakilla.co.id" },
-    update: { name: "Andi Pratama", password, role: Role.SURVEYOR, isActive: true },
-    create: { name: "Andi Pratama", email: "surveyor@fumakilla.co.id", password, role: Role.SURVEYOR },
-  });
-  const qa = await prisma.user.upsert({
-    where: { email: "qa@fumakilla.co.id" },
-    update: { name: "QA Fumakilla", password, role: Role.QA, isActive: true },
-    create: { name: "QA Fumakilla", email: "qa@fumakilla.co.id", password, role: Role.QA },
-  });
-  const customer = await prisma.customer.create({ data: { code: "CUS-2026-001", name: "PT Maju Mundur", company: "PT Maju Mundur Sejahtera", phone: "+62 812-3456-7890", city: "Jakarta", address: "Jakarta Selatan", treatmentAddress: "Gedung Kantor Pusat, Jakarta Selatan", status: "ACTIVE", segment: "COMMERCIAL", segmentType: "Corporate", treatment: "Pest Control", treatmentFrequency: "Bulanan", agreementType: "Annual Service Agreement", agreementNumber: "AGR-2026-001", agreementStart: new Date(), agreementEnd: new Date(Date.now() + 365 * 86400000), picServiceName: "Budi Wijaya", picServicePhone: "+62 821-9876-5432", picScheduleName: "Siti Aminah", picSchedulePhone: "+62 812-1111-2222", salesOwner: "Admin Fumakilla", isPriority: true } });
-  await prisma.inquiry.create({ data: { number: "INQ-2026-001", customerId: customer.id, service: "PC", source: "Whatsapp", status: "NEW", progress: "New Inquiry", result: "On Going", contactMonth: "Januari", picFiId: qa.id, picFiName: qa.name, segmentType: "B2B", serviceType: "PC", customerCity: "Jakarta", customerName: customer.name, companyName: customer.company || "", phone: customer.phone || "", ownerId: admin.id } });
-  await prisma.quotation.create({ data: { number: "QUO-2026-001", customerId: customer.id, title: "Penawaran Pest Control", amount: 45200000, status: "SENT", ownerId: admin.id } });
-  await prisma.renewal.create({ data: { number: "AGR-2026-001", customerId: customer.id, service: "Annual Maintenance", expiryDate: new Date(Date.now() + 7 * 86400000), progress: 25 } });
-  const survey = await prisma.survey.create({ data: { number: "SRV-2026-001", customerId: customer.id, picId: surveyor.id, scheduledAt: new Date(), location: "Jakarta Selatan" } });
-  await prisma.afterSurvey.create({ data: { surveyId: survey.id, reportDue: new Date(Date.now() + 86400000) } });
-  await prisma.dailyReport.create({ data: { reportDate: new Date(), inquiryCount: 1, quotationCount: 1, surveyCount: 1, productivity: 92, authorId: admin.id } });
-  await prisma.activityLog.createMany({ data: [
-    { message: "Admin Fumakilla membuat inquiry baru", type: "INQUIRY", userId: admin.id },
-    { message: "Andi Pratama dijadwalkan untuk survey", type: "SURVEY", userId: surveyor.id },
-  ] });
+
+  // Roles (permissions are matched by name in login/auth middleware fallback)
+  const roles = [
+    { name: "ADMIN", permissions: ALL_PERMISSIONS },
+    { name: "SALES", permissions: SALES_PERMISSIONS },
+    { name: "QA", permissions: QA_PERMISSIONS },
+  ];
+  for (const r of roles) {
+    await prisma.appRole.upsert({
+      where: { name: r.name },
+      update: { permissions: r.permissions },
+      create: { name: r.name, permissions: r.permissions },
+    });
+  }
+
+  const users = [
+    { name: "Admin Fumakilla", email: "admin@fumakilla.co.id", role: "ADMIN" },
+    { name: "Andi Pratama",    email: "surveyor@fumakilla.co.id", role: "SALES" },
+    { name: "QA Fumakilla",    email: "qa@fumakilla.co.id", role: "QA" },
+    { name: "Budi QA",         email: "qa2@fumakilla.co.id", role: "QA" },
+  ];
+  for (const u of users) {
+    await prisma.user.upsert({
+      where: { email: u.email },
+      update: { name: u.name, password, role: u.role, isActive: true },
+      create: { name: u.name, email: u.email, password, role: u.role },
+    });
+  }
+
+  console.log("Seed selesai.");
+  console.log(`AppRole ADMIN: ${ALL_PERMISSIONS.length} permission (full akses)`);
+  console.log(`AppRole QA: ${QA_PERMISSIONS.length} permission`);
+  console.log("Login ADMIN: admin@fumakilla.co.id / fumakilla2026");
+  console.log("Login QA:    qa@fumakilla.co.id / fumakilla2026  (+ qa2@fumakilla.co.id)");
 }
 
-main().then(() => console.log("Seed ERP selesai. Login: admin@fumakilla.co.id / fumakilla2026")).finally(() => prisma.$disconnect());
+main().finally(() => prisma.$disconnect());

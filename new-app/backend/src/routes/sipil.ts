@@ -9,6 +9,18 @@ import { requirePermission } from "../middleware/requireRole";
 
 const router = Router();
 
+// Parse kolom gambar_paths (JSON array string) dengan aman — 1 baris korup tidak boleh
+// menjatuhkan seluruh endpoint list. Fallback ke path tunggal legacy bila ada.
+function parseGambarPaths(paths: string | null | undefined, single: string | null | undefined): string[] {
+  if (paths) {
+    try {
+      const arr = JSON.parse(paths);
+      if (Array.isArray(arr)) return arr;
+    } catch { /* fallthrough ke path tunggal */ }
+  }
+  return single ? [single] : [];
+}
+
 // ── Multer for docs uploads ────────────────────────────────────────────────────
 const sipilDocsDir = path.resolve(config.storagePath, "sipil-docs");
 if (!fs.existsSync(sipilDocsDir)) fs.mkdirSync(sipilDocsDir, { recursive: true });
@@ -915,8 +927,8 @@ function serializeChecklist(i: any) {
     ...i,
     id: String(i.id),
     proyek_id: String(i.proyek_id),
-    gambar_paths: i.gambar_paths ? JSON.parse(i.gambar_paths) : (i.gambar_path ? [i.gambar_path] : []),
-    gambar_selesai_paths: i.gambar_selesai_paths ? JSON.parse(i.gambar_selesai_paths) : (i.gambar_selesai_path ? [i.gambar_selesai_path] : []),
+    gambar_paths: parseGambarPaths(i.gambar_paths, i.gambar_path),
+    gambar_selesai_paths: parseGambarPaths(i.gambar_selesai_paths, i.gambar_selesai_path),
   };
 }
 
@@ -967,7 +979,7 @@ router.patch("/checklist/:cid", requirePermission("projek_sipil", "checklist"), 
   const gambarFiles = files?.gambar ?? [];
   if (gambarFiles.length > 0) {
     // delete old files
-    const oldPaths: string[] = existing.gambar_paths ? JSON.parse(existing.gambar_paths) : (existing.gambar_path ? [existing.gambar_path] : []);
+    const oldPaths: string[] = parseGambarPaths(existing.gambar_paths, existing.gambar_path);
     for (const p of oldPaths) {
       const fp = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -979,7 +991,7 @@ router.patch("/checklist/:cid", requirePermission("projek_sipil", "checklist"), 
 
   const gambarSelesaiFiles = files?.gambar_selesai ?? [];
   if (gambarSelesaiFiles.length > 0) {
-    const oldPaths: string[] = existing.gambar_selesai_paths ? JSON.parse(existing.gambar_selesai_paths) : (existing.gambar_selesai_path ? [existing.gambar_selesai_path] : []);
+    const oldPaths: string[] = parseGambarPaths(existing.gambar_selesai_paths, existing.gambar_selesai_path);
     for (const p of oldPaths) {
       const fp = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -999,8 +1011,8 @@ router.delete("/checklist/:cid", requirePermission("projek_sipil", "checklist"),
   const existing = await prisma.checklistSipil.findUnique({ where: { id: cid } });
   if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
   const allPaths: string[] = [
-    ...(existing.gambar_paths ? JSON.parse(existing.gambar_paths) : (existing.gambar_path ? [existing.gambar_path] : [])),
-    ...(existing.gambar_selesai_paths ? JSON.parse(existing.gambar_selesai_paths) : (existing.gambar_selesai_path ? [existing.gambar_selesai_path] : [])),
+    ...parseGambarPaths(existing.gambar_paths, existing.gambar_path),
+    ...parseGambarPaths(existing.gambar_selesai_paths, existing.gambar_selesai_path),
   ];
   for (const p of allPaths) {
     const filePath = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));

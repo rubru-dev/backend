@@ -1,24 +1,31 @@
 "use client";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
+import { fileUrl } from "@/lib/utils";
 import { Loading, useGet } from "@/components/erp/shared";
+import { showAlert } from "@/lib/app-modal";
+import { SignatureModal } from "@/components/erp/SignatureModal";
+import { useAuth } from "@/hooks/useAuth";
 
 /* ─── Types ───────────────────────────────────────────────── */
 type SurveyRow = {
   no: number;
   areaInspeksi: string;
   temuanHama: string;
-  dokumentasi: string;
+  dokumentasi: string[];
   hasilTemuan: string;
 };
 type PriceData = {
+  proposalType?: string;
   serviceType: string;
   monitoringRodentGlue: string;
   monitoringLiveTrap: string;
   monitoringHoyHoy: string;
   monitoringBlackHole: string;
+  monitoringItems?: { label: string; value: string }[];
+  treatmentItems?: string[];
   treatmentMethod: string;
   coverArea: string;
   price: string;
@@ -29,12 +36,20 @@ type PriceData = {
   contractDuration: string;
   notes: string;
 };
+const defaultMonitoringItems = [
+  { label: "Rodent Glue", value: "6 unit" },
+  { label: "Live Trap", value: "2 unit" },
+  { label: "Hoy Hoy Trap", value: "2 unit" },
+  { label: "Black Hole Trap", value: "2 unit" },
+];
 const defaultPrice: PriceData = {
   serviceType: "Pest & Rodent Control",
   monitoringRodentGlue: "6 unit",
   monitoringLiveTrap: "2 unit",
   monitoringHoyHoy: "2 unit",
   monitoringBlackHole: "2 unit",
+  monitoringItems: defaultMonitoringItems,
+  treatmentItems: ["Rodent Monitoring", "Hand Sprayer", "Gel Baiting"],
   treatmentMethod: "Rodent Monitoring\nHand Sprayer\nGel Baiting",
   coverArea: "",
   price: "",
@@ -57,11 +72,21 @@ const PAGE_NAMES = [
 /* ─── Helpers ─────────────────────────────────────────────── */
 const fmtDate = (v: string) =>
   new Date(v).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+const toDateInput = (v?: string) => v ? new Date(v).toISOString().slice(0, 10) : new Date().toISOString().slice(0, 10);
+const normalizeSurveyRows = (rows: any[]): SurveyRow[] =>
+  (Array.isArray(rows) ? rows : []).map((r: any) => ({
+    ...r,
+    dokumentasi: Array.isArray(r.dokumentasi) ? r.dokumentasi : (r.dokumentasi ? [r.dokumentasi] : []),
+  }));
+const buildEditSnapshot = (number: string, quotationDate: string, hasilSurvey: SurveyRow[], priceData: PriceData) =>
+  JSON.stringify({ number, quotationDate, hasilSurvey, priceData });
 
 /* ─── Design tokens ───────────────────────────────────────── */
 const NAVY = "#2c3e5c";
 const LINE = "#1a3560";
 const LOGO = "/refrence/QuotationLogo.jpg";
+const SLIDE_W = 960;
+const SLIDE_H = 720;
 
 /* ─── Shared slide components ─────────────────────────────── */
 function SlideHeader({ title }: { title: string }) {
@@ -91,9 +116,26 @@ function SlideFooter({ pageNum }: { pageNum: number }) {
 
 function SlidePage({ title, children, pageNum }: { title: string; children: React.ReactNode; pageNum: number }) {
   return (
-    <div style={{ width: "960px", background: "#fff", fontFamily: "Arial, sans-serif", boxShadow: "0 4px 24px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", fontSize: "13px" }}>
+    <div style={{ width: `${SLIDE_W}px`, height: `${SLIDE_H}px`, background: "#fff", fontFamily: "Arial, sans-serif", boxShadow: "0 4px 24px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", fontSize: "13px", pageBreakAfter: "always", overflow: "hidden" }}>
       <SlideHeader title={title} />
-      <div style={{ flex: 1, padding: "0 28px 8px" }}>{children}</div>
+      <div style={{ flex: 1, padding: "0 28px 8px", overflow: "auto", minHeight: 0 }}>{children}</div>
+      <SlideFooter pageNum={pageNum} />
+    </div>
+  );
+}
+
+function StaticReferencePage({ src, alt }: { src: string; alt: string }) {
+  return (
+    <div style={{ width: `${SLIDE_W}px`, height: `${SLIDE_H}px`, background: "#fff", fontFamily: "Arial, sans-serif", boxShadow: "0 4px 24px rgba(0,0,0,.18)", overflow: "hidden", pageBreakAfter: "always" }}>
+      <img src={src} alt={alt} style={{ width: "100%", height: "100%", objectFit: "contain", display: "block" }} />
+    </div>
+  );
+}
+
+function StaticWithFooterPage({ src, alt, pageNum }: { src: string; alt: string; pageNum: number }) {
+  return (
+    <div style={{ width: `${SLIDE_W}px`, height: `${SLIDE_H}px`, background: "#fff", fontFamily: "Arial, sans-serif", boxShadow: "0 4px 24px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", overflow: "hidden", pageBreakAfter: "always" }}>
+      <img src={src} alt={alt} style={{ flex: 1, width: "100%", objectFit: "contain", display: "block", minHeight: 0 }} />
       <SlideFooter pageNum={pageNum} />
     </div>
   );
@@ -102,24 +144,33 @@ function SlidePage({ title, children, pageNum }: { title: string; children: Reac
 /* ═══════════════════════════════════════════════════════════
    PAGE 1  —  Cover
 ═══════════════════════════════════════════════════════════ */
-function Page1({ q }: { q: any }) {
+function Page1({ q, editMode, number, quotationDate, onNumberChange, onDateChange }: { q: any; editMode: boolean; number: string; quotationDate: string; onNumberChange: (v: string) => void; onDateChange: (v: string) => void }) {
   const inq = q?.inquiry;
   const segB2B = q?.segmentType === "B2B";
   const clientName = segB2B
     ? inq?.companyName || q?.customer?.company || q?.customer?.name || "—"
     : inq?.customerName || q?.customer?.name || "—";
   const clientAddr = inq?.address || q?.customer?.treatmentAddress || q?.customer?.address || "—";
-  const qDate = q?.quotationDate ? fmtDate(q.quotationDate) : "—";
+  const qDate = quotationDate ? fmtDate(quotationDate) : "—";
 
   return (
-    <div style={{ width: "960px", minHeight: "540px", background: "#fff", fontFamily: "Arial, sans-serif", boxShadow: "0 4px 24px rgba(0,0,0,.18)", display: "flex", flexDirection: "column" }}>
+    <div style={{ width: `${SLIDE_W}px`, minHeight: `${SLIDE_H}px`, background: "#fff", fontFamily: "Arial, sans-serif", boxShadow: "0 4px 24px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", pageBreakAfter: "always" }}>
       {/* Top white section */}
       <div style={{ flex: 1, padding: "24px 32px 20px", display: "flex", flexDirection: "column" }}>
         {/* Date + number top-left, logo top-right */}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "20px" }}>
           <div>
-            <p style={{ fontWeight: 900, fontSize: "14px", color: "#111", margin: 0, lineHeight: 1.8 }}>{qDate}</p>
-            <p style={{ fontWeight: 900, fontSize: "14px", color: "#111", margin: 0 }}>{q?.number || "—"}</p>
+            {editMode ? (
+              <div style={{ display: "grid", gap: "6px", width: "220px" }}>
+                <input type="date" value={quotationDate} onChange={e => onDateChange(e.target.value)} style={{ fontWeight: 800, fontSize: "13px", padding: "5px 7px", border: "1px solid #cbd5e1", borderRadius: "4px" }} />
+                <input value={number} onChange={e => onNumberChange(e.target.value)} style={{ fontWeight: 800, fontSize: "13px", padding: "5px 7px", border: "1px solid #cbd5e1", borderRadius: "4px" }} />
+              </div>
+            ) : (
+              <>
+                <p style={{ fontWeight: 900, fontSize: "14px", color: "#111", margin: 0, lineHeight: 1.8 }}>{qDate}</p>
+                <p style={{ fontWeight: 900, fontSize: "14px", color: "#111", margin: 0 }}>{number || q?.number || "—"}</p>
+              </>
+            )}
           </div>
           <img src={LOGO} alt="Fumakilla" style={{ height: "68px", objectFit: "contain" }} />
         </div>
@@ -139,27 +190,7 @@ function Page1({ q }: { q: any }) {
         </div>
       </div>
 
-      {/* Bottom: dark navy bar with diagonal photo strips */}
-      <div style={{ position: "relative", background: NAVY, overflow: "hidden", display: "flex", minHeight: "118px" }}>
-        {/* Company info */}
-        <div style={{ padding: "18px 32px", zIndex: 2, display: "flex", flexDirection: "column", justifyContent: "center", flex: 1 }}>
-          <p style={{ fontWeight: 900, fontSize: "15px", color: "#fff", margin: 0 }}>PT. FUMAKILLA INDONESIA</p>
-          <p style={{ fontSize: "12px", color: "#adc5de", fontWeight: 700, margin: "4px 0 0" }}>Pest Control Department</p>
-          <p style={{ fontSize: "10.5px", color: "#8faac4", marginTop: "6px", lineHeight: 1.7, fontStyle: "italic", margin: "6px 0 0" }}>
-            CIBIS 8 Building suite 02 - 6th floor, CIBIS Business Park<br />
-            Cilandak, Pasar Minggu, South Jakarta City, Jakarta
-          </p>
-        </div>
-        {/* Diagonal photo strips */}
-        <div style={{ width: "320px", display: "flex", gap: "6px", transform: "skewX(-10deg)", overflow: "hidden", marginRight: "-24px", flexShrink: 0 }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{ flex: 1, overflow: "hidden" }}>
-              <img src="/refrence/Footer.png" alt=""
-                style={{ height: "118px", width: "220%", objectFit: "cover", transform: "skewX(10deg) scale(1.3)", transformOrigin: "center" }} />
-            </div>
-          ))}
-        </div>
-      </div>
+      <img src="/refrence/Footer.png" alt="Footer" style={{ width: "100%", display: "block", flexShrink: 0 }} />
     </div>
   );
 }
@@ -168,30 +199,75 @@ function Page1({ q }: { q: any }) {
    PAGE 2  —  A Glimpse of Fumakilla  (static image content)
 ═══════════════════════════════════════════════════════════ */
 function Page2() {
-  return (
-    <SlidePage title="a Glimpse of Fumakilla" pageNum={2}>
-      <img src="/refrence/GlimpseFumakilla.png" alt="A Glimpse of Fumakilla"
-        style={{ width: "100%", objectFit: "contain", display: "block" }} />
-    </SlidePage>
-  );
+  return <StaticWithFooterPage src="/refrence/quotation/halaman-1.png" alt="A Glimpse of Fumakilla" pageNum={2} />;
 }
 
 /* ═══════════════════════════════════════════════════════════
-   PAGE 3  —  Our Products  (static image)
+   PAGE 3  —  Our Products  (static image — halaman-2)
 ═══════════════════════════════════════════════════════════ */
 function Page3() {
-  return (
-    <SlidePage title="Our Products" pageNum={3}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "380px" }}>
-        <img src="/refrence/Product.png" alt="Fumakilla Products"
-          style={{ maxWidth: "100%", maxHeight: "380px", objectFit: "contain" }} />
-      </div>
-    </SlidePage>
-  );
+  return <StaticWithFooterPage src="/refrence/quotation/halaman-2.png" alt="Our Products" pageNum={3} />;
 }
 
+// ── Template dua jenis proposal (struktur mengikuti PPTX referensi) ──
+// Halaman statis = render slide penuh (PNG) → mirip 100%.
+// Halaman dinamis (cover/survey/price) = native/editable.
+type PageDef =
+  | { type: "image"; src: string; title: string }
+  | { type: "cover"; title: string }
+  | { type: "survey"; title: string }
+  | { type: "price"; title: string };
+
+const slideImg = (deck: string, n: number) => `/refrence/quotation/${deck}/slide-${n}.png`;
+
+const TEMPLATES: Record<string, { label: string; pages: PageDef[] }> = {
+  GENERAL: {
+    label: "Pest Umum",
+    pages: [
+      { type: "cover",  title: "Cover" },
+      { type: "image",  title: "a Glimpse of Fumakilla",    src: slideImg("general", 2) },
+      { type: "image",  title: "Our Products",              src: slideImg("general", 3) },
+      { type: "image",  title: "Certifications",            src: slideImg("general", 4) },
+      { type: "image",  title: "Ant & Rodent",              src: slideImg("general", 5) },
+      { type: "image",  title: "Flies & Mosquito",          src: slideImg("general", 6) },
+      { type: "image",  title: "Pest Control Method 1",     src: slideImg("general", 7) },
+      { type: "image",  title: "Pest Control Method 2",     src: slideImg("general", 8) },
+      { type: "image",  title: "Integrated Pest Mgmt",      src: slideImg("general", 9) },
+      { type: "survey", title: "Hasil Survey" },
+      { type: "price",  title: "Price Quotation" },
+      { type: "image",  title: "Alur Proses Layanan",       src: slideImg("general", 12) },
+      { type: "image",  title: "Thank You",                 src: slideImg("general", 13) },
+    ],
+  },
+  TERMITE: {
+    label: "Termite",
+    pages: [
+      { type: "cover",  title: "Cover" },
+      { type: "image",  title: "a Glimpse of Fumakilla",    src: slideImg("termite", 2) },
+      { type: "image",  title: "Our Products",              src: slideImg("termite", 3) },
+      { type: "image",  title: "Certifications",            src: slideImg("termite", 4) },
+      { type: "image",  title: "Termite Introduction",      src: slideImg("termite", 5) },
+      { type: "image",  title: "Termite's Role",            src: slideImg("termite", 6) },
+      { type: "image",  title: "Parts of Building Affected",src: slideImg("termite", 7) },
+      { type: "image",  title: "Spraying Method",           src: slideImg("termite", 8) },
+      { type: "image",  title: "Injection Method",          src: slideImg("termite", 9) },
+      { type: "survey", title: "Hasil Survey" },
+      { type: "price",  title: "Price Quotation" },
+      { type: "image",  title: "Price (Premium)",           src: slideImg("termite", 12) },
+      { type: "image",  title: "Alur Proses Layanan",       src: slideImg("termite", 13) },
+      { type: "image",  title: "Thank You",                 src: slideImg("termite", 14) },
+    ],
+  },
+};
+const PROPOSAL_TYPES: { value: string; label: string }[] = [
+  { value: "TERMITE", label: "Termite" },
+  { value: "GENERAL", label: "Pest Umum" },
+];
+const proposalTypeLabel = (value: string) =>
+  PROPOSAL_TYPES.find(t => t.value === value)?.label || "Pest Umum";
+
 /* ═══════════════════════════════════════════════════════════
-   PAGE 4  —  Fumakilla Indonesia (VAPE) Pest Control
+   PAGE 4  —  Fumakilla Indonesia (VAPE) Pest Control  (tabel sertifikat)
 ═══════════════════════════════════════════════════════════ */
 function Page4() {
   const rows = [
@@ -346,6 +422,7 @@ function Page6() {
    PAGE 7  —  Pest Control Method & Monitoring (PestMethod1)
 ═══════════════════════════════════════════════════════════ */
 function Page7() {
+  return <StaticWithFooterPage src="/refrence/quotation/halaman-5.png" alt="Pest Control Method and Monitoring 1" pageNum={7} />;
   return (
     <SlidePage title="Pest Control Method & Monitoring" pageNum={7}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "360px" }}>
@@ -360,6 +437,7 @@ function Page7() {
    PAGE 8  —  Pest Control Method & Monitoring (PestMethod2)
 ═══════════════════════════════════════════════════════════ */
 function Page8() {
+  return <StaticWithFooterPage src="/refrence/quotation/halaman-6.png" alt="Pest Control Method and Monitoring 2" pageNum={8} />;
   return (
     <SlidePage title="Pest Control Method & Monitoring" pageNum={8}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "360px" }}>
@@ -385,6 +463,7 @@ const IPM_ROWS = [
   { metode: "Support Team :\n- Membantu dan merekomendasikan penutupan akses masuk hama", area: "Seluruh area fasilitas", cakupan: "Kecoa, Nyamuk, Semut, Tikus, Lalat" },
 ];
 function Page9() {
+  return <StaticWithFooterPage src="/refrence/quotation/halaman-7.png" alt="Integrated Pest Management" pageNum={9} />;
   return (
     <SlidePage title="Integrated Pest Management" pageNum={9}>
       <p style={{ fontWeight: 700, fontSize: "13px", marginBottom: "10px" }}>Metode IPM</p>
@@ -415,10 +494,38 @@ function Page9() {
 ═══════════════════════════════════════════════════════════ */
 const HEADER_BG = "#4a6fa5";
 
-function Page10({ rows, editMode, onChange }: { rows: SurveyRow[]; editMode: boolean; onChange: (r: SurveyRow[]) => void }) {
-  const addRow = () => onChange([...rows, { no: rows.length + 1, areaInspeksi: "", temuanHama: "", dokumentasi: "", hasilTemuan: "" }]);
+function Page10({ rows, editMode, onChange, quotationId, title = "Hasil Survey", pageNum = 10 }: { rows: SurveyRow[]; editMode: boolean; onChange: (r: SurveyRow[]) => void; quotationId: string; title?: string; pageNum?: number }) {
+  const [uploadingRows, setUploadingRows] = useState<Set<number>>(new Set());
+  const [uploadErrors, setUploadErrors] = useState<Record<number, string>>({});
+
+  const addRow = () => onChange([...rows, { no: rows.length + 1, areaInspeksi: "", temuanHama: "", dokumentasi: [], hasilTemuan: "" }]);
   const del = (i: number) => onChange(rows.filter((_, j) => j !== i).map((r, j) => ({ ...r, no: j + 1 })));
   const upd = (i: number, k: keyof SurveyRow, v: string) => onChange(rows.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  const addPhoto = (rowIdx: number, paths: string[]) =>
+    onChange(rows.map((r, j) => j === rowIdx ? { ...r, dokumentasi: [...(r.dokumentasi || []), ...paths] } : r));
+  const removePhoto = (rowIdx: number, photoIdx: number) =>
+    onChange(rows.map((r, j) => j === rowIdx ? { ...r, dokumentasi: (r.dokumentasi || []).filter((_, k) => k !== photoIdx) } : r));
+  const uploadDoc = async (i: number, files?: FileList | null) => {
+    if (!files || files.length === 0) return;
+    setUploadingRows(prev => new Set(prev).add(i));
+    setUploadErrors(prev => { const n = { ...prev }; delete n[i]; return n; });
+    const paths: string[] = [];
+    let errMsg = "";
+    for (const file of Array.from(files)) {
+      const fd = new FormData();
+      fd.append("file", file);
+      try {
+        const res = await api.post(`/erp/quotations/${quotationId}/upload`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+        const p = res.data?.data?.path || res.data?.path || "";
+        if (p) paths.push(p);
+      } catch (err: any) {
+        errMsg = err?.response?.data?.error || err?.message || "Gagal upload foto";
+      }
+    }
+    setUploadingRows(prev => { const n = new Set(prev); n.delete(i); return n; });
+    if (errMsg) setUploadErrors(prev => ({ ...prev, [i]: errMsg }));
+    if (paths.length > 0) addPhoto(i, paths);
+  };
   const COLS: { key: keyof SurveyRow; label: string; w?: string }[] = [
     { key: "no", label: "NO", w: "48px" },
     { key: "areaInspeksi", label: "AREA INSPEKSI" },
@@ -427,8 +534,27 @@ function Page10({ rows, editMode, onChange }: { rows: SurveyRow[]; editMode: boo
     { key: "hasilTemuan", label: "HASIL TEMUAN DAN\nREKOMENDASI" },
   ];
 
+  if (!editMode && rows.length > 4) {
+    const chunks = Array.from({ length: Math.ceil(rows.length / 4) }, (_, i) => rows.slice(i * 4, i * 4 + 4));
+    return (
+      <div style={{ display: "grid", gap: "24px" }}>
+        {chunks.map((chunk, i) => (
+          <Page10
+            key={i}
+            rows={chunk}
+            editMode={false}
+            onChange={onChange}
+            quotationId={quotationId}
+            title={i === 0 ? "Hasil Survey" : `Hasil Survey ${i + 1}`}
+            pageNum={10 + i}
+          />
+        ))}
+      </div>
+    );
+  }
+
   return (
-    <SlidePage title="Hasil Survey" pageNum={10}>
+    <SlidePage title={title} pageNum={pageNum}>
       {editMode && (
         <button onClick={addRow} style={{ background: NAVY, color: "#fff", border: "none", padding: "6px 14px", borderRadius: "5px", fontWeight: 700, fontSize: "12px", cursor: "pointer", marginBottom: "10px" }}>
           + Tambah Baris
@@ -453,8 +579,28 @@ function Page10({ rows, editMode, onChange }: { rows: SurveyRow[]; editMode: boo
                 <>
                   {(["areaInspeksi", "temuanHama", "dokumentasi", "hasilTemuan"] as const).map(k => (
                     <td key={k} style={{ padding: "4px 6px", border: "1px solid #c5cdd8", verticalAlign: "top" }}>
-                      <textarea rows={4} value={r[k]} onChange={e => upd(i, k, e.target.value)}
-                        style={{ width: "100%", fontSize: "11px", padding: "5px", border: "1px solid #d1d5db", borderRadius: "4px", resize: "vertical", fontFamily: "inherit" }} />
+                      {k === "dokumentasi" ? (
+                        <div style={{ display: "grid", gap: "6px" }}>
+                          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                            {(r.dokumentasi || []).map((path, pi) => (
+                              <div key={pi} style={{ position: "relative", width: (r.dokumentasi.length > 1 ? "calc(50% - 2px)" : "100%") }}>
+                                <img src={fileUrl(path)} alt="Foto" onError={e => { (e.target as HTMLImageElement).style.border = "2px solid #dc2626"; (e.target as HTMLImageElement).title = "Gambar tidak dapat dimuat"; }} style={{ width: "100%", maxHeight: "80px", objectFit: "contain", background: "#f9f9f9", border: "1px solid #d1d5db", borderRadius: "4px", display: "block" }} />
+                                <button type="button" onClick={() => removePhoto(i, pi)} style={{ position: "absolute", top: 2, right: 2, background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: 3, padding: "1px 5px", cursor: "pointer", fontSize: "10px", lineHeight: 1 }}>×</button>
+                              </div>
+                            ))}
+                          </div>
+                          {uploadingRows.has(i) && (
+                            <p style={{ margin: 0, fontSize: "10px", color: "#6b7280", fontStyle: "italic" }}>⏳ Mengupload foto...</p>
+                          )}
+                          {uploadErrors[i] && (
+                            <p style={{ margin: 0, fontSize: "10px", color: "#dc2626" }}>⚠ {uploadErrors[i]}</p>
+                          )}
+                          <input type="file" accept="image/png,image/jpeg,image/webp" multiple disabled={uploadingRows.has(i)} onChange={e => { uploadDoc(i, e.target.files); (e.target as HTMLInputElement).value = ""; }} style={{ width: "100%", fontSize: "10px", opacity: uploadingRows.has(i) ? 0.5 : 1 }} />
+                        </div>
+                      ) : (
+                        <textarea rows={4} value={r[k]} onChange={e => upd(i, k, e.target.value)}
+                          style={{ width: "100%", fontSize: "11px", padding: "5px", border: "1px solid #d1d5db", borderRadius: "4px", resize: "vertical", fontFamily: "inherit" }} />
+                      )}
                     </td>
                   ))}
                   <td style={{ padding: "6px", border: "1px solid #c5cdd8", textAlign: "center", verticalAlign: "top" }}>
@@ -466,9 +612,11 @@ function Page10({ rows, editMode, onChange }: { rows: SurveyRow[]; editMode: boo
                   <td style={{ padding: "12px", border: "1px solid #c5cdd8", verticalAlign: "top", fontSize: "12px" }}>{r.areaInspeksi}</td>
                   <td style={{ padding: "12px", border: "1px solid #c5cdd8", verticalAlign: "top", fontSize: "12px" }}>{r.temuanHama}</td>
                   <td style={{ padding: "12px", border: "1px solid #c5cdd8", verticalAlign: "top", fontSize: "12px" }}>
-                    {r.dokumentasi && (r.dokumentasi.startsWith("http") || r.dokumentasi.startsWith("/"))
-                      ? <img src={r.dokumentasi} alt="" style={{ maxWidth: "100%", maxHeight: "100px", objectFit: "cover" }} />
-                      : <span>{r.dokumentasi}</span>}
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "4px" }}>
+                      {(r.dokumentasi || []).map((path, pi) => (
+                        <img key={pi} src={fileUrl(path)} alt="Foto" onError={e => { (e.target as HTMLImageElement).alt = "⚠ Foto"; (e.target as HTMLImageElement).style.border = "1px solid #dc2626"; (e.target as HTMLImageElement).style.minHeight = "40px"; }} style={{ width: ((r.dokumentasi || []).length > 1 ? "calc(50% - 2px)" : "100%"), maxHeight: "110px", objectFit: "contain", background: "#fff", display: "block" }} />
+                      ))}
+                    </div>
                   </td>
                   <td style={{ padding: "12px", border: "1px solid #c5cdd8", verticalAlign: "top", fontSize: "12px", lineHeight: 1.7 }}>{r.hasilTemuan}</td>
                 </>
@@ -500,6 +648,19 @@ const inp = (value: string, onChange: (v: string) => void, placeholder?: string,
 
 function Page11({ pd, editMode, onChange, clientName }: { pd: PriceData; editMode: boolean; onChange: (v: PriceData) => void; clientName: string }) {
   const set = (k: keyof PriceData) => (v: string) => onChange({ ...pd, [k]: v });
+  const monitoringItems = (pd.monitoringItems?.length ? pd.monitoringItems : [
+    { label: "Rodent Glue", value: pd.monitoringRodentGlue },
+    { label: "Live Trap", value: pd.monitoringLiveTrap },
+    { label: "Hoy Hoy Trap", value: pd.monitoringHoyHoy },
+    { label: "Black Hole Trap", value: pd.monitoringBlackHole },
+  ]).filter(item => item.label || item.value);
+  const setMonitoringItem = (idx: number, key: "label" | "value", value: string) => {
+    const next = [...monitoringItems];
+    next[idx] = { ...next[idx], [key]: value };
+    onChange({ ...pd, monitoringItems: next });
+  };
+  const addMonitoringItem = () => onChange({ ...pd, monitoringItems: [...monitoringItems, { label: "", value: "" }] });
+  const removeMonitoringItem = (idx: number) => onChange({ ...pd, monitoringItems: monitoringItems.filter((_, i) => i !== idx) });
 
   if (editMode) {
     return (
@@ -522,15 +683,15 @@ function Page11({ pd, editMode, onChange, clientName }: { pd: PriceData; editMod
           ))}
           <div style={{ gridColumn: "span 2" }}>
             <p style={{ fontWeight: 700, fontSize: "11px", marginBottom: "6px" }}>Unit Monitoring</p>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "8px" }}>
-              {([
-                { label: "Rodent Glue", key: "monitoringRodentGlue" as const },
-                { label: "Live Trap", key: "monitoringLiveTrap" as const },
-                { label: "Hoy Hoy Trap", key: "monitoringHoyHoy" as const },
-                { label: "Black Hole Trap", key: "monitoringBlackHole" as const },
-              ] as const).map(f => (
-                <label key={f.key}><span style={{ fontWeight: 700, fontSize: "11px", display: "block", marginBottom: "3px" }}>{f.label}</span>{inp(pd[f.key], set(f.key), "e.g. 6 unit")}</label>
+            <div style={{ display: "grid", gap: "6px" }}>
+              {monitoringItems.map((item, i) => (
+                <div key={i} style={{ display: "grid", gridTemplateColumns: "1fr 1fr 34px", gap: "6px", alignItems: "center" }}>
+                  {inp(item.label, v => setMonitoringItem(i, "label", v), "Nama unit")}
+                  {inp(item.value, v => setMonitoringItem(i, "value", v), "e.g. 6 unit")}
+                  <button type="button" onClick={() => removeMonitoringItem(i)} style={{ height: "28px", border: "none", borderRadius: "4px", background: "#fee2e2", color: "#dc2626", cursor: "pointer" }}>x</button>
+                </div>
               ))}
+              <button type="button" onClick={addMonitoringItem} style={{ width: "150px", background: NAVY, color: "#fff", border: "none", padding: "6px 10px", borderRadius: "5px", fontWeight: 700, fontSize: "11px", cursor: "pointer" }}>+ Tambah Unit</button>
             </div>
           </div>
           <label style={{ gridColumn: "span 2" }}>
@@ -573,10 +734,7 @@ function Page11({ pd, editMode, onChange, clientName }: { pd: PriceData; editMod
             <td style={{ padding: "12px", border: "1px solid #c5cdd8", verticalAlign: "top", fontWeight: 600 }}>{pd.serviceType}</td>
             <td style={{ padding: "12px", border: "1px solid #c5cdd8", verticalAlign: "top", lineHeight: 1.8, fontSize: "12px" }}>
               <p style={{ fontWeight: 700, margin: "0 0 4px" }}>Unit Monitoring</p>
-              {pd.monitoringRodentGlue && <p style={{ margin: "0 0 2px" }}>- Rodent Glue {pd.monitoringRodentGlue}</p>}
-              {pd.monitoringLiveTrap && <p style={{ margin: "0 0 2px" }}>- Live Trap {pd.monitoringLiveTrap}</p>}
-              {pd.monitoringHoyHoy && <p style={{ margin: "0 0 2px" }}>- Hoy Hoy Trap {pd.monitoringHoyHoy}</p>}
-              {pd.monitoringBlackHole && <p style={{ margin: "0 0 10px" }}>- Black Hole Trap {pd.monitoringBlackHole}</p>}
+              {monitoringItems.map((item, i) => <p key={i} style={{ margin: "0 0 2px" }}>- {item.label} {item.value}</p>)}
               {pd.treatmentMethod && (
                 <>
                   <p style={{ fontWeight: 700, margin: "0 0 4px" }}>Treatment Method :</p>
@@ -613,6 +771,7 @@ function Page11({ pd, editMode, onChange, clientName }: { pd: PriceData; editMod
    PAGE 12  —  Alur Proses Layanan
 ═══════════════════════════════════════════════════════════ */
 function Page12() {
+  return <StaticWithFooterPage src="/refrence/quotation/halaman-10-alur.png" alt="Alur Proses Layanan" pageNum={12} />;
   return (
     <SlidePage title="Alur Proses Layanan" pageNum={12}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "360px" }}>
@@ -628,37 +787,29 @@ function Page12() {
 ═══════════════════════════════════════════════════════════ */
 function Page13() {
   return (
-    <div style={{ width: "960px", background: "#fff", fontFamily: "Arial, sans-serif", boxShadow: "0 4px 24px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", minHeight: "540px" }}>
-      {/* Logo top-right */}
-      <div style={{ display: "flex", justifyContent: "flex-end", padding: "20px 28px 12px" }}>
+    <div style={{ width: `${SLIDE_W}px`, minHeight: `${SLIDE_H}px`, background: "#fff", fontFamily: "Arial, sans-serif", boxShadow: "0 4px 24px rgba(0,0,0,.18)", display: "flex", flexDirection: "column", pageBreakAfter: "always" }}>
+      {/* Header */}
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "20px 28px 12px", flexShrink: 0 }}>
         <img src={LOGO} alt="Fumakilla" style={{ height: "58px", objectFit: "contain" }} />
       </div>
+      <div style={{ margin: "0 28px 6px", borderBottom: `2px solid ${LINE}`, flexShrink: 0 }} />
 
-      {/* Main content: diagonal strips left + navy box right */}
-      <div style={{ flex: 1, display: "flex", padding: "8px 0 0" }}>
-        {/* Left: diagonal parallelogram photo strips */}
-        <div style={{ flex: "0 0 55%", display: "flex", gap: "10px", transform: "skewX(-10deg)", overflow: "hidden", marginLeft: "-24px" }}>
-          {[0, 1, 2, 3].map(i => (
-            <div key={i} style={{ flex: 1, overflow: "hidden" }}>
-              <img src="/refrence/Footer.png" alt=""
-                style={{ height: "340px", width: "300%", objectFit: "cover", transform: "skewX(10deg) scale(1.4)", transformOrigin: "center", objectPosition: "center" }} />
-            </div>
-          ))}
-        </div>
-
-        {/* Right: dark navy box */}
-        <div style={{ flex: "0 0 45%", background: NAVY, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 36px" }}>
-          <p style={{ fontSize: "42px", fontWeight: 400, color: "#fff", margin: "0 0 12px", fontFamily: "serif" }}>Thank you</p>
-          <p style={{ fontSize: "20px", color: "#adc5de", margin: 0 }}>どうもありがとうございました</p>
-        </div>
-      </div>
-
-      {/* Bottom italic text */}
-      <div style={{ padding: "16px 28px 20px", textAlign: "center" }}>
-        <p style={{ fontStyle: "italic", fontSize: "13px", color: "#444", margin: 0 }}>
+      {/* Center content */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 40px" }}>
+        <p style={{ fontSize: "52px", fontWeight: 700, color: "#1a4d8c", margin: "0 0 12px", textAlign: "center", letterSpacing: 2 }}>
+          Thank you
+        </p>
+        <p style={{ fontSize: "22px", color: "#374151", textAlign: "center", margin: "0 0 16px" }}>
+          どうもありがとうございました
+        </p>
+        <p style={{ fontSize: "14px", fontStyle: "italic", color: "#444", textAlign: "center", margin: "0 0 24px" }}>
           We're looking forward to have collaboration with you
         </p>
+        <div style={{ width: 80, height: 3, backgroundColor: "#1a4d8c", borderRadius: 2 }} />
       </div>
+
+      {/* Footer */}
+      <img src="/refrence/Footer.png" alt="Footer" style={{ width: "100%", display: "block", flexShrink: 0 }} />
     </div>
   );
 }
@@ -668,33 +819,198 @@ function Page13() {
 ═══════════════════════════════════════════════════════════ */
 export default function QuotationDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const { data: q, loading } = useGet<any>(`/erp/quotations/${id}`);
+  const searchParams = useSearchParams();
+  const autoExportRef = useRef(false);
+  const { data: q, loading, reload } = useGet<any>(`/erp/quotations/${id}`);
+  const { user } = useAuth();
+  const canApprove = ["ADMIN", "MANAGER"].includes((user as any)?.role);
+  const approved = Boolean(q?.approvedAt);
 
+  const slideWrapRef = useRef<HTMLDivElement>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [editMode, setEditMode] = useState(false);
+  const [sigOpen, setSigOpen] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [hasilSurvey, setHasilSurvey] = useState<SurveyRow[]>([]);
   const [priceData, setPriceData] = useState<PriceData>(defaultPrice);
+  const [quotationNumber, setQuotationNumber] = useState("");
+  const [quotationDate, setQuotationDate] = useState(toDateInput());
+  const [pendingPage, setPendingPage] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [exportingPdf, setExportingPdf] = useState(false);
+  const savedSnapshotRef = useRef("");
 
   useEffect(() => {
     if (q) {
-      setHasilSurvey(Array.isArray(q.hasilSurvey) ? q.hasilSurvey : []);
-      setPriceData(q.priceData && typeof q.priceData === "object" ? { ...defaultPrice, ...q.priceData } : defaultPrice);
+      const nextHasilSurvey = normalizeSurveyRows(q.hasilSurvey);
+      const nextPriceData = q.priceData && typeof q.priceData === "object" ? { ...defaultPrice, ...q.priceData } : defaultPrice;
+      const nextNumber = q.number || "";
+      const nextQuotationDate = toDateInput(q.quotationDate);
+      setHasilSurvey(nextHasilSurvey);
+      setPriceData(nextPriceData);
+      setQuotationNumber(nextNumber);
+      setQuotationDate(nextQuotationDate);
+      savedSnapshotRef.current = buildEditSnapshot(nextNumber, nextQuotationDate, nextHasilSurvey, nextPriceData);
     }
   }, [q]);
 
-  const canEdit = currentPage === 10 || currentPage === 11;
+  const resetDraftFromQuotation = () => {
+    if (!q) return;
+    const nextHasilSurvey = normalizeSurveyRows(q.hasilSurvey);
+    const nextPriceData = q.priceData && typeof q.priceData === "object" ? { ...defaultPrice, ...q.priceData } : defaultPrice;
+    const nextNumber = q.number || "";
+    const nextQuotationDate = toDateInput(q.quotationDate);
+    setHasilSurvey(nextHasilSurvey);
+    setPriceData(nextPriceData);
+    setQuotationNumber(nextNumber);
+    setQuotationDate(nextQuotationDate);
+    savedSnapshotRef.current = buildEditSnapshot(nextNumber, nextQuotationDate, nextHasilSurvey, nextPriceData);
+  };
+
+  const proposalType = ((priceData as any)?.proposalType as string) || "TERMITE";
+  const template = TEMPLATES[proposalType] || TEMPLATES.GENERAL;
+  const pageDefs = template.pages;
+  const totalPages = pageDefs.length;
+  const currentDef = pageDefs[currentPage - 1];
+  const canEdit = currentDef ? ["cover", "survey", "price"].includes(currentDef.type) : false;
+  const hasUnsavedChanges = () =>
+    savedSnapshotRef.current !== buildEditSnapshot(quotationNumber, quotationDate, hasilSurvey, priceData);
 
   const save = async () => {
     setSaving(true);
     try {
-      await api.patch(`/erp/quotations/${id}`, { hasilSurvey, priceData });
+      await api.patch(`/erp/quotations/${id}`, { number: quotationNumber, quotationDate, hasilSurvey, priceData });
+      savedSnapshotRef.current = buildEditSnapshot(quotationNumber, quotationDate, hasilSurvey, priceData);
       setEditMode(false);
       setSavedMsg("Tersimpan!");
       setTimeout(() => setSavedMsg(""), 2500);
-    } catch { alert("Gagal menyimpan. Coba lagi."); }
+      reload?.(); // edit membatalkan approval di backend → muat ulang status
+    } catch { showAlert({ title: "Gagal menyimpan", message: "Gagal menyimpan. Coba lagi.", tone: "danger" }); }
     finally { setSaving(false); }
+  };
+
+  const approve = async (signature: string) => {
+    setApproving(true);
+    try {
+      await api.post(`/erp/quotations/${id}/approve`, { signature });
+      setSigOpen(false);
+      reload?.();
+    } catch (e: any) {
+      showAlert({ title: "Gagal approve", message: e?.response?.data?.error || "Gagal approve quotation.", tone: "danger" });
+    } finally { setApproving(false); }
+  };
+
+  const exportAllPdf = async () => {
+    if (typeof window === "undefined") return;
+    setExportingPdf(true);
+    const prevPage = currentPage;
+    const wasEditing = editMode;
+    setEditMode(false);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const html2canvas = (await import("html2canvas")).default;
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pdfW = pdf.internal.pageSize.getWidth();
+      const pdfH = pdf.internal.pageSize.getHeight();
+
+      for (let p = 1; p <= totalPages; p++) {
+        setCurrentPage(p);
+        await new Promise(resolve => setTimeout(resolve, 800));
+
+        const pageEl = slideWrapRef.current?.firstElementChild as HTMLElement | null;
+        if (!pageEl) continue;
+
+        window.scrollTo(0, 0);
+        pageEl.scrollIntoView({ block: "start", behavior: "instant" });
+        await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 150))));
+
+        const canvas = await html2canvas(pageEl, {
+          scale: 2,
+          useCORS: true,
+          allowTaint: true,
+          logging: false,
+          backgroundColor: "#ffffff",
+        });
+
+        if (p > 1) pdf.addPage();
+        pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, pdfW, pdfH);
+      }
+
+      pdf.save(`quotation-${id}.pdf`);
+    } finally {
+      setCurrentPage(prevPage);
+      if (wasEditing) setEditMode(true);
+      setExportingPdf(false);
+    }
+  };
+
+  // Export PPT NATIVE (bukan full gambar) — tiap halaman jadi elemen editable via domToPptx.
+  const exportAllPpt = async () => {
+    if (typeof window === "undefined") return;
+    setExportingPdf(true);
+    const prevPage = currentPage;
+    const wasEditing = editMode;
+    setEditMode(false);
+    try {
+      const pptxgen = (await import("pptxgenjs")).default;
+      const { renderPageToSlide } = await import("@/lib/domToPptx");
+      const pptx = new pptxgen();
+      pptx.defineLayout({ name: "Q43", width: 10, height: 7.5 }); // 4:3, sesuai slide 960x720
+      pptx.layout = "Q43";
+      for (let p = 1; p <= totalPages; p++) {
+        setCurrentPage(p);
+        await new Promise(resolve => setTimeout(resolve, 800));
+        const pageEl = slideWrapRef.current?.firstElementChild as HTMLElement | null;
+        if (!pageEl) continue;
+        window.scrollTo(0, 0);
+        pageEl.scrollIntoView({ block: "start", behavior: "instant" });
+        await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 150))));
+        const slide = pptx.addSlide();
+        slide.background = { color: "FFFFFF" };
+        await renderPageToSlide(pptx, slide, pageEl, { pageWIn: 10, pageHIn: 7.5 });
+      }
+      await pptx.writeFile({ fileName: `quotation-${id}.pptx` });
+    } finally {
+      setCurrentPage(prevPage);
+      if (wasEditing) setEditMode(true);
+      setExportingPdf(false);
+    }
+  };
+
+  // Auto-download saat dibuka dari tombol Download di list (?export=pdf|ppt).
+  useEffect(() => {
+    const action = searchParams.get("export");
+    if (!q || autoExportRef.current || !["pdf", "ppt"].includes(action || "")) return;
+    autoExportRef.current = true;
+    if (!q.approvedAt) {
+      showAlert({ title: "Belum di-approve", message: "Quotation harus di-approve (tanda tangan) dulu sebelum bisa didownload.", tone: "danger" });
+      return;
+    }
+    if (action === "pdf") void exportAllPdf();
+    if (action === "ppt") void exportAllPpt();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [q, searchParams]);
+
+  const goToPage = (page: number) => {
+    if (page === currentPage) return;
+    if (editMode && hasUnsavedChanges()) { setPendingPage(page); return; }
+    if (editMode) setEditMode(false);
+    setCurrentPage(page);
+  };
+  const saveAndGo = async () => {
+    if (pendingPage == null) return;
+    const nextPage = pendingPage;
+    if (editMode) await save();
+    setCurrentPage(nextPage);
+    setPendingPage(null);
+  };
+  const discardAndGo = () => {
+    if (pendingPage == null) return;
+    resetDraftFromQuotation();
+    setEditMode(false);
+    setCurrentPage(pendingPage);
+    setPendingPage(null);
   };
 
   const clientName = (() => {
@@ -705,22 +1021,13 @@ export default function QuotationDetailPage() {
   })();
 
   const renderPage = () => {
-    switch (currentPage) {
-      case 1:  return <Page1 q={q} />;
-      case 2:  return <Page2 />;
-      case 3:  return <Page3 />;
-      case 4:  return <Page4 />;
-      case 5:  return <Page5 />;
-      case 6:  return <Page6 />;
-      case 7:  return <Page7 />;
-      case 8:  return <Page8 />;
-      case 9:  return <Page9 />;
-      case 10: return <Page10 rows={hasilSurvey} editMode={editMode} onChange={setHasilSurvey} />;
-      case 11: return <Page11 pd={priceData} editMode={editMode} onChange={setPriceData} clientName={clientName} />;
-      case 12: return <Page12 />;
-      case 13: return <Page13 />;
-      default: return null;
-    }
+    const def = pageDefs[currentPage - 1];
+    if (!def) return null;
+    if (def.type === "image")  return <StaticReferencePage src={def.src} alt={def.title} />;
+    if (def.type === "cover")  return <Page1 q={q} editMode={editMode} number={quotationNumber} quotationDate={quotationDate} onNumberChange={setQuotationNumber} onDateChange={setQuotationDate} />;
+    if (def.type === "survey") return <Page10 rows={hasilSurvey} editMode={editMode} onChange={setHasilSurvey} quotationId={id} pageNum={currentPage} />;
+    if (def.type === "price")  return <Page11 pd={priceData} editMode={editMode} onChange={setPriceData} clientName={clientName} />;
+    return null;
   };
 
   if (loading) return <div className="p-9"><Loading /></div>;
@@ -734,14 +1041,14 @@ export default function QuotationDetailPage() {
           <p style={{ fontSize: "10px", fontWeight: 700, color: "#6a7180", letterSpacing: ".1em", margin: 0 }}>HALAMAN</p>
         </div>
         <div style={{ flex: 1, overflowY: "auto", padding: "6px" }}>
-          {PAGE_NAMES.map((name, i) => (
-            <button key={i} onClick={() => { setCurrentPage(i + 1); setEditMode(false); }}
+          {pageDefs.map((def, i) => (
+            <button key={i} onClick={() => goToPage(i + 1)}
               style={{ display: "block", width: "100%", textAlign: "left", padding: "7px 10px", borderRadius: "6px", border: "none",
                 background: currentPage === i + 1 ? NAVY : "transparent",
                 color: currentPage === i + 1 ? "#fff" : "#515866",
                 fontSize: "11px", fontWeight: currentPage === i + 1 ? 700 : 500,
                 cursor: "pointer", marginBottom: "2px" }}>
-              <span style={{ fontWeight: 800, marginRight: "5px", opacity: .6 }}>{i + 1}.</span>{name}
+              <span style={{ fontWeight: 800, marginRight: "5px", opacity: .6 }}>{i + 1}.</span>{def.title}
             </button>
           ))}
         </div>
@@ -753,34 +1060,67 @@ export default function QuotationDetailPage() {
         <div style={{ borderBottom: "1px solid #d9ddeb", padding: "10px 20px", display: "flex", alignItems: "center", gap: "12px", background: "#fff", flexShrink: 0 }} className="print:hidden">
           <Link href="/quotations" style={{ color: NAVY, fontWeight: 700, fontSize: "13px", textDecoration: "none" }}>← Kembali</Link>
           <div style={{ flex: 1 }}>
-            <p style={{ fontWeight: 800, fontSize: "14px", color: NAVY, margin: 0 }}>{q.number}</p>
+            <p style={{ fontWeight: 800, fontSize: "14px", color: NAVY, margin: 0 }}>{quotationNumber || q.number}</p>
             <p style={{ fontSize: "11px", color: "#6a7180", margin: 0 }}>{clientName} · {q.segmentType}</p>
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "11px", color: "#6a7180" }} title="Jenis proposal dikunci saat quotation dibuat">
+            Jenis
+            <span style={{ fontSize: "12px", fontWeight: 700, color: NAVY, border: "1px solid #d9ddeb", borderRadius: "6px", padding: "4px 8px", background: "#f8fafc" }}>
+              {proposalTypeLabel(proposalType)}
+            </span>
+          </div>
           <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-            <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="btn" style={{ minHeight: "34px", padding: "6px 12px", fontSize: "12px" }}>← Prev</button>
-            <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151", minWidth: "80px", textAlign: "center" }}>Hal {currentPage} / 13</span>
-            <button onClick={() => setCurrentPage(p => Math.min(13, p + 1))} disabled={currentPage === 13} className="btn" style={{ minHeight: "34px", padding: "6px 12px", fontSize: "12px" }}>Next →</button>
+            <button onClick={() => goToPage(Math.max(1, currentPage - 1))} disabled={currentPage === 1} className="btn" style={{ minHeight: "34px", padding: "6px 12px", fontSize: "12px" }}>← Prev</button>
+            <span style={{ fontSize: "12px", fontWeight: 600, color: "#374151", minWidth: "80px", textAlign: "center" }}>Hal {currentPage} / {totalPages}</span>
+            <button onClick={() => goToPage(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages} className="btn" style={{ minHeight: "34px", padding: "6px 12px", fontSize: "12px" }}>Next →</button>
             {canEdit && !editMode && (
               <button onClick={() => setEditMode(true)} className="btn" style={{ minHeight: "34px", padding: "6px 14px", fontSize: "12px", borderColor: NAVY, color: NAVY }}>✏️ Edit</button>
             )}
             {editMode && (
               <>
-                <button onClick={() => setEditMode(false)} className="btn" style={{ minHeight: "34px", padding: "6px 12px", fontSize: "12px" }}>Batal</button>
+                <button onClick={() => { resetDraftFromQuotation(); setEditMode(false); }} className="btn" style={{ minHeight: "34px", padding: "6px 12px", fontSize: "12px" }}>Batal</button>
                 <button onClick={save} disabled={saving} className="btn btn-primary" style={{ minHeight: "34px", padding: "6px 14px", fontSize: "12px" }}>
                   {saving ? "Menyimpan..." : "💾 Simpan"}
                 </button>
               </>
             )}
             {savedMsg && <span style={{ color: "#16713b", fontWeight: 700, fontSize: "12px" }}>✓ {savedMsg}</span>}
-            <button onClick={() => window.print()} className="btn" style={{ minHeight: "34px", padding: "6px 14px", fontSize: "12px" }}>🖨️ Cetak</button>
+            {/* Approval — download PDF/PPT di list terkunci sampai ini di-approve. */}
+            {!editMode && (
+              approved
+                ? <span style={{ color: "#16713b", fontWeight: 700, fontSize: "12px" }} title={q.approvedAt ? new Date(q.approvedAt).toLocaleString("id-ID") : ""}>✓ Approved{q.approvedByName ? ` — ${q.approvedByName}` : ""}</span>
+                : canApprove
+                  ? <button onClick={() => setSigOpen(true)} className="btn btn-primary" style={{ minHeight: "34px", padding: "6px 14px", fontSize: "12px" }}>✍️ Approve (TTD)</button>
+                  : <span style={{ color: "#b45309", fontWeight: 600, fontSize: "12px" }}>Belum di-approve</span>
+            )}
           </div>
         </div>
 
         {/* Canvas */}
         <div style={{ flex: 1, overflowY: "auto", background: "#e5e7eb", display: "flex", justifyContent: "center", padding: "32px 24px" }} className="print:p-0 print:bg-white print:block">
-          {renderPage()}
+          <div ref={slideWrapRef}>
+            {renderPage()}
+          </div>
         </div>
       </div>
+
+      {pendingPage !== null && (
+        <div className="print:hidden" style={{ position: "fixed", inset: 0, background: "rgba(15,23,42,.42)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 50 }}>
+          <div style={{ width: "380px", background: "#fff", borderRadius: "8px", boxShadow: "0 20px 60px rgba(0,0,0,.24)", padding: "20px" }}>
+            <h3 style={{ margin: "0 0 8px", fontSize: "18px", fontWeight: 800, color: "#111827" }}>Simpan perubahan?</h3>
+            <p style={{ margin: "0 0 18px", fontSize: "13px", lineHeight: 1.6, color: "#4b5563" }}>
+              Ada perubahan di halaman ini. Simpan dulu sebelum pindah halaman agar data tidak hilang.
+            </p>
+            <div style={{ display: "flex", justifyContent: "flex-end", gap: "8px" }}>
+              <button onClick={() => setPendingPage(null)} className="btn" style={{ minHeight: "34px", padding: "6px 12px", fontSize: "12px" }}>Batal</button>
+              <button onClick={discardAndGo} className="btn" style={{ minHeight: "34px", padding: "6px 12px", fontSize: "12px" }}>Jangan Simpan</button>
+              <button onClick={saveAndGo} disabled={saving} className="btn btn-primary" style={{ minHeight: "34px", padding: "6px 14px", fontSize: "12px" }}>{saving ? "Menyimpan..." : "Simpan"}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SignatureModal open={sigOpen} onClose={() => setSigOpen(false)} onSubmit={approve} saving={approving} title="Tanda Tangan Approval Quotation" />
 
       <style>{`
         @media print {

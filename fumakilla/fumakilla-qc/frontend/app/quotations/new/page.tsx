@@ -34,6 +34,7 @@ function NewQuotationForm() {
     title: `Proposal Pest Control ${segmentType}`,
     amount: "0",
     quotationDate: today(),
+    proposalType: "TERMITE",
   });
   const [selectedInquiry, setSelectedInquiry] = useState<Inquiry | null>(null);
   const [saving, setSaving] = useState(false);
@@ -67,6 +68,7 @@ function NewQuotationForm() {
         amount: Number(form.amount),
         quotationDate: form.quotationDate,
         segmentType,
+        priceData: { proposalType: form.proposalType },
       });
       router.push(`/quotations/${res.data.id}`);
     } catch (err: any) {
@@ -84,9 +86,7 @@ function NewQuotationForm() {
       />
 
       <form onSubmit={handleSubmit} className="mt-8 max-w-2xl space-y-6">
-        {/* Select Inquiry */}
         <div className="card p-6 space-y-4">
-          <h2 className="font-bold text-tp">1. Pilih Data Inquiry {segmentType}</h2>
           <label className="block text-sm font-semibold">
             Inquiry {segmentType}
             {loadingInquiries && <span className="ml-2 text-ts font-normal">Memuat...</span>}
@@ -118,20 +118,31 @@ function NewQuotationForm() {
               <p className="text-ts">{selectedInquiry.address || "—"}</p>
             </div>
           )}
-        </div>
-
-        {/* Quotation meta */}
-        <div className="card p-6 space-y-4">
-          <h2 className="font-bold text-tp">2. Detail Quotation</h2>
 
           <label className="block text-sm font-semibold">
-            Judul Quotation
-            <input
-              className="mt-2"
-              required
-              value={form.title}
-              onChange={(e) => set("title", e.target.value)}
-            />
+            Jenis Proposal
+            <div className="mt-2 grid grid-cols-2 gap-2">
+              {[
+                { value: "TERMITE", label: "Termite", description: "Proposal khusus rayap" },
+                { value: "GENERAL", label: "Pest Umum", description: "Proposal pest control umum" },
+              ].map((type) => (
+                <button
+                  type="button"
+                  key={type.value}
+                  onClick={() => set("proposalType", type.value)}
+                  className={`rounded-lg border p-3 text-left transition ${
+                    form.proposalType === type.value
+                      ? "border-accent bg-[#f0f5ff] ring-1 ring-accent"
+                      : "border-[#d9ddeb] hover:border-accent"
+                  }`}
+                >
+                  <p className={`text-sm font-bold ${form.proposalType === type.value ? "text-accent" : "text-tp"}`}>
+                    {form.proposalType === type.value ? "● " : "○ "}{type.label}
+                  </p>
+                  <p className="mt-0.5 text-xs text-ts">{type.description}</p>
+                </button>
+              ))}
+            </div>
           </label>
 
           <label className="block text-sm font-semibold">
@@ -142,6 +153,16 @@ function NewQuotationForm() {
               required
               value={form.quotationDate}
               onChange={(e) => set("quotationDate", e.target.value)}
+            />
+          </label>
+
+          <label className="block text-sm font-semibold">
+            Judul Quotation
+            <input
+              className="mt-2"
+              required
+              value={form.title}
+              onChange={(e) => set("title", e.target.value)}
             />
           </label>
         </div>

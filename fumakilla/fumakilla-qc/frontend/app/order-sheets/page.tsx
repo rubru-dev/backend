@@ -1,8 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
-import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
+import { Loading, PageTitle, Status, useGet } from "@/components/erp/shared";
+import { ROUTES } from "@/lib/routes";
+import { showConfirm } from "@/lib/app-modal";
 
 const blankLocation = { area: "", treatmentType: "", notes: "" };
 const blankMaterial = { name: "", qty: "", unit: "", notes: "" };
@@ -192,14 +195,143 @@ function PreviewTable({ title, rows, cols }: any) {
   return <div><h3 className="mb-2 font-bold">{title}</h3><div className="overflow-x-auto"><table><thead><tr><th>No</th>{cols.map(([_, label]: string[]) => <th key={label}>{label}</th>)}</tr></thead><tbody>{rows.map((row: any, i: number) => <tr key={i}><td>{i + 1}</td>{cols.map(([key]: string[]) => <td key={key}>{row[key] || "-"}</td>)}</tr>)}</tbody></table></div></div>;
 }
 
+type Msg = { type: "success" | "error"; title: string; body: string };
+
+function MsgModal({ msg, onClose }: { msg: Msg; onClose: () => void }) {
+  const isOk = msg.type === "success";
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div className="card" style={{ width: 420, padding: 28, background: "#fff", maxWidth: "90vw" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", gap: 14, marginBottom: 20 }}>
+          <span style={{ fontSize: 28 }}>{isOk ? "✅" : "❌"}</span>
+          <div>
+            <p style={{ fontWeight: 800, fontSize: 15, color: isOk ? "#065f46" : "#dc2626", marginBottom: 6 }}>{msg.title}</p>
+            <p style={{ fontSize: 13, color: "#374151", whiteSpace: "pre-line", lineHeight: 1.6 }}>{msg.body}</p>
+          </div>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end" }}>
+          <button onClick={onClose} style={{ padding: "8px 24px", borderRadius: 8, background: isOk ? "#065f46" : "#dc2626", color: "#fff", fontWeight: 700, border: "none", cursor: "pointer" }}>Tutup</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function OrderSheetsPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, loading, reload } = useGet<any>("/erp/order-sheets?limit=100");
   const { data: customersData } = useGet<any>("/erp/customers?limit=100");
   const { data: vendorsData } = useGet<any>("/erp/vendors?limit=100");
   const [formItem, setFormItem] = useState<any | undefined>(undefined);
-  const [preview, setPreview] = useState<any | null>(null);
-  const rows = data?.data || [];
+  const [deletingId, setDeletingId] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
+  const [msg, setMsg] = useState<Msg | null>(null);
+  const allRows = data?.data || [];
   const customers = customersData?.data || [];
   const vendors = vendorsData?.data || [];
-  return <div className="p-9"><PageTitle title="Order Sheet" subtitle="Format OS/PO vendor sesuai contoh dokumen, dengan data customer diambil dari database client." actions={<button className="btn btn-primary" onClick={() => setFormItem(null)}>+ Buat Order Sheet</button>} /><div className="card mt-7 overflow-x-auto">{loading ? <Loading /> : <table><thead><tr><th>No OS/PO</th><th>Tanggal</th><th>Customer</th><th>Vendor</th><th>Pekerjaan</th><th>Status</th><th>Total</th><th>Aksi</th></tr></thead><tbody>{rows.map((item: any) => <tr key={item.id}><td><b className="text-accent">{item.number}</b></td><td>{dateLabel(item.orderDate)}</td><td>{item.customer?.name || "-"}</td><td>{item.vendor?.name || "-"}</td><td>{item.jobTitle}</td><td><Status value={item.status} /></td><td>{money(item.grandTotal)}</td><td><div className="flex gap-2"><button className="btn" onClick={() => setPreview(item)}>Preview</button><button className="btn" onClick={() => setFormItem(item)}>Edit</button></div></td></tr>)}</tbody></table>}{!loading && !rows.length && <p className="p-10 text-center text-sm text-ts">Belum ada order sheet.</p>}</div><Modal open={formItem !== undefined} title={formItem?.id ? "Edit Order Sheet" : "Buat Order Sheet"} onClose={() => setFormItem(undefined)}><OrderSheetForm item={formItem} customers={customers} vendors={vendors} onClose={() => setFormItem(undefined)} onSaved={reload} /></Modal><Modal open={Boolean(preview)} title="Preview Order Sheet" onClose={() => setPreview(null)}>{preview && <><div className="mb-4 flex justify-end"><button className="btn btn-primary" onClick={() => window.print()}>Print</button></div><Preview item={preview} /></>}</Modal></div>;
+  const activeFilters = [search, statusFilter].filter(Boolean).length;
+  const clearFilters = () => { setSearch(""); setStatusFilter(""); };
+  const rows = useMemo(() => allRows.filter((item: any) => {
+    const q = search.toLowerCase();
+    const matchSearch = !search || [item.number, item.customer?.name, item.vendor?.name, item.jobTitle].join(" ").toLowerCase().includes(q);
+    const matchStatus = !statusFilter || item.status === statusFilter;
+    return matchSearch && matchStatus;
+  }), [allRows, search, statusFilter]);
+
+  const deleteOrderSheet = async (item: any) => {
+    const ok = await showConfirm({
+      title: "Hapus Order Sheet?",
+      message: `Order Sheet ${item.number} akan dihapus permanen dan tindakan ini tidak dapat dibatalkan.`,
+      confirmLabel: "Ya, hapus",
+      tone: "danger",
+    });
+    if (ok) doDelete(item);
+  };
+
+  const doDelete = async (item: any) => {
+    setDeletingId(item.id);
+    try {
+      await api.delete(`/erp/order-sheets/${item.id}`);
+      await reload();
+    } catch (requestError: any) {
+      setMsg({ type: "error", title: "Gagal Menghapus", body: requestError.response?.data?.error || "Order sheet gagal dihapus." });
+    } finally {
+      setDeletingId("");
+    }
+  };
+
+  // Auto-open edit modal when ?edit={id} is in URL (from OS detail page)
+  useEffect(() => {
+    const editId = searchParams.get("edit");
+    if (editId && rows.length) {
+      const target = rows.find((r: any) => r.id === editId);
+      if (target) setFormItem(target);
+    }
+  }, [searchParams, rows]);
+  const closeForm = () => {
+    setFormItem(undefined);
+    if (searchParams.get("edit")) router.replace(ROUTES.orderSheets);
+  };
+
+  if (formItem !== undefined) {
+    return <div className="p-9"><PageTitle title={formItem?.id ? "Edit Order Sheet" : "Buat Order Sheet"} subtitle={formItem?.id ? `${formItem.number} - ubah data order sheet.` : "Isi data order sheet baru."} actions={<button className="btn" onClick={closeForm}>Kembali</button>} /><section className="card mt-7 p-6"><OrderSheetForm item={formItem} customers={customers} vendors={vendors} onClose={closeForm} onSaved={async () => { window.location.href = ROUTES.orderSheets; }} /></section></div>;
+  }
+
+  return (
+    <div className="p-9">
+      <PageTitle title="Order Sheet" subtitle="Format OS/PO vendor sesuai contoh dokumen, dengan data customer diambil dari database client." actions={<div className="flex gap-2"><button className="btn" onClick={() => setShowFilters(v => !v)}>Filter{activeFilters > 0 ? ` (${activeFilters})` : ""}</button><button className="btn btn-primary" onClick={() => setFormItem(null)}>+ Buat Order Sheet</button></div>} />
+      {showFilters && (
+        <section className="card mt-4 p-4">
+          <div className="grid gap-3 md:grid-cols-4">
+            <input placeholder="Cari no. OS, customer, vendor, pekerjaan..." value={search} onChange={e => setSearch(e.target.value)} />
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+              <option value="">Semua Status</option>
+              <option value="DRAFT">Draft</option>
+              <option value="FINAL">Final</option>
+              <option value="SENT">Sent</option>
+              <option value="COMPLETED">Completed</option>
+              <option value="CANCELLED">Cancelled</option>
+            </select>
+            <button className="btn" onClick={clearFilters}>Reset Filter</button>
+          </div>
+          <p className="mt-2 text-xs text-ts">Menampilkan <b>{rows.length}</b> dari {allRows.length} order sheet</p>
+        </section>
+      )}
+      <div className="card mt-7 overflow-x-auto">
+        {loading ? <Loading /> : (
+          <table>
+            <thead><tr><th>No OS/PO</th><th>Tanggal</th><th>Customer</th><th>Vendor</th><th>Pekerjaan</th><th>Status</th><th>Total</th><th>Aksi</th></tr></thead>
+            <tbody>{rows.map((item: any) => (
+              <tr key={item.id} className="table-row cursor-pointer" onClick={() => router.push(ROUTES.orderSheet(item.id))}>
+                <td>
+                  <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                    <b className="text-accent">{item.number}</b>
+                    {item.isRenewal && (
+                      <span style={{ fontSize: 9, fontWeight: 800, padding: "1px 6px", borderRadius: 999, background: "#f0abfc", color: "#701a75", letterSpacing: "0.05em" }}>RENEWAL</span>
+                    )}
+                  </div>
+                </td>
+                <td>{dateLabel(item.orderDate)}</td>
+                <td>{item.customer?.name || "-"}</td>
+                <td>{item.vendor?.name || "-"}</td>
+                <td>{item.jobTitle}</td>
+                <td><Status value={item.status} /></td>
+                <td>{money(item.grandTotal)}</td>
+                <td><div className="flex gap-2">
+                  <button className="btn" onClick={(e) => { e.stopPropagation(); setFormItem(item); }}>Edit</button>
+                  <button className="btn border-red-200 bg-red-50 text-red-700 hover:bg-red-100" disabled={deletingId === item.id} onClick={(e) => { e.stopPropagation(); deleteOrderSheet(item); }}>{deletingId === item.id ? "..." : "Hapus"}</button>
+                </div></td>
+              </tr>
+            ))}</tbody>
+          </table>
+        )}
+        {!loading && !rows.length && <p className="p-10 text-center text-sm text-ts">Belum ada order sheet{activeFilters > 0 ? " yang cocok dengan filter." : "."}</p>}
+      </div>
+
+      {msg && <MsgModal msg={msg} onClose={() => setMsg(null)} />}
+    </div>
+  );
 }

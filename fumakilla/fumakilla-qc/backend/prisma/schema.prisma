@@ -12,30 +12,40 @@ model User {
   name      String
   email     String   @unique
   password  String
-  role      Role     @default(SALES)
+  role      String   @default("SALES")
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  inquiries         Inquiry[]
-  quotations        Quotation[]          @relation("QuotationOwner")
-  surveys           Survey[]             @relation("SurveyPic")
-  surveyAssignments SurveyPicAssignment[] @relation("SurveyPicAssignments")
-  reports           DailyReport[]
-  activities        ActivityLog[]
-  ownedWorkPlans    WorkPlan[]            @relation("WorkPlanOwner")
-  createdWorkPlans  WorkPlan[]            @relation("WorkPlanCreator")
-  taggedWorkPlans   WorkPlanTaggedUser[]  @relation("WorkPlanTaggedUsers")
-  workPlanCheckpoints WorkPlanCheckpoint[] @relation("WorkPlanCheckpointUser")
-  workPlanLogs      WorkPlanAuditLog[]    @relation("WorkPlanAuditActor")
+  inquiries           Inquiry[]
+  quotations          Quotation[]           @relation("QuotationOwner")
+  surveys             Survey[]              @relation("SurveyPic")
+  surveyAssignments   SurveyPicAssignment[] @relation("SurveyPicAssignments")
+  reports             DailyReport[]
+  activities          ActivityLog[]
+  ownedWorkPlans      WorkPlan[]            @relation("WorkPlanOwner")
+  createdWorkPlans    WorkPlan[]            @relation("WorkPlanCreator")
+  taggedWorkPlans     WorkPlanTaggedUser[]  @relation("WorkPlanTaggedUsers")
+  workPlanCheckpoints WorkPlanCheckpoint[]  @relation("WorkPlanCheckpointUser")
+  workPlanLogs        WorkPlanAuditLog[]    @relation("WorkPlanAuditActor")
+  userRoles           UserRole[]
 }
 
-enum Role {
-  ADMIN
-  SALES
-  SURVEYOR
-  MANAGER
-  QA
+model AppRole {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  permissions String[]  @default([])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  userRoles   UserRole[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([userId, roleId])
 }
 enum InquiryStatus {
   NEW
@@ -249,9 +259,10 @@ model Inquiry {
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   owner    User     @relation(fields: [ownerId], references: [id])
-  quotations  Quotation[]
-  surveys     Survey[]
-  pestReports PestMonthlyReport[]
+  quotations      Quotation[]
+  surveys         Survey[]
+  pestReports     PestMonthlyReport[]
+  simpleReports   SimpleMonthlyReport[]
 }
 
 model Quotation {
@@ -268,6 +279,9 @@ model Quotation {
   segmentType   String          @default("B2B")
   hasilSurvey   Json            @default("[]")
   priceData     Json            @default("{}")
+  approvedAt        DateTime?
+  approvedByName    String?
+  approvedSignature String?      @db.Text
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
   ownerId       String
@@ -293,6 +307,12 @@ model Renewal {
   agreementSignedStatus WorkStatus @default(PENDING)
   finalizeOrderSheetStatus WorkStatus @default(PENDING)
   sentToVendorStatus WorkStatus @default(PENDING)
+  sourceAgreementId   String?
+  createdAgreementId  String?
+  createdOrderSheetId String?
+  approvedByName      String?
+  approvedAt          DateTime?
+  thresholdDays       Int       @default(90)
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
@@ -331,9 +351,13 @@ model Survey {
   b2cExistingPestControl String? @db.Text
   b2cPointNotes String[] @default([])
   b2cReportData Json?
-  status      SurveyStatus @default(SCHEDULED)
-  notes       String?      @db.Text
-  createdAt   DateTime     @default(now())
+  rescheduleHistory Json?
+  status           SurveyStatus @default(SCHEDULED)
+  notes            String?      @db.Text
+  cancelledReason  String?      @db.Text
+  cancelledAt      DateTime?
+  cancelledBy      String?
+  createdAt        DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
 
   customer       Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
@@ -418,6 +442,9 @@ model B2BSurveyReport {
   resumeRows Json @default("[]")
 
   status    String   @default("draft")
+  approvedByName String?
+  approvedAt DateTime?
+  approvedSignature String? @db.Text
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -537,11 +564,6 @@ model OutstandingInvoice {
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
 
-model RolePermission {
-  role        Role     @id
-  permissions String[]
-  updatedAt   DateTime @updatedAt
-}
 
 model ReminderSetting {
   key             String   @id
@@ -552,17 +574,19 @@ model ReminderSetting {
 }
 
 model ServiceContract {
-  id        String                @id @default(cuid())
-  customerId String
-  number    String                @unique
-  service   String
-  startDate DateTime
-  endDate   DateTime
-  status    ServiceContractStatus @default(ACTIVE)
-  createdAt DateTime              @default(now())
-  updatedAt DateTime              @updatedAt
+  id          String                @id @default(cuid())
+  customerId  String
+  agreementId String?               @unique
+  number      String                @unique
+  service     String
+  startDate   DateTime
+  endDate     DateTime
+  status      ServiceContractStatus @default(ACTIVE)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
 
   customer          Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  agreement         Agreement?        @relation(fields: [agreementId], references: [id], onDelete: SetNull)
   monthlyReports    MonthlyReport[]
   qcVisits          QcVisit[]
   vendorTreatments  VendorTreatment[]
@@ -666,10 +690,12 @@ model OrderSheet {
   approvedAt          DateTime?
   receivedAt          DateTime?
   notes               String?          @db.Text
+  isRenewal           Boolean          @default(false)
+  renewalSourceId     String?
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
-  customer Customer @relation(fields: [customerId], references: [id])
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   vendor   Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   complaints Complaint[]
 
@@ -738,6 +764,21 @@ model PestMonthlyReport {
   @@index([tahun, bulan])
 }
 
+model SimpleMonthlyReport {
+  id          String   @id @default(cuid())
+  inquiryId   String
+  inquiry     Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  bulan       Int
+  tahun       Int
+  segment     String   @default("B2B")
+  reportData  Json?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([inquiryId])
+  @@index([tahun, bulan])
+}
+
 model AgreementReport {
   id         String   @id @default(cuid())
   customerId String
@@ -787,11 +828,14 @@ model Agreement {
   ttdKlienJabatan     String?
   ttdKlienTanggal     DateTime?
   notes               String?         @db.Text
+  isRenewal           Boolean         @default(false)
+  renewalSourceId     String?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
-  customer  Customer   @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  quotation Quotation? @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quotation       Quotation?      @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  serviceContract ServiceContract?
 
   @@index([customerId])
   @@index([status])

@@ -33,13 +33,7 @@ export default function Login() {
         <div className="absolute -right-32 -top-32 h-96 w-96 rounded-full border border-[#d0e4ff]/25" />
         <div className="absolute bottom-[-150px] left-[-80px] h-96 w-96 rounded-full border border-[#d0e4ff]/20" />
         <div className="relative">
-          <div className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-xl bg-[#d0e4ff] text-xl font-bold text-[#03497a]">F</span>
-            <div>
-              <p className="text-xl font-bold">Fumakilla ERP</p>
-              <p className="text-[11px] font-semibold tracking-[.16em] text-[#d0e4ff]">SERVICE OPERATIONS</p>
-            </div>
-          </div>
+          <img src="/refrence/QuotationLogo.jpg" alt="Fumakilla" className="h-14 object-contain" style={{ mixBlendMode: "multiply" }} />
           <div className="mt-24 max-w-lg">
             <p className="text-xs font-bold tracking-[.18em] text-[#d0e4ff]">OPERATIONS CONTROL CENTER</p>
             <h1 className="mt-5 text-5xl font-bold leading-tight">Satu tempat untuk operasional layanan yang lebih terukur.</h1>
@@ -51,10 +45,7 @@ export default function Login() {
       <section className="flex min-h-[calc(100vh-40px)] items-center justify-center lg:min-h-screen lg:p-12">
         <form onSubmit={submit} className="w-full max-w-md">
           <div className="mb-10 lg:hidden">
-            <div className="flex items-center gap-3">
-              <span className="grid h-11 w-11 place-items-center rounded-xl bg-accent text-xl font-bold text-white">F</span>
-              <div><p className="text-xl font-bold">Fumakilla ERP</p><p className="text-[11px] font-semibold tracking-[.16em] text-accent">SERVICE OPERATIONS</p></div>
-            </div>
+            <img src="/refrence/QuotationLogo.jpg" alt="Fumakilla" className="h-12 object-contain" />
           </div>
           <p className="text-xs font-bold tracking-[.16em] text-accent">SELAMAT DATANG</p>
           <h2 className="mt-3 text-4xl font-bold tracking-tight">Masuk ke akun Anda</h2>

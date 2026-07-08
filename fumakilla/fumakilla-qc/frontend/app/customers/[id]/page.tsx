@@ -17,7 +17,7 @@ const groups = [
   ["Pajak & Quality", [["Nomor KTP Penanggung Jawab / Pemilik", "responsibleOwnerKtp"], ["Nama NPWP", "npwpName"], ["Nomor NPWP", "npwpNumber"], ["Alamat NPWP", "npwpAddress"], ["Frekuensi Monthly Report", "monthlyReportFrequency"], ["Lead Source", "leadSource"], ["Nama QC", "qcName"], ["Nama QA", "qaName"]]],
   ["Agreement & Invoice", [["Nama PIC Agreement", "agreementPicName"], ["Jabatan PIC Agreement", "agreementPicTitle"], ["PIC Invoice", "invoicePicName"], ["Kontak PIC Invoice", "invoicePicPhone"], ["Email PIC Invoice", "invoicePicEmail"], ["Alamat PIC Invoice", "invoicePicAddress"], ["Batas Penerimaan Invoice Customer (Hari)", "invoiceAcceptanceLimitDays"]]],
 ] as const;
-const pretty=(value:any)=>value ? (typeof value === "string" && value.includes("T") ? new Date(value).toLocaleDateString("id-ID") : String(value).replaceAll("_", " ")) : "-";
+const pretty=(value:any)=>value ? (typeof value === "string" && /^\d{4}-\d{2}-\d{2}T/.test(value) ? new Date(value).toLocaleDateString("id-ID") : String(value).replaceAll("_", " ")) : "-";
 
 function EditableField({ customerId, label, field, value, reload }: { customerId: string; label: string; field: string; value: any; reload: () => Promise<void> }) {
   const [editing, setEditing] = useState(false); const [draft, setDraft] = useState(value ?? ""); const [saving, setSaving] = useState(false);

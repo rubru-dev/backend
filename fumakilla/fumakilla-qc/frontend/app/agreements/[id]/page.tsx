@@ -3,6 +3,8 @@ import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Loading } from "@/components/erp/shared";
+import { showAlert } from "@/lib/app-modal";
+import { SERVICE_TYPES } from "@/lib/service-options";
 
 const NAVY = "#2c3e5c";
 const GREEN = "#1a5276";
@@ -19,7 +21,7 @@ const STATUS_COLORS: Record<string, { bg: string; color: string }> = {
   EXPIRED:   { bg: "#fee2e2", color: "#991b1b" },
   CANCELLED: { bg: "#f3f4f6", color: "#6b7280" },
 };
-const JENIS_LAYANAN = ["Anti Rayap", "Pest Control", "Monitoring", "Service Berkala", "PCRC", "Other"];
+const JENIS_LAYANAN = SERVICE_TYPES;
 
 type ServiceRow = { no: number; jenisService: string; frekuensi: string; keterangan: string };
 type TerminRow = { termin: number; keterangan: string; nominal: string };
@@ -191,7 +193,7 @@ export default function AgreementDetailPage() {
       setEditMode(false);
       setSaveMsg("Tersimpan!");
       setTimeout(() => setSaveMsg(""), 2500);
-    } catch { alert("Gagal menyimpan."); }
+    } catch { showAlert({ title: "Gagal menyimpan", message: "Gagal menyimpan.", tone: "danger" }); }
     finally { setSaving(false); }
   };
 
@@ -292,9 +294,11 @@ export default function AgreementDetailPage() {
                 </>
               ) : (
                 <table style={{ fontSize: 12, width: "100%", borderCollapse: "collapse" }}>
+                  <tbody>
                   {[["Perusahaan", "PT Fumakilla Indonesia"], ["PIC", data.picFumakillaNama], ["Jabatan", data.picFumakillaJabatan], ["Kontak", data.picFumakillaKontak]].map(([k, v]) => (
                     <tr key={k}><td style={{ padding: "3px 0", color: "#6b7280", width: 100 }}>{k}</td><td style={{ padding: "3px 0", fontWeight: 500 }}>{v || "-"}</td></tr>
                   ))}
+                  </tbody>
                 </table>
               )}
             </div>
@@ -309,9 +313,11 @@ export default function AgreementDetailPage() {
                 </>
               ) : (
                 <table style={{ fontSize: 12, width: "100%", borderCollapse: "collapse" }}>
+                  <tbody>
                   {[["Perusahaan", data.customer?.company || data.customer?.name], ["PIC", data.picKlienNama], ["Jabatan", data.picKlienJabatan], ["Kontak", data.picKlienKontak]].map(([k, v]) => (
                     <tr key={k}><td style={{ padding: "3px 0", color: "#6b7280", width: 100 }}>{k}</td><td style={{ padding: "3px 0", fontWeight: 500 }}>{v || "-"}</td></tr>
                   ))}
+                  </tbody>
                 </table>
               )}
             </div>
@@ -334,12 +340,14 @@ export default function AgreementDetailPage() {
             </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <tbody>
               {[["Jenis Layanan", data.jenisLayanan], ["Lokasi Pekerjaan", data.lokasiPekerjaan], ["Area Pekerjaan", data.areaPekerjaan], ["Dasar Pekerjaan", "Hasil survey, quotation, dan kesepakatan tertulis kedua belah pihak"]].map(([k, v]) => (
                 <tr key={k} style={{ borderBottom: "1px solid #f3f4f6" }}>
                   <td style={{ padding: "7px 0", color: "#6b7280", width: 180, fontWeight: 600, fontSize: 12 }}>{k}</td>
                   <td style={{ padding: "7px 0" }}>{v || "-"}</td>
                 </tr>
               ))}
+              </tbody>
             </table>
           )}
           {data.quotation && <p style={{ marginTop: 10, fontSize: 11, color: "#6b7280" }}>Ref. Quotation: {data.quotation.number} — {data.quotation.title}</p>}
@@ -366,6 +374,7 @@ export default function AgreementDetailPage() {
             </div>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <tbody>
               {[
                 ["Tanggal Mulai", fmtDate(data.tanggalMulai)],
                 ["Tanggal Berakhir", fmtDate(data.tanggalBerakhir)],
@@ -376,6 +385,7 @@ export default function AgreementDetailPage() {
                   <td style={{ padding: "7px 0", fontWeight: 600 }}>{v}</td>
                 </tr>
               ))}
+              </tbody>
             </table>
           )}
         </Section>
@@ -441,6 +451,7 @@ export default function AgreementDetailPage() {
             </>
           ) : (
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13, marginBottom: 16 }}>
+              <tbody>
               {[
                 ["Total Nilai Kontrak", fmtRp(data.nilaiKontrak)],
                 ["PPN", fmtRp(data.ppn)],
@@ -453,6 +464,7 @@ export default function AgreementDetailPage() {
                   <td style={{ padding: "7px 0", fontWeight: k === "Grand Total" ? 800 : 500, color: k === "Grand Total" ? NAVY : "inherit" }}>{v || "-"}</td>
                 </tr>
               ))}
+              </tbody>
             </table>
           )}
 
@@ -522,9 +534,11 @@ export default function AgreementDetailPage() {
                 </>
               ) : (
                 <table style={{ fontSize: 12, width: "100%", borderCollapse: "collapse" }}>
+                  <tbody>
                   {[["Nama", data.ttdFumakillaNama], ["Jabatan", data.ttdFumakillaJabatan], ["Tanggal", fmtDate(data.ttdFumakillaTanggal)]].map(([k, v]) => (
                     <tr key={k}><td style={{ padding: "4px 0", color: "#6b7280", width: 80 }}>{k}</td><td style={{ padding: "4px 0" }}>{v || "________________________"}</td></tr>
                   ))}
+                  </tbody>
                 </table>
               )}
               <div style={{ borderBottom: "2px solid #374151", marginTop: 40, paddingBottom: 4, width: "80%" }} className="print:mt-16" />
@@ -540,9 +554,11 @@ export default function AgreementDetailPage() {
                 </>
               ) : (
                 <table style={{ fontSize: 12, width: "100%", borderCollapse: "collapse" }}>
+                  <tbody>
                   {[["Nama", data.ttdKlienNama], ["Jabatan", data.ttdKlienJabatan], ["Tanggal", fmtDate(data.ttdKlienTanggal)]].map(([k, v]) => (
                     <tr key={k}><td style={{ padding: "4px 0", color: "#6b7280", width: 80 }}>{k}</td><td style={{ padding: "4px 0" }}>{v || "________________________"}</td></tr>
                   ))}
+                  </tbody>
                 </table>
               )}
               <div style={{ borderBottom: "2px solid #374151", marginTop: 40, paddingBottom: 4, width: "80%" }} className="print:mt-16" />

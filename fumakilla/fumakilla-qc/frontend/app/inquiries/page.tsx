@@ -6,13 +6,15 @@ import autoTable from "jspdf-autotable";
 import api from "@/lib/api";
 import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
 import { useAuth } from "@/hooks/useAuth";
+import { showConfirm } from "@/lib/app-modal";
+import { SERVICE_TYPES, SERVICE_TYPE_DESCRIPTIONS } from "@/lib/service-options";
 
 const progressOptions = ["New Inquiry", "Non Sales Inquiry", "Pricelist Sent", "Contacted", "Survey Scheduled", "Survey Completed", "Quotation Sent", "Waiting Agreement", "Won/Closing", "Lost/Not Interest"];
 const resultOptions = ["On Going", "Won/Closing", "Lost"];
 const monthOptions = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const segmentOptions = ["B2C", "B2B"];
 const sourceOptions = ["Whatsapp", "Instagram", "Tiktok", "Referal"];
-const serviceTypeOptions = ["PC", "RC", "PCRC", "Termite Control", "Other Control"];
+const serviceTypeOptions = SERVICE_TYPES;
 const cityOptions = ["Jakarta", "Bogor", "Depok", "Tangerang", "Bekasi", "Bandung", "Purwakarta", "Semarang", "Surabaya"];
 const currentMonth = monthOptions[new Date().getMonth()];
 
@@ -54,7 +56,7 @@ function Field({ label, required, error, children }: { label: string; required?:
 }
 
 function optionSelect(options: string[], value: string, onChange: (value: string) => void, className = "mt-2", emptyLabel?: string) {
-  return <select className={className} value={value || ""} onChange={(event) => onChange(event.target.value)}>{emptyLabel !== undefined && <option value="">{emptyLabel}</option>}{options.map((item) => <option key={item}>{item}</option>)}</select>;
+  return <select className={className} value={value || ""} onChange={(event) => onChange(event.target.value)}>{emptyLabel !== undefined && <option value="">{emptyLabel}</option>}{options.map((item) => <option key={item} title={SERVICE_TYPE_DESCRIPTIONS[item]}>{item}</option>)}</select>;
 }
 
 function InquiryForm({ onSaved }: { onSaved: () => void }) {
@@ -107,30 +109,15 @@ function InquiryForm({ onSaved }: { onSaved: () => void }) {
   );
 }
 
-function ConfirmModal({ title, message, tone = "default", confirmLabel, loading, onCancel, onConfirm }: { title: string; message: string; tone?: "default" | "danger"; confirmLabel: string; loading?: boolean; onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <Modal open title={title} tone={tone} onClose={onCancel}>
-      <div className="space-y-5">
-        <p className={tone === "danger" ? "text-sm text-red-100" : "text-sm text-ts"}>{message}</p>
-        <div className="flex justify-end gap-3">
-          <button className={tone === "danger" ? "danger-cancel" : "btn"} disabled={loading} onClick={onCancel}>Batal</button>
-          <button className={tone === "danger" ? "danger-confirm" : "btn btn-primary"} disabled={loading} onClick={onConfirm}>{loading ? "Memproses..." : confirmLabel}</button>
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function InquiryDetailPanel({ item, qaUsers, admin, onSaved, onDeleted }: { item: any; qaUsers: any[]; admin: boolean; onSaved: () => void; onDeleted: () => void }) {
   const { data: surveyors } = useGet<any>("/erp/survey-pics");
   const { data: detail } = useGet<any>(`/erp/inquiries/${item.id}`);
   const [editing, setEditing] = useState(false);
   const [scheduling, setScheduling] = useState(false);
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
   const [scheduleSaving, setScheduleSaving] = useState(false);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [confirmSave, setConfirmSave] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
   const [error, setError] = useState("");
   const [draft, setDraft] = useState<any>(() => ({
     progress: item.progress || "New Inquiry",
@@ -151,14 +138,31 @@ function InquiryDetailPanel({ item, qaUsers, admin, onSaved, onDeleted }: { item
     notes: item.notes || "",
   }));
   const [schedule, setSchedule] = useState<any>(() => ({ scheduledAt: "", location: item.address || item.customerCity || "", shareLocationUrl: "", picIds: [] as string[] }));
+  const [cancelTarget, setCancelTarget] = useState<any>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelling, setCancelling] = useState(false);
   const update = (key: string, value: string) => setDraft((current: any) => ({ ...current, [key]: value }));
+
+  const submitCancel = async () => {
+    if (!cancelReason.trim()) return;
+    setCancelling(true);
+    try {
+      await api.post(`/erp/surveys/${cancelTarget.id}/cancel`, { reason: cancelReason });
+      setCancelTarget(null);
+      setCancelReason("");
+      onSaved();
+    } catch (e: any) {
+      setError(e.response?.data?.error || "Gagal membatalkan survey.");
+    } finally {
+      setCancelling(false);
+    }
+  };
   const save = async () => {
     setSaving(true);
     setError("");
     try {
       await api.patch(`/erp/inquiries/${item.id}`, draft);
       setEditing(false);
-      setConfirmSave(false);
       onSaved();
     } catch (requestError: any) {
       setError(requestError.response?.data?.error || "Data inquiry gagal disimpan.");
@@ -171,7 +175,6 @@ function InquiryDetailPanel({ item, qaUsers, admin, onSaved, onDeleted }: { item
     setError("");
     try {
       await api.delete(`/erp/inquiries/${item.id}`);
-      setConfirmDelete(false);
       onDeleted();
     } catch (requestError: any) {
       setError(requestError.response?.data?.error || "Inquiry gagal dihapus.");
@@ -179,12 +182,27 @@ function InquiryDetailPanel({ item, qaUsers, admin, onSaved, onDeleted }: { item
       setDeleting(false);
     }
   };
+  const toLocalInput = (iso: string) => { const d = new Date(iso); const pad = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+  const openSchedule = () => { setRescheduleId(null); setSchedule({ scheduledAt: "", location: item.address || item.customerCity || "", shareLocationUrl: "", picIds: [] }); setScheduling(true); };
+  const openReschedule = (s: any) => {
+    setRescheduleId(s.id);
+    setSchedule({
+      scheduledAt: s.scheduledAt ? toLocalInput(s.scheduledAt) : "",
+      location: s.location || "",
+      shareLocationUrl: s.shareLocationUrl || "",
+      picIds: s.picAssignments?.length ? s.picAssignments.map((a: any) => a.picId).filter(Boolean) : (s.picId ? [s.picId] : []),
+    });
+    setScheduling(true);
+  };
+  const closeSchedule = () => { setScheduling(false); setRescheduleId(null); };
   const submitSchedule = async () => {
     setScheduleSaving(true);
     setError("");
     try {
-      await api.post(`/erp/inquiries/${item.id}/survey-request`, schedule);
+      if (rescheduleId) await api.patch(`/erp/surveys/${rescheduleId}/reschedule`, schedule);
+      else await api.post(`/erp/inquiries/${item.id}/survey-request`, schedule);
       setScheduling(false);
+      setRescheduleId(null);
       setSchedule({ scheduledAt: "", location: item.address || item.customerCity || "", shareLocationUrl: "", picIds: [] });
       onSaved();
     } catch (requestError: any) {
@@ -193,6 +211,9 @@ function InquiryDetailPanel({ item, qaUsers, admin, onSaved, onDeleted }: { item
       setScheduleSaving(false);
     }
   };
+  // Survey hanya boleh dijadwalkan sekali. Selama masih ada survey aktif (belum dibatalkan),
+  // tombol "Jadwalkan Survey" disembunyikan — untuk reschedule, batalkan dulu survey yang ada.
+  const hasActiveSurvey = !!detail?.surveys?.some((s: any) => s.status !== "CANCELLED");
   const display = editing ? draft : item;
   const read = (label: string, value: any) => <div><p className="text-[11px] font-bold uppercase tracking-wide text-ts">{label}</p><p className="mt-1 text-sm font-semibold text-tp">{value || "-"}</p></div>;
   const editField = (label: string, key: string, type: "text" | "date" | "number" | "textarea" | string[], required = false) => (
@@ -205,15 +226,21 @@ function InquiryDetailPanel({ item, qaUsers, admin, onSaved, onDeleted }: { item
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div><h3 className="text-base font-extrabold text-accent">{item.number}</h3><p className="mt-1 text-sm text-ts">{item.customerName || item.customer?.name || "-"} {item.companyName ? `- ${item.companyName}` : ""}</p></div>
         <div className="flex gap-2">
-          {editing ? <><button className="btn" disabled={saving} onClick={() => setEditing(false)}>Batal</button><button className="btn btn-primary" disabled={saving} onClick={() => setConfirmSave(true)}>{saving ? "Menyimpan..." : "Simpan"}</button></> : <button className="btn btn-primary" onClick={() => setEditing(true)}>Edit Data</button>}
-          {!editing && <button className="btn" onClick={() => setScheduling((value) => !value)}>Jadwalkan Survey</button>}
-          {admin && !editing && <button className="btn text-[#ba1a1a]" onClick={() => setConfirmDelete(true)}>Hapus</button>}
+          {editing ? <><button className="btn" disabled={saving} onClick={() => setEditing(false)}>Batal</button><button className="btn btn-primary" disabled={saving} onClick={async () => {
+            const ok = await showConfirm({ title: "Simpan perubahan?", message: `Perubahan data inquiry ${item.number} akan disimpan.`, confirmLabel: "Ya, simpan" });
+            if (ok) save();
+          }}>{saving ? "Menyimpan..." : "Simpan"}</button></> : <button className="btn btn-primary" onClick={() => setEditing(true)}>Edit Data</button>}
+          {!editing && !hasActiveSurvey && <button className="btn" onClick={openSchedule}>Jadwalkan Survey</button>}
+          {admin && !editing && <button className="btn text-[#ba1a1a]" onClick={async () => {
+            const ok = await showConfirm({ title: "Hapus inquiry?", message: `Inquiry ${item.number} akan dihapus permanen dan tindakan ini tidak dapat dibatalkan.`, confirmLabel: "Ya, hapus", tone: "danger" });
+            if (ok) remove();
+          }}>Hapus</button>}
         </div>
       </div>
       {error && <p className="mt-3 text-sm font-medium text-red-700">{error}</p>}
       {scheduling && !editing && (
         <div className="mt-5 rounded-xl border border-bdr bg-white p-5">
-          <h4 className="font-bold">Jadwalkan Survey</h4>
+          <h4 className="font-bold">{rescheduleId ? "Ubah Jadwal Survey" : "Jadwalkan Survey"}</h4>
           <div className="mt-4 grid gap-4 md:grid-cols-2">
             <Field label="Tanggal & Jam" required><input className="mt-2" type="datetime-local" value={schedule.scheduledAt} onChange={(event) => setSchedule({ ...schedule, scheduledAt: event.target.value })} /></Field>
             <Field label="Link Google Maps" required><input className="mt-2" type="url" value={schedule.shareLocationUrl} onChange={(event) => setSchedule({ ...schedule, shareLocationUrl: event.target.value })} /></Field>
@@ -224,7 +251,7 @@ function InquiryDetailPanel({ item, qaUsers, admin, onSaved, onDeleted }: { item
               <div className="mt-2 grid gap-2 md:grid-cols-3">{surveyors?.data?.map((surveyor: any) => <label className="flex items-center gap-2 rounded-lg border border-bdr p-3 text-sm" key={surveyor.id}><input type="checkbox" checked={schedule.picIds.includes(surveyor.id)} onChange={(event) => setSchedule((current: any) => ({ ...current, picIds: event.target.checked ? [...current.picIds, surveyor.id] : current.picIds.filter((id: string) => id !== surveyor.id) }))} />{surveyor.name}</label>)}</div>
             </div>
           </div>
-          <div className="mt-4 flex justify-end gap-3"><button className="btn" onClick={() => setScheduling(false)}>Batal</button><button className="btn btn-primary" disabled={scheduleSaving} onClick={submitSchedule}>{scheduleSaving ? "Menyimpan..." : "Simpan Jadwal"}</button></div>
+          <div className="mt-4 flex justify-end gap-3"><button className="btn" onClick={closeSchedule}>Batal</button><button className="btn btn-primary" disabled={scheduleSaving} onClick={submitSchedule}>{scheduleSaving ? "Menyimpan..." : rescheduleId ? "Simpan Perubahan" : "Simpan Jadwal"}</button></div>
         </div>
       )}
       {editing ? (
@@ -274,33 +301,102 @@ function InquiryDetailPanel({ item, qaUsers, admin, onSaved, onDeleted }: { item
             <p className="mt-2 text-sm text-ts">Belum ada survey untuk inquiry ini.</p>
           ) : (
             <div className="mt-3 grid gap-3 md:grid-cols-2">
-              {detail.surveys.map((s: any) => (
-                <div key={s.id} className="rounded-xl border border-bdr bg-white p-4">
+              {detail.surveys.map((s: any) => {
+                const isCancelled = s.status === "CANCELLED";
+                const canCancel = ["SCHEDULED", "POSTPONED"].includes(s.status);
+                return (
+                <div key={s.id} className={`rounded-xl border bg-white p-4 ${isCancelled ? "border-red-200 opacity-75" : "border-bdr"}`}>
                   <div className="flex items-center justify-between">
                     <p className="text-sm font-bold text-accent">{s.number}</p>
-                    <Status value={s.status} />
+                    <div className="flex items-center gap-2">
+                      <Status value={s.status} />
+                      {canCancel && (
+                        <button
+                          onClick={() => openReschedule(s)}
+                          className="text-xs font-semibold text-accent hover:underline"
+                        >
+                          Ubah Jadwal
+                        </button>
+                      )}
+                      {canCancel && (
+                        <button
+                          onClick={() => { setCancelTarget(s); setCancelReason(""); }}
+                          className="text-xs font-semibold text-red-600 hover:underline"
+                        >
+                          Batalkan
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="mt-3 space-y-1.5 text-sm">
                     <p><span className="text-xs font-bold text-ts">Surveyor: </span>{s.picAssignments?.length ? s.picAssignments.map((a: any) => a.pic?.name).filter(Boolean).join(", ") : (s.pic?.name || "-")}</p>
                     <p><span className="text-xs font-bold text-ts">Jadwal: </span>{new Date(s.scheduledAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}</p>
                     <p className="line-clamp-2"><span className="text-xs font-bold text-ts">Lokasi: </span>{s.location}</p>
                   </div>
-                  <div className="mt-3 flex gap-4 border-t border-bdr pt-3">
-                    <span className={`text-xs font-semibold ${s.evidenceImagePath ? "text-green-700" : "text-ts"}`}>
-                      Check In: {s.evidenceImagePath ? "✓ Sudah" : "Belum"}
-                    </span>
-                    <span className={`text-xs font-semibold ${s.checkoutImagePath ? "text-green-700" : "text-ts"}`}>
-                      Check Out: {s.checkoutImagePath ? "✓ Sudah" : "Belum"}
-                    </span>
-                  </div>
+                  {Array.isArray(s.rescheduleHistory) && s.rescheduleHistory.length > 0 && (
+                    <details className="mt-3 rounded-lg bg-[#f2f3fd] p-3">
+                      <summary className="cursor-pointer text-xs font-bold text-ts">Riwayat Jadwal Sebelumnya ({s.rescheduleHistory.length})</summary>
+                      <ul className="mt-2 space-y-2">
+                        {[...s.rescheduleHistory].reverse().map((h: any, i: number) => (
+                          <li key={i} className="border-l-2 border-bdr pl-2 text-xs text-ts">
+                            <p><span className="font-semibold">Jadwal lama: </span><span className="line-through">{new Date(h.scheduledAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}</span></p>
+                            <p>Surveyor: {h.picNames?.length ? h.picNames.join(", ") : "-"}</p>
+                            <p className="text-[11px] text-ts/80">Diubah oleh {h.rescheduledBy || "-"}{h.rescheduledAt ? ` · ${new Date(h.rescheduledAt).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" })}` : ""}</p>
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                  {isCancelled ? (
+                    <div className="mt-3 rounded-lg bg-red-50 border border-red-200 p-3">
+                      <p className="text-xs font-bold text-red-700 uppercase tracking-wide">Dibatalkan</p>
+                      <p className="mt-1 text-xs text-red-600"><span className="font-semibold">Alasan: </span>{s.cancelledReason || "-"}</p>
+                      {s.cancelledBy && <p className="mt-0.5 text-xs text-red-500">Oleh: {s.cancelledBy} · {s.cancelledAt ? new Date(s.cancelledAt).toLocaleString("id-ID", { dateStyle: "short", timeStyle: "short" }) : ""}</p>}
+                    </div>
+                  ) : (
+                    <div className="mt-3 flex gap-4 border-t border-bdr pt-3">
+                      <span className={`text-xs font-semibold ${s.evidenceImagePath ? "text-green-700" : "text-ts"}`}>
+                        Check In: {s.evidenceImagePath ? "✓ Sudah" : "Belum"}
+                      </span>
+                      <span className={`text-xs font-semibold ${s.checkoutImagePath ? "text-green-700" : "text-ts"}`}>
+                        Check Out: {s.checkoutImagePath ? "✓ Sudah" : "Belum"}
+                      </span>
+                    </div>
+                  )}
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
       )}
-      {confirmSave && <ConfirmModal title="Simpan perubahan?" message={`Perubahan data inquiry ${item.number} akan disimpan.`} confirmLabel="Ya, Simpan" loading={saving} onCancel={() => setConfirmSave(false)} onConfirm={save} />}
-      {confirmDelete && <ConfirmModal title="Hapus inquiry?" message={`Inquiry ${item.number} akan dihapus permanen dan tindakan ini tidak dapat dibatalkan.`} tone="danger" confirmLabel="Ya, Hapus" loading={deleting} onCancel={() => setConfirmDelete(false)} onConfirm={remove} />}
+      {cancelTarget && (
+        <Modal open title={`Batalkan Survey ${cancelTarget.number}`} tone="danger" onClose={() => setCancelTarget(null)}>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-red-50 border border-red-200 p-3 text-sm">
+              <p className="font-semibold text-red-800">{cancelTarget.number}</p>
+              <p className="text-red-700 mt-0.5">Jadwal: {new Date(cancelTarget.scheduledAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })}</p>
+            </div>
+            <p className="text-sm text-ts">Pembatalan akan dicatat dan dapat dilihat oleh owner. Jika tidak ada survey aktif lain untuk inquiry ini, progress akan dikembalikan ke "Contacted".</p>
+            <label className="block text-sm font-semibold text-tp">
+              Alasan Pembatalan <span className="text-red-600">*</span>
+              <textarea
+                className="mt-2 w-full rounded-lg border border-bdr p-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                rows={3}
+                placeholder="Contoh: Client tidak jadi, reschedule, atau alasan lainnya..."
+                value={cancelReason}
+                onChange={e => setCancelReason(e.target.value)}
+              />
+            </label>
+            <div className="flex justify-end gap-3">
+              <button className="danger-cancel" disabled={cancelling} onClick={() => setCancelTarget(null)}>Tutup</button>
+              <button className="danger-confirm" disabled={cancelling || !cancelReason.trim()} onClick={submitCancel}>
+                {cancelling ? "Membatalkan..." : "Ya, Batalkan Survey"}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }
@@ -309,7 +405,7 @@ export default function Inquiries() {
   const { user } = useAuth();
   const { data: qaUsers } = useGet<any>("/erp/qa-users");
   const [filters, setFilters] = useState<any>(emptyFilters);
-  const [showFilters, setShowFilters] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
   const [open, setOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const query = useMemo(() => new URLSearchParams(Object.entries(filters).filter(([, value]) => value).map(([key, value]) => [key, String(value)])).toString(), [filters]);

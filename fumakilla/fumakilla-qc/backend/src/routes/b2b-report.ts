@@ -1,12 +1,20 @@
 import { Router } from "express";
 import prisma from "../prisma";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requireRole, type AuthRequest } from "../middleware/auth";
 import { createUploader, publicUploadPath, deleteFileIfExists } from "../lib/upload";
 
 const router = Router();
 router.use(authenticate);
 
 const imgUpload = createUploader("b2b-reports", ["image/jpeg", "image/png", "image/webp"], 15);
+
+// Report hanya boleh dibuat/diapprove kalau survey sudah check in DAN check out.
+async function ensureCheckedInOut(surveyId: string): Promise<string | null> {
+  const survey = await prisma.survey.findUnique({ where: { id: surveyId }, select: { evidenceImagePath: true, checkoutImagePath: true } });
+  if (!survey) return "Survey tidak ditemukan";
+  if (!survey.evidenceImagePath || !survey.checkoutImagePath) return "Report hanya bisa dibuat setelah check in dan check out survey selesai.";
+  return null;
+}
 
 router.get("/:surveyId", async (req, res, next) => {
   try {
@@ -32,6 +40,8 @@ router.get("/:surveyId", async (req, res, next) => {
 router.post("/:surveyId", async (req, res, next) => {
   try {
     const { surveyId } = req.params;
+    const ciCoError = await ensureCheckedInOut(surveyId);
+    if (ciCoError) return res.status(400).json({ error: ciCoError });
     const raw = { ...req.body };
 
     // Ensure JSON fields are parsed objects (not strings)
@@ -67,6 +77,10 @@ router.post("/:surveyId", async (req, res, next) => {
     for (const k of Object.keys(body)) {
       if (body[k] === undefined) delete body[k];
     }
+    if (body.status === "draft") {
+      body.approvedByName = null;
+      body.approvedAt = null;
+    }
 
     const report = await prisma.b2BSurveyReport.upsert({
       where: { surveyId },
@@ -75,6 +89,23 @@ router.post("/:surveyId", async (req, res, next) => {
     });
 
     // Map back so frontend gets coverImagePath in response
+    res.json({ data: { ...report, coverImagePath: report.topViewImagePath } });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.post("/:surveyId/approve", requireRole("ADMIN", "MANAGER"), async (req: AuthRequest, res, next) => {
+  try {
+    const { surveyId } = req.params;
+    const ciCoError = await ensureCheckedInOut(surveyId);
+    if (ciCoError) return res.status(400).json({ error: ciCoError.replace("dibuat", "diapprove") });
+    const existing = await prisma.b2BSurveyReport.findUnique({ where: { surveyId } });
+    if (!existing) return res.status(400).json({ error: "Report belum diisi. Isi report terlebih dahulu sebelum approve." });
+    const report = await prisma.b2BSurveyReport.update({
+      where: { surveyId },
+      data: { status: "approved", approvedByName: req.user!.name, approvedAt: new Date(), approvedSignature: null },
+    });
     res.json({ data: { ...report, coverImagePath: report.topViewImagePath } });
   } catch (e) {
     next(e);

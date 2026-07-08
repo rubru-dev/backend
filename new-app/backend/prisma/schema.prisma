@@ -1039,6 +1039,24 @@ model Sop {
   @@map("sops")
 }
 
+model LaporanPicProjek {
+  id           BigInt   @id @default(autoincrement())
+  user_id      BigInt?
+  project_type String   @db.VarChar(20)
+  project_id   BigInt
+  project_nama String?  @db.VarChar(255)
+  tanggal      DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
+  kegiatan     String
+  kendala      String?
+  images       Json     @default("[]")
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+  user         User?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+
+  @@index([project_type, project_id], map: "idx_laporan_pic_projeks_project")
+  @@map("laporan_pic_projeks")
+}
+
 model PicProjectReport {
   id         BigInt   @id @default(autoincrement())
   user_id    BigInt?
@@ -1981,6 +1999,7 @@ model User {
   ar_overrides                          ArOverride[]
   ar_item_overrides                     ArItemOverride[]
   penawaran_offers                      PenawaranOffer[]
+  laporan_pic_projeks                   LaporanPicProjek[]
 
   @@index([email], map: "idx_users_email")
   @@map("users")

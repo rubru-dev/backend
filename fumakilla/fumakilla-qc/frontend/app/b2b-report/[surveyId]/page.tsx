@@ -1,12 +1,23 @@
 "use client";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import api from "@/lib/api";
 import { fileUrl } from "@/lib/utils";
-import type { CanvasData, FloorPlanCanvasHandle } from "@/components/b2b-report/FloorPlanCanvas";
+import type { CanvasData } from "@/components/b2b-report/FloorPlanCanvas";
+import { useAuth } from "@/hooks/useAuth";
 
 const FloorPlanCanvas = dynamic(() => import("@/components/b2b-report/FloorPlanCanvas"), { ssr: false });
+
+const A4_PAGE_WIDTH = 1123;
+const A4_PAGE_HEIGHT = 794;
+const A4_PAGE_STYLE = {
+  width: A4_PAGE_WIDTH,
+  height: A4_PAGE_HEIGHT,
+  aspectRatio: "297/210",
+  overflow: "hidden",
+  flexShrink: 0,
+};
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 interface PestSection {
@@ -25,20 +36,40 @@ interface ReportData {
   floorPlanCanvasData?: CanvasData | null;
   pestSections: PestSection[]; resumeRows: ResumeRow[];
   status: string;
+  approvedByName?: string;
+  approvedAt?: string;
+}
+
+function stripHtml(value: string) {
+  if (typeof document === "undefined") return value.replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+  const div = document.createElement("div");
+  div.innerHTML = value;
+  return (div.textContent || div.innerText || "").replace(/\s+/g, " ").trim();
+}
+
+function splitList(value: string) {
+  return value.split(/\r?\n/).map(item => item.replace(/^[-•\d.)\s]+/, "").trim()).filter(Boolean);
 }
 
 // ─── CoverPage ────────────────────────────────────────────────────────────────
+function chunkItems<T>(items: T[], size: number) {
+  const chunks: T[][] = [];
+  const clean = items.filter(Boolean);
+  for (let i = 0; i < clean.length; i += size) chunks.push(clean.slice(i, i + size));
+  return chunks.length ? chunks : [[]];
+}
+
 function CoverPage({ bgPath, children }: { bgPath?: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl shadow border border-[#d1d5db] print-page flex flex-col"
-         style={{ position: "relative", aspectRatio: "297/210", overflow: "hidden" }}>
+         style={{ ...A4_PAGE_STYLE, position: "relative" }}>
       {bgPath && (
         <img src={fileUrl(bgPath)} alt=""
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", opacity: 0.22, pointerEvents: "none", zIndex: 0 }} />
       )}
       <div style={{ position: "relative", zIndex: 1, display: "flex", flexDirection: "column", flex: 1, minHeight: 0 }}>
-        <div style={{ display: "flex", justifyContent: "flex-end", padding: "16px 32px 0", flexShrink: 0 }}>
-          <img src="/refrence/Header.jpg" alt="Fumakilla" style={{ height: 46, objectFit: "contain", mixBlendMode: "multiply" }} />
+        <div style={{ display: "flex", justifyContent: "flex-end", padding: "18px 30px 0", flexShrink: 0 }}>
+          <img src="/refrence/Header-transparent.png" alt="Fumakilla" style={{ height: 64, objectFit: "contain", backgroundColor: "transparent" }} />
         </div>
         <div style={{ margin: "4px 32px 0", borderBottom: "1px solid #1a4d8c", flexShrink: 0 }} />
         <div style={{ flex: 1, minHeight: 0, overflow: "hidden", position: "relative", display: "flex", flexDirection: "column" }}>{children}</div>
@@ -53,7 +84,7 @@ function CoverPage({ bgPath, children }: { bgPath?: string; children: React.Reac
 function SlidePage({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="bg-white rounded-xl shadow border border-[#d1d5db] print-page flex flex-col"
-         style={{ aspectRatio: "297/210", overflow: "hidden" }}>
+         style={{ ...A4_PAGE_STYLE, position: "relative" }}>
       <div className="flex items-start justify-between px-6 pt-2 pb-1" style={{ flexShrink: 0 }}>
         <h1 style={{ fontFamily: "Georgia, serif", fontSize: 19, fontWeight: 700, fontStyle: "italic", color: "#111" }}>
           {title}
@@ -71,7 +102,7 @@ function SlidePage({ title, children }: { title: string; children: React.ReactNo
 function ThankYouPage() {
   return (
     <div className="bg-white rounded-xl shadow border border-[#d1d5db] print-page flex flex-col"
-         style={{ aspectRatio: "297/210", overflow: "hidden" }}>
+         style={A4_PAGE_STYLE}>
       {/* Header */}
       <div style={{ display: "flex", justifyContent: "flex-end", padding: "14px 32px 4px", flexShrink: 0 }}>
         <img src="/refrence/Header.jpg" alt="Fumakilla" style={{ height: 44, objectFit: "contain", mixBlendMode: "multiply" }} />
@@ -117,6 +148,99 @@ function BulletEditor({ items, onChange, placeholder = "Tambah poin..." }: {
   );
 }
 
+function OrderedListEditor({ items, onChange, placeholder = "Tambah rekomendasi..." }: {
+  items: string[]; onChange: (v: string[]) => void; placeholder?: string;
+}) {
+  const [values, setValues] = useState<string[]>(() => items.length ? items : [""]);
+  useEffect(() => {
+    setValues(items.length ? items : [""]);
+  }, [items.join("\u0001")]);
+  const commit = (next: string[]) => {
+    setValues(next.length ? next : [""]);
+    onChange(next);
+  };
+  const update = (i: number, value: string) => {
+    const next = [...values];
+    next[i] = value;
+    commit(next);
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      {values.map((item, i) => (
+        <div key={i} className="flex items-center gap-1.5">
+          <span className="min-w-[18px] text-right text-[10px] font-semibold text-[#1a4d8c]">{i + 1}.</span>
+          <input value={item} onChange={e => update(i, e.target.value)} placeholder={placeholder}
+            className="flex-1 rounded border border-[#e5e7eb] px-1.5 py-1 text-[10px] focus:border-[#1a4d8c] focus:outline-none" />
+          <button type="button" onClick={() => commit(values.filter((_, j) => j !== i))}
+            className="no-print text-[10px] text-red-400 hover:text-red-600">x</button>
+        </div>
+      ))}
+      <button type="button" onClick={() => commit([...values, ""])}
+        className="no-print text-left text-[10px] text-[#1a4d8c] hover:underline">+ Tambah rekomendasi</button>
+    </div>
+  );
+}
+
+function RichFindingEditor({ items, onChange }: { items: string[]; onChange: (v: string[]) => void }) {
+  const values = items.length ? items : [""];
+  const boldRef = useRef<HTMLButtonElement>(null);
+  const italicRef = useRef<HTMLButtonElement>(null);
+  const strikeRef = useRef<HTMLButtonElement>(null);
+  const baseToolClass = "h-6 w-6 rounded border text-[10px] transition-colors border-[#d1d5db] bg-white text-[#374151] hover:border-[#1a4d8c]";
+  const activeToolClass = "h-6 w-6 rounded border text-[10px] transition-colors border-[#1a4d8c] bg-[#1a4d8c] text-white";
+  const setButtonClass = (ref: { current: HTMLButtonElement | null }, selected: boolean, extra = "") => {
+    if (ref.current) ref.current.className = `${selected ? activeToolClass : baseToolClass} ${extra}`;
+  };
+  const syncActive = () => {
+    setButtonClass(boldRef, document.queryCommandState("bold"), "font-bold");
+    setButtonClass(italicRef, document.queryCommandState("italic"), "italic");
+    setButtonClass(strikeRef, document.queryCommandState("strikeThrough"), "line-through");
+  };
+  const run = (cmd: "bold" | "italic" | "strikeThrough") => {
+    document.execCommand(cmd);
+    requestAnimationFrame(syncActive);
+  };
+  const update = (i: number, value: string) => {
+    const next = [...values];
+    next[i] = value;
+    onChange(next);
+  };
+  return (
+    <div className="flex flex-col gap-1">
+      <div className="no-print mb-1 flex gap-1">
+        <button ref={boldRef} type="button" onMouseDown={e => { e.preventDefault(); run("bold"); }}
+          className={`${baseToolClass} font-bold`}>B</button>
+        <button ref={italicRef} type="button" onMouseDown={e => { e.preventDefault(); run("italic"); }}
+          className={`${baseToolClass} italic`}>I</button>
+        <button ref={strikeRef} type="button" onMouseDown={e => { e.preventDefault(); run("strikeThrough"); }}
+          className={`${baseToolClass} line-through`}>S</button>
+      </div>
+      {values.map((item, i) => (
+        <div key={i} className="flex items-start gap-1.5">
+          <span className="mt-1 min-w-[16px] text-xs font-bold text-[#111]">{i + 1}.</span>
+          <div
+            contentEditable
+            suppressContentEditableWarning
+            onBlur={e => update(i, e.currentTarget.innerHTML)}
+            onKeyUp={e => {
+              if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "Home", "End"].includes(e.key)) syncActive();
+            }}
+            onMouseUp={syncActive}
+            onFocus={syncActive}
+            dangerouslySetInnerHTML={{ __html: item }}
+            data-placeholder="Temuan survei..."
+            className="min-h-[26px] flex-1 rounded border border-[#d1d5db] px-2 py-1 text-xs leading-relaxed focus:border-[#1a4d8c] focus:outline-none empty:before:text-[#9ca3af] empty:before:content-[attr(data-placeholder)]"
+          />
+          <button onClick={() => onChange(values.filter((_, j) => j !== i))}
+            className="no-print mt-1 text-[10px] text-red-400 hover:text-red-600">x</button>
+        </div>
+      ))}
+      <button onClick={() => onChange([...values, ""])}
+        className="no-print mt-0.5 text-left text-[10px] text-[#1a4d8c] hover:underline">+ Tambah temuan</button>
+    </div>
+  );
+}
+
 // ─── ImageUpload ──────────────────────────────────────────────────────────────
 function ImageUpload({ surveyId, value, onChange, label, endpoint = "b2b-report" }: {
   surveyId: string; value?: string; onChange: (path: string) => void; label: string; endpoint?: string;
@@ -158,11 +282,17 @@ const PEST_ICONS: { name: string; emoji: string }[] = [
 export default function B2BReportBuilder() {
   const { surveyId } = useParams<{ surveyId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const autoExportRef = useRef(false);
   const [activePage, setActivePage] = useState(1);
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
+  const [editMode, setEditMode] = useState(false);
   const [exportingPdf, setExportingPdf] = useState(false);
   const [surveyInfo, setSurveyInfo] = useState<any>(null);
+  const [pendingPage, setPendingPage] = useState<number | null>(null);
+  const canApprove = ["ADMIN", "MANAGER"].includes((user as any)?.role);
 
   const defaultData: ReportData = {
     clientName: "", clientAddress: "",
@@ -172,11 +302,8 @@ export default function B2BReportBuilder() {
     pestSections: [], resumeRows: [], status: "draft",
   };
   const [data, setData] = useState<ReportData>(defaultData);
-
-  const floorPlanRef = useRef<FloorPlanCanvasHandle>(null);
-  const envCanvasRef = useRef<FloorPlanCanvasHandle>(null);
-  const pestCanvasRef = useRef<FloorPlanCanvasHandle>(null);
-  const sectionCanvasRefs = useRef<Record<string, FloorPlanCanvasHandle>>({});
+  const approved = Boolean(data.approvedAt && data.approvedByName);
+  const checkedInOut = Boolean(surveyInfo?.evidenceImagePath && surveyInfo?.checkoutImagePath);
 
   useEffect(() => {
     api.get(`/b2b-report/${surveyId}`).then(res => {
@@ -196,6 +323,8 @@ export default function B2BReportBuilder() {
           pestSections: Array.isArray(d.pestSections) ? d.pestSections : [],
           resumeRows: Array.isArray(d.resumeRows) ? d.resumeRows : [],
           status: d.status || "draft",
+          approvedByName: d.approvedByName || undefined,
+          approvedAt: d.approvedAt || undefined,
         });
       } else if (res.data.survey) {
         const sv = res.data.survey;
@@ -212,44 +341,131 @@ export default function B2BReportBuilder() {
     }).catch(() => {});
   }, [surveyId]);
 
-  const set = (patch: Partial<ReportData>) => setData(prev => ({ ...prev, ...patch }));
+  const set = (patch: Partial<ReportData>) => setData(prev => ({
+    ...prev,
+    status: "draft",
+    approvedByName: undefined,
+    approvedAt: undefined,
+    ...patch,
+  }));
 
   const save = async () => {
     setSaving(true); setSaveMsg("");
     try {
-      await api.post(`/b2b-report/${surveyId}`, data);
+      const nextData = { ...data, status: "draft", approvedByName: undefined, approvedAt: undefined };
+      await api.post(`/b2b-report/${surveyId}`, nextData);
+      setData(nextData);
+      setEditMode(false);
       setSaveMsg("Tersimpan ✓");
       setTimeout(() => setSaveMsg(""), 2500);
     } catch { setSaveMsg("Gagal simpan"); }
     finally { setSaving(false); }
   };
 
+  const approve = async () => {
+    setSaving(true); setSaveMsg("");
+    try {
+      await api.post(`/b2b-report/${surveyId}`, data);
+      const res = await api.post(`/b2b-report/${surveyId}/approve`);
+      setData(prev => ({ ...prev, approvedByName: res.data.data.approvedByName, approvedAt: res.data.data.approvedAt, status: "approved" }));
+      setEditMode(false);
+      setSaveMsg("Approved");
+      setTimeout(() => setSaveMsg(""), 2500);
+    } catch (e: any) {
+      setSaveMsg(e?.response?.data?.error || "Approval gagal");
+      setTimeout(() => setSaveMsg(""), 3500);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const requireApproval = () => {
+    if (approved) return true;
+    setSaveMsg("Report harus di-approve admin dulu sebelum export");
+    setTimeout(() => setSaveMsg(""), 3000);
+    return false;
+  };
+
+  const saveCurrentData = async (payload: ReportData, message = "Tersimpan otomatis") => {
+    setSaving(true); setSaveMsg("");
+    try {
+      await api.post(`/b2b-report/${surveyId}`, payload);
+      setSaveMsg(message);
+      setTimeout(() => setSaveMsg(""), 2500);
+    } catch {
+      setSaveMsg("Autosave gagal");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const goToPage = async (page: number) => {
+    if (page === activePage || saving) return;
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+    setPendingPage(page);
+  };
+
+  const closePageDialog = () => setPendingPage(null);
+
+  const moveWithoutSaving = () => {
+    if (pendingPage == null) return;
+    setActivePage(pendingPage);
+    setPendingPage(null);
+  };
+
+  const saveAndMove = async () => {
+    if (pendingPage == null) return;
+    const nextPage = pendingPage;
+    await saveCurrentData(data, "Tersimpan");
+    setActivePage(nextPage);
+    setPendingPage(null);
+  };
+
   const addPestSection = (pestType: string) => {
+    const existing = data.pestSections.find(s => s.pestType === pestType);
     const newSection: PestSection = {
       id: Math.random().toString(36).slice(2), pestType, title: pestType,
-      findings: [""], pestFact: [], canvasData: null, useSharedCanvas: true, photos: [],
+      findings: existing?.findings?.length ? existing.findings : [""], pestFact: [], canvasData: null, useSharedCanvas: true, photos: [],
     };
-    set({ pestSections: [...data.pestSections, newSection] });
-    setActivePage(6 + data.pestSections.length);
+    const nextData = { ...data, pestSections: [...data.pestSections, newSection] };
+    setData(nextData);
+    saveCurrentData(nextData, "Seksi ditambah & tersimpan");
+    setActivePage(pestSectionStartPage + data.pestSections.length);
   };
 
   const updateSection = (id: string, patch: Partial<PestSection>) =>
     set({ pestSections: data.pestSections.map(s => s.id === id ? { ...s, ...patch } : s) });
 
-  const removeSection = (id: string) => {
+  const updatePestFindings = (pestType: string, findings: string[]) =>
+    set({ pestSections: data.pestSections.map(s => s.pestType === pestType ? { ...s, findings } : s) });
+
+  const removeSection = async (id: string) => {
     const idx = data.pestSections.findIndex(s => s.id === id);
-    set({ pestSections: data.pestSections.filter(s => s.id !== id) });
-    if (activePage === 6 + idx) setActivePage(Math.max(5, 5 + idx));
+    const nextData = { ...data, pestSections: data.pestSections.filter(s => s.id !== id) };
+    setData(nextData);
+    if (activePage === pestSectionStartPage + idx) setActivePage(Math.max(riskMappingPage, pestSectionStartPage + idx - 1));
+    setSaving(true); setSaveMsg("");
+    try {
+      await api.post(`/b2b-report/${surveyId}`, nextData);
+      setSaveMsg("Seksi dihapus & tersimpan");
+      setTimeout(() => setSaveMsg(""), 2500);
+    } catch {
+      setSaveMsg("Hapus belum tersimpan");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const generateResume = () => {
-    const rows: ResumeRow[] = data.pestSections.map(sec => {
-      const findings = sec.findings.filter(Boolean);
+    const grouped = new Map<string, PestSection[]>();
+    data.pestSections.forEach(sec => grouped.set(sec.pestType, [...(grouped.get(sec.pestType) || []), sec]));
+    const rows: ResumeRow[] = Array.from(grouped.entries()).map(([pestType, sections]) => {
+      const findings = sections.flatMap(sec => sec.findings || []).map(stripHtml).filter(Boolean);
       const summary = findings.length
         ? findings.map(f => f.endsWith(".") ? f : f + ".").join(" ")
-        : `Ditemukan aktivitas ${sec.pestType} selama survei.`;
-      const existing = data.resumeRows.find(r => r.pestType === sec.pestType);
-      return { pestType: sec.pestType, summary, recommendation: existing?.recommendation || "" };
+        : `Ditemukan aktivitas ${pestType} selama survei.`;
+      const existing = data.resumeRows.find(r => r.pestType === pestType);
+      return { pestType, summary, recommendation: existing?.recommendation || "" };
     });
     set({ resumeRows: rows });
   };
@@ -260,12 +476,81 @@ export default function B2BReportBuilder() {
     return res.data.data.path as string;
   };
 
-  const printCurrentPage = () => window.print();
+  const printCurrentPage = async () => {
+    if (typeof window === "undefined") return;
+    if (!requireApproval()) return;
+    setExportingPdf(true);
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      await new Promise(resolve => setTimeout(resolve, 600));
+      const pageEl = document.querySelector<HTMLElement>(".print-page");
+      if (!pageEl) return;
+      window.scrollTo(0, 0);
+      pageEl.scrollIntoView({ block: "start", behavior: "instant" });
+      await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200))));
+      const slideW = A4_PAGE_WIDTH;
+      const slideH = A4_PAGE_HEIGHT;
+
+      const wrappers = pageEl.querySelectorAll<HTMLElement>(".fpc-canvas-wrapper");
+      wrappers.forEach(w => { w.style.border = "none"; w.style.borderRadius = "0"; });
+      const pageRect = pageEl.getBoundingClientRect();
+      const overlays: HTMLElement[] = [];
+      pageEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+        "input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']):not([type='range']):not([type='number']), textarea"
+      ).forEach(inp => {
+        if (!inp.value) return;
+        const r = inp.getBoundingClientRect();
+        const cs = window.getComputedStyle(inp);
+        const isTextArea = inp.tagName === "TEXTAREA";
+        const div = document.createElement("div");
+        div.textContent = inp.value;
+        div.style.cssText = [
+          `position:absolute`, `left:${r.left - pageRect.left}px`, `top:${r.top - pageRect.top}px`,
+          `width:${r.width}px`, `height:${r.height}px`,
+          `font-size:${cs.fontSize}`, `font-family:${cs.fontFamily}`, `font-weight:${cs.fontWeight}`,
+          `line-height:${cs.lineHeight}`, `text-align:${cs.textAlign}`, `color:#111`, `display:${isTextArea ? "block" : "flex"}`, `align-items:${isTextArea ? "initial" : "center"}`, `justify-content:${cs.textAlign === "center" ? "center" : cs.textAlign === "right" ? "flex-end" : "flex-start"}`, `padding:0 6px`,
+          `overflow:visible`, `white-space:pre-wrap`,
+          `overflow-wrap:anywhere`, `word-break:break-word`, `z-index:900`, `pointer-events:none`, `box-sizing:border-box`,
+        ].join(";");
+        pageEl.appendChild(div);
+        overlays.push(div);
+        inp.style.setProperty("color", "transparent", "important");
+        inp.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+      });
+      const allInputs = pageEl.querySelectorAll<HTMLElement>("input, textarea, [contenteditable='true']");
+      allInputs.forEach(inp => { inp.style.border = "none"; inp.style.outline = "none"; });
+
+      const canvas = await html2canvas(pageEl, {
+        scale: 2, useCORS: true, allowTaint: true, logging: false,
+        width: slideW, height: slideH, windowWidth: slideW, windowHeight: slideH, backgroundColor: "#ffffff",
+        ignoreElements: el => el.classList.contains("fpc-toolbar") || el.classList.contains("no-print"),
+      });
+
+      overlays.forEach(d => d.remove());
+      allInputs.forEach(inp => { inp.style.removeProperty("color"); inp.style.removeProperty("-webkit-text-fill-color"); inp.style.border = ""; inp.style.outline = ""; });
+      wrappers.forEach(w => { w.style.border = ""; w.style.borderRadius = ""; });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const win = window.open("", "_blank");
+      if (!win) return;
+      win.document.write(`<!DOCTYPE html><html><head><style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #fff; }
+        img { width: 100vw; height: 100vh; object-fit: contain; display: block; }
+        @media print { @page { margin: 0; size: A4 landscape; } img { width: 100%; height: 100%; object-fit: fill; } }
+      </style></head><body><img src="${imgData}" /></body></html>`);
+      win.document.close();
+      win.onload = () => { win.focus(); win.print(); };
+    } finally {
+      setExportingPdf(false);
+    }
+  };
 
   // ── Export PDF ─────────────────────────────────────────────────────────────
   // Setiap halaman di-capture pada rasio A4 landscape (297:210) lalu fill penuh ke PDF.
   const exportPdf = async () => {
     if (typeof window === "undefined") return;
+    if (!requireApproval()) return;
     setExportingPdf(true);
     const prevPage = activePage;
     try {
@@ -274,12 +559,12 @@ export default function B2BReportBuilder() {
       const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
       const pdfW = pdf.internal.pageSize.getWidth();  // 297
       const pdfH = pdf.internal.pageSize.getHeight(); // 210
-      const totalPages = 7 + data.pestSections.length;
+      const totalPages = thankYouPage;
 
       for (let p = 1; p <= totalPages; p++) {
         setActivePage(p);
         // Tunggu React render + image load
-        await new Promise(resolve => setTimeout(resolve, 750));
+        await new Promise(resolve => setTimeout(resolve, 900));
 
         const pageEl = document.querySelector<HTMLElement>(".print-page");
         if (!pageEl) continue;
@@ -291,8 +576,58 @@ export default function B2BReportBuilder() {
         await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200))));
 
         // aspectRatio: "297/210" sudah di-set di CSS — offsetHeight otomatis proporsional A4
-        const slideW = pageEl.offsetWidth;
-        const slideH = pageEl.offsetHeight;
+        const slideW = A4_PAGE_WIDTH;
+        const slideH = A4_PAGE_HEIGHT;
+
+        // ── Pre-capture: hide canvas border + overlay input/textarea values ──
+        const wrappers = pageEl.querySelectorAll<HTMLElement>(".fpc-canvas-wrapper");
+        wrappers.forEach(w => { w.style.border = "none"; w.style.borderRadius = "0"; });
+
+        // html2canvas tidak capture React-controlled input values → buat overlay div
+        const pageRect = pageEl.getBoundingClientRect();
+        const overlays: HTMLElement[] = [];
+        pageEl.querySelectorAll<HTMLInputElement | HTMLTextAreaElement>(
+          "input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='color']):not([type='range']):not([type='number']), textarea"
+        ).forEach(inp => {
+          if (!inp.value) return;
+          const r = inp.getBoundingClientRect();
+          const cs = window.getComputedStyle(inp);
+          const isTextArea = inp.tagName === "TEXTAREA";
+          const div = document.createElement("div");
+          div.textContent = inp.value;
+          div.style.cssText = [
+            `position:absolute`,
+            `left:${r.left - pageRect.left}px`,
+            `top:${r.top - pageRect.top}px`,
+            `width:${r.width}px`,
+            `height:${r.height}px`,
+            `font-size:${cs.fontSize}`,
+            `font-family:${cs.fontFamily}`,
+            `font-weight:${cs.fontWeight}`,
+            `line-height:${cs.lineHeight}`,
+            `text-align:${cs.textAlign}`,
+            `color:#111`,
+            `display:${isTextArea ? "block" : "flex"}`,
+            `align-items:${isTextArea ? "initial" : "center"}`,
+            `justify-content:${cs.textAlign === "center" ? "center" : cs.textAlign === "right" ? "flex-end" : "flex-start"}`,
+            `padding:0 6px`,
+            `overflow:visible`,
+            `white-space:pre-wrap`,
+            `overflow-wrap:anywhere`,
+            `word-break:break-word`,
+            `z-index:900`,
+            `pointer-events:none`,
+            `box-sizing:border-box`,
+          ].join(";");
+          pageEl.appendChild(div);
+          overlays.push(div);
+          inp.style.setProperty("color", "transparent", "important"); // sembunyikan teks asli agar tidak double
+          inp.style.setProperty("-webkit-text-fill-color", "transparent", "important");
+        });
+
+        // Hilangkan juga border dashed input agar tidak muncul di PDF
+        const allInputs = pageEl.querySelectorAll<HTMLElement>("input, textarea, [contenteditable='true']");
+        allInputs.forEach(inp => { inp.style.border = "none"; inp.style.outline = "none"; });
 
         const canvas = await html2canvas(pageEl, {
           scale: 2,
@@ -301,11 +636,18 @@ export default function B2BReportBuilder() {
           logging: false,
           width: slideW,
           height: slideH,
+          windowWidth: slideW,
+          windowHeight: slideH,
           backgroundColor: "#ffffff",
           ignoreElements: el =>
             el.classList.contains("fpc-toolbar") ||
             el.classList.contains("no-print"),
         });
+
+        // ── Post-capture: restore semua ──
+        overlays.forEach(d => d.remove());
+        allInputs.forEach(inp => { inp.style.removeProperty("color"); inp.style.removeProperty("-webkit-text-fill-color"); inp.style.border = ""; inp.style.outline = ""; });
+        wrappers.forEach(w => { w.style.border = ""; w.style.borderRadius = ""; });
 
         if (p > 1) pdf.addPage();
         // Stretch persis ke A4 — tidak ada whitespace / margin
@@ -319,15 +661,78 @@ export default function B2BReportBuilder() {
     }
   };
 
+  const exportPpt = async () => {
+    if (typeof window === "undefined") return;
+    if (!requireApproval()) return;
+    setExportingPdf(true);
+    const prevPage = activePage;
+    try {
+      const pptxgen = (await import("pptxgenjs")).default;
+      const { renderPageToSlide, PAGE_W_IN, PAGE_H_IN } = await import("@/lib/domToPptx");
+      const pptx = new pptxgen();
+      // Layout A4 landscape (rasio sama dgn halaman) supaya tidak melar.
+      pptx.defineLayout({ name: "A4L", width: PAGE_W_IN, height: PAGE_H_IN });
+      pptx.layout = "A4L";
+      const totalPages = thankYouPage;
+
+      for (let p = 1; p <= totalPages; p++) {
+        setActivePage(p);
+        await new Promise(resolve => setTimeout(resolve, 900));
+        const pageEl = document.querySelector<HTMLElement>(".print-page");
+        if (!pageEl) continue;
+        window.scrollTo(0, 0);
+        pageEl.scrollIntoView({ block: "start", behavior: "instant" });
+        await new Promise<void>(r => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(r, 200))));
+
+        // Sembunyikan border pembungkus canvas agar denah bersih.
+        const wrappers = pageEl.querySelectorAll<HTMLElement>(".fpc-canvas-wrapper");
+        wrappers.forEach(w => { w.style.border = "none"; w.style.borderRadius = "0"; });
+
+        const slide = pptx.addSlide();
+        slide.background = { color: "FFFFFF" };
+        // Bangun slide dari elemen DOM native (teks/tabel/shape editable + gambar denah/foto).
+        await renderPageToSlide(pptx, slide, pageEl);
+
+        wrappers.forEach(w => { w.style.border = ""; w.style.borderRadius = ""; });
+      }
+
+      await pptx.writeFile({ fileName: `report-b2b-${surveyId}.pptx` });
+    } finally {
+      setActivePage(prevPage);
+      setExportingPdf(false);
+    }
+  };
+
+  useEffect(() => {
+    const action = searchParams.get("export");
+    if (!surveyInfo || autoExportRef.current || !["pdf", "ppt"].includes(action || "")) return;
+    autoExportRef.current = true;
+    if (action === "pdf") void exportPdf();
+    if (action === "ppt") void exportPpt();
+  }, [surveyInfo, searchParams, approved]);
+
+  const generalNoteChunks = chunkItems(data.generalNotes, 8);
+  const environmentalRiskChunks = chunkItems(data.environmentalRisks, 8);
+  const generalExtraPages = Math.max(0, generalNoteChunks.length - 1);
+  const envExtraPages = Math.max(0, environmentalRiskChunks.length - 1);
+  const envFactPage = 3 + generalExtraPages;
+  const pestConcernPage = envFactPage + 1 + envExtraPages;
+  const riskMappingPage = pestConcernPage + 1;
+  const pestSectionStartPage = riskMappingPage + 1;
+  const resumePage = pestSectionStartPage + data.pestSections.length;
+  const thankYouPage = resumePage + 1;
+
   const pages = [
     { num: 1, label: "Cover" },
     { num: 2, label: "Info Survey" },
-    { num: 3, label: "Environment Fact (1)" },
-    { num: 4, label: "Environment Fact (2)" },
-    { num: 5, label: "Risk Mapping" },
-    ...data.pestSections.map((s, i) => ({ num: 6 + i, label: s.title || s.pestType, id: s.id })),
-    { num: 6 + data.pestSections.length, label: "Resume" },
-    { num: 7 + data.pestSections.length, label: "Thank You" },
+    ...generalNoteChunks.slice(1).map((_, i) => ({ num: 3 + i, label: `Info Survey (${i + 2})` })),
+    { num: envFactPage, label: "Environment Fact (1)" },
+    ...environmentalRiskChunks.slice(1).map((_, i) => ({ num: envFactPage + 1 + i, label: `Environment Fact (${i + 2})` })),
+    { num: pestConcernPage, label: "Environment Fact (2)" },
+    { num: riskMappingPage, label: "Risk Mapping" },
+    ...data.pestSections.map((s, i) => ({ num: pestSectionStartPage + i, label: s.title || s.pestType, id: s.id })),
+    { num: resumePage, label: "Resume" },
+    { num: thankYouPage, label: "Thank You" },
   ];
 
   const PEST_TYPES = ["Rodent/Tikus", "Termite/Rayap", "Kecoa", "Lalat", "Semut", "Kucing", "Musang", "Kelelawar", "Burung", "Cicak", "Tawon/Lebah", "Kutu SPI"];
@@ -341,31 +746,44 @@ export default function B2BReportBuilder() {
           <span className="text-sm font-bold text-[#1a4d8c]">Report B2B Survey</span>
           {surveyInfo && <span className="text-xs text-[#6b7280]">— {surveyInfo.customer?.company || surveyInfo.customer?.name}</span>}
         </div>
-        <div className="flex items-center gap-2">
-          {saveMsg && <span className="text-xs text-green-600">{saveMsg}</span>}
-          <button onClick={save} disabled={saving}
-            className="rounded-lg bg-[#1a4d8c] px-4 py-2 text-xs font-semibold text-white hover:bg-[#163d70] disabled:opacity-50">
-            {saving ? "Menyimpan..." : "💾 Simpan"}
-          </button>
-          <button onClick={printCurrentPage}
-            className="rounded-lg border border-[#6b7280] px-4 py-2 text-xs font-semibold text-[#6b7280] hover:bg-[#f3f4f6]">
-            🖨 Print Halaman Ini
-          </button>
-          <button onClick={exportPdf} disabled={exportingPdf}
-            className="rounded-lg border border-[#1a4d8c] px-4 py-2 text-xs font-semibold text-[#1a4d8c] hover:bg-[#f0f5ff] disabled:opacity-50">
-            {exportingPdf ? "⏳ Mengekspor..." : "📄 Export PDF Semua"}
-          </button>
+        <div className="flex items-center gap-2">          {saveMsg && <span className="text-xs text-green-600">{saveMsg}</span>}
+          {!editMode ? (
+            <button onClick={() => setEditMode(true)}
+              className="rounded-lg border border-[#1a4d8c] px-4 py-2 text-xs font-semibold text-[#1a4d8c] hover:bg-[#f0f5ff]">
+              Edit
+            </button>
+          ) : (
+            <>
+              <button onClick={() => setEditMode(false)} disabled={saving}
+                className="rounded-lg border border-[#d1d5db] px-4 py-2 text-xs font-semibold text-[#374151] hover:bg-[#f3f4f6] disabled:opacity-50">
+                Batal
+              </button>
+              <button onClick={save} disabled={saving}
+                className="rounded-lg bg-[#1a4d8c] px-4 py-2 text-xs font-semibold text-white hover:bg-[#163d70] disabled:opacity-50">
+                {saving ? "Menyimpan..." : "Simpan"}
+              </button>
+            </>
+          )}
+          {!editMode && canApprove && !approved && (
+            <button
+              onClick={() => { if (!checkedInOut) { setSaveMsg("Check in & check out survey harus selesai dulu"); setTimeout(() => setSaveMsg(""), 3500); return; } void approve(); }}
+              disabled={saving}
+              className="rounded-lg border border-green-700 px-4 py-2 text-xs font-semibold text-green-700 hover:bg-green-50 disabled:opacity-50">
+              Approve by System
+            </button>
+          )}
+          {approved && <span className="text-xs font-bold text-green-700">✓ Approved</span>}
         </div>
       </div>
 
       <div className="flex flex-1">
         {/* Sidebar nav */}
-        <aside className="no-print hidden w-56 shrink-0 flex-col border-r border-[#d9ddeb] bg-[#f9fafb] py-4 md:flex">
+        <aside className="no-print hidden w-64 shrink-0 flex-col border-r border-[#d9ddeb] bg-[#f9fafb] py-4 md:flex">
           <p className="px-4 text-[10px] font-bold uppercase tracking-wider text-[#9ca3af] mb-2">Halaman</p>
           {pages.map(p => (
-            <div key={p.num} className="flex items-center">
-              <button onClick={() => setActivePage(p.num)}
-                className={`flex-1 px-4 py-2 text-left text-xs transition-colors ${activePage === p.num ? "bg-[#e8f0fe] font-semibold text-[#1a4d8c]" : "text-[#374151] hover:bg-[#f3f4f6]"}`}>
+            <div key={p.num} className="flex items-center gap-2 px-2">
+              <button onClick={() => goToPage(p.num)}
+                className={`min-w-0 flex-1 rounded px-2 py-2 text-left text-xs transition-colors ${activePage === p.num ? "bg-[#e8f0fe] font-semibold text-[#1a4d8c]" : "text-[#374151] hover:bg-[#f3f4f6]"}`}>
                 <span className="mr-2 inline-block w-5 text-center opacity-50">{p.num}</span>{p.label}
               </button>
               {"id" in p && (
@@ -386,8 +804,13 @@ export default function B2BReportBuilder() {
         </aside>
 
         {/* Content */}
-        <main className="no-print-wrapper flex-1 overflow-auto p-6 bg-[#f5f7fc]">
-          <div className="mx-auto max-w-4xl flex flex-col gap-6">
+        <main className={`no-print-wrapper flex-1 overflow-auto p-6 bg-[#f5f7fc] ${editMode ? "b2b-edit-mode" : "b2b-read-mode"}`}>
+          <div className="mx-auto flex w-max min-w-full flex-col items-center gap-6">
+            <div className="no-print flex items-center justify-between rounded-lg border border-[#d1d5db] bg-white px-4 py-2 text-xs text-[#6b7280]"
+                 style={{ width: A4_PAGE_WIDTH }}>
+              <span>Preview A4 landscape PDF</span>
+              <span>{A4_PAGE_WIDTH} x {A4_PAGE_HEIGHT}px · 297 x 210 mm</span>
+            </div>
 
             {/* ── Page 1: Cover ──────────────────────────────────────────── */}
             {activePage === 1 && (
@@ -411,36 +834,48 @@ export default function B2BReportBuilder() {
                 </div>
 
                 {/* Konten cover — tata letak: judul di ~30% atas, info klien di ~65% bawah */}
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 40px" }}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 52px", textAlign: "center" }}>
                   {/* Spacer atas */}
-                  <div style={{ flex: 2 }} />
+                  <div style={{ flex: 1.25 }} />
 
                   {/* Judul */}
                   <div style={{ textAlign: "center" }}>
-                    <h1 style={{ fontSize: 32, fontWeight: 900, letterSpacing: 2, color: "#111", marginBottom: 6 }}>PEST CONTROL REPORT</h1>
-                    <div style={{ width: 80, height: 4, backgroundColor: "#1a4d8c", borderRadius: 2, margin: "0 auto" }} />
+                    <h1 style={{ fontSize: 66, lineHeight: 1.05, fontWeight: 900, letterSpacing: 0, color: "#05080d", marginBottom: 28 }}>PEST CONTROL REPORT</h1>
                   </div>
 
                   {/* Spacer tengah */}
-                  <div style={{ flex: 3 }} />
+                  <div style={{ flex: 1.3 }} />
 
                   {/* Info klien */}
-                  <div style={{ textAlign: "center", width: "100%", maxWidth: 480 }}>
-                    <p style={{ fontStyle: "italic", color: "#555", fontSize: 13, marginBottom: 10 }}>for</p>
-                    <input value={data.clientName} onChange={e => set({ clientName: e.target.value })}
-                      placeholder="Nama Perusahaan / Klien"
-                      className="cover-input"
-                      style={{ width: "100%", textAlign: "center", fontSize: 20, fontWeight: 700, color: "#111",
-                        border: "1px dashed #d1d5db", borderRadius: 6, padding: "4px 10px", background: "transparent" }} />
-                    <textarea value={data.clientAddress} onChange={e => set({ clientAddress: e.target.value })}
-                      rows={2} placeholder="Alamat lengkap klien"
-                      className="cover-input"
-                      style={{ width: "100%", textAlign: "center", fontSize: 12, color: "#555", marginTop: 6,
-                        border: "1px dashed #d1d5db", borderRadius: 6, padding: "4px 10px", resize: "none", background: "transparent" }} />
+                  <div style={{ textAlign: "center", width: "100%", maxWidth: 820 }}>
+                    <p style={{ fontFamily: "Georgia, serif", fontStyle: "italic", color: "#111", fontSize: 22, marginBottom: 56 }}>for</p>
+                    {exportingPdf ? (
+                      <>
+                        <div style={{ width: "100%", textAlign: "center", fontSize: 42, lineHeight: 1.15, fontWeight: 800, color: "#111" }}>
+                          {data.clientName}
+                        </div>
+                        <div style={{ width: "100%", textAlign: "center", fontSize: 22, lineHeight: 1.18, color: "#30343a", marginTop: 10, whiteSpace: "pre-wrap" }}>
+                          {data.clientAddress}
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <input value={data.clientName} onChange={e => set({ clientName: e.target.value })}
+                          placeholder="Nama Perusahaan / Klien"
+                          className="cover-input"
+                          style={{ width: "100%", textAlign: "center", fontSize: 42, lineHeight: 1.15, fontWeight: 800, color: "#111",
+                            border: "1px dashed #d1d5db", borderRadius: 6, padding: "4px 10px", background: "transparent" }} />
+                        <textarea value={data.clientAddress} onChange={e => set({ clientAddress: e.target.value })}
+                          rows={2} placeholder="Alamat lengkap klien"
+                          className="cover-input"
+                          style={{ width: "100%", textAlign: "center", fontSize: 22, lineHeight: 1.18, color: "#30343a", marginTop: 10,
+                            border: "1px dashed #d1d5db", borderRadius: 6, padding: "4px 10px", resize: "none", background: "transparent" }} />
+                      </>
+                    )}
                   </div>
 
                   {/* Spacer bawah */}
-                  <div style={{ flex: 2 }} />
+                  <div style={{ flex: 1.1 }} />
                 </div>
               </CoverPage>
             )}
@@ -448,37 +883,50 @@ export default function B2BReportBuilder() {
             {/* ── Page 2: Info Survey ─────────────────────────────────────── */}
             {activePage === 2 && (
               <CoverPage bgPath={data.coverImagePath}>
-                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 40px" }}>
-                  <div style={{ flex: 1 }} />
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 40px", textAlign: "center" }}>
+                  <div style={{ flex: 0.95 }} />
 
                   {/* Judul */}
                   <div style={{ textAlign: "center", marginBottom: 10 }}>
-                    <h1 style={{ fontSize: 28, fontWeight: 900, letterSpacing: 1, color: "#111", marginBottom: 5 }}>PEST CONTROL REPORT</h1>
-                    <div style={{ width: 70, height: 3, backgroundColor: "#1a4d8c", borderRadius: 2, margin: "0 auto" }} />
+                    <h1 style={{ fontSize: 66, lineHeight: 1.05, fontWeight: 900, letterSpacing: 0, color: "#05080d", marginBottom: 44 }}>PEST CONTROL REPORT</h1>
                   </div>
 
                   {/* Info fields */}
-                  <div style={{ width: "100%", maxWidth: 520, display: "flex", flexDirection: "column", gap: 8 }}>
+                  <div style={{ width: "100%", maxWidth: 760, display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
                     {/* Surveyor */}
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#111", minWidth: 100, textDecoration: "underline", flexShrink: 0 }}>Surveyor</span>
-                      <span style={{ fontSize: 12, color: "#374151", flexShrink: 0 }}>:</span>
-                      <input value={data.surveyorNames} onChange={e => set({ surveyorNames: e.target.value })}
-                        placeholder="Nama surveyor..."
-                        style={{ flex: 1, fontSize: 12, color: "#111", border: "1px dashed #d1d5db", borderRadius: 4, padding: "2px 8px", background: "transparent", minWidth: 0 }} />
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, width: "100%" }}>
+                      <span style={{ width: 150, fontSize: 18, color: "#111", textAlign: "right", flexShrink: 0 }}>Surveyor</span>
+                      <span style={{ fontSize: 18, color: "#111", flexShrink: 0 }}>:</span>
+                      {exportingPdf ? (
+                        <span style={{ width: 520, fontSize: 18, lineHeight: "22px", color: "#111", textAlign: "left" }}>{data.surveyorNames}</span>
+                      ) : (
+                        <input value={data.surveyorNames} onChange={e => set({ surveyorNames: e.target.value })}
+                          placeholder="Nama surveyor..."
+                          style={{ width: 520, fontSize: 18, lineHeight: 1.2, color: "#111", fontWeight: 400, border: "1px dashed #c7d2dd", borderRadius: 4, padding: "0 4px", background: "transparent", minWidth: 0 }} />
+                      )}
                     </div>
                     {/* Tanggal */}
-                    <div style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: "#111", minWidth: 100, textDecoration: "underline", flexShrink: 0 }}>Tanggal Survey</span>
-                      <span style={{ fontSize: 12, color: "#374151", flexShrink: 0 }}>:</span>
-                      <input value={data.surveyDate} onChange={e => set({ surveyDate: e.target.value })}
-                        placeholder="29 Mei 2026"
-                        style={{ flex: 1, fontSize: 12, color: "#111", border: "1px dashed #d1d5db", borderRadius: 4, padding: "2px 8px", background: "transparent", minWidth: 0 }} />
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 5, width: "100%" }}>
+                      <span style={{ width: 150, fontSize: 18, color: "#111", textAlign: "right", flexShrink: 0 }}>Tanggal Survey</span>
+                      <span style={{ fontSize: 18, color: "#111", flexShrink: 0 }}>:</span>
+                      {exportingPdf ? (
+                        <span style={{ width: 520, fontSize: 18, lineHeight: "22px", color: "#111", textAlign: "left" }}>{data.surveyDate}</span>
+                      ) : (
+                        <input value={data.surveyDate} onChange={e => set({ surveyDate: e.target.value })}
+                          placeholder="29 Mei 2026"
+                          style={{ width: 520, fontSize: 18, lineHeight: 1.2, color: "#111", fontWeight: 400, border: "1px dashed #c7d2dd", borderRadius: 4, padding: "0 4px", background: "transparent", minWidth: 0 }} />
+                      )}
                     </div>
                     {/* General Notes */}
-                    <div style={{ marginTop: 4 }}>
-                      <p style={{ fontSize: 12, fontWeight: 700, color: "#111", marginBottom: 4 }}>General Notes :</p>
-                      <BulletEditor items={data.generalNotes} onChange={v => set({ generalNotes: v })} placeholder="Catatan temuan..." />
+                    <div className="info-notes" style={{ marginTop: 24, width: "100%", maxWidth: 680 }}>
+                      <p style={{ fontSize: 18, fontWeight: 700, color: "#111", marginBottom: 10, textAlign: "center" }}>General Notes :</p>
+                      {exportingPdf || !editMode ? (
+                        <ol style={{ margin: 0, padding: 0, listStylePosition: "inside", fontSize: 18, lineHeight: "27px", color: "#111", textAlign: "center" }}>
+                          {generalNoteChunks[0].map((note, i) => <li key={i}>{note}</li>)}
+                        </ol>
+                      ) : (
+                        <BulletEditor items={data.generalNotes} onChange={v => set({ generalNotes: v })} placeholder="Catatan temuan..." />
+                      )}
                     </div>
                   </div>
 
@@ -488,14 +936,30 @@ export default function B2BReportBuilder() {
             )}
 
             {/* ── Page 3: Environment Fact (1) ─────────────────────────────── */}
-            {activePage === 3 && (
+            {generalNoteChunks.slice(1).map((chunk, i) => activePage === 3 + i && (
+              <CoverPage key={`general-notes-${i}`} bgPath={data.coverImagePath}>
+                <div style={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", padding: "0 40px", textAlign: "center" }}>
+                  <div style={{ flex: 0.95 }} />
+                  <h1 style={{ fontSize: 54, lineHeight: 1.05, fontWeight: 900, letterSpacing: 0, color: "#05080d", marginBottom: 34 }}>PEST CONTROL REPORT</h1>
+                  <div className="info-notes" style={{ width: "100%", maxWidth: 740 }}>
+                    <p style={{ fontSize: 18, fontWeight: 700, color: "#111", marginBottom: 10, textAlign: "center" }}>General Notes :</p>
+                    <ol style={{ margin: 0, padding: 0, listStylePosition: "inside", fontSize: 18, lineHeight: "27px", color: "#111", textAlign: "center" }}>
+                      {chunk.map((note, noteIndex) => <li key={noteIndex}>{note}</li>)}
+                    </ol>
+                  </div>
+                  <div style={{ flex: 2 }} />
+                </div>
+              </CoverPage>
+            ))}
+
+            {activePage === envFactPage && (
               <SlidePage title="Environment Fact">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col">
-                    <FloorPlanCanvas ref={envCanvasRef}
+                  <div className="flex flex-col overflow-hidden">
+                    <FloorPlanCanvas
                       initialData={data.canvasDataEnv ?? undefined}
                       onChange={d => set({ canvasDataEnv: d })}
-                      width={490} height={390} />
+                      width={520} height={375} hideGrid={exportingPdf} />
                   </div>
                   <div className="flex flex-col gap-3">
                     <div>
@@ -506,8 +970,14 @@ export default function B2BReportBuilder() {
                     </div>
                     <div>
                       <p className="text-xs font-bold text-[#111] mb-1">Key Environmental Risk:</p>
-                      <BulletEditor items={data.environmentalRisks}
-                        onChange={v => set({ environmentalRisks: v })} placeholder="Faktor risiko lingkungan..." />
+                      {editMode && !exportingPdf ? (
+                        <BulletEditor items={data.environmentalRisks}
+                          onChange={v => set({ environmentalRisks: v })} placeholder="Faktor risiko lingkungan..." />
+                      ) : (
+                        <ul className="space-y-1 text-xs leading-relaxed text-[#111]">
+                          {environmentalRiskChunks[0].map((risk, riskIndex) => <li key={riskIndex} className="flex gap-1.5"><span className="font-bold text-[#1a4d8c]">-</span><span>{risk}</span></li>)}
+                        </ul>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -515,29 +985,67 @@ export default function B2BReportBuilder() {
             )}
 
             {/* ── Page 4: Environment Fact (2) ─────────────────────────────── */}
-            {activePage === 4 && (
+            {environmentalRiskChunks.slice(1).map((chunk, i) => activePage === envFactPage + 1 + i && (
+              <SlidePage key={`env-risk-${i}`} title="Environment Fact">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="flex flex-col overflow-hidden">
+                    <FloorPlanCanvas
+                      initialData={data.canvasDataEnv ?? undefined}
+                      onChange={d => set({ canvasDataEnv: d })}
+                      width={520} height={375} hideGrid={exportingPdf} />
+                  </div>
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <p className="text-xs font-bold text-[#111] mb-1">Key Environmental Risk:</p>
+                      <ul className="space-y-1 text-xs leading-relaxed text-[#111]">
+                        {chunk.map((risk, riskIndex) => <li key={riskIndex} className="flex gap-1.5"><span className="font-bold text-[#1a4d8c]">-</span><span>{risk}</span></li>)}
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </SlidePage>
+            ))}
+
+            {activePage === pestConcernPage && (
               <SlidePage title="Environment Fact">
                 <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col">
-                    <FloorPlanCanvas ref={pestCanvasRef}
+                  <div className="flex flex-col overflow-hidden">
+                    <FloorPlanCanvas
                       initialData={data.canvasDataPest ?? undefined}
                       onChange={d => set({ canvasDataPest: d })}
-                      width={490} height={390} />
+                      width={520} height={375} hideGrid={exportingPdf} />
                   </div>
-                  <div className="flex flex-col gap-2">
-                    <div>
-                      <p className="text-xs font-bold text-[#111] mb-0.5">Pest Concern:</p>
-                      <textarea value={data.pestConcern} onChange={e => set({ pestConcern: e.target.value })}
-                        rows={4} placeholder="Jenis hama yang menjadi concern..."
-                        className="w-full rounded border border-[#d1d5db] px-2 py-1 text-xs focus:border-[#1a4d8c] focus:outline-none resize-none" />
-                    </div>
-                    <div className="grid grid-cols-6 gap-1 mt-2">
+                  <div style={{ paddingLeft: 4, display: "flex", flexDirection: "column", gap: 8 }}>
+                    <p className="text-xs font-bold text-[#111]">Pest Concern:</p>
+                    <textarea value={data.pestConcern} onChange={e => set({ pestConcern: e.target.value })}
+                      rows={5} placeholder="Jenis hama yang menjadi concern..."
+                      style={{ resize: "none", height: 92 }}
+                      className="w-full rounded border border-[#d1d5db] px-2 py-1 text-xs focus:border-[#1a4d8c] focus:outline-none" />
+                    <p className="text-xs font-bold text-[#111]">Inspection Focus:</p>
+                    <textarea value={data.inspectionFocus} onChange={e => set({ inspectionFocus: e.target.value })}
+                      rows={5} placeholder="Area/fokus inspeksi..."
+                      style={{ resize: "none", height: 92 }}
+                      className="w-full rounded border border-[#d1d5db] px-2 py-1 text-xs focus:border-[#1a4d8c] focus:outline-none" />
+                    <div className="grid grid-cols-6 gap-x-2 gap-y-3 pt-1">
                       {PEST_ICONS.map(p => (
-                        <div key={p.name} className="flex flex-col items-center gap-0.5">
-                          <div style={{ width: 30, height: 30, borderRadius: "50%", border: "2px solid #1a4d8c",
-                            display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15 }}>
+                        <div key={p.name} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+                          <span
+                            style={{
+                              width: 34,
+                              height: 34,
+                              borderRadius: "50%",
+                              border: "1.5px solid #1a4d8c",
+                              backgroundColor: "#fff",
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: 19,
+                              lineHeight: 1,
+                              boxSizing: "border-box",
+                            }}
+                          >
                             {p.emoji}
-                          </div>
+                          </span>
                           <span style={{ fontSize: 7, textAlign: "center", color: "#374151", lineHeight: 1.2 }}>{p.name}</span>
                         </div>
                       ))}
@@ -548,16 +1056,16 @@ export default function B2BReportBuilder() {
             )}
 
             {/* ── Page 5: Pest Risk Mapping ─────────────────────────────────── */}
-            {activePage === 5 && (
+            {activePage === riskMappingPage && (
               <SlidePage title="Pest Risk Mapping">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="col-span-2">
-                    <FloorPlanCanvas ref={floorPlanRef}
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="col-span-2 overflow-hidden">
+                    <FloorPlanCanvas
                       initialData={data.floorPlanCanvasData ?? undefined}
                       onChange={d => set({ floorPlanCanvasData: d })}
-                      width={580} height={385} />
+                      width={700} height={375} hideGrid={exportingPdf} />
                   </div>
-                  <div className="col-span-1 flex flex-col gap-2">
+                  <div className="col-span-1 flex flex-col gap-2 pl-1">
                     {[
                       { color: "#ef4444", level: "High Risk", desc: "Active pest evidence / critical condition", action: "Immediate action" },
                       { color: "#eab308", level: "Medium Risk", desc: "Potential pest risk / supporting condition found", action: "Corrective action" },
@@ -582,7 +1090,7 @@ export default function B2BReportBuilder() {
 
             {/* ── Pages 6+: Pest Sections ──────────────────────────────────── */}
             {data.pestSections.map((sec, idx) => {
-              if (activePage !== 6 + idx) return null;
+              if (activePage !== pestSectionStartPage + idx) return null;
               return (
                 <SlidePage key={sec.id} title={sec.title || sec.pestType}>
                   <div className="no-print flex items-center gap-2 mb-2 bg-[#f9fafb] border border-[#e5e7eb] rounded-lg px-3 py-1.5">
@@ -590,28 +1098,30 @@ export default function B2BReportBuilder() {
                     <input value={sec.title} onChange={e => updateSection(sec.id, { title: e.target.value })}
                       placeholder="Judul seksi..."
                       className="flex-1 rounded border border-[#d1d5db] px-2 py-0.5 text-xs focus:border-[#1a4d8c] focus:outline-none" />
-                    <button onClick={() => removeSection(sec.id)}
-                      className="rounded border border-red-200 px-2 py-0.5 text-[10px] text-red-500 hover:bg-red-50">Hapus</button>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-2">
-                      <div className="no-print flex items-center gap-1.5 mb-0.5">
-                        <input type="checkbox" id={`shared-${sec.id}`} checked={sec.useSharedCanvas}
-                          onChange={e => updateSection(sec.id, { useSharedCanvas: e.target.checked })} />
-                        <label htmlFor={`shared-${sec.id}`} className="text-[9px] text-[#6b7280]">Gunakan denah dari Risk Mapping</label>
-                      </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col overflow-hidden">
                       <FloorPlanCanvas
-                        ref={sec.useSharedCanvas ? undefined : el => { if (el) sectionCanvasRefs.current[sec.id] = el; }}
                         initialData={(sec.useSharedCanvas ? data.floorPlanCanvasData : sec.canvasData) ?? undefined}
                         onChange={d => updateSection(sec.id, { canvasData: d })}
-                        width={460} height={380} />
+                        width={520} height={370}
+                        hideGrid={exportingPdf}
+                        toolbarExtra={
+                          <label className="flex items-center gap-1 cursor-pointer select-none text-[9px] text-[#6b7280] whitespace-nowrap">
+                            <input type="checkbox" checked={sec.useSharedCanvas}
+                              onChange={e => updateSection(sec.id, { useSharedCanvas: e.target.checked })}
+                              className="accent-[#1a4d8c]" />
+                            Pakai denah Risk Mapping
+                          </label>
+                        } />
                     </div>
 
-                    <div className="flex flex-col gap-3">
+                    <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 0, paddingLeft: 4 }}>
                       <div>
                         <p className="text-xs font-bold text-[#111] mb-1">Hasil Survey :</p>
-                        <div className="flex flex-col gap-1">
+                        <RichFindingEditor items={sec.findings} onChange={findings => updatePestFindings(sec.pestType, findings)} />
+                        <div className="hidden">
                           {sec.findings.map((item, i) => (
                             <div key={i} className="flex items-start gap-1.5">
                               <span className="mt-1.5 text-[#111] font-bold text-xs min-w-[16px]">{i + 1}.</span>
@@ -637,7 +1147,7 @@ export default function B2BReportBuilder() {
             })}
 
             {/* ── Resume ──────────────────────────────────────────────────────── */}
-            {activePage === 6 + data.pestSections.length && (
+            {activePage === resumePage && (
               <SlidePage title="Resume">
                 <div className="no-print flex items-center justify-between mb-3">
                   <p className="text-[10px] text-[#6b7280]">Tabel ringkasan temuan dan rekomendasi</p>
@@ -663,19 +1173,29 @@ export default function B2BReportBuilder() {
                       <tbody>
                         {data.resumeRows.map((row, i) => (
                           <tr key={i} style={{ borderTop: "1px solid #e5e7eb", backgroundColor: i % 2 === 0 ? "#f0f4f8" : "white" }}>
-                            <td className="px-3 py-2 font-semibold text-[#1a4d8c] text-[10px]">{i + 1}</td>
-                            <td className="px-3 py-2 font-semibold text-[10px]">{row.pestType}</td>
-                            <td className="px-3 py-2">
-                              <textarea value={row.summary} onChange={e => {
-                                const rows = [...data.resumeRows]; rows[i] = { ...rows[i], summary: e.target.value };
-                                set({ resumeRows: rows });
-                              }} rows={3} className="w-full rounded border border-[#e5e7eb] px-1.5 py-1 text-[10px] focus:border-[#1a4d8c] focus:outline-none resize-none bg-transparent" />
+                            <td className="px-3 py-2 align-top font-semibold text-[#1a4d8c] text-[10px]">{i + 1}</td>
+                            <td className="px-3 py-2 align-top font-semibold text-[10px]">{row.pestType}</td>
+                            <td className="px-3 py-2 align-top">
+                              {exportingPdf ? (
+                                <div style={{ fontSize: 10, lineHeight: 1.45, color: "#111", whiteSpace: "pre-wrap" }}>{row.summary}</div>
+                              ) : (
+                                <textarea value={row.summary} onChange={e => {
+                                  const rows = [...data.resumeRows]; rows[i] = { ...rows[i], summary: e.target.value };
+                                  set({ resumeRows: rows });
+                                }} rows={3} className="block w-full rounded border border-[#e5e7eb] px-1.5 py-0 text-[10px] leading-relaxed focus:border-[#1a4d8c] focus:outline-none resize-none bg-transparent" />
+                              )}
                             </td>
-                            <td className="px-3 py-2">
-                              <textarea value={row.recommendation} onChange={e => {
-                                const rows = [...data.resumeRows]; rows[i] = { ...rows[i], recommendation: e.target.value };
-                                set({ resumeRows: rows });
-                              }} rows={3} placeholder="Rekomendasi..." className="w-full rounded border border-[#e5e7eb] px-1.5 py-1 text-[10px] focus:border-[#1a4d8c] focus:outline-none resize-none" />
+                            <td className="px-3 py-2 align-top">
+                              {exportingPdf ? (
+                                <ol style={{ margin: 0, paddingLeft: 14, fontSize: 10, lineHeight: 1.45, color: "#111" }}>
+                                  {splitList(row.recommendation).map((item, idx) => <li key={idx}>{item}</li>)}
+                                </ol>
+                              ) : (
+                                <OrderedListEditor items={splitList(row.recommendation)} onChange={items => {
+                                  const rows = [...data.resumeRows]; rows[i] = { ...rows[i], recommendation: items.join("\n") };
+                                  set({ resumeRows: rows });
+                                }} />
+                              )}
                             </td>
                           </tr>
                         ))}
@@ -691,20 +1211,81 @@ export default function B2BReportBuilder() {
             )}
 
             {/* ── Thank You ────────────────────────────────────────────────── */}
-            {activePage === 7 + data.pestSections.length && <ThankYouPage />}
+            {activePage === thankYouPage && <ThankYouPage />}
 
             {/* Navigation */}
-            <div className="no-print flex justify-between">
-              <button disabled={activePage === 1} onClick={() => setActivePage(p => p - 1)}
+            <div className="no-print flex justify-between" style={{ width: A4_PAGE_WIDTH }}>
+              <button disabled={activePage === 1} onClick={() => goToPage(activePage - 1)}
                 className="rounded-lg border px-4 py-2 text-sm disabled:opacity-30 hover:bg-[#f3f4f6]">← Sebelumnya</button>
-              <button disabled={activePage === pages[pages.length - 1].num} onClick={() => setActivePage(p => p + 1)}
+              <button disabled={activePage === pages[pages.length - 1].num} onClick={() => goToPage(activePage + 1)}
                 className="rounded-lg border px-4 py-2 text-sm disabled:opacity-30 hover:bg-[#f3f4f6]">Selanjutnya →</button>
             </div>
           </div>
         </main>
       </div>
 
+      {pendingPage !== null && (
+        <div className="no-print fixed inset-0 z-50 flex items-center justify-center bg-black/35 px-4">
+          <div className="w-full max-w-md rounded-xl border border-[#d9ddeb] bg-white p-5 shadow-xl">
+            <h2 className="text-base font-bold text-[#111]">Simpan perubahan?</h2>
+            <p className="mt-2 text-sm leading-relaxed text-[#6b7280]">
+              Kamu akan pindah ke halaman lain. Simpan perubahan halaman ini dulu agar tidak hilang saat refresh.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button onClick={closePageDialog}
+                className="rounded-lg border border-[#d1d5db] px-4 py-2 text-xs font-semibold text-[#374151] hover:bg-[#f3f4f6]">
+                Batal
+              </button>
+              <button onClick={moveWithoutSaving}
+                className="rounded-lg border border-[#d1d5db] px-4 py-2 text-xs font-semibold text-[#6b7280] hover:bg-[#f3f4f6]">
+                Pindah Tanpa Simpan
+              </button>
+              <button onClick={saveAndMove} disabled={saving}
+                className="rounded-lg bg-[#1a4d8c] px-4 py-2 text-xs font-semibold text-white hover:bg-[#163d70] disabled:opacity-50">
+                {saving ? "Menyimpan..." : "Simpan & Pindah"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <style>{`
+        .info-notes .print-bullet-row { justify-content: center; }
+        .info-notes .print-bullet-row span { color: #111 !important; font-size: 18px !important; line-height: 26px !important; margin-top: 0 !important; }
+        .info-notes input { max-width: 560px; border-color: transparent !important; background: transparent !important; color: #111 !important; font-size: 18px !important; line-height: 26px !important; padding: 0 4px !important; }
+        .b2b-read-mode input,
+        .b2b-read-mode textarea,
+        .b2b-read-mode [contenteditable="true"] {
+          pointer-events: none !important;
+          border-color: transparent !important;
+          background: transparent !important;
+          color: #111 !important;
+        }
+        .b2b-read-mode .fpc-toolbar,
+        .b2b-read-mode .no-print button,
+        .b2b-read-mode button[title="Hapus seksi ini"] {
+          display: none !important;
+        }
+        [contenteditable][data-placeholder]:empty:before { content: attr(data-placeholder); color: #9ca3af; }
+        button[title="Hapus seksi ini"] {
+          margin-right: 0 !important;
+          flex-shrink: 0;
+          border: 1px solid #fecaca !important;
+          background: #fef2f2 !important;
+          color: #dc2626 !important;
+          border-radius: 6px !important;
+          padding: 4px 8px !important;
+          font-size: 0 !important;
+          font-weight: 700 !important;
+        }
+        button[title="Hapus seksi ini"]::after {
+          content: "Hapus";
+          font-size: 10px;
+        }
+        button[title="Hapus seksi ini"]:hover {
+          border-color: #fca5a5 !important;
+          background: #fee2e2 !important;
+        }
         /* ═══════════════ PRINT / PDF STYLES ═══════════════ */
         @media print {
           @page { size: A4 landscape; margin: 0; }
@@ -766,3 +1347,5 @@ export default function B2BReportBuilder() {
     </div>
   );
 }
+
+

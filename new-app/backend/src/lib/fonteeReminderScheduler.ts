@@ -407,26 +407,19 @@ async function checkAbsenReminders(): Promise<void> {
     if (!rule?.message_template) return;
 
     const roleIds = (rule.role_ids as bigint[]) ?? [];
-    const userWhere: any = { whatsapp_number: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
-    if (roleIds.length > 0) userWhere.roles = { some: { role_id: { in: roleIds } } };
 
-    // Cari yang sudah absen masuk tapi belum keluar
+    // Cari yang sudah absen masuk tapi belum keluar — filter role + punya WA langsung di query
+    const userFilter: any = { whatsapp_number: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+    if (roleIds.length > 0) userFilter.roles = { some: { role_id: { in: roleIds } } };
     const masukTapiBelumKeluar = await prisma.absenKaryawan.findMany({
       where: {
         tanggal: { gte: todayStart, lt: todayEnd },
         jam_masuk: { not: null },
         jam_keluar: null,
+        user: userFilter,
       },
       include: { user: { select: { id: true, name: true, whatsapp_number: true } } },
     });
-
-    // Filter by role if needed
-    const targets = roleIds.length > 0
-      ? masukTapiBelumKeluar.filter(async (a) => {
-          const u = (a as any).user;
-          return u?.whatsapp_number;
-        })
-      : masukTapiBelumKeluar.filter((a) => (a as any).user?.whatsapp_number);
 
     const jamPulangStr = cfg.jam_pulang;
     const msg = fillTemplate(rule.message_template, { jam_pulang: jamPulangStr });

@@ -852,6 +852,8 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const kategori = req.query.kategori as string | undefined;
   const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 50);
   const searchFilter = exactForSingleCharSearch(search);
+  // Lead dipisah per-modul sesuai brand — Payment Projek/Desain/Survey dari
+  // Follow Up Leads Admin Sales (sales-admin), RKR/Golden/Filter Air dari modulnya masing-masing.
   const where: Record<string, unknown> = {};
   if (!kategori) return res.json({ items: [] });
   if (["Payment Desain", "Payment Survey", "Payment Projek"].includes(kategori)) {
@@ -1163,24 +1165,30 @@ router.post("/invoices/:id/mark-paid", async (req: Request, res: Response) => {
   if (inv.status === "Lunas") return res.status(400).json({ detail: "Invoice sudah Lunas" });
   if (inv.status !== "Terbit") return res.status(400).json({ detail: "Invoice harus berstatus Terbit (sudah ditandatangani) sebelum ditandai lunas" });
   const { metode_bayar, detail_bayar, bukti_bayar } = req.body;
-  const nomorKwitansi = `KWT-${new Date().toISOString().slice(0, 7).replace("-", "")}-${String(Math.floor(Math.random() * 9000) + 1000)}`;
-  await prisma.invoice.update({ where: { id }, data: { status: "Lunas" } });
+  // Suffix berbasis timestamp (ms, base36) + random — jauh lebih kecil peluang tabrakan dari 4 digit random
+  const nomorKwitansi = `KWT-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Date.now().toString(36).slice(-5).toUpperCase()}${Math.floor(Math.random() * 90 + 10)}`;
   let kwitansi = inv.kwitansi;
   if (!kwitansi) {
-    kwitansi = await prisma.kwitansi.create({
-      data: {
-        invoice_id: inv.id,
-        nomor_kwitansi: nomorKwitansi,
-        tanggal: new Date(),
-        jumlah_diterima: inv.grand_total,
-        metode_bayar: metode_bayar || "Transfer Bank",
-        detail_bayar: detail_bayar || null,
-        bukti_bayar: bukti_bayar || null,
-        keterangan: [metode_bayar, detail_bayar].filter(Boolean).join(" - "),
-      },
-    });
-  } else if (bukti_bayar) {
-    await prisma.kwitansi.update({ where: { id: kwitansi.id }, data: { bukti_bayar } });
+    // Atomik: tandai Lunas + buat kwitansi dalam satu transaksi
+    const [, createdKwitansi] = await prisma.$transaction([
+      prisma.invoice.update({ where: { id }, data: { status: "Lunas" } }),
+      prisma.kwitansi.create({
+        data: {
+          invoice_id: inv.id,
+          nomor_kwitansi: nomorKwitansi,
+          tanggal: new Date(),
+          jumlah_diterima: inv.grand_total,
+          metode_bayar: metode_bayar || "Transfer Bank",
+          detail_bayar: detail_bayar || null,
+          bukti_bayar: bukti_bayar || null,
+          keterangan: [metode_bayar, detail_bayar].filter(Boolean).join(" - "),
+        },
+      }),
+    ]);
+    kwitansi = createdKwitansi;
+  } else {
+    await prisma.invoice.update({ where: { id }, data: { status: "Lunas" } });
+    if (bukti_bayar) await prisma.kwitansi.update({ where: { id: kwitansi.id }, data: { bukti_bayar } });
   }
 
   // Auto-track ke Kanban Sales Golden jika kategori = "Payment Golden"

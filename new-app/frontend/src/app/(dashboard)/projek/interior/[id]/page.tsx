@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { RappSipilView } from "@/components/rapp-sipil";
+import { LaporanPicProjekTab } from "@/components/laporan-pic-projek-tab";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { interiorProjekApi } from "@/lib/api/content";
@@ -26,7 +27,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, Pencil, Trash2, Home, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
-  Camera, Upload, X, ImageIcon, CheckSquare,
+  Camera, Upload, X, ImageIcon, CheckSquare, ClipboardCheck,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -680,6 +681,7 @@ export default function ProyekInteriorDetailPage() {
   const canTabRapp       = sa || hasPermission("projek_interior", "rapp");
   const canTabDokumentasi= true;
   const canTabChecklist  = true;
+  const canTabLaporanPic = sa || hasPermission("projek_interior", "laporan_pic");
   const defaultTab       = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabRapp ? "rapp" : "dokumentasi";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
@@ -918,6 +920,7 @@ export default function ProyekInteriorDetailPage() {
           {canTabRapp       && <TabsTrigger value="rapp"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />RAPP</TabsTrigger>}
           {canTabDokumentasi && <TabsTrigger value="dokumentasi"><Camera className="h-3.5 w-3.5 mr-1.5" />Dokumentasi</TabsTrigger>}
           {canTabChecklist   && <TabsTrigger value="checklist"><CheckSquare className="h-3.5 w-3.5 mr-1.5" />Form Checklist</TabsTrigger>}
+          {canTabLaporanPic  && <TabsTrigger value="laporan-pic"><ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />Laporan PIC Project</TabsTrigger>}
         </TabsList>
 
         {/* Daftar Termin */}
@@ -1108,6 +1111,13 @@ export default function ProyekInteriorDetailPage() {
         <TabsContent value="checklist" className="mt-4">
           <ChecklistTab projekId={id} api={interiorProjekApi} projekDetail={{ nama_proyek: detail?.nama_proyek, lead: detail?.lead, lokasi: detail?.lokasi, tipe: "PROYEK INTERIOR" }} />
         </TabsContent>
+
+        {/* Laporan PIC Project (terhubung dari Laporan Harian PIC) */}
+        {canTabLaporanPic && (
+          <TabsContent value="laporan-pic" className="mt-4">
+            <LaporanPicProjekTab projectType="interior" projectId={id} />
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Dialog Termin */}

@@ -7,6 +7,18 @@ import { config } from "../config";
 
 const router = Router();
 
+// Parse kolom gambar_paths (JSON array string) dengan aman — 1 baris korup tidak boleh
+// menjatuhkan seluruh endpoint list. Fallback ke path tunggal legacy bila ada.
+function parseGambarPaths(paths: string | null | undefined, single: string | null | undefined): string[] {
+  if (paths) {
+    try {
+      const arr = JSON.parse(paths);
+      if (Array.isArray(arr)) return arr;
+    } catch { /* fallthrough ke path tunggal */ }
+  }
+  return single ? [single] : [];
+}
+
 function calcProgress(items: { status: string | null }[]): number {
   if (items.length === 0) return 0;
   const done = items.filter((i) => i.status === "Selesai").length;
@@ -818,8 +830,8 @@ function serializeChecklist(i: any) {
     ...i,
     id: String(i.id),
     proyek_id: String(i.proyek_id),
-    gambar_paths: i.gambar_paths ? JSON.parse(i.gambar_paths) : (i.gambar_path ? [i.gambar_path] : []),
-    gambar_selesai_paths: i.gambar_selesai_paths ? JSON.parse(i.gambar_selesai_paths) : (i.gambar_selesai_path ? [i.gambar_selesai_path] : []),
+    gambar_paths: parseGambarPaths(i.gambar_paths, i.gambar_path),
+    gambar_selesai_paths: parseGambarPaths(i.gambar_selesai_paths, i.gambar_selesai_path),
   };
 }
 
@@ -869,7 +881,7 @@ router.patch("/projeks/checklist/:cid", upload.fields([{ name: "gambar", maxCoun
 
   const gambarFiles = files?.gambar ?? [];
   if (gambarFiles.length > 0) {
-    const oldPaths: string[] = existing.gambar_paths ? JSON.parse(existing.gambar_paths) : (existing.gambar_path ? [existing.gambar_path] : []);
+    const oldPaths: string[] = parseGambarPaths(existing.gambar_paths, existing.gambar_path);
     for (const p of oldPaths) {
       const fp = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -881,7 +893,7 @@ router.patch("/projeks/checklist/:cid", upload.fields([{ name: "gambar", maxCoun
 
   const gambarSelesaiFiles = files?.gambar_selesai ?? [];
   if (gambarSelesaiFiles.length > 0) {
-    const oldPaths: string[] = existing.gambar_selesai_paths ? JSON.parse(existing.gambar_selesai_paths) : (existing.gambar_selesai_path ? [existing.gambar_selesai_path] : []);
+    const oldPaths: string[] = parseGambarPaths(existing.gambar_selesai_paths, existing.gambar_selesai_path);
     for (const p of oldPaths) {
       const fp = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
       if (fs.existsSync(fp)) fs.unlinkSync(fp);
@@ -901,8 +913,8 @@ router.delete("/projeks/checklist/:cid", async (req: Request, res: Response) => 
   const existing = await prisma.checklistInterior.findUnique({ where: { id: cid } });
   if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
   const allPaths: string[] = [
-    ...(existing.gambar_paths ? JSON.parse(existing.gambar_paths) : (existing.gambar_path ? [existing.gambar_path] : [])),
-    ...(existing.gambar_selesai_paths ? JSON.parse(existing.gambar_selesai_paths) : (existing.gambar_selesai_path ? [existing.gambar_selesai_path] : [])),
+    ...parseGambarPaths(existing.gambar_paths, existing.gambar_path),
+    ...parseGambarPaths(existing.gambar_selesai_paths, existing.gambar_selesai_path),
   ];
   for (const p of allPaths) {
     const filePath = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));

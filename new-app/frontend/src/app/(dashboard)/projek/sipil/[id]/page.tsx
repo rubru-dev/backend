@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { RappSipilView } from "@/components/rapp-sipil";
+import { LaporanPicProjekTab } from "@/components/laporan-pic-projek-tab";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { sipilApi } from "@/lib/api/content";
@@ -27,7 +28,7 @@ import {
   Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
   Link2, ExternalLink, X, Upload, FileText, PackageSearch, Boxes, Camera, ImageIcon,
-  CheckSquare, Download, DollarSign,
+  CheckSquare, Download, DollarSign, ClipboardCheck,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -858,6 +859,7 @@ export default function ProyekSipilDetailPage() {
   const canTabStockOpname= sa || hasPermission("projek_sipil", "stock_opname");
   const canTabDokumentasi= sa || hasPermission("projek_sipil", "dokumentasi");
   const canTabChecklist  = sa || hasPermission("projek_sipil", "checklist");
+  const canTabLaporanPic = sa || hasPermission("projek_sipil", "laporan_pic");
   const defaultTab = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabDocs ? "docs" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : "dokumentasi";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
@@ -1248,6 +1250,7 @@ export default function ProyekSipilDetailPage() {
           {canTabStockOpname && <TabsTrigger value="stock-opname"><PackageSearch className="h-3.5 w-3.5 mr-1.5" />Stock Opname</TabsTrigger>}
           {canTabDokumentasi && <TabsTrigger value="dokumentasi"><Camera className="h-3.5 w-3.5 mr-1.5" />Dokumentasi</TabsTrigger>}
           {canTabChecklist   && <TabsTrigger value="checklist"><CheckSquare className="h-3.5 w-3.5 mr-1.5" />Form Checklist</TabsTrigger>}
+          {canTabLaporanPic  && <TabsTrigger value="laporan-pic"><ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />Laporan PIC Project</TabsTrigger>}
           {sa                && <TabsTrigger value="rab-termin"><DollarSign className="h-3.5 w-3.5 mr-1.5" />Termin</TabsTrigger>}
         </TabsList>
 
@@ -1711,6 +1714,13 @@ export default function ProyekSipilDetailPage() {
         <TabsContent value="checklist" className="mt-4">
           <ChecklistTab projekId={id} api={sipilApi} projekDetail={{ nama_proyek: detail?.nama_proyek, lead: detail?.lead, lokasi: detail?.lokasi, tipe: "PROYEK SIPIL" }} />
         </TabsContent>
+
+        {/* Laporan PIC Project (terhubung dari Laporan Harian PIC) */}
+        {canTabLaporanPic && (
+          <TabsContent value="laporan-pic" className="mt-4">
+            <LaporanPicProjekTab projectType="sipil" projectId={id} />
+          </TabsContent>
+        )}
 
         {/* Termin RAB — Super Admin only */}
         {sa && (

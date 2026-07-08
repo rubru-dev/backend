@@ -261,8 +261,30 @@ router.put("/roles/:id/permissions", requireRole("Super Admin"), async (req: Req
 // Permission yang harus selalu ada (auto-sync tanpa perlu re-run seeder)
 const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }> = [
   { name: "pic.kalender_visit", module: "pic", label: "Sub-menu: Kalender Visit PIC" },
+  { name: "pic.dokumentasi", module: "pic", label: "Sub-menu: Upload Dokumentasi Projek" },
   { name: "projek.gudang_workshop", module: "projek", label: "Sub-menu: Gudang/Workshop" },
   { name: "projek.form_bast", module: "projek", label: "Sub-menu: Form BAST" },
+  // Projek Sipil tab-level (dijamin muncul di matrix Roles)
+  { name: "projek_sipil.termin",       module: "projek_sipil", label: "Tab: Daftar Termin Sipil" },
+  { name: "projek_sipil.gantt",        module: "projek_sipil", label: "Tab: Gantt Chart Sipil" },
+  { name: "projek_sipil.docs",         module: "projek_sipil", label: "Tab: Docs/Link Sipil" },
+  { name: "projek_sipil.rapp",         module: "projek_sipil", label: "Tab: RAPP Sipil" },
+  { name: "projek_sipil.stock_opname", module: "projek_sipil", label: "Tab: Stock Opname Sipil" },
+  { name: "projek_sipil.dokumentasi",  module: "projek_sipil", label: "Tab: Dokumentasi Foto Sipil" },
+  { name: "projek_sipil.checklist",    module: "projek_sipil", label: "Tab: Form Checklist Sipil" },
+  { name: "projek_sipil.laporan_pic",  module: "projek_sipil", label: "Tab: Laporan PIC Project Sipil" },
+  // Projek Interior tab-level (lengkapi yang belum terdaftar)
+  { name: "projek_interior.termin",       module: "projek_interior", label: "Tab: Daftar Termin Interior" },
+  { name: "projek_interior.gantt",        module: "projek_interior", label: "Tab: Gantt Chart Interior" },
+  { name: "projek_interior.rapp",         module: "projek_interior", label: "Tab: RAPP Interior" },
+  { name: "projek_interior.docs",         module: "projek_interior", label: "Tab: Docs/Link Interior" },
+  { name: "projek_interior.dokumentasi",  module: "projek_interior", label: "Tab: Dokumentasi Foto Interior" },
+  { name: "projek_interior.checklist",    module: "projek_interior", label: "Tab: Form Checklist Interior" },
+  { name: "projek_interior.laporan_pic",  module: "projek_interior", label: "Tab: Laporan PIC Project Interior" },
+  // Projek Desain tab-level
+  { name: "projek_desain.gantt",  module: "projek_desain", label: "Tab: Gantt Chart Desain" },
+  { name: "projek_desain.docs",   module: "projek_desain", label: "Tab: Docs/Link Desain" },
+  { name: "projek_desain.kanban", module: "projek_desain", label: "Tab: Kanban Pekerjaan Desain" },
   { name: "bd.report_analytics", module: "bd", label: "Sub-menu: Report dan Analytics BD" },
   { name: "telemarketing.view",          module: "telemarketing", label: "Lihat Sales Admin Product dan Mitra" },
   { name: "telemarketing.create",        module: "telemarketing", label: "Buat Sales Admin Product dan Mitra" },

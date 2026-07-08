@@ -25,3 +25,13 @@ export const config = {
   mediamtxApiUrl: process.env.MEDIAMTX_API_URL ?? "http://localhost:9997",
   mediamtxHlsBaseUrl: process.env.MEDIAMTX_HLS_BASE_URL ?? "http://localhost:8888",
 };
+
+// Jangan biarkan JWT ditandatangani dengan secret default yang diketahui publik.
+// CORS_ALLOW_ALL=true dipakai sebagai penanda mode dev (lihat index.ts).
+if (config.secretKey === "dev-secret-key-change-in-production") {
+  if (process.env.CORS_ALLOW_ALL === "true") {
+    console.warn("[config] SECRET_KEY belum di-set — memakai default DEV. JANGAN dipakai di production.");
+  } else {
+    throw new Error("[config] SECRET_KEY wajib di-set di production. Set environment variable SECRET_KEY.");
+  }
+}

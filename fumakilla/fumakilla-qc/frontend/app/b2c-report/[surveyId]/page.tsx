@@ -1,8 +1,11 @@
 "use client";
-import { useState, useEffect } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useState, useEffect, useRef } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { Loading } from "@/components/erp/shared";
+import { SignatureModal } from "@/components/erp/SignatureModal";
+import { showAlert } from "@/lib/app-modal";
+import { useAuth } from "@/hooks/useAuth";
 
 const BLUE = "#1a4d8c";
 const ORANGE = "#e06b28";
@@ -32,6 +35,10 @@ interface B2CDoc {
   catatanPIC: string[];
   kesimpulan: string;
   disiapkanOleh: string;
+  status?: string;
+  approvedByName?: string;
+  approvedAt?: string;
+  approvedSignature?: string;
 }
 
 const DEFAULT_DOC: B2CDoc = {
@@ -53,6 +60,7 @@ const DEFAULT_DOC: B2CDoc = {
   catatanPIC: [""],
   kesimpulan: "",
   disiapkanOleh: "",
+  status: "draft",
 };
 
 /* ─── Helper components ─────────────────────────── */
@@ -188,12 +196,21 @@ function TableEditor<T extends object>({
 export default function B2CReportPage() {
   const { surveyId } = useParams<{ surveyId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { user } = useAuth();
+  const documentRef = useRef<HTMLDivElement>(null);
+  const autoExportRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [editMode, setEditMode] = useState(false);
   const [surveyInfo, setSurveyInfo] = useState<any>(null);
   const [doc, setDoc] = useState<B2CDoc>(DEFAULT_DOC);
+  const canApprove = ["ADMIN", "MANAGER"].includes((user as any)?.role);
+  const approved = Boolean(doc.approvedAt && doc.approvedByName);
+  const [sigOpen, setSigOpen] = useState(false);
+  const checkedInOut = Boolean(surveyInfo?.evidenceImagePath && surveyInfo?.checkoutImagePath);
 
   useEffect(() => {
     (async () => {
@@ -257,13 +274,108 @@ export default function B2CReportPage() {
   const save = async () => {
     setSaving(true);
     try {
-      await api.post(`/b2c-report/${surveyId}`, doc);
+      const nextDoc = { ...doc, status: "draft", approvedByName: undefined, approvedAt: undefined };
+      await api.post(`/b2c-report/${surveyId}`, nextDoc);
+      setDoc(nextDoc);
       setEditMode(false);
       setSaveMsg("Tersimpan!");
       setTimeout(() => setSaveMsg(""), 2500);
-    } catch { alert("Gagal menyimpan."); }
+    } catch { showAlert({ title: "Gagal menyimpan", message: "Gagal menyimpan.", tone: "danger" }); }
     finally { setSaving(false); }
   };
+
+  const approve = async (signature: string) => {
+    setSaving(true);
+    try {
+      await api.post(`/b2c-report/${surveyId}`, doc);
+      const res = await api.post(`/b2c-report/${surveyId}/approve`, { signature });
+      setDoc(d => ({ ...d, ...res.data.data }));
+      setEditMode(false);
+      setSigOpen(false);
+      setSaveMsg("Approved");
+      setTimeout(() => setSaveMsg(""), 2500);
+    } catch (e: any) {
+      showAlert({ title: "Approval gagal", message: e?.response?.data?.error || "Approval hanya bisa dilakukan admin/manager.", tone: "danger" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const requireApproval = () => {
+    if (approved) return true;
+    showAlert({ title: "Belum approved", message: "Report harus ditandatangani/di-approve admin dulu sebelum export PDF atau PowerPoint." });
+    return false;
+  };
+
+  const exportPdfAll = async () => {
+    if (!requireApproval() || !documentRef.current || typeof window === "undefined") return;
+    setExporting(true);
+    try {
+      const { jsPDF } = await import("jspdf");
+      const html2canvas = (await import("html2canvas")).default;
+      await new Promise(resolve => setTimeout(resolve, 250));
+      const canvas = await html2canvas(documentRef.current, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff" });
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgH = canvas.height * pageW / canvas.width;
+      let y = 0;
+      pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, y, pageW, imgH);
+      let remaining = imgH - pageH;
+      while (remaining > 0) {
+        y -= pageH;
+        pdf.addPage();
+        pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, y, pageW, imgH);
+        remaining -= pageH;
+      }
+      pdf.save(`report-b2c-${surveyId}.pdf`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const exportPptAll = async () => {
+    if (!requireApproval() || !documentRef.current || typeof window === "undefined") return;
+    setExporting(true);
+    try {
+      const pptxgen = (await import("pptxgenjs")).default;
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(documentRef.current, { scale: 2, useCORS: true, allowTaint: true, backgroundColor: "#ffffff" });
+      const pptx = new pptxgen();
+      pptx.layout = "LAYOUT_WIDE";
+      const slideW = 13.333;
+      const slideH = 7.5;
+      const pagePxH = Math.floor(canvas.width * (297 / 210));
+      for (let top = 0; top < canvas.height; top += pagePxH) {
+        const slice = document.createElement("canvas");
+        slice.width = canvas.width;
+        slice.height = Math.min(pagePxH, canvas.height - top);
+        const ctx = slice.getContext("2d");
+        if (!ctx) continue;
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, slice.width, slice.height);
+        ctx.drawImage(canvas, 0, top, slice.width, slice.height, 0, 0, slice.width, slice.height);
+        const imgData = slice.toDataURL("image/png");
+        const imgRatio = slice.width / slice.height;
+        const fitH = Math.min(slideH, slideW / imgRatio);
+        const fitW = fitH * imgRatio;
+        const slide = pptx.addSlide();
+        slide.background = { color: "FFFFFF" };
+        slide.addImage({ data: imgData, x: (slideW - fitW) / 2, y: (slideH - fitH) / 2, w: fitW, h: fitH });
+      }
+      await pptx.writeFile({ fileName: `report-b2c-${surveyId}.pptx` });
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  useEffect(() => {
+    const action = searchParams.get("export");
+    if (loading || autoExportRef.current || !["pdf", "ppt"].includes(action || "")) return;
+    autoExportRef.current = true;
+    if (action === "pdf") void exportPdfAll();
+    if (action === "ppt") void exportPptAll();
+  }, [loading, searchParams, approved]);
 
   const set = <K extends keyof B2CDoc>(k: K) => (v: B2CDoc[K]) =>
     setDoc(d => ({ ...d, [k]: v }));
@@ -292,14 +404,23 @@ export default function B2CReportPage() {
               </button>
             </>
           )}
+          {!editMode && canApprove && !approved && (
+            <button
+              onClick={() => { if (!checkedInOut) { showAlert({ title: "Belum bisa approve", message: "Check in & check out survey harus selesai dulu sebelum approve report." }); return; } setSigOpen(true); }}
+              className="btn"
+              style={{ minHeight: 34, fontSize: 12, borderColor: "#16713b", color: "#16713b" }}
+            >
+              ✍️ Approve & Tanda Tangan
+            </button>
+          )}
+          {approved && <span style={{ color: "#16713b", fontWeight: 700, fontSize: 12 }}>✓ Approved</span>}
           {saveMsg && <span style={{ color: "#16713b", fontWeight: 700, fontSize: 12 }}>✓ {saveMsg}</span>}
-          <button onClick={() => window.print()} className="btn" style={{ minHeight: 34, fontSize: 12 }}>🖨️ Cetak</button>
         </div>
       </div>
 
       {/* Document */}
       <div style={{ maxWidth: 860, margin: "0 auto", padding: "32px 16px" }} className="print:p-0 print:max-w-none">
-        <div style={{ background: "#fff", boxShadow: "0 2px 16px rgba(0,0,0,.12)", borderRadius: 10, overflow: "hidden", padding: "32px 36px" }} className="print:shadow-none print:rounded-none">
+        <div ref={documentRef} style={{ background: "#fff", boxShadow: "0 2px 16px rgba(0,0,0,.12)", borderRadius: 10, overflow: "hidden", padding: "32px 36px" }} className="print:shadow-none print:rounded-none">
 
           {/* Header */}
           <div style={{ borderBottom: `4px solid ${BLUE}`, paddingBottom: 20, marginBottom: 24 }}>
@@ -525,6 +646,18 @@ export default function B2CReportPage() {
 
           {/* Signature */}
           <div style={{ marginTop: 32, display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ width: 260, textAlign: "center", marginRight: 36 }}>
+              <p style={{ fontSize: 12, color: "#374151", marginBottom: 8 }}>Approved by Admin,</p>
+              <div>
+                <div style={{ borderBottom: "1px solid #374151", marginBottom: 6, height: 48, display: "flex", alignItems: "center", justifyContent: "center", color: "#16713b", fontWeight: 800 }}>
+                  {doc.approvedSignature
+                    ? <img src={doc.approvedSignature} alt="Tanda tangan" style={{ maxHeight: 46, objectFit: "contain" }} />
+                    : (approved ? "APPROVED" : "")}
+                </div>
+                <p style={{ fontSize: 13, fontWeight: 700 }}>{doc.approvedByName || "Belum approved"}</p>
+                <p style={{ fontSize: 11, color: "#6b7280" }}>{doc.approvedAt ? new Date(doc.approvedAt).toLocaleString("id-ID") : "Admin / Manager"}</p>
+              </div>
+            </div>
             <div style={{ width: 260, textAlign: "center" }}>
               <p style={{ fontSize: 12, color: "#374151", marginBottom: 8 }}>Disiapkan oleh,</p>
               {editMode
@@ -540,6 +673,8 @@ export default function B2CReportPage() {
 
         </div>
       </div>
+
+      <SignatureModal open={sigOpen} onClose={() => setSigOpen(false)} onSubmit={approve} saving={saving} title="Tanda Tangan Approval Report B2C" />
 
       <style>{`
         @media print {

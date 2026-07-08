@@ -142,6 +142,11 @@ app.use(
     _next: express.NextFunction
   ) => {
     console.error(err);
+    // Konversi BigInt gagal (mis. id/param non-numerik) → 400 Bad Request, bukan 500
+    if (err instanceof SyntaxError && /bigint/i.test(err.message)) {
+      res.status(400).json({ detail: "Parameter tidak valid" });
+      return;
+    }
     const status = err.status ?? err.statusCode ?? 500;
     res.status(status).json({ detail: err.message ?? "Internal server error" });
   }
