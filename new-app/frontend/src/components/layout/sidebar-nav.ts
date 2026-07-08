@@ -9,6 +9,7 @@ export interface NavItem {
   icon: string;
   permission?: string; // item-level: jika diset, user harus punya permission ini untuk melihat item
   roles?: string[];    // optional item-level role allowlist
+  hideForRoles?: string[]; // sembunyikan item untuk role tertentu (mis. ["PIC Project"])
 }
 
 export interface NavGroup {
@@ -155,7 +156,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Projek Sipil",              href: "/projek/sipil",       icon: "Building2",   permission: "projek_sipil.view" },
       { label: "Projek Interior",           href: "/projek/interior",    icon: "Home",         permission: "projek_interior.view" },
-      { label: "Form BAST",                 href: "/projek/form-bast",   icon: "FileText",     permission: "projek_sipil.view" },
+      { label: "Form BAST",                 href: "/projek/form-bast",   icon: "FileText",     permission: "projek_sipil.view", hideForRoles: ["PIC Project"] },
       { label: "Gudang/Workshop",           href: "/projek/gudang-workshop", icon: "Warehouse", permission: "projek.gudang_workshop" },
       { label: "Kalender Visit",            href: "/pic/kalender-visit", icon: "CalendarDays", permission: "pic.kalender_visit" },
       { label: "Upload Dokumentasi Projek", href: "/pic/dokumentasi",    icon: "Images",       permission: "pic.dokumentasi", roles: ["PIC Project"] },

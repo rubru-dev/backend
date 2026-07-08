@@ -39,6 +39,11 @@ function SidebarItem({ item }: { item: NavItem }) {
   const { hasPermission, isSuperAdmin, hasAnyRole } = useAuthStore();
   const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 
+  // Sembunyikan item untuk role tertentu (mis. Form BAST untuk PIC Project)
+  if (item.hideForRoles?.length && !isSuperAdmin() && hasAnyRole(...item.hideForRoles)) {
+    return null;
+  }
+
   // Item-level permission check (opsional — jika tidak diset, item selalu tampil)
   if (item.permission && !isSuperAdmin()) {
     const [mod, act] = item.permission.split(".");

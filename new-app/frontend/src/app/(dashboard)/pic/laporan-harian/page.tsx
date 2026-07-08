@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { laporanPicApi } from "@/lib/api/laporanPic";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { HardHat, Upload, X, Trash2, Calendar, Building2, Home } from "lucide-react";
+import { HardHat, Upload, X, Trash2, Calendar, Building2, Home, FileDown, Filter } from "lucide-react";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -18,6 +18,12 @@ export default function PICLaporanHarianPage() {
   const [kendala, setKendala] = useState("");
   const [files, setFiles] = useState<File[]>([]);
 
+  // Filter + PDF
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
+  const [filterProject, setFilterProject] = useState("all");
+  const [downloading, setDownloading] = useState(false);
+
   const { data: options = [] } = useQuery({
     queryKey: ["laporan-pic-options", projectType],
     queryFn: () => laporanPicApi.projekOptions(projectType),
@@ -28,6 +34,78 @@ export default function PICLaporanHarianPage() {
     queryKey: ["laporan-pic-mine"],
     queryFn: () => laporanPicApi.listMine(),
   });
+
+  // Opsi projek unik dari laporan sendiri (untuk filter)
+  const projectFilterOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    mine.forEach((r) =>
+      map.set(`${r.project_type}:${r.project_id}`, `${r.project_type === "interior" ? "Interior" : "Sipil"} · ${r.project_nama ?? "#" + r.project_id}`)
+    );
+    return Array.from(map, ([value, label]) => ({ value, label }));
+  }, [mine]);
+
+  const filtered = useMemo(
+    () =>
+      mine.filter((r) => {
+        if (filterProject !== "all" && `${r.project_type}:${r.project_id}` !== filterProject) return false;
+        const d = (r.tanggal ?? "").slice(0, 10);
+        if (fromDate && d < fromDate) return false;
+        if (toDate && d > toDate) return false;
+        return true;
+      }),
+    [mine, filterProject, fromDate, toDate]
+  );
+
+  const fmt = (d: string) => format(new Date(d), "d MMM yyyy", { locale: idLocale });
+  const downloadPdf = async () => {
+    setDownloading(true);
+    try {
+      const [{ pdf }, { saveAs }, { getLogoBase64 }, { LaporanPicPdf }] = await Promise.all([
+        import("@react-pdf/renderer"),
+        import("file-saver"),
+        import("@/lib/get-logo"),
+        import("@/components/laporan-pic-pdf"),
+      ]);
+      const logo = await getLogoBase64();
+      const toB64 = async (u: string): Promise<string> => {
+        try {
+          const res = await fetch(u);
+          const blob = await res.blob();
+          return await new Promise<string>((resolve) => {
+            const fr = new FileReader();
+            fr.onloadend = () => resolve(fr.result as string);
+            fr.onerror = () => resolve("");
+            fr.readAsDataURL(blob);
+          });
+        } catch {
+          return "";
+        }
+      };
+      const rows = await Promise.all(
+        filtered.map(async (r) => ({
+          tanggal: r.tanggal ? fmt(r.tanggal) : "-",
+          project_type: r.project_type,
+          project_nama: r.project_nama ?? `#${r.project_id}`,
+          pic_name: r.user?.name ?? "PIC",
+          kegiatan: r.kegiatan,
+          kendala: r.kendala,
+          images: (await Promise.all((r.images || []).map((p) => toB64(`${API_BASE}${p}`)))).filter(Boolean),
+        }))
+      );
+      const periode =
+        fromDate || toDate
+          ? `${fromDate ? fmt(fromDate) : "Awal"} — ${toDate ? fmt(toDate) : "Sekarang"}`
+          : "Semua tanggal";
+      const projek = filterProject === "all" ? "Semua projek" : projectFilterOptions.find((o) => o.value === filterProject)?.label ?? "-";
+      const meta = { periode, projek, total: rows.length, dicetak: format(new Date(), "d MMM yyyy HH:mm", { locale: idLocale }) };
+      const blob = await pdf(<LaporanPicPdf reports={rows as any} logo={logo} meta={meta} />).toBlob();
+      saveAs(blob, `laporan-pic-project-${format(new Date(), "yyyyMMdd-HHmm")}.pdf`);
+    } catch {
+      toast.error("Gagal membuat PDF.");
+    } finally {
+      setDownloading(false);
+    }
+  };
 
   const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
   useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
@@ -195,14 +273,51 @@ export default function PICLaporanHarianPage() {
 
       {/* Riwayat laporan sendiri */}
       <div>
-        <h2 className="mb-3 text-lg font-semibold">Laporan Saya</h2>
-        {mine.length === 0 ? (
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold">Laporan Saya</h2>
+          <button
+            onClick={downloadPdf}
+            disabled={downloading || filtered.length === 0}
+            className="inline-flex items-center gap-1.5 rounded-md border border-orange-500 px-3 py-1.5 text-sm font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50"
+          >
+            <FileDown className="h-4 w-4" /> {downloading ? "Menyiapkan…" : "Download PDF"}
+          </button>
+        </div>
+
+        {/* Filter */}
+        <div className="mb-4 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-4">
+          <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground sm:col-span-4">
+            <Filter className="h-3.5 w-3.5" /> Filter
+          </div>
+          <label className="text-xs">Dari tanggal
+            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs">Sampai tanggal
+            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className={inputCls} />
+          </label>
+          <label className="text-xs sm:col-span-2">Projek
+            <select value={filterProject} onChange={(e) => setFilterProject(e.target.value)} className={inputCls}>
+              <option value="all">Semua projek</option>
+              {projectFilterOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+          <div className="text-xs text-muted-foreground sm:col-span-4">
+            Menampilkan <b>{filtered.length}</b> dari {mine.length} laporan.
+            {(fromDate || toDate || filterProject !== "all") && (
+              <button onClick={() => { setFromDate(""); setToDate(""); setFilterProject("all"); }} className="ml-2 text-orange-600 hover:underline">Reset</button>
+            )}
+          </div>
+        </div>
+
+        {filtered.length === 0 ? (
           <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
-            Belum ada laporan.
+            {mine.length === 0 ? "Belum ada laporan." : "Tidak ada laporan yang cocok dengan filter."}
           </p>
         ) : (
           <div className="space-y-3">
-            {mine.map((r) => (
+            {filtered.map((r) => (
               <div key={r.id} className="rounded-lg border bg-card p-4 shadow-sm">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
