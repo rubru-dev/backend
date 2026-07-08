@@ -1,5 +1,6 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { requireRole } from "../middleware/requireRole";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -404,7 +405,7 @@ router.get("/projeks", async (_req: Request, res: Response) => {
 });
 
 // POST /interior/projeks
-router.post("/projeks", async (req: Request, res: Response) => {
+router.post("/projeks", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const { nama_proyek, lead_id, lokasi, budget, tanggal_mulai, tanggal_selesai } = req.body;
   const p = await prisma.proyekInterior.create({
     data: {

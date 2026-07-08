@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Plus, Home, Pencil, Trash2, ChevronRight, Layers, CalendarRange } from "lucide-react";
+import { useAuthStore } from "@/store/authStore";
 
 type Projek = {
   id: string;
@@ -35,6 +36,8 @@ const EMPTY_FORM = { nama_proyek: "", lead_id: "", lokasi: "", nilai_rab: "", ta
 export default function ProyekInteriorListPage() {
   const router = useRouter();
   const qc = useQueryClient();
+  const { isSuperAdmin } = useAuthStore();
+  const canCreateProjek = isSuperAdmin(); // hanya Super Admin boleh membuat projek
 
   const [dialog, setDialog] = useState(false);
   const [editProjek, setEditProjek] = useState<Projek | null>(null);
@@ -137,7 +140,7 @@ export default function ProyekInteriorListPage() {
           </h1>
           <p className="text-muted-foreground text-sm">Kelola proyek interior — klik baris untuk membuka detail</p>
         </div>
-        <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1.5" /> Tambah Proyek</Button>
+        {canCreateProjek && <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1.5" /> Tambah Proyek</Button>}
       </div>
 
       {/* Mobile: kartu */}

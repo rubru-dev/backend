@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { config } from "../config";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { requirePermission } from "../middleware/requireRole";
+import { requirePermission, requireRole } from "../middleware/requireRole";
 
 const router = Router();
 
@@ -161,7 +161,7 @@ router.get("/projeks", async (req: Request, res: Response) => {
 });
 
 // POST /projeks
-router.post("/projeks", async (req: Request, res: Response) => {
+router.post("/projeks", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const { nama_proyek, lead_id, ro_id, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
   const p = await prisma.proyekBerjalan.create({
     data: {
