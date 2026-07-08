@@ -10,6 +10,7 @@
     "db:pull": "prisma db pull",
     "db:generate": "prisma generate",
     "seed": "npx ts-node --transpile-only prisma/seed.ts",
+    "update:projek-access": "npx ts-node --transpile-only prisma/update-projek-access.ts",
     "mediamtx:win": "..\\..\\mediamtx.exe ..\\..\\mediamtx.yml",
     "dev:cctv": "concurrently \"npm run dev\" \"npm run mediamtx:win\""
   },
