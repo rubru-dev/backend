@@ -54,16 +54,18 @@ const picUpload = multer({
 // ── GET /pic/projek-list — combined sipil + interior projects ─────────────────
 router.get("/projek-list", async (req: Request, res: Response) => {
   const user = req.user!;
-  const isSuperAdmin = user.roles.some((r) => r.role.name === "Super Admin");
+  // PIC Project & Super Admin melihat SEMUA projek (PIC ditugaskan, bukan pembuat projek).
+  // Role lain hanya melihat projek yang dibuatnya sendiri.
+  const seeAll = user.roles.some((r) => r.role.name === "Super Admin" || r.role.name === "PIC Project");
 
   const [sipilList, interiorList] = await Promise.all([
     prisma.proyekBerjalan.findMany({
-      where: isSuperAdmin ? {} : { created_by: user.id },
+      where: seeAll ? {} : { created_by: user.id },
       include: { lead: { select: { nama: true } } },
       orderBy: { id: "desc" },
     }),
     prisma.proyekInterior.findMany({
-      where: isSuperAdmin ? {} : { created_by: user.id },
+      where: seeAll ? {} : { created_by: user.id },
       include: { lead: { select: { nama: true } } },
       orderBy: { id: "desc" },
     }),
