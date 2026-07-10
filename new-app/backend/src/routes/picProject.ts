@@ -51,6 +51,23 @@ const picUpload = multer({
   },
 });
 
+function normalizeImageList(value: unknown): string[] {
+  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return normalizeImageList(parsed);
+    } catch {
+      return value.length > 0 ? [value] : [];
+    }
+  }
+  return [];
+}
+
+function mapLaporanPic(row: any) {
+  return { ...row, images: normalizeImageList(row.images) };
+}
+
 // ── GET /pic/projek-list — combined sipil + interior projects ─────────────────
 router.get("/projek-list", async (req: Request, res: Response) => {
   const user = req.user!;
@@ -662,7 +679,7 @@ router.post("/laporan-pic", picUpload.array("images", 20), async (req: Request, 
     },
     include: { user: { select: { name: true } } },
   });
-  return res.status(201).json(row);
+  return res.status(201).json(mapLaporanPic(row));
 });
 
 // List laporan: per-projek (tab Laporan PIC Project) atau milik sendiri (?mine=1)
@@ -677,7 +694,7 @@ router.get("/laporan-pic", async (req: Request, res: Response) => {
     orderBy: { created_at: "desc" },
     include: { user: { select: { name: true } } },
   });
-  return res.json(rows);
+  return res.json(rows.map(mapLaporanPic));
 });
 
 // Hapus laporan (pemilik atau Super Admin)

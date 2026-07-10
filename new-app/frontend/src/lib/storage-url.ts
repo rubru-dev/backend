@@ -1,7 +1,11 @@
 export function storageUrl(path?: string | null): string {
   if (!path) return "";
-  if (/^(https?:|data:|blob:)/i.test(path)) return path;
-  if (path.startsWith("/api/v1/storage/")) return path;
-  if (path.startsWith("/storage/")) return `/api/v1${path}`;
-  return path;
+  const value = String(path).trim();
+  if (/^(data:|blob:)/i.test(value)) return value;
+
+  const storageIndex = value.indexOf("/storage/");
+  if (storageIndex >= 0) return `/api/v1${value.slice(storageIndex)}`;
+
+  if (value.startsWith("/api/v1/storage/")) return value;
+  return value;
 }
