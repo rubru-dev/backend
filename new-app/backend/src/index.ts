@@ -80,6 +80,10 @@ app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 // Static files (uploaded storage)
 app.use("/storage", express.static(path.resolve(config.storagePath)));
+// Alias di bawah /api/v1 — rute /api/v1/* sudah pasti diteruskan reverse proxy/Next ke backend,
+// sedangkan /storage terpisah belum tentu diroute di production. Didaftarkan SEBELUM rate limiter
+// & auth agar gambar tidak kena limit dan tetap publik.
+app.use("/api/v1/storage", express.static(path.resolve(config.storagePath)));
 
 // Health check
 app.get("/health", (_req, res) => {

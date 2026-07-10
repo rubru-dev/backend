@@ -6,9 +6,9 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { User, Calendar, ImageOff } from "lucide-react";
 
-// Di browser pakai path relatif agar gambar di-proxy lewat Next.js (rewrite /storage/* di next.config.js),
-// sama seperti apiClient. URL absolut ke backend gagal saat diakses non-localhost / lewat proxy / CORS.
-const API_BASE = typeof window === "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000") : "";
+// Muat gambar lewat /api/v1 (path yang sudah pasti diteruskan ke backend, sama seperti API call lain).
+// Path DB "/storage/..." → "/api/v1/storage/...". Hindari URL absolut & rute /storage terpisah di production.
+const API_BASE = "/api/v1";
 
 /**
  * Tab "Laporan PIC Project" pada detail Projek Sipil/Interior.

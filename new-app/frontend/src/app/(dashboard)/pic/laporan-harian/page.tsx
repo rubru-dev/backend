@@ -8,10 +8,10 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { HardHat, Upload, X, Trash2, Calendar, Building2, Home, FileDown, Filter } from "lucide-react";
 
-// Di browser pakai path relatif agar gambar di-proxy lewat Next.js (rewrite /storage/* di next.config.js),
-// sama seperti apiClient. URL absolut ke backend gagal saat diakses non-localhost / lewat proxy, dan
-// membuat fetch() PDF jadi cross-origin (diblok CORS) sehingga gambar hilang.
-const API_BASE = typeof window === "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000") : "";
+// Muat gambar lewat /api/v1 (path yang sudah pasti diteruskan ke backend oleh reverse proxy / Next rewrite,
+// karena semua API call juga lewat sini). Path DB berupa "/storage/..." → jadi "/api/v1/storage/...".
+// Ini menghindari URL absolut (localhost:8000) & rute /storage terpisah yang belum tentu ada di production.
+const API_BASE = "/api/v1";
 
 export default function PICLaporanHarianPage() {
   const qc = useQueryClient();
