@@ -737,7 +737,7 @@ router.post(
   ]),
   async (req: Request, res: Response) => {
   const user = req.user!;
-  const { project_type, project_id, kegiatan, kendala } = req.body;
+  const { project_type, project_id, kegiatan, kendala, expected_file_count } = req.body;
   if (!project_type || !project_id || !kegiatan) {
     return res.status(400).json({ detail: "Tipe projek, nama projek, dan kegiatan wajib diisi" });
   }
@@ -747,6 +747,12 @@ router.post(
     ? await prisma.proyekInterior.findUnique({ where: { id: pid }, select: { nama_proyek: true } })
     : await prisma.proyekBerjalan.findUnique({ where: { id: pid }, select: { nama_proyek: true } });
   const files = getUploadedFiles(req).slice(0, 20);
+  const expectedFileCount = Number(expected_file_count ?? 0);
+  if (expectedFileCount > 0 && files.length === 0) {
+    return res.status(400).json({
+      detail: "Foto tidak diterima backend. Coba refresh halaman lalu upload ulang.",
+    });
+  }
   const row = await prisma.laporanPicProjek.create({
     data: {
       user_id: user.id,
