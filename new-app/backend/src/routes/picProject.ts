@@ -68,6 +68,78 @@ function mapLaporanPic(row: any) {
   return { ...row, images: normalizeImageList(row.images) };
 }
 
+function getUploadedFiles(req: Request): Express.Multer.File[] {
+  const files = req.files;
+  if (Array.isArray(files)) return files;
+  if (files && typeof files === "object") return Object.values(files).flat();
+  return [];
+}
+
+let laporanPicImagesTableReady: Promise<void> | null = null;
+
+function ensureLaporanPicImagesTable() {
+  if (!laporanPicImagesTableReady) {
+    laporanPicImagesTableReady = (async () => {
+      await prisma.$executeRawUnsafe(`
+      CREATE TABLE IF NOT EXISTS laporan_pic_projek_images (
+        id BIGSERIAL PRIMARY KEY,
+        laporan_id BIGINT NOT NULL REFERENCES laporan_pic_projeks(id) ON DELETE CASCADE,
+        file_path TEXT NOT NULL,
+        original_name TEXT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+      );
+    `);
+      await prisma.$executeRawUnsafe(`
+        CREATE INDEX IF NOT EXISTS idx_laporan_pic_projek_images_laporan
+        ON laporan_pic_projek_images (laporan_id);
+      `);
+    })();
+  }
+  return laporanPicImagesTableReady;
+}
+
+async function insertLaporanPicImages(laporanId: bigint, files: Express.Multer.File[]) {
+  if (files.length === 0) return [];
+  await ensureLaporanPicImagesTable();
+  const rows = await Promise.all(
+    files.map((file) => {
+      const filePath = `/storage/pic-docs/${file.filename}`;
+      return prisma.$queryRawUnsafe<{ file_path: string }[]>(
+        `INSERT INTO laporan_pic_projek_images (laporan_id, file_path, original_name)
+         VALUES ($1, $2, $3)
+         RETURNING file_path`,
+        laporanId,
+        filePath,
+        file.originalname
+      );
+    })
+  );
+  return rows.flat().map((row) => row.file_path);
+}
+
+async function attachLaporanPicImages<T extends { id: bigint; images?: unknown }>(rows: T[]) {
+  if (rows.length === 0) return [];
+  await ensureLaporanPicImagesTable();
+  const ids = rows.map((row) => row.id);
+  const imageRows = await prisma.$queryRawUnsafe<{ laporan_id: bigint; file_path: string }[]>(
+    `SELECT laporan_id, file_path
+     FROM laporan_pic_projek_images
+     WHERE laporan_id = ANY($1::bigint[])
+     ORDER BY id ASC`,
+    ids
+  );
+  const byReport = new Map<string, string[]>();
+  for (const image of imageRows) {
+    const key = String(image.laporan_id);
+    byReport.set(key, [...(byReport.get(key) ?? []), image.file_path]);
+  }
+  return rows.map((row) => {
+    const relationalImages = byReport.get(String(row.id)) ?? [];
+    const legacyImages = normalizeImageList(row.images);
+    return { ...row, images: relationalImages.length > 0 ? relationalImages : legacyImages };
+  });
+}
+
 // ── GET /pic/projek-list — combined sipil + interior projects ─────────────────
 router.get("/projek-list", async (req: Request, res: Response) => {
   const user = req.user!;
@@ -653,8 +725,17 @@ router.get("/laporan-pic/projek-options", async (req: Request, res: Response) =>
   return res.json(rows.map((r) => ({ id: r.id, nama: r.nama_proyek || `Sipil #${r.id}` })));
 });
 
-// PIC membuat laporan (teks + banyak gambar)
-router.post("/laporan-pic", picUpload.array("images", 20), async (req: Request, res: Response) => {
+// PIC membuat laporan (teks + banyak gambar). Terima beberapa nama field supaya kompatibel
+// dengan bundle lama/cache yang mungkin masih mengirim "fotos" atau "files".
+router.post(
+  "/laporan-pic",
+  picUpload.fields([
+    { name: "images", maxCount: 20 },
+    { name: "fotos", maxCount: 20 },
+    { name: "files", maxCount: 20 },
+    { name: "file", maxCount: 20 },
+  ]),
+  async (req: Request, res: Response) => {
   const user = req.user!;
   const { project_type, project_id, kegiatan, kendala } = req.body;
   if (!project_type || !project_id || !kegiatan) {
@@ -665,8 +746,7 @@ router.post("/laporan-pic", picUpload.array("images", 20), async (req: Request, 
   const proj = type === "interior"
     ? await prisma.proyekInterior.findUnique({ where: { id: pid }, select: { nama_proyek: true } })
     : await prisma.proyekBerjalan.findUnique({ where: { id: pid }, select: { nama_proyek: true } });
-  const files = (req.files as Express.Multer.File[]) || [];
-  const images = files.map((f) => `/storage/pic-docs/${f.filename}`);
+  const files = getUploadedFiles(req).slice(0, 20);
   const row = await prisma.laporanPicProjek.create({
     data: {
       user_id: user.id,
@@ -675,11 +755,12 @@ router.post("/laporan-pic", picUpload.array("images", 20), async (req: Request, 
       project_nama: proj?.nama_proyek ?? null,
       kegiatan: String(kegiatan),
       kendala: kendala ? String(kendala) : null,
-      images,
+      images: [],
     },
     include: { user: { select: { name: true } } },
   });
-  return res.status(201).json(mapLaporanPic(row));
+  const images = await insertLaporanPicImages(row.id, files);
+  return res.status(201).json({ ...mapLaporanPic(row), images });
 });
 
 // List laporan: per-projek (tab Laporan PIC Project) atau milik sendiri (?mine=1)
@@ -694,7 +775,7 @@ router.get("/laporan-pic", async (req: Request, res: Response) => {
     orderBy: { created_at: "desc" },
     include: { user: { select: { name: true } } },
   });
-  return res.json(rows.map(mapLaporanPic));
+  return res.json(await attachLaporanPicImages(rows));
 });
 
 // Hapus laporan (pemilik atau Super Admin)
@@ -702,6 +783,11 @@ router.delete("/laporan-pic/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const row = await prisma.laporanPicProjek.findUnique({ where: { id } });
   if (!row) return res.status(404).json({ detail: "Laporan tidak ditemukan" });
+  const rows = await attachLaporanPicImages([row]);
+  for (const imagePath of rows[0]?.images ?? []) {
+    const filePath = path.resolve(config.storagePath, imagePath.replace(/^\/storage\//, ""));
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
   await prisma.laporanPicProjek.delete({ where: { id } });
   return res.json({ success: true });
 });

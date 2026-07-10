@@ -20,9 +20,7 @@ export const laporanPicApi = {
     apiClient.get(`/pic/laporan-pic/projek-options`, { params: { type } }).then((r) => r.data),
 
   create: (formData: FormData): Promise<LaporanPicItem> =>
-    apiClient
-      .post(`/pic/laporan-pic`, formData, { headers: { "Content-Type": "multipart/form-data" } })
-      .then((r) => r.data),
+    apiClient.post(`/pic/laporan-pic`, formData).then((r) => r.data),
 
   listByProject: (project_type: "sipil" | "interior", project_id: number | string): Promise<LaporanPicItem[]> =>
     apiClient.get(`/pic/laporan-pic`, { params: { project_type, project_id } }).then((r) => r.data),

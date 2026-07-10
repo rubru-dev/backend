@@ -124,7 +124,7 @@ export default function PICLaporanHarianPage() {
       fd.append("project_id", projectId);
       fd.append("kegiatan", kegiatan);
       if (kendala) fd.append("kendala", kendala);
-      files.forEach((f) => fd.append("images", f));
+      files.forEach((f) => fd.append("fotos", f));
       return laporanPicApi.create(fd);
     },
     onSuccess: () => {
