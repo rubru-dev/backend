@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { storageUrl } from "@/lib/storage-url";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +22,6 @@ import {
 
 const MONTH_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const DAY_NAMES   = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"];
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000";
 
 const STATUS_COLOR: Record<string, string> = {
   Terjadwal:   "bg-blue-100 border-blue-400 text-blue-900",
@@ -438,7 +437,7 @@ export default function KalenderVisitPage() {
                             </span>
                             {p.foto_bukti && (
                               <button className="ml-1 text-blue-500 text-[10px] underline"
-                                onClick={() => setViewFotoUrl(`${API_URL}${p.foto_bukti}`)}>
+                                onClick={() => setViewFotoUrl(storageUrl(p.foto_bukti))}>
                                 Foto
                               </button>
                             )}

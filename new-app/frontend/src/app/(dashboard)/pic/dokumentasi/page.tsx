@@ -4,6 +4,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { storageUrl } from "@/lib/storage-url";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -14,8 +15,6 @@ import {
   Camera, ChevronRight, Upload, Trash2, X, AlertTriangle,
   Building2, Home, FolderOpen, CheckCircle, Loader2, ImageIcon, Plus,
 } from "lucide-react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000";
 
 const api = {
   getProjects: () => apiClient.get("/pic/projek-list").then((r) => r.data),
@@ -367,8 +366,8 @@ export default function PICDokumentasiPage() {
               <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
                 {freshTask.fotos.map((f) => (
                   <div key={f.id} className="rounded-xl border border-gray-200 overflow-hidden">
-                    <div className="relative cursor-pointer" onClick={() => setViewFoto(`${API_URL}${f.file_path}`)}>
-                      <img src={`${API_URL}${f.file_path}`} alt="doc"
+                    <div className="relative cursor-pointer" onClick={() => setViewFoto(storageUrl(f.file_path))}>
+                      <img src={storageUrl(f.file_path)} alt="doc"
                         className="w-full h-40 object-cover hover:opacity-95 transition-opacity" />
                       <button type="button"
                         onClick={(e) => { e.stopPropagation(); setConfirmDelete({ id: f.id, type: selectedProject.type }); }}

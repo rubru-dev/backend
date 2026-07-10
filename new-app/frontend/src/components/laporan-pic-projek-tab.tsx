@@ -5,11 +5,10 @@ import { laporanPicApi } from "@/lib/api/laporanPic";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { User, Calendar, ImageOff } from "lucide-react";
+import { storageUrl } from "@/lib/storage-url";
 
 // Muat gambar lewat /api/v1 (path yang sudah pasti diteruskan ke backend, sama seperti API call lain).
 // Path DB "/storage/..." → "/api/v1/storage/...". Hindari URL absolut & rute /storage terpisah di production.
-const API_BASE = "/api/v1";
-
 /**
  * Tab "Laporan PIC Project" pada detail Projek Sipil/Interior.
  * Menampilkan laporan yang diisi PIC (teks + banyak gambar), read-only,
@@ -72,9 +71,9 @@ export function LaporanPicProjekTab({
           {Array.isArray(r.images) && r.images.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {r.images.map((p, i) => (
-                <a key={i} href={`${API_BASE}${p}`} target="_blank" rel="noreferrer" title="Buka gambar">
+                <a key={i} href={storageUrl(p)} target="_blank" rel="noreferrer" title="Buka gambar">
                   <img
-                    src={`${API_BASE}${p}`}
+                    src={storageUrl(p)}
                     alt={`Foto ${i + 1}`}
                     className="h-24 w-24 rounded border object-cover transition-opacity hover:opacity-90"
                   />

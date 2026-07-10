@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { laporanPicApi } from "@/lib/api/laporanPic";
+import { storageUrl } from "@/lib/storage-url";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { HardHat, Upload, X, Trash2, Calendar, Building2, Home, FileDown, Filter } from "lucide-react";
@@ -11,8 +12,6 @@ import { HardHat, Upload, X, Trash2, Calendar, Building2, Home, FileDown, Filter
 // Muat gambar lewat /api/v1 (path yang sudah pasti diteruskan ke backend oleh reverse proxy / Next rewrite,
 // karena semua API call juga lewat sini). Path DB berupa "/storage/..." → jadi "/api/v1/storage/...".
 // Ini menghindari URL absolut (localhost:8000) & rute /storage terpisah yang belum tentu ada di production.
-const API_BASE = "/api/v1";
-
 export default function PICLaporanHarianPage() {
   const qc = useQueryClient();
   const [projectType, setProjectType] = useState<"sipil" | "interior">("sipil");
@@ -92,7 +91,7 @@ export default function PICLaporanHarianPage() {
           pic_name: r.user?.name ?? "PIC",
           kegiatan: r.kegiatan,
           kendala: r.kendala,
-          images: (await Promise.all((r.images || []).map((p) => toB64(`${API_BASE}${p}`)))).filter(Boolean),
+          images: (await Promise.all((r.images || []).map((p) => toB64(storageUrl(p))))).filter(Boolean),
         }))
       );
       const periode =
@@ -349,8 +348,8 @@ export default function PICLaporanHarianPage() {
                 {Array.isArray(r.images) && r.images.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
                     {r.images.map((p, i) => (
-                      <a key={i} href={`${API_BASE}${p}`} target="_blank" rel="noreferrer">
-                        <img src={`${API_BASE}${p}`} alt={`foto ${i + 1}`} className="h-20 w-20 rounded border object-cover" />
+                      <a key={i} href={storageUrl(p)} target="_blank" rel="noreferrer">
+                        <img src={storageUrl(p)} alt={`foto ${i + 1}`} className="h-20 w-20 rounded border object-cover" />
                       </a>
                     ))}
                   </div>
