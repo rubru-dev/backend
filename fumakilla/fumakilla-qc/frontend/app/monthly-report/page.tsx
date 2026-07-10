@@ -281,14 +281,23 @@ function CombinedList({ segment, filterInquiryId }: { segment: "B2B" | "B2C"; fi
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
+const TABS = [
+  { key: "B2C", label: "Monthly Report B2C" },
+  { key: "B2B", label: "Monthly Report B2B" },
+] as const;
+
+type TabKey = (typeof TABS)[number]["key"];
+
 function MonthlyReportInner() {
   const searchParams = useSearchParams();
   const filterInquiryId = searchParams.get("inquiry") || null;
   const querySegment = searchParams.get("segment");
-  const [segment, setSegment] = useState<"B2C" | "B2B">(querySegment === "B2B" ? "B2B" : "B2C");
+  // When linked with an inquiry/segment (e.g. from Service Contract), open the matching report tab.
+  const initialTab: TabKey = querySegment === "B2B" ? "B2B" : "B2C";
+  const [tab, setTab] = useState<TabKey>(initialTab);
 
   useEffect(() => {
-    if (querySegment === "B2B" || querySegment === "B2C") setSegment(querySegment);
+    if (querySegment === "B2B" || querySegment === "B2C") setTab(querySegment);
   }, [querySegment]);
 
   return (
@@ -296,18 +305,18 @@ function MonthlyReportInner() {
       <PageTitle title="Monthly Report" subtitle="Pest Control Report bulanan per client" />
 
       <div style={{ display: "flex", gap: 4, marginBottom: 24, borderBottom: "2px solid #e5e7eb" }}>
-        {(["B2C", "B2B"] as const).map(s => (
-          <button key={s} onClick={() => setSegment(s)}
-            style={{ padding: "10px 24px", fontWeight: segment === s ? 800 : 500, fontSize: 13,
-              color: segment === s ? NAVY : "#6b7280", background: "transparent", border: "none",
-              borderBottom: segment === s ? `3px solid ${NAVY}` : "3px solid transparent",
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            style={{ padding: "10px 24px", fontWeight: tab === t.key ? 800 : 500, fontSize: 13,
+              color: tab === t.key ? NAVY : "#6b7280", background: "transparent", border: "none",
+              borderBottom: tab === t.key ? `3px solid ${NAVY}` : "3px solid transparent",
               marginBottom: -2, cursor: "pointer", transition: "all .15s" }}>
-            Monthly Report {s}
+            {t.label}
           </button>
         ))}
       </div>
 
-      <CombinedList key={`${segment}-${filterInquiryId}`} segment={segment} filterInquiryId={filterInquiryId} />
+      <CombinedList key={`${tab}-${filterInquiryId}`} segment={tab} filterInquiryId={filterInquiryId} />
     </div>
   );
 }

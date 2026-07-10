@@ -35,6 +35,11 @@ type PriceData = {
   complaintHandling: string;
   contractDuration: string;
   notes: string;
+  premiumServiceType?: string;
+  premiumTreatmentMethod?: string;
+  premiumPrice?: string;
+  premiumRemarks?: string;
+  premiumNotes?: string;
 };
 const defaultMonitoringItems = [
   { label: "Rodent Glue", value: "6 unit" },
@@ -59,6 +64,11 @@ const defaultPrice: PriceData = {
   complaintHandling: "2x24 hours",
   contractDuration: "1 year contract",
   notes: "",
+  premiumServiceType: "Termite Control\n(Baiting) - Premium",
+  premiumTreatmentMethod: "Termite Control (TCK)\n1. Pemasangan baiting\n(umpan racun).",
+  premiumPrice: "33.000.000,-\n(Exclude PPN 11%)",
+  premiumRemarks: "1 tahun masa garansi\nGaransi Tidak Berlaku jika ada perubahan struktur bangunan / Renovasi\nQuality Check 2 times / tahun\nFull payment after treatment (TOP 30 days)",
+  premiumNotes: "a. Service & Treatment conducted by Qualified Pest Control's Technicians\nb. If there any further issues, please directly contacts Fumakilla's team for immediate action",
 };
 
 /* ─── Page names ──────────────────────────────────────────── */
@@ -216,7 +226,8 @@ type PageDef =
   | { type: "image"; src: string; title: string }
   | { type: "cover"; title: string }
   | { type: "survey"; title: string }
-  | { type: "price"; title: string };
+  | { type: "price"; title: string }
+  | { type: "premiumPrice"; title: string };
 
 const slideImg = (deck: string, n: number) => `/refrence/quotation/${deck}/slide-${n}.png`;
 
@@ -253,7 +264,7 @@ const TEMPLATES: Record<string, { label: string; pages: PageDef[] }> = {
       { type: "image",  title: "Injection Method",          src: slideImg("termite", 9) },
       { type: "survey", title: "Hasil Survey" },
       { type: "price",  title: "Price Quotation" },
-      { type: "image",  title: "Price (Premium)",           src: slideImg("termite", 12) },
+      { type: "premiumPrice", title: "Price (Premium)" },
       { type: "image",  title: "Alur Proses Layanan",       src: slideImg("termite", 13) },
       { type: "image",  title: "Thank You",                 src: slideImg("termite", 14) },
     ],
@@ -770,6 +781,89 @@ function Page11({ pd, editMode, onChange, clientName }: { pd: PriceData; editMod
 /* ═══════════════════════════════════════════════════════════
    PAGE 12  —  Alur Proses Layanan
 ═══════════════════════════════════════════════════════════ */
+function PageTermitePremium({ pd, editMode, onChange, pageNum }: { pd: PriceData; editMode: boolean; onChange: (v: PriceData) => void; pageNum: number }) {
+  const set = (k: keyof PriceData) => (v: string) => onChange({ ...pd, [k]: v });
+  const remarks = String(pd.premiumRemarks || "").split("\n").filter(Boolean);
+  const priceLines = String(pd.premiumPrice || "").split("\n").filter(Boolean);
+
+  if (editMode) {
+    return (
+      <SlidePage title="Price Quotation - Termite" pageNum={pageNum}>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px", fontSize: "12px" }}>
+          <label style={{ display: "block" }}>
+            <span style={{ fontWeight: 700, display: "block", marginBottom: "3px", fontSize: "11px" }}>Service Type</span>
+            {inp(pd.premiumServiceType || "", set("premiumServiceType"), "Termite Control...", true)}
+          </label>
+          <label style={{ display: "block" }}>
+            <span style={{ fontWeight: 700, display: "block", marginBottom: "3px", fontSize: "11px" }}>Price</span>
+            {inp(pd.premiumPrice || "", set("premiumPrice"), "33.000.000,-", true)}
+          </label>
+          <label style={{ gridColumn: "span 2", display: "block" }}>
+            <span style={{ fontWeight: 700, display: "block", marginBottom: "3px", fontSize: "11px" }}>Treatment Method</span>
+            {inp(pd.premiumTreatmentMethod || "", set("premiumTreatmentMethod"), "Termite Control (TCK)...", true)}
+          </label>
+          <label style={{ gridColumn: "span 2", display: "block" }}>
+            <span style={{ fontWeight: 700, display: "block", marginBottom: "3px", fontSize: "11px" }}>Remarks</span>
+            {inp(pd.premiumRemarks || "", set("premiumRemarks"), "Satu remark per baris", true)}
+          </label>
+          <label style={{ gridColumn: "span 2", display: "block" }}>
+            <span style={{ fontWeight: 700, display: "block", marginBottom: "3px", fontSize: "11px" }}>Note</span>
+            {inp(pd.premiumNotes || "", set("premiumNotes"), "", true)}
+          </label>
+        </div>
+      </SlidePage>
+    );
+  }
+
+  return (
+    <SlidePage title="Price Quotation - Termite" pageNum={pageNum}>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "18px", tableLayout: "fixed" }}>
+        <thead>
+          <tr style={{ background: "#344154", color: "#fff" }}>
+            {[
+              ["No", "5%"],
+              ["Service Type", "20%"],
+              ["Treatment Method", "21%"],
+              ["Price", "22%"],
+              ["Remarks", "32%"],
+            ].map(([h, w]) => (
+              <th key={h} style={{ width: w, padding: "10px 8px", textAlign: "center", fontWeight: 800, border: "1px solid #fff" }}>{h}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          <tr style={{ background: "#d8e4f3" }}>
+            <td style={{ padding: "28px 8px", textAlign: "center", border: "1px solid #fff", verticalAlign: "top" }}>1</td>
+            <td style={{ padding: "28px 12px", textAlign: "center", border: "1px solid #fff", verticalAlign: "top", whiteSpace: "pre-line", fontWeight: 700 }}>{pd.premiumServiceType}</td>
+            <td style={{ padding: "28px 12px", border: "1px solid #fff", verticalAlign: "top", whiteSpace: "pre-line", lineHeight: 1.45 }}>{pd.premiumTreatmentMethod}</td>
+            <td style={{ padding: "28px 10px", textAlign: "center", border: "1px solid #fff", verticalAlign: "top", fontWeight: 800 }}>
+              {priceLines.map((line, i) => (
+                <p key={i} style={{ margin: "0 0 4px", color: i === 0 ? "#111" : "#f00" }}>
+                  <span style={i === 0 ? { background: "#00ff1a", padding: "2px 4px" } : undefined}>{line}</span>
+                </p>
+              ))}
+            </td>
+            <td style={{ padding: "28px 12px", border: "1px solid #fff", verticalAlign: "top", lineHeight: 1.45 }}>
+              <ul style={{ margin: 0, paddingLeft: "20px" }}>
+                {remarks.map((item, i) => (
+                  <li key={i} style={{ marginBottom: "4px" }}>
+                    {i === 0 ? <span style={{ background: "#00ff1a", padding: "1px 4px" }}>{item}</span> : item}
+                  </li>
+                ))}
+              </ul>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {pd.premiumNotes && (
+        <div style={{ marginTop: "24px", border: "1px solid #444", padding: "7px 10px", fontSize: "18px", lineHeight: 1.45, whiteSpace: "pre-line" }}>
+          <strong>Note:</strong><br />{pd.premiumNotes}
+        </div>
+      )}
+    </SlidePage>
+  );
+}
+
 function Page12() {
   return <StaticWithFooterPage src="/refrence/quotation/halaman-10-alur.png" alt="Alur Proses Layanan" pageNum={12} />;
   return (
@@ -873,7 +967,7 @@ export default function QuotationDetailPage() {
   const pageDefs = template.pages;
   const totalPages = pageDefs.length;
   const currentDef = pageDefs[currentPage - 1];
-  const canEdit = currentDef ? ["cover", "survey", "price"].includes(currentDef.type) : false;
+  const canEdit = currentDef ? ["cover", "survey", "price", "premiumPrice"].includes(currentDef.type) : false;
   const hasUnsavedChanges = () =>
     savedSnapshotRef.current !== buildEditSnapshot(quotationNumber, quotationDate, hasilSurvey, priceData);
 
@@ -1027,6 +1121,7 @@ export default function QuotationDetailPage() {
     if (def.type === "cover")  return <Page1 q={q} editMode={editMode} number={quotationNumber} quotationDate={quotationDate} onNumberChange={setQuotationNumber} onDateChange={setQuotationDate} />;
     if (def.type === "survey") return <Page10 rows={hasilSurvey} editMode={editMode} onChange={setHasilSurvey} quotationId={id} pageNum={currentPage} />;
     if (def.type === "price")  return <Page11 pd={priceData} editMode={editMode} onChange={setPriceData} clientName={clientName} />;
+    if (def.type === "premiumPrice") return <PageTermitePremium pd={priceData} editMode={editMode} onChange={setPriceData} pageNum={currentPage} />;
     return null;
   };
 

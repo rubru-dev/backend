@@ -7,6 +7,8 @@ export const ROUTES = {
   inquiry: (id: string) => `/inquiries/${id}`,
   surveys: "/surveys",
   survey: (id: string) => `/surveys/${id}`,
+  drawLayouts: "/draw-layout",
+  drawLayout: (id: string) => `/draw-layout/${id}`,
   quotations: "/quotations",
   quotation: (id: string) => `/quotations/${id}`,
   quotationNew: (type?: "b2b" | "b2c") => type ? `/quotations/new?type=${type}` : "/quotations/new",

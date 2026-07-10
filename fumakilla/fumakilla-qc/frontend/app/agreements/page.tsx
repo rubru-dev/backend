@@ -5,6 +5,7 @@ import api from "@/lib/api";
 import { PageTitle, useGet, Loading } from "@/components/erp/shared";
 import { showConfirm } from "@/lib/app-modal";
 import { SERVICE_TYPES } from "@/lib/service-options";
+import { SignatureModal } from "@/components/erp/SignatureModal";
 
 const NAVY = "#2c3e5c";
 const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }> = {
@@ -60,7 +61,7 @@ function CreateModal({ onClose }: { onClose: () => void }) {
   const [loadingQ, setLoadingQ] = useState(false);
   const [form, setForm] = useState({
     quotationId: "",
-    jenisLayanan: "Pest Control",
+    jenisLayanan: "PC",
     lokasiPekerjaan: "",
     tanggalMulai: "",
     tanggalBerakhir: "",
@@ -164,6 +165,240 @@ function CreateModal({ onClose }: { onClose: () => void }) {
 
 const STATUSES = ["", "DRAFT", "SENT", "SIGNED", "ACTIVE", "EXPIRED", "CANCELLED"];
 
+const exportDate = (d: string) => d ? new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" }) : "-";
+const exportRp = (v: any) => v != null && v !== "" ? "Rp " + Number(v).toLocaleString("id-ID") : "-";
+const safeText = (v: any) => v == null || v === "" ? "-" : String(v);
+const serviceSpecLines = (spec: any) => [
+  ["Jenis Layanan", spec?.serviceType],
+  ["Target Hama", spec?.targetPests],
+  ["Metode Treatment", spec?.treatmentMethod],
+  ["Monitoring Device", spec?.monitoringDevices],
+  ["Frekuensi Visit", spec?.visitFrequency],
+  ["Area Coverage", spec?.areaCoverage],
+  ["Garansi", spec?.guarantee],
+  ["Catatan", spec?.notes],
+].filter(([, value]) => value);
+
+function agreementSections(ag: any) {
+  const serviceSchedule = Array.isArray(ag.serviceSchedule) ? ag.serviceSchedule : [];
+  const visitPlan = Array.isArray(ag.visitPlan) ? ag.visitPlan : [];
+  const termin = Array.isArray(ag.terminPembayaran) ? ag.terminPembayaran : [];
+  return [
+    {
+      title: "PARA PIHAK",
+      lines: [
+        `Pihak Pertama: PT Fumakilla Indonesia`,
+        `PIC Fumakilla: ${safeText(ag.picFumakillaNama)} - ${safeText(ag.picFumakillaJabatan)} - ${safeText(ag.picFumakillaKontak)}`,
+        `Pihak Kedua: ${safeText(ag.customer?.company || ag.customer?.name)}`,
+        `PIC Klien: ${safeText(ag.picKlienNama)} - ${safeText(ag.picKlienJabatan)} - ${safeText(ag.picKlienKontak)}`,
+      ],
+    },
+    {
+      title: "PASAL 1 - RUANG LINGKUP PEKERJAAN",
+      lines: [
+        `Jenis Layanan: ${safeText(ag.jenisLayanan)}`,
+        `Lokasi Pekerjaan: ${safeText(ag.lokasiPekerjaan)}`,
+        `Area Pekerjaan: ${safeText(ag.areaPekerjaan)}`,
+        `Ref. Quotation: ${safeText(ag.quotation?.number)}`,
+      ],
+    },
+    {
+      title: "PASAL 1A - SPESIFIKASI SERVICE",
+      lines: serviceSpecLines(ag.serviceSpec).map(([label, value]) => `${label}: ${value}`),
+    },
+    {
+      title: "PASAL 2 - JANGKA WAKTU PERJANJIAN",
+      lines: [
+        `Tanggal Mulai: ${exportDate(ag.tanggalMulai)}`,
+        `Tanggal Berakhir: ${exportDate(ag.tanggalBerakhir)}`,
+        `Durasi: ${ag.durasiKontrak ? `${ag.durasiKontrak} bulan` : "-"}`,
+      ],
+    },
+    {
+      title: "PASAL 3 - JADWAL PELAKSANAAN SERVICE",
+      lines: serviceSchedule.length ? serviceSchedule.map((r: any) => `${r.no || ""}. ${safeText(r.jenisService)} | ${safeText(r.frekuensi)} | ${safeText(r.keterangan)}`) : ["-"],
+    },
+    {
+      title: "PASAL 3A - RENCANA QC / MONTHLY VISIT",
+      lines: visitPlan.length ? visitPlan.map((r: any, i: number) => `${i + 1}. ${safeText(r.visitType)} | ${r.scheduledAt ? new Date(r.scheduledAt).toLocaleString("id-ID") : "-"} | ${safeText(r.location)} | ${safeText(r.notes)}`) : ["-"],
+    },
+    {
+      title: "PASAL 4 - NILAI KONTRAK DAN PEMBAYARAN",
+      lines: [
+        `Nilai Kontrak: ${exportRp(ag.nilaiKontrak)}`,
+        `PPN: ${exportRp(ag.ppn)}`,
+        `Grand Total: ${exportRp(ag.grandTotal)}`,
+        `Metode Pembayaran: ${safeText(ag.metodePembayaran)}`,
+        `Rekening: ${safeText(ag.rekening)}`,
+        `Termin: ${termin.length ? termin.map((r: any) => `${r.termin}. ${r.keterangan} (${exportRp(r.nominal)})`).join("; ") : "-"}`,
+      ],
+    },
+    { title: "PASAL 8 - GARANSI / MASA PEMELIHARAAN", lines: [`Garansi: ${safeText(ag.garansi)}`] },
+    {
+      title: "TANDA TANGAN PARA PIHAK",
+      lines: [
+        `Fumakilla: ${safeText(ag.ttdFumakillaNama)} - ${safeText(ag.ttdFumakillaJabatan)} - ${exportDate(ag.ttdFumakillaTanggal)}`,
+        `Klien: ${safeText(ag.ttdKlienNama)} - ${safeText(ag.ttdKlienJabatan)} - ${exportDate(ag.ttdKlienTanggal)}`,
+      ],
+    },
+    { title: "CATATAN", lines: [safeText(ag.notes)] },
+  ];
+}
+
+async function downloadAgreementPdf(ag: any) {
+  const { jsPDF } = await import("jspdf");
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const margin = 16;
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  const contentW = pageW - margin * 2;
+  let y = 16;
+
+  const footer = () => {
+    doc.setDrawColor("#d1d5db");
+    doc.line(margin, pageH - 12, pageW - margin, pageH - 12);
+    write("Agreement PT. Fumakilla Indonesia", margin, pageH - 7, 7, false, "#6b7280");
+    write(String(doc.getCurrentPageInfo().pageNumber), pageW - margin - 4, pageH - 7, 7, true, "#6b7280");
+  };
+  const pageBreak = (need = 12) => {
+    if (y + need <= pageH - 17) return;
+    footer();
+    doc.addPage();
+    y = 16;
+  };
+  const write = (value: string, x: number, yy: number, size = 9, bold = false, color = "#111827") => {
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(color);
+    doc.text(value, x, yy);
+  };
+  const wrapped = (value: string, x: number, width: number, size = 8.5, bold = false, color = "#111827") => {
+    doc.setFont("helvetica", bold ? "bold" : "normal");
+    doc.setFontSize(size);
+    doc.setTextColor(color);
+    const lines = doc.splitTextToSize(value || "-", width);
+    for (const line of lines) {
+      pageBreak(6);
+      doc.text(line, x, y);
+      y += 5;
+    }
+  };
+  const section = (title: string) => {
+    pageBreak(14);
+    doc.setFillColor("#2c3e5c");
+    doc.roundedRect(margin, y, contentW, 8, 1.8, 1.8, "F");
+    write(title, margin + 3, y + 5.4, 9, true, "#ffffff");
+    y += 12;
+  };
+  const rows = (items: [string, any][]) => {
+    for (const [label, value] of items) {
+      pageBreak(10);
+      const rowTop = y - 3.5;
+      doc.setFillColor("#f8fafc");
+      doc.setDrawColor("#e5e7eb");
+      doc.rect(margin, rowTop, contentW, 8, "FD");
+      write(label, margin + 3, y + 1.5, 8, true, "#475569");
+      const startY = y;
+      wrapped(safeText(value), margin + 58, contentW - 62, 8.5);
+      y = Math.max(y, startY + 8);
+    }
+    y += 3;
+  };
+  const bullets = (items: string[]) => {
+    for (const item of items.length ? items : ["-"]) {
+      pageBreak(8);
+      write("-", margin + 3, y, 9, true, "#2c3e5c");
+      wrapped(item, margin + 8, contentW - 8, 8.5);
+    }
+    y += 2;
+  };
+
+  doc.setFillColor("#eef4fb");
+  doc.rect(0, 0, pageW, 42, "F");
+  write("AGREEMENT", margin, 19, 22, true, "#2c3e5c");
+  write("PERJANJIAN KERJA SAMA", margin, 29, 13, true, "#111827");
+  write("PT. Fumakilla Indonesia", pageW - margin - 58, 19, 10, true, "#2c3e5c");
+  write(ag.number, pageW - margin - 58, 27, 8, false, "#475569");
+  y = 50;
+
+  section("RINGKASAN DOKUMEN");
+  rows([
+    ["Nomor", ag.number],
+    ["Tanggal", exportDate(ag.tanggal)],
+    ["Customer", ag.customer?.company || ag.customer?.name],
+    ["Status", ag.status],
+    ["Approval Sistem", ag.approvedAt ? `${ag.approvedByName || "-"} pada ${exportDate(ag.approvedAt)}` : "Belum approved"],
+  ]);
+
+  section("PARA PIHAK");
+  rows([
+    ["Pihak Pertama", "PT Fumakilla Indonesia"],
+    ["PIC Fumakilla", [ag.picFumakillaNama, ag.picFumakillaJabatan, ag.picFumakillaKontak].filter(Boolean).join(" - ")],
+    ["Pihak Kedua", ag.customer?.company || ag.customer?.name],
+    ["PIC Klien", [ag.picKlienNama, ag.picKlienJabatan, ag.picKlienKontak].filter(Boolean).join(" - ")],
+  ]);
+
+  section("PASAL 1 - RUANG LINGKUP PEKERJAAN");
+  rows([
+    ["Jenis Layanan", ag.jenisLayanan],
+    ["Lokasi", ag.lokasiPekerjaan],
+    ["Area", ag.areaPekerjaan],
+    ["Ref. Quotation", ag.quotation?.number],
+  ]);
+
+  section("PASAL 1A - SPESIFIKASI SERVICE");
+  rows(serviceSpecLines(ag.serviceSpec) as [string, any][]);
+
+  section("PASAL 2 - JANGKA WAKTU PERJANJIAN");
+  rows([
+    ["Tanggal Mulai", exportDate(ag.tanggalMulai)],
+    ["Tanggal Berakhir", exportDate(ag.tanggalBerakhir)],
+    ["Durasi", ag.durasiKontrak ? `${ag.durasiKontrak} bulan` : "-"],
+  ]);
+
+  const serviceSchedule = Array.isArray(ag.serviceSchedule) ? ag.serviceSchedule : [];
+  section("PASAL 3 - JADWAL PELAKSANAAN SERVICE");
+  bullets(serviceSchedule.map((r: any) => `${r.no || ""}. ${safeText(r.jenisService)} | ${safeText(r.frekuensi)} | ${safeText(r.keterangan)}`));
+
+  const visitPlan = Array.isArray(ag.visitPlan) ? ag.visitPlan : [];
+  section("PASAL 3A - RENCANA QC / MONTHLY VISIT");
+  bullets(visitPlan.map((r: any, i: number) => `${i + 1}. ${safeText(r.visitType)} | ${r.scheduledAt ? new Date(r.scheduledAt).toLocaleString("id-ID") : "-"} | ${safeText(r.location)} | ${safeText(r.notes)}`));
+
+  const termin = Array.isArray(ag.terminPembayaran) ? ag.terminPembayaran : [];
+  section("PASAL 4 - NILAI KONTRAK DAN PEMBAYARAN");
+  rows([
+    ["Nilai Kontrak", exportRp(ag.nilaiKontrak)],
+    ["PPN", exportRp(ag.ppn)],
+    ["Grand Total", exportRp(ag.grandTotal)],
+    ["Metode", ag.metodePembayaran],
+    ["Rekening", ag.rekening],
+    ["Termin", termin.length ? termin.map((r: any) => `${r.termin}. ${safeText(r.keterangan)} (${exportRp(r.nominal)})`).join("\n") : "-"],
+  ]);
+
+  section("PASAL 8 - GARANSI / MASA PEMELIHARAAN");
+  rows([["Garansi", ag.garansi]]);
+
+  section("CATATAN");
+  bullets([safeText(ag.notes)]);
+
+  section("TANDA TANGAN PARA PIHAK");
+  pageBreak(42);
+  const boxW = (contentW - 10) / 2;
+  doc.setDrawColor("#d1d5db");
+  doc.roundedRect(margin, y, boxW, 34, 2, 2);
+  doc.roundedRect(margin + boxW + 10, y, boxW, 34, 2, 2);
+  write("PT Fumakilla Indonesia", margin + 4, y + 7, 9, true);
+  write(safeText(ag.ttdFumakillaNama), margin + 4, y + 25, 8);
+  write(safeText(ag.ttdFumakillaJabatan), margin + 4, y + 30, 7, false, "#6b7280");
+  write(safeText(ag.customer?.company || ag.customer?.name), margin + boxW + 14, y + 7, 9, true);
+  write(safeText(ag.ttdKlienNama), margin + boxW + 14, y + 25, 8);
+  write(safeText(ag.ttdKlienJabatan), margin + boxW + 14, y + 30, 7, false, "#6b7280");
+
+  footer();
+  doc.save(`agreement-${ag.number.replaceAll("/", "-")}.pdf`);
+}
+
+
 export default function AgreementsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -172,6 +407,9 @@ export default function AgreementsPage() {
   const [showFilters, setShowFilters] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
   const [changingStatus, setChangingStatus] = useState<string | null>(null);
+  const [approveTarget, setApproveTarget] = useState<any>(null);
+  const [approving, setApproving] = useState(false);
+  const [exporting, setExporting] = useState<string | null>(null);
   const [pushMsg, setPushMsg] = useState<string | null>(null);
   const [msg, setMsg] = useState<Msg | null>(null);
   const activeFilters = [search, statusFilter].filter(Boolean).length;
@@ -200,6 +438,10 @@ export default function AgreementsPage() {
 
   const handleStatusChange = async (ag: any, newStatus: string) => {
     if (newStatus === ag.status) return;
+    if (!ag.approvedAt) {
+      setMsg({ type: "error", title: "Belum Di-approve", body: "Agreement harus di-approve dengan tanda tangan sebelum status bisa diganti." });
+      return;
+    }
     setChangingStatus(ag.id);
     try {
       if (newStatus === "ACTIVE") {
@@ -222,6 +464,33 @@ export default function AgreementsPage() {
     } catch (e: any) {
       setMsg({ type: "error", title: "Gagal Mengubah Status", body: e?.response?.data?.error || "Terjadi kesalahan saat mengubah status." });
     } finally { setChangingStatus(null); }
+  };
+
+  const approveAgreement = async (signature: string) => {
+    if (!approveTarget) return;
+    setApproving(true);
+    try {
+      await api.post(`/agreements/${approveTarget.id}/approve`, { signature });
+      setApproveTarget(null);
+      reload();
+    } catch (e: any) {
+      setMsg({ type: "error", title: "Gagal Approve", body: e?.response?.data?.error || "Approval agreement gagal." });
+    } finally {
+      setApproving(false);
+    }
+  };
+
+  const fetchFullAgreement = async (id: string) => (await api.get(`/agreements/${id}`)).data;
+  const exportAgreement = async (ag: any) => {
+    setExporting(`${ag.id}-pdf`);
+    try {
+      const full = await fetchFullAgreement(ag.id);
+      await downloadAgreementPdf(full);
+    } catch (e: any) {
+      setMsg({ type: "error", title: "Gagal Download", body: e?.message || "Download gagal." });
+    } finally {
+      setExporting(null);
+    }
   };
 
   const fmt = (d: string) => d ? new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-";
@@ -254,14 +523,14 @@ export default function AgreementsPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: NAVY, color: "#fff" }}>
-                {["No. Agreement", "Customer", "Jenis Layanan", "Periode Kontrak", "Nilai Kontrak", "Status", "Aksi"].map(h => (
+                {["No. Agreement", "Customer", "Jenis Layanan", "Periode Kontrak", "Nilai Kontrak", "Status", "Approval", "Aksi"].map(h => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700 }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {!data?.data?.length && (
-                <tr><td colSpan={7} style={{ padding: 32, textAlign: "center", color: "#9CA3AF" }}>Belum ada agreement.</td></tr>
+                <tr><td colSpan={8} style={{ padding: 32, textAlign: "center", color: "#9CA3AF" }}>Belum ada agreement.</td></tr>
               )}
               {data?.data?.map((ag, i) => {
                 const sc = STATUS_COLORS[ag.status] ?? STATUS_COLORS.DRAFT;
@@ -290,14 +559,14 @@ export default function AgreementsPage() {
                     <td style={{ padding: "10px 14px" }}>
                       <select
                         value={ag.status}
-                        disabled={isChanging || ag.status === "ACTIVE"}
+                        disabled={isChanging || ag.status === "ACTIVE" || !ag.approvedAt}
                         onChange={e => handleStatusChange(ag, e.target.value)}
                         style={{
                           background: sc.bg, color: sc.color,
                           border: `1px solid ${sc.color}40`, borderRadius: 6,
                           padding: "3px 8px", fontSize: 11, fontWeight: 700,
-                          cursor: ag.status === "ACTIVE" ? "default" : "pointer",
-                          opacity: isChanging ? 0.5 : 1,
+                          cursor: ag.status === "ACTIVE" || !ag.approvedAt ? "not-allowed" : "pointer",
+                          opacity: isChanging || !ag.approvedAt ? 0.55 : 1,
                         }}
                       >
                         {STATUSES.filter(Boolean).map(s => (
@@ -306,8 +575,19 @@ export default function AgreementsPage() {
                       </select>
                     </td>
                     <td style={{ padding: "10px 14px" }}>
-                      <div style={{ display: "flex", gap: 8 }}>
+                      {ag.approvedAt ? (
+                        <div>
+                          <span style={{ background: "#d1fae5", color: "#065f46", padding: "2px 10px", borderRadius: 999, fontSize: 11, fontWeight: 700 }}>Approved</span>
+                          <p style={{ marginTop: 4, fontSize: 10, color: "#6b7280" }}>{ag.approvedByName || "-"} · {fmt(ag.approvedAt)}</p>
+                        </div>
+                      ) : (
+                        <button onClick={() => setApproveTarget(ag)} className="btn btn-primary" style={{ minHeight: 30, padding: "4px 12px", fontSize: 12 }}>Approve</button>
+                      )}
+                    </td>
+                    <td style={{ padding: "10px 14px" }}>
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         <Link href={`/agreements/${ag.id}`} className="btn" style={{ minHeight: 30, padding: "4px 12px", fontSize: 12 }}>Buka</Link>
+                        <button onClick={() => exportAgreement(ag)} className="btn" disabled={exporting === `${ag.id}-pdf`} style={{ minHeight: 30, padding: "4px 12px", fontSize: 12 }}>{exporting === `${ag.id}-pdf` ? "..." : "PDF"}</button>
                         <button
                           onClick={() => handleDelete(ag.id, ag.number)}
                           disabled={deleting === ag.id}
@@ -334,6 +614,7 @@ export default function AgreementsPage() {
 
       {showModal && <CreateModal onClose={() => setShowModal(false)} />}
 
+      <SignatureModal open={Boolean(approveTarget)} onClose={() => setApproveTarget(null)} onSubmit={approveAgreement} saving={approving} title="Approval Tanda Tangan Agreement" />
       {msg && <MsgModal msg={msg} onClose={() => setMsg(null)} />}
     </div>
   );

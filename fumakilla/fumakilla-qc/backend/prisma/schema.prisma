@@ -29,14 +29,26 @@ model User {
   workPlanCheckpoints WorkPlanCheckpoint[]  @relation("WorkPlanCheckpointUser")
   workPlanLogs        WorkPlanAuditLog[]    @relation("WorkPlanAuditActor")
   userRoles           UserRole[]
+  serviceVisits       ServiceVisit[]        @relation("ServiceVisitPic")
+  drawLayouts         DrawLayout[]          @relation("DrawLayoutCreator")
+}
+
+model DrawLayout {
+  id          String   @id @default(cuid())
+  name        String
+  data        Json     @default("{}")
+  createdById String?
+  createdBy   User?    @relation("DrawLayoutCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model AppRole {
-  id          String    @id @default(cuid())
-  name        String    @unique
-  permissions String[]  @default([])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id          String     @id @default(cuid())
+  name        String     @unique
+  permissions String[]   @default([])
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
   userRoles   UserRole[]
 }
 
@@ -45,61 +57,73 @@ model UserRole {
   roleId String
   user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
   role   AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
   @@id([userId, roleId])
 }
+
 enum InquiryStatus {
   NEW
   IN_PROGRESS
   COMPLETED
   CANCELLED
 }
+
 enum QuotationStatus {
   DRAFT
   SENT
   APPROVED
   REJECTED
 }
+
 enum RenewalStatus {
   UPCOMING
   IN_PROGRESS
   RENEWED
   EXPIRED
 }
+
 enum SurveyStatus {
   SCHEDULED
   COMPLETED
   POSTPONED
   CANCELLED
 }
+
 enum AfterSurveyStatus {
   PENDING
   REVIEW
   DONE
 }
+
 enum ServiceContractStatus {
   ACTIVE
   SUSPENDED
   EXPIRED
 }
+
 enum WorkStatus {
   PENDING
   COMPLETED
 }
+
 enum WorkPlanStatus {
   PLANNED
   IN_PROGRESS
   COMPLETED
   CANCELLED
 }
+
 enum WorkPlanCheckpointType {
   CHECK_IN
   CHECK_OUT
 }
+
 enum VendorStatus {
   ACTIVE
   INACTIVE
   BLACKLISTED
 }
+
 enum OrderSheetStatus {
   DRAFT
   FINAL
@@ -107,11 +131,13 @@ enum OrderSheetStatus {
   COMPLETED
   CANCELLED
 }
+
 enum ComplaintSource {
   CUSTOMER
   INTERNAL
   VENDOR
 }
+
 enum ComplaintStatus {
   OPEN
   IN_PROGRESS
@@ -121,12 +147,14 @@ enum ComplaintStatus {
   CLOSED
   CANCELLED
 }
+
 enum ComplaintPriority {
   LOW
   NORMAL
   HIGH
   URGENT
 }
+
 enum AgreementStatus {
   DRAFT
   SENT
@@ -136,79 +164,94 @@ enum AgreementStatus {
   CANCELLED
 }
 
-model Customer {
-  id        String   @id @default(cuid())
-  code      String   @unique
-  name      String
-  company   String?
-  phone     String?
-  email     String?
-  address   String?
-  city      String?
-  treatmentAddress String?
-  status    String   @default("Non-Kontrak")
-  segment   String?
-  segmentType String?
-  vendorName String?
-  dppVendor String?
-  dppFi String?
-  agreementDurationMonths Int?
-  customerType String?
-  treatment String?
-  treatmentFrequency String?
-  treatmentDuration String?
-  treatmentTime String?
-  serviceArea String?
-  agreementType String?
-  agreementNumber String?
-  agreementStart DateTime?
-  agreementEnd DateTime?
-  agreementValue Decimal? @db.Decimal(15, 2)
-  ownerName String?
-  salesOwner String?
-  leadSource String?
-  picServiceName String?
-  picServicePhone String?
-  picServiceEmail String?
-  picScheduleName String?
-  picSchedulePhone String?
-  picScheduleEmail String?
-  billingName String?
-  billingPhone String?
-  billingEmail String?
-  billingAddress String?
-  npwpNumber String?
-  npwpName String?
-  responsibleOwnerKtp String?
-  npwpAddress String?
-  monthlyReportFrequency String?
-  qcName String?
-  qaName String?
-  agreementPicName String?
-  agreementPicTitle String?
-  invoicePicName String?
-  invoicePicPhone String?
-  invoicePicEmail String?
-  invoicePicAddress String?
-  invoiceAcceptanceLimitDays Int?
-  paymentMethod String?
-  paymentTerms Int?
-  notes     String?  @db.Text
-  isPriority Boolean @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+enum ServiceVisitType {
+  QC_VISIT
+  MONTHLY_VISIT_B2C
+  MONTHLY_VISIT_B2B
+}
 
-  inquiries  Inquiry[]
-  quotations Quotation[]
-  renewals   Renewal[]
-  surveys    Survey[]
-  files      CustomerFile[]
-  invoices   OutstandingInvoice[]
+enum ServiceVisitStatus {
+  SCHEDULED
+  CHECKED_IN
+  CHECKED_OUT
+  COMPLETED
+  CANCELLED
+}
+
+model Customer {
+  id                         String    @id @default(cuid())
+  code                       String    @unique
+  name                       String
+  company                    String?
+  phone                      String?
+  email                      String?
+  address                    String?
+  city                       String?
+  treatmentAddress           String?
+  status                     String    @default("Non-Kontrak")
+  segment                    String?
+  segmentType                String?
+  vendorName                 String?
+  dppVendor                  String?
+  dppFi                      String?
+  agreementDurationMonths    Int?
+  customerType               String?
+  treatment                  String?
+  treatmentFrequency         String?
+  treatmentDuration          String?
+  treatmentTime              String?
+  serviceArea                String?
+  agreementType              String?
+  agreementNumber            String?
+  agreementStart             DateTime?
+  agreementEnd               DateTime?
+  agreementValue             Decimal?  @db.Decimal(15, 2)
+  ownerName                  String?
+  salesOwner                 String?
+  leadSource                 String?
+  picServiceName             String?
+  picServicePhone            String?
+  picServiceEmail            String?
+  picScheduleName            String?
+  picSchedulePhone           String?
+  picScheduleEmail           String?
+  billingName                String?
+  billingPhone               String?
+  billingEmail               String?
+  billingAddress             String?
+  npwpNumber                 String?
+  npwpName                   String?
+  responsibleOwnerKtp        String?
+  npwpAddress                String?
+  monthlyReportFrequency     String?
+  qcName                     String?
+  qaName                     String?
+  agreementPicName           String?
+  agreementPicTitle          String?
+  invoicePicName             String?
+  invoicePicPhone            String?
+  invoicePicEmail            String?
+  invoicePicAddress          String?
+  invoiceAcceptanceLimitDays Int?
+  paymentMethod              String?
+  paymentTerms               Int?
+  notes                      String?   @db.Text
+  isPriority                 Boolean   @default(false)
+  createdAt                  DateTime  @default(now())
+  updatedAt                  DateTime  @updatedAt
+
+  inquiries        Inquiry[]
+  quotations       Quotation[]
+  renewals         Renewal[]
+  surveys          Survey[]
+  files            CustomerFile[]
+  invoices         OutstandingInvoice[]
   serviceContracts ServiceContract[]
-  orderSheets OrderSheet[]
-  complaints      Complaint[]
+  orderSheets      OrderSheet[]
+  complaints       Complaint[]
   agreementReports AgreementReport[]
-  agreements      Agreement[]
+  agreements       Agreement[]
+  serviceVisits    ServiceVisit[]
 }
 
 model CustomerFile {
@@ -226,65 +269,65 @@ model CustomerFile {
 }
 
 model Inquiry {
-  id          String        @id @default(cuid())
-  number      String        @unique
-  customerId  String
-  service     String
-  source      String?
-  inquiryDate DateTime      @default(now())
+  id           String        @id @default(cuid())
+  number       String        @unique
+  customerId   String
+  service      String
+  source       String?
+  inquiryDate  DateTime      @default(now())
   contactMonth String        @default("")
-  progress    String        @default("New Inquiry")
-  result      String        @default("On Going")
-  picFiId     String?
-  picFiName   String        @default("")
-  segmentType String        @default("B2C")
-  areaSizeM2  Decimal?      @db.Decimal(12, 2)
-  serviceType String        @default("")
-  customerCity String       @default("")
-  closingDate DateTime?
-  closingMonth String       @default("")
+  progress     String        @default("New Inquiry")
+  result       String        @default("On Going")
+  picFiId      String?
+  picFiName    String        @default("")
+  segmentType  String        @default("B2C")
+  areaSizeM2   Decimal?      @db.Decimal(12, 2)
+  serviceType  String        @default("")
+  customerCity String        @default("")
+  closingDate  DateTime?
+  closingMonth String        @default("")
   customerName String        @default("")
-  companyName String         @default("")
-  picName     String         @default("")
-  phone       String         @default("")
-  email       String?
-  address     String          @default("") @db.Text
-  buildingType String         @default("")
-  salesPic    String          @default("")
-  status      InquiryStatus @default(NEW)
-  notes       String?       @db.Text
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
-  ownerId     String
+  companyName  String        @default("")
+  picName      String        @default("")
+  phone        String        @default("")
+  email        String?
+  address      String        @default("") @db.Text
+  buildingType String        @default("")
+  salesPic     String        @default("")
+  status       InquiryStatus @default(NEW)
+  notes        String?       @db.Text
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  ownerId      String
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  owner    User     @relation(fields: [ownerId], references: [id])
-  quotations      Quotation[]
-  surveys         Survey[]
-  pestReports     PestMonthlyReport[]
-  simpleReports   SimpleMonthlyReport[]
+  customer      Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  owner         User                  @relation(fields: [ownerId], references: [id])
+  quotations    Quotation[]
+  surveys       Survey[]
+  pestReports   PestMonthlyReport[]
+  simpleReports SimpleMonthlyReport[]
 }
 
 model Quotation {
-  id            String          @id @default(cuid())
-  number        String          @unique
-  customerId    String
-  inquiryId     String?
-  title         String
-  amount        Decimal         @db.Decimal(15, 2)
-  status        QuotationStatus @default(DRAFT)
-  validUntil    DateTime?
-  notes         String?         @db.Text
-  quotationDate DateTime        @default(now())
-  segmentType   String          @default("B2B")
-  hasilSurvey   Json            @default("[]")
-  priceData     Json            @default("{}")
+  id                String          @id @default(cuid())
+  number            String          @unique
+  customerId        String
+  inquiryId         String?
+  title             String
+  amount            Decimal         @db.Decimal(15, 2)
+  status            QuotationStatus @default(DRAFT)
+  validUntil        DateTime?
+  notes             String?         @db.Text
+  quotationDate     DateTime        @default(now())
+  segmentType       String          @default("B2B")
+  hasilSurvey       Json            @default("[]")
+  priceData         Json            @default("{}")
   approvedAt        DateTime?
   approvedByName    String?
-  approvedSignature String?      @db.Text
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
-  ownerId       String
+  approvedSignature String?         @db.Text
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  ownerId           String
 
   customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   inquiry    Inquiry?    @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
@@ -293,72 +336,72 @@ model Quotation {
 }
 
 model Renewal {
-  id          String        @id @default(cuid())
-  number      String        @unique
-  customerId  String
-  service     String
-  expiryDate  DateTime
-  status      RenewalStatus @default(UPCOMING)
-  progress    Int           @default(0)
-  notes       String?       @db.Text
-  notificationStatus WorkStatus @default(PENDING)
-  draftAgreementStatus WorkStatus @default(PENDING)
-  draftOrderSheetStatus WorkStatus @default(PENDING)
-  agreementSignedStatus WorkStatus @default(PENDING)
-  finalizeOrderSheetStatus WorkStatus @default(PENDING)
-  sentToVendorStatus WorkStatus @default(PENDING)
-  sourceAgreementId   String?
-  createdAgreementId  String?
-  createdOrderSheetId String?
-  approvedByName      String?
-  approvedAt          DateTime?
-  thresholdDays       Int       @default(90)
-  createdAt   DateTime      @default(now())
-  updatedAt   DateTime      @updatedAt
+  id                       String        @id @default(cuid())
+  number                   String        @unique
+  customerId               String
+  service                  String
+  expiryDate               DateTime
+  status                   RenewalStatus @default(UPCOMING)
+  progress                 Int           @default(0)
+  notes                    String?       @db.Text
+  notificationStatus       WorkStatus    @default(PENDING)
+  draftAgreementStatus     WorkStatus    @default(PENDING)
+  draftOrderSheetStatus    WorkStatus    @default(PENDING)
+  agreementSignedStatus    WorkStatus    @default(PENDING)
+  finalizeOrderSheetStatus WorkStatus    @default(PENDING)
+  sentToVendorStatus       WorkStatus    @default(PENDING)
+  sourceAgreementId        String?
+  createdAgreementId       String?
+  createdOrderSheetId      String?
+  approvedByName           String?
+  approvedAt               DateTime?
+  thresholdDays            Int           @default(90)
+  createdAt                DateTime      @default(now())
+  updatedAt                DateTime      @updatedAt
 
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
 
 model Survey {
-  id          String       @id @default(cuid())
-  number      String       @unique
-  customerId  String
-  inquiryId   String?
-  picId       String
-  scheduledAt DateTime
-  location    String
-  shareLocationUrl String?
-  evidenceImagePath String?
-  evidenceCapturedAt DateTime?
-  evidenceLatitude Float?
-  evidenceLongitude Float?
-  evidenceAccuracy Float?
-  checkoutImagePath String?
-  checkoutCapturedAt DateTime?
-  checkoutLatitude Float?
-  checkoutLongitude Float?
-  checkoutAccuracy Float?
-  b2cFloorDescriptions Json?
-  b2cIssues Json?
-  b2cPestFindings Json?
-  b2cUnitName String?
-  b2cQuantity Int?
-  b2cTreatments String[] @default([])
-  b2cVisitQty Int?
-  b2cVisitPerMonth Int?
-  b2cTotalCost Decimal? @db.Decimal(15, 2)
-  b2cVendorName String?
-  b2cExistingPestControl String? @db.Text
-  b2cPointNotes String[] @default([])
-  b2cReportData Json?
-  rescheduleHistory Json?
-  status           SurveyStatus @default(SCHEDULED)
-  notes            String?      @db.Text
-  cancelledReason  String?      @db.Text
-  cancelledAt      DateTime?
-  cancelledBy      String?
-  createdAt        DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id                     String       @id @default(cuid())
+  number                 String       @unique
+  customerId             String
+  inquiryId              String?
+  picId                  String
+  scheduledAt            DateTime
+  location               String
+  shareLocationUrl       String?
+  evidenceImagePath      String?
+  evidenceCapturedAt     DateTime?
+  evidenceLatitude       Float?
+  evidenceLongitude      Float?
+  evidenceAccuracy       Float?
+  checkoutImagePath      String?
+  checkoutCapturedAt     DateTime?
+  checkoutLatitude       Float?
+  checkoutLongitude      Float?
+  checkoutAccuracy       Float?
+  b2cFloorDescriptions   Json?
+  b2cIssues              Json?
+  b2cPestFindings        Json?
+  b2cUnitName            String?
+  b2cQuantity            Int?
+  b2cTreatments          String[]     @default([])
+  b2cVisitQty            Int?
+  b2cVisitPerMonth       Int?
+  b2cTotalCost           Decimal?     @db.Decimal(15, 2)
+  b2cVendorName          String?
+  b2cExistingPestControl String?      @db.Text
+  b2cPointNotes          String[]     @default([])
+  b2cReportData          Json?
+  rescheduleHistory      Json?
+  status                 SurveyStatus @default(SCHEDULED)
+  notes                  String?      @db.Text
+  cancelledReason        String?      @db.Text
+  cancelledAt            DateTime?
+  cancelledBy            String?
+  createdAt              DateTime     @default(now())
+  updatedAt              DateTime     @updatedAt
 
   customer       Customer              @relation(fields: [customerId], references: [id], onDelete: Cascade)
   inquiry        Inquiry?              @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
@@ -378,39 +421,39 @@ model SurveyPicAssignment {
 }
 
 model AfterSurvey {
-  id        String            @id @default(cuid())
-  surveyId  String            @unique
-  status    AfterSurveyStatus @default(PENDING)
-  reportDue DateTime?
-  reportUrl String?
-  findings String? @db.Text
-  recommendation String? @db.Text
-  nextAction String? @db.Text
-  submittedAt DateTime?
-  reviewedAt DateTime?
-  reviewedByName String?
-  qcNotes String? @db.Text
-  fieldFindings Json?
-  pestFindings Json?
-  treatmentRecommendations String[] @default([])
-  materials String[] @default([])
-  surveyedAreas Json?
-  authorizedByName String?
-  notes     String?           @db.Text
-  createdAt DateTime          @default(now())
-  updatedAt DateTime          @updatedAt
+  id                       String            @id @default(cuid())
+  surveyId                 String            @unique
+  status                   AfterSurveyStatus @default(PENDING)
+  reportDue                DateTime?
+  reportUrl                String?
+  findings                 String?           @db.Text
+  recommendation           String?           @db.Text
+  nextAction               String?           @db.Text
+  submittedAt              DateTime?
+  reviewedAt               DateTime?
+  reviewedByName           String?
+  qcNotes                  String?           @db.Text
+  fieldFindings            Json?
+  pestFindings             Json?
+  treatmentRecommendations String[]          @default([])
+  materials                String[]          @default([])
+  surveyedAreas            Json?
+  authorizedByName         String?
+  notes                    String?           @db.Text
+  createdAt                DateTime          @default(now())
+  updatedAt                DateTime          @updatedAt
 
   survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
 }
 
 model B2BSurveyReport {
-  id        String   @id @default(cuid())
-  surveyId  String   @unique
+  id       String @id @default(cuid())
+  surveyId String @unique
 
   // Page 1 - Cover
-  clientName      String  @default("")
-  clientAddress   String  @default("") @db.Text
-  coverImagePath  String?
+  clientName     String  @default("")
+  clientAddress  String  @default("") @db.Text
+  coverImagePath String?
 
   // Page 2 - Survey Info
   surveyorNames String @default("")
@@ -422,14 +465,14 @@ model B2BSurveyReport {
   frontViewImagePath String?
   mapImagePath       String?
   canvasDataEnv      Json?
-  areaCondition      String @default("") @db.Text
-  environmentalRisks Json   @default("[]")
+  areaCondition      String  @default("") @db.Text
+  environmentalRisks Json    @default("[]")
 
   // Page 4 - Pest Concern
   pestConcernImagePath String?
   canvasDataPest       Json?
-  pestConcern          String @default("") @db.Text
-  inspectionFocus      String @default("") @db.Text
+  pestConcern          String  @default("") @db.Text
+  inspectionFocus      String  @default("") @db.Text
 
   // Page 5 - Risk Mapping / Floor Plan
   floorPlanImagePath  String?
@@ -441,12 +484,12 @@ model B2BSurveyReport {
   // Page 18 - Resume [{pestType,summary,recommendation}]
   resumeRows Json @default("[]")
 
-  status    String   @default("draft")
-  approvedByName String?
-  approvedAt DateTime?
-  approvedSignature String? @db.Text
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  status            String    @default("draft")
+  approvedByName    String?
+  approvedAt        DateTime?
+  approvedSignature String?   @db.Text
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   survey Survey @relation(fields: [surveyId], references: [id], onDelete: Cascade)
 }
@@ -512,19 +555,19 @@ model WorkPlanTaggedUser {
 }
 
 model WorkPlanCheckpoint {
-  id          String                 @id @default(cuid())
-  workPlanId  String
-  userId      String
-  type        WorkPlanCheckpointType
-  note        String?                @db.Text
-  filePath    String?
-  fileName    String?
-  mimeType    String?
-  size        Int?
-  latitude    Float?
-  longitude   Float?
-  accuracy    Float?
-  createdAt   DateTime               @default(now())
+  id         String                 @id @default(cuid())
+  workPlanId String
+  userId     String
+  type       WorkPlanCheckpointType
+  note       String?                @db.Text
+  filePath   String?
+  fileName   String?
+  mimeType   String?
+  size       Int?
+  latitude   Float?
+  longitude  Float?
+  accuracy   Float?
+  createdAt  DateTime               @default(now())
 
   workPlan WorkPlan @relation(fields: [workPlanId], references: [id], onDelete: Cascade)
   user     User     @relation("WorkPlanCheckpointUser", fields: [userId], references: [id])
@@ -535,13 +578,13 @@ model WorkPlanCheckpoint {
 }
 
 model WorkPlanAuditLog {
-  id          String   @id @default(cuid())
-  workPlanId  String
-  actorId     String?
-  action      String
-  message     String
-  metadata    Json?
-  createdAt   DateTime @default(now())
+  id         String   @id @default(cuid())
+  workPlanId String
+  actorId    String?
+  action     String
+  message    String
+  metadata   Json?
+  createdAt  DateTime @default(now())
 
   workPlan WorkPlan @relation(fields: [workPlanId], references: [id], onDelete: Cascade)
   actor    User?    @relation("WorkPlanAuditActor", fields: [actorId], references: [id], onDelete: SetNull)
@@ -564,7 +607,6 @@ model OutstandingInvoice {
   customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
 }
 
-
 model ReminderSetting {
   key             String   @id
   enabled         Boolean  @default(false)
@@ -585,11 +627,12 @@ model ServiceContract {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
-  customer          Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  agreement         Agreement?        @relation(fields: [agreementId], references: [id], onDelete: SetNull)
-  monthlyReports    MonthlyReport[]
-  qcVisits          QcVisit[]
-  vendorTreatments  VendorTreatment[]
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  agreement        Agreement?        @relation(fields: [agreementId], references: [id], onDelete: SetNull)
+  monthlyReports   MonthlyReport[]
+  qcVisits         QcVisit[]
+  vendorTreatments VendorTreatment[]
+  serviceVisits    ServiceVisit[]
 }
 
 model MonthlyReport {
@@ -695,8 +738,8 @@ model OrderSheet {
   createdAt           DateTime         @default(now())
   updatedAt           DateTime         @updatedAt
 
-  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  vendor   Vendor?  @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  vendor     Vendor?     @relation(fields: [vendorId], references: [id], onDelete: SetNull)
   complaints Complaint[]
 
   @@index([orderDate])
@@ -706,33 +749,33 @@ model OrderSheet {
 }
 
 model Complaint {
-  id              String            @id @default(cuid())
-  number          String            @unique
-  complaintDate   DateTime          @default(now()) @db.Date
-  customerId      String
-  vendorId        String?
-  orderSheetId    String?
-  segmentType     String
-  source          ComplaintSource   @default(CUSTOMER)
-  internalTeam    String?
-  complaintType   String
-  priority        ComplaintPriority @default(NORMAL)
-  status          ComplaintStatus   @default(OPEN)
-  subject         String
-  description     String            @db.Text
-  location        String?
-  reportedByName  String?
-  reportedByPhone String?
-  picInternal     String?
-  dueDate         DateTime?         @db.Date
-  rootCause       String?           @db.Text
-  correctiveAction String?          @db.Text
-  resolutionNotes String?           @db.Text
-  resolvedAt      DateTime?
-  closedAt        DateTime?
-  followUps       Json              @default("[]")
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
+  id               String            @id @default(cuid())
+  number           String            @unique
+  complaintDate    DateTime          @default(now()) @db.Date
+  customerId       String
+  vendorId         String?
+  orderSheetId     String?
+  segmentType      String
+  source           ComplaintSource   @default(CUSTOMER)
+  internalTeam     String?
+  complaintType    String
+  priority         ComplaintPriority @default(NORMAL)
+  status           ComplaintStatus   @default(OPEN)
+  subject          String
+  description      String            @db.Text
+  location         String?
+  reportedByName   String?
+  reportedByPhone  String?
+  picInternal      String?
+  dueDate          DateTime?         @db.Date
+  rootCause        String?           @db.Text
+  correctiveAction String?           @db.Text
+  resolutionNotes  String?           @db.Text
+  resolvedAt       DateTime?
+  closedAt         DateTime?
+  followUps        Json              @default("[]")
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
 
   customer   Customer    @relation(fields: [customerId], references: [id], onDelete: Cascade)
   vendor     Vendor?     @relation(fields: [vendorId], references: [id], onDelete: SetNull)
@@ -765,15 +808,15 @@ model PestMonthlyReport {
 }
 
 model SimpleMonthlyReport {
-  id          String   @id @default(cuid())
-  inquiryId   String
-  inquiry     Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
-  bulan       Int
-  tahun       Int
-  segment     String   @default("B2B")
-  reportData  Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id         String   @id @default(cuid())
+  inquiryId  String
+  inquiry    Inquiry  @relation(fields: [inquiryId], references: [id], onDelete: Cascade)
+  bulan      Int
+  tahun      Int
+  segment    String   @default("B2B")
+  reportData Json?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
   @@index([inquiryId])
   @@index([tahun, bulan])
@@ -807,6 +850,8 @@ model Agreement {
   tanggalBerakhir     DateTime
   durasiKontrak       Int?
   serviceSchedule     Json            @default("[]")
+  serviceSpec         Json            @default("{}")
+  visitPlan           Json            @default("[]")
   nilaiKontrak        Decimal         @db.Decimal(15, 2)
   ppn                 Decimal?        @db.Decimal(15, 2)
   grandTotal          Decimal?        @db.Decimal(15, 2)
@@ -827,17 +872,60 @@ model Agreement {
   ttdKlienNama        String?
   ttdKlienJabatan     String?
   ttdKlienTanggal     DateTime?
+  approvedAt          DateTime?
+  approvedByName      String?
+  approvedSignature   String?         @db.Text
   notes               String?         @db.Text
   isRenewal           Boolean         @default(false)
   renewalSourceId     String?
   createdAt           DateTime        @default(now())
   updatedAt           DateTime        @updatedAt
 
-  customer        Customer        @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  quotation       Quotation?      @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  customer        Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  quotation       Quotation?       @relation(fields: [quotationId], references: [id], onDelete: SetNull)
   serviceContract ServiceContract?
+  serviceVisits   ServiceVisit[]
 
   @@index([customerId])
   @@index([status])
   @@index([tanggalBerakhir])
+}
+
+model ServiceVisit {
+  id                 String             @id @default(cuid())
+  agreementId        String
+  serviceContractId  String?
+  customerId         String
+  picId              String
+  visitType          ServiceVisitType
+  segmentType        String             @default("B2B")
+  serviceType        String?
+  scheduledAt        DateTime
+  location           String             @default("") @db.Text
+  status             ServiceVisitStatus @default(SCHEDULED)
+  notes              String?            @db.Text
+  checkInImagePath   String?
+  checkInCapturedAt  DateTime?
+  checkInLatitude    Float?
+  checkInLongitude   Float?
+  checkInAccuracy    Float?
+  checkOutImagePath  String?
+  checkOutCapturedAt DateTime?
+  checkOutLatitude   Float?
+  checkOutLongitude  Float?
+  checkOutAccuracy   Float?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+
+  agreement       Agreement        @relation(fields: [agreementId], references: [id], onDelete: Cascade)
+  serviceContract ServiceContract? @relation(fields: [serviceContractId], references: [id], onDelete: SetNull)
+  customer        Customer         @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pic             User             @relation("ServiceVisitPic", fields: [picId], references: [id])
+
+  @@unique([agreementId, scheduledAt, visitType])
+  @@index([customerId])
+  @@index([picId])
+  @@index([scheduledAt])
+  @@index([visitType])
+  @@index([status])
 }

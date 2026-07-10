@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useState } from "react";
 import type { User } from "@/types";
 
-const menu = [{ href: "/dashboard", label: "Dashboard", icon: "D" }] as const;
+const menu = [{ href: "/dashboard", label: "Dashboard" }] as const;
 
 const groups = [
   {
@@ -15,7 +15,7 @@ const groups = [
     permission: null,
     items: [
       { href: "/inquiries", label: "Inquiry" },
-      { href: "/surveys", label: "Survey (Kalender Survey)" },
+      { href: "/surveys", label: "Survey Client" },
       { href: "/draw-layout", label: "Draw Layout" },
       { href: "/quotations", label: "Quotation" },
     ],
@@ -23,12 +23,13 @@ const groups = [
   {
     label: "Modul B",
     icon: "B",
-    paths: ["/agreements", "/service-contracts", "/renewals", "/monthly-report"],
+    paths: ["/agreements", "/service-contracts", "/renewals", "/visit-qc", "/monthly-report"],
     permission: null,
     items: [
       { href: "/agreements", label: "Agreement" },
       { href: "/service-contracts", label: "Service Contract Active" },
       { href: "/renewals", label: "Renewal" },
+      { href: "/visit-qc", label: "Visit QC" },
       { href: "/monthly-report", label: "Monthly Report" },
     ],
   },
@@ -113,7 +114,6 @@ export function Sidebar({
               href={item.href}
               className={`flex items-center gap-3 rounded-lg px-4 py-3 text-sm font-semibold transition ${active(item.href) ? "bg-[#4478ab] text-white shadow-sm" : "text-[#515866] hover:bg-[#e0e8f7] hover:text-[#03497a]"}`}
             >
-              <span className="grid w-4 place-items-center text-xs font-extrabold">{item.icon}</span>
               {item.label}
             </Link>
           ))}
@@ -126,10 +126,7 @@ export function Sidebar({
                   onClick={() => setOpenGroups((current) => ({ ...current, [group.label]: !expanded }))}
                   className={`flex w-full items-center justify-between rounded-lg px-4 py-3 text-left text-sm font-semibold transition ${isGroupActive(group.paths as unknown as string[]) ? "bg-[#e0e8f7] text-[#03497a]" : "text-[#515866] hover:bg-[#e0e8f7]"}`}
                 >
-                  <span className="flex items-center gap-3">
-                    <span className="grid w-4 place-items-center text-xs font-extrabold">{group.icon}</span>
-                    {group.label}
-                  </span>
+                  <span>{group.label}</span>
                   <span>{expanded ? "-" : "+"}</span>
                 </button>
                 {expanded && (

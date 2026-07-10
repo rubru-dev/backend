@@ -14,6 +14,7 @@ const customerUpload = createUploader("customers", ["application/pdf", "image/jp
 const surveyEvidenceUpload = createUploader("survey-evidence", ["image/jpeg", "image/png", "image/webp"], 10);
 const surveyB2cFindingUpload = createUploader("survey-b2c-findings", ["image/jpeg", "image/png", "image/webp"], 10);
 const workPlanUpload = createUploader("work-plan", ["application/pdf", "image/jpeg", "image/png", "image/webp", "text/plain", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/vnd.ms-excel", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"], 20);
+const serviceVisitUpload = createUploader("service-visit", ["image/jpeg", "image/png", "image/webp"], 10);
 const quotationUpload = createUploader("quotation", ["image/jpeg", "image/png", "image/webp"], 15);
 const progressOptions = ["New Inquiry", "Non Sales Inquiry", "Pricelist Sent", "Contacted", "Survey Scheduled", "Survey Completed", "Quotation Sent", "Waiting Agreement", "Won/Closing", "Lost/Not Interest"];
 const resultOptions = ["On Going", "Won/Closing", "Lost"];
@@ -735,6 +736,86 @@ router.post("/renewals/:id/reject", async (req: AuthRequest, res, next) => {
     return res.json(updated);
   } catch (error) { return next(error); }
 });
+
+router.get("/service-visits", async (req, res, next) => { try {
+  const where: any = {};
+  if (req.query.visitType) where.visitType = String(req.query.visitType);
+  if (req.query.segmentType) where.segmentType = String(req.query.segmentType);
+  if (req.query.status) where.status = String(req.query.status);
+  if (req.query.picId) where.picId = String(req.query.picId);
+  if (req.query.dateFrom || req.query.dateTo) {
+    where.scheduledAt = {};
+    if (req.query.dateFrom) where.scheduledAt.gte = new Date(String(req.query.dateFrom));
+    if (req.query.dateTo) where.scheduledAt.lte = new Date(String(req.query.dateTo));
+  }
+  const data = await prisma.serviceVisit.findMany({
+    where,
+    include: {
+      customer: { select: { id: true, name: true, company: true, treatmentAddress: true, address: true } },
+      pic: { select: { id: true, name: true, role: true } },
+      agreement: { select: { id: true, number: true, jenisLayanan: true, lokasiPekerjaan: true } },
+      serviceContract: { select: { id: true, number: true } },
+    },
+    orderBy: { scheduledAt: "asc" },
+  });
+  res.json({ data });
+} catch (error) { next(error); } });
+
+router.post("/service-visits", async (req: AuthRequest, res, next) => { try {
+  const { agreementId, serviceContractId, customerId, picId, visitType, segmentType, serviceType, scheduledAt, location, notes } = req.body;
+  if (!agreementId || !customerId || !picId || !scheduledAt) return res.status(400).json({ error: "Agreement, customer, PIC, dan jadwal wajib diisi" });
+  const item = await prisma.serviceVisit.create({
+    data: {
+      agreementId,
+      serviceContractId: serviceContractId || null,
+      customerId,
+      picId,
+      visitType: visitType || "QC_VISIT",
+      segmentType: segmentType || (visitType === "MONTHLY_VISIT_B2C" ? "B2C" : "B2B"),
+      serviceType: serviceType || null,
+      scheduledAt: new Date(scheduledAt),
+      location: location || "",
+      notes: notes || null,
+    },
+  });
+  await prisma.activityLog.create({ data: { message: `${req.user!.name} membuat jadwal visit`, type: "SERVICE_VISIT", userId: req.user!.id } });
+  res.status(201).json(item);
+} catch (error) { next(error); } });
+
+router.patch("/service-visits/:id", async (req, res, next) => { try {
+  const data: any = {};
+  for (const key of ["picId", "visitType", "segmentType", "serviceType", "location", "status", "notes"]) {
+    if (key in req.body) data[key] = req.body[key] || null;
+  }
+  if ("scheduledAt" in req.body) data.scheduledAt = new Date(req.body.scheduledAt);
+  const item = await prisma.serviceVisit.update({ where: { id: req.params.id }, data });
+  res.json(item);
+} catch (error) { next(error); } });
+
+router.post("/service-visits/:id/attendance", serviceVisitUpload.single("photo"), async (req: AuthRequest, res, next) => { try {
+  if (!req.file) return res.status(400).json({ error: "Foto live dari kamera wajib diambil" });
+  const type = String(req.body.type || "checkin");
+  if (!["checkin", "checkout"].includes(type)) return res.status(400).json({ error: "Tipe attendance tidak valid" });
+  const visit = await prisma.serviceVisit.findUnique({ where: { id: req.params.id }, select: { id: true, picId: true, checkInImagePath: true, checkOutImagePath: true, status: true } });
+  if (!visit) return res.status(404).json({ error: "Jadwal visit tidak ditemukan" });
+  if (visit.picId !== req.user!.id && !["ADMIN", "MANAGER"].includes(req.user!.role)) return res.status(403).json({ error: "Hanya PIC visit yang dapat mengirim bukti" });
+  if (type === "checkin" && visit.checkInImagePath) return res.status(400).json({ error: "Check in sudah pernah dikirim" });
+  if (type === "checkout" && visit.checkOutImagePath) return res.status(400).json({ error: "Check out sudah pernah dikirim" });
+  if (type === "checkout" && !visit.checkInImagePath) return res.status(400).json({ error: "Check in wajib dikirim sebelum check out" });
+  const latitude = Number(req.body.latitude), longitude = Number(req.body.longitude), accuracy = Number(req.body.accuracy);
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude) || !Number.isFinite(accuracy)) return res.status(400).json({ error: "Live location tidak valid" });
+  const capturedAt = new Date();
+  const data = type === "checkin"
+    ? { checkInImagePath: publicUploadPath(req.file.path), checkInCapturedAt: capturedAt, checkInLatitude: latitude, checkInLongitude: longitude, checkInAccuracy: accuracy, status: "CHECKED_IN" as const }
+    : { checkOutImagePath: publicUploadPath(req.file.path), checkOutCapturedAt: capturedAt, checkOutLatitude: latitude, checkOutLongitude: longitude, checkOutAccuracy: accuracy, status: "COMPLETED" as const };
+  const item = await prisma.serviceVisit.update({
+    where: { id: visit.id },
+    data,
+    include: { customer: true, pic: { select: { id: true, name: true, role: true } }, agreement: true, serviceContract: true },
+  });
+  await prisma.activityLog.create({ data: { message: `${req.user!.name} mengirim ${type === "checkin" ? "check in" : "check out"} visit`, type: "SERVICE_VISIT", userId: req.user!.id } });
+  res.json(item);
+} catch (error) { next(error); } });
 
 router.get("/service-contracts", async (_req, res, next) => { try { res.json({ data: await prisma.serviceContract.findMany({ include: { customer: true }, orderBy: { endDate: "asc" } }) }); } catch (error) { next(error); } });
 router.post("/service-contracts", async (req, res, next) => { try { const { customerId, service, startDate, endDate } = req.body; if (!customerId || !service || !startDate || !endDate) return res.status(400).json({ error: "Customer, layanan, tanggal mulai, dan tanggal berakhir wajib diisi" }); const item = await prisma.serviceContract.create({ data: { customerId, service, startDate: new Date(startDate), endDate: new Date(endDate), number: code("SC") }, include: { customer: true } }); const monthlyReport = await ensurePendingMonthlyReportForCustomer(customerId); res.status(201).json({ ...item, monthlyReport }); } catch (error) { next(error); } });

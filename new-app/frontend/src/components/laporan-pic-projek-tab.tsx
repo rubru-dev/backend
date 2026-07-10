@@ -6,7 +6,9 @@ import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { User, Calendar, ImageOff } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// Di browser pakai path relatif agar gambar di-proxy lewat Next.js (rewrite /storage/* di next.config.js),
+// sama seperti apiClient. URL absolut ke backend gagal saat diakses non-localhost / lewat proxy / CORS.
+const API_BASE = typeof window === "undefined" ? (process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000") : "";
 
 /**
  * Tab "Laporan PIC Project" pada detail Projek Sipil/Interior.

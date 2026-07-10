@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { Loading } from "@/components/erp/shared";
 import { showAlert } from "@/lib/app-modal";
-import { SERVICE_TYPES } from "@/lib/service-options";
+import { SERVICE_TYPE_DESCRIPTIONS, SERVICE_TYPES } from "@/lib/service-options";
 
 const NAVY = "#2c3e5c";
 const GREEN = "#1a5276";
@@ -25,6 +25,26 @@ const JENIS_LAYANAN = SERVICE_TYPES;
 
 type ServiceRow = { no: number; jenisService: string; frekuensi: string; keterangan: string };
 type TerminRow = { termin: number; keterangan: string; nominal: string };
+type ServiceSpec = { serviceType: string; targetPests: string; treatmentMethod: string; monitoringDevices: string; visitFrequency: string; areaCoverage: string; guarantee: string; notes: string };
+type VisitPlanRow = { no: number; visitType: string; scheduledAt: string; picId: string; location: string; notes: string };
+type UserOption = { id: string; name: string; role: string };
+
+const VISIT_TYPES = [
+  { value: "QC_VISIT", label: "QC Visit" },
+  { value: "MONTHLY_VISIT_B2C", label: "Monthly Visit B2C" },
+  { value: "MONTHLY_VISIT_B2B", label: "Monthly Visit B2B" },
+];
+
+const defaultServiceSpec = (serviceType: string): ServiceSpec => {
+  const defaults: Record<string, Partial<ServiceSpec>> = {
+    PC: { targetPests: "Lalat, Nyamuk, Semut, Kecoa, dan serangga lainnya", treatmentMethod: "Spraying, baiting, dan monitoring area", visitFrequency: "Monthly service", notes: SERVICE_TYPE_DESCRIPTIONS.PC },
+    RC: { targetPests: "Tikus", treatmentMethod: "Rodent monitoring, trapping, dan baiting", monitoringDevices: "Rodent glue trap, live trap, bait station", visitFrequency: "Monthly service", notes: SERVICE_TYPE_DESCRIPTIONS.RC },
+    PCRC: { targetPests: "Pest umum dan tikus", treatmentMethod: "Kombinasi pest control dan rodent control", monitoringDevices: "Rodent trap dan pest monitoring", visitFrequency: "Monthly service", notes: SERVICE_TYPE_DESCRIPTIONS.PCRC },
+    "Termite Control": { targetPests: "Rayap", treatmentMethod: "Baiting / spraying / injection sesuai hasil survey", visitFrequency: "Sesuai proposal", guarantee: "Sesuai masa garansi pada quotation", notes: SERVICE_TYPE_DESCRIPTIONS["Termite Control"] },
+    "Other Pests": { targetPests: "Hama lain sesuai kebutuhan", treatmentMethod: "Metode sesuai hasil survey", visitFrequency: "Sesuai kesepakatan", notes: SERVICE_TYPE_DESCRIPTIONS["Other Pests"] },
+  };
+  return { serviceType, targetPests: "", treatmentMethod: "", monitoringDevices: "", visitFrequency: "", areaCoverage: "", guarantee: "", notes: "", ...(defaults[serviceType] || {}) };
+};
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -120,9 +140,13 @@ export default function AgreementDetailPage() {
   // Form state
   const [form, setForm] = useState<any>({});
   const [serviceSchedule, setServiceSchedule] = useState<ServiceRow[]>([]);
+  const [serviceSpec, setServiceSpec] = useState<ServiceSpec>(defaultServiceSpec("PC"));
+  const [visitPlan, setVisitPlan] = useState<VisitPlanRow[]>([]);
   const [terminPembayaran, setTerminPembayaran] = useState<TerminRow[]>([]);
+  const [users, setUsers] = useState<UserOption[]>([]);
 
   useEffect(() => {
+    api.get("/erp/users").then(r => setUsers(r.data?.data || [])).catch(() => setUsers([]));
     api.get(`/agreements/${id}`).then(r => {
       const ag = r.data;
       setData(ag);
@@ -131,10 +155,11 @@ export default function AgreementDetailPage() {
   }, [id]);
 
   function resetForm(ag: any) {
+    const nextServiceType = ag.jenisLayanan || "PC";
     setForm({
       tanggal: toISO(ag.tanggal),
       status: ag.status || "DRAFT",
-      jenisLayanan: ag.jenisLayanan || "Pest Control",
+      jenisLayanan: nextServiceType,
       lokasiPekerjaan: ag.lokasiPekerjaan || "",
       areaPekerjaan: ag.areaPekerjaan || "",
       tanggalMulai: toISO(ag.tanggalMulai),
@@ -167,6 +192,12 @@ export default function AgreementDetailPage() {
            { no: 2, jenisService: "Monthly Service", frekuensi: "1 kali/bulan", keterangan: "Service rutin" },
            { no: 3, jenisService: "QC Visit", frekuensi: "Sesuai kebutuhan", keterangan: "Pemeriksaan kualitas" }]
     );
+    setServiceSpec({ ...defaultServiceSpec(nextServiceType), ...(ag.serviceSpec || {}), serviceType: (ag.serviceSpec?.serviceType || nextServiceType) });
+    setVisitPlan(
+      Array.isArray(ag.visitPlan) && ag.visitPlan.length
+        ? ag.visitPlan.map((row: any, i: number) => ({ no: i + 1, visitType: row.visitType || "QC_VISIT", scheduledAt: row.scheduledAt ? new Date(row.scheduledAt).toISOString().slice(0, 16) : "", picId: row.picId || "", location: row.location || ag.lokasiPekerjaan || "", notes: row.notes || "" }))
+        : []
+    );
     setTerminPembayaran(
       Array.isArray(ag.terminPembayaran) && ag.terminPembayaran.length
         ? ag.terminPembayaran
@@ -175,6 +206,10 @@ export default function AgreementDetailPage() {
   }
 
   const set = (k: string) => (v: string) => setForm((f: any) => ({ ...f, [k]: v }));
+  const setJenisLayanan = (v: string) => {
+    setForm((f: any) => ({ ...f, jenisLayanan: v }));
+    setServiceSpec(current => ({ ...defaultServiceSpec(v), ...current, serviceType: v }));
+  };
 
   const save = async () => {
     setSaving(true);
@@ -182,6 +217,8 @@ export default function AgreementDetailPage() {
       const r = await api.patch(`/agreements/${id}`, {
         ...form,
         serviceSchedule,
+        serviceSpec: { ...serviceSpec, serviceType: form.jenisLayanan },
+        visitPlan,
         terminPembayaran,
         nilaiKontrak: form.nilaiKontrak || null,
         ppn: form.ppn || null,
@@ -220,6 +257,14 @@ export default function AgreementDetailPage() {
     setServiceSchedule(s => s.map((r, j) => j === i ? { ...r, [k]: v } : r));
   const removeServiceRow = (i: number) =>
     setServiceSchedule(s => s.filter((_, j) => j !== i).map((r, j) => ({ ...r, no: j + 1 })));
+  const updateServiceSpec = (k: keyof ServiceSpec, v: string) => setServiceSpec(s => ({ ...s, [k]: v }));
+
+  const addVisitRow = () =>
+    setVisitPlan(v => [...v, { no: v.length + 1, visitType: form.jenisLayanan === "PC" ? "MONTHLY_VISIT_B2B" : "QC_VISIT", scheduledAt: "", picId: "", location: form.lokasiPekerjaan || data.lokasiPekerjaan || "", notes: "" }]);
+  const updateVisitRow = (i: number, k: keyof VisitPlanRow, v: string) =>
+    setVisitPlan(rows => rows.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  const removeVisitRow = (i: number) =>
+    setVisitPlan(rows => rows.filter((_, j) => j !== i).map((r, j) => ({ ...r, no: j + 1 })));
 
   const addTerminRow = () =>
     setTerminPembayaran(t => [...t, { termin: t.length + 1, keterangan: "", nominal: "" }]);
@@ -328,7 +373,7 @@ export default function AgreementDetailPage() {
         <Section title="PASAL 1 — RUANG LINGKUP PEKERJAAN">
           {editMode ? (
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-              <SelectField label="Jenis Layanan" value={form.jenisLayanan} onChange={set("jenisLayanan")}
+              <SelectField label="Jenis Layanan" value={form.jenisLayanan} onChange={setJenisLayanan}
                 options={JENIS_LAYANAN.map(j => ({ value: j, label: j }))} />
               <div />
               <div style={{ gridColumn: "1 / -1" }}>
@@ -351,6 +396,41 @@ export default function AgreementDetailPage() {
             </table>
           )}
           {data.quotation && <p style={{ marginTop: 10, fontSize: 11, color: "#6b7280" }}>Ref. Quotation: {data.quotation.number} — {data.quotation.title}</p>}
+        </Section>
+
+        <Section title="PASAL 1A - SPESIFIKASI SERVICE">
+          {editMode ? (
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+              <InputField label="Jenis Layanan" value={form.jenisLayanan} onChange={setJenisLayanan} />
+              <InputField label="Frekuensi Visit" value={serviceSpec.visitFrequency} onChange={v => updateServiceSpec("visitFrequency", v)} placeholder="Contoh: 2x per bulan" />
+              <TextareaField label="Target Hama" value={serviceSpec.targetPests} onChange={v => updateServiceSpec("targetPests", v)} rows={2} />
+              <TextareaField label="Metode Treatment" value={serviceSpec.treatmentMethod} onChange={v => updateServiceSpec("treatmentMethod", v)} rows={2} />
+              <TextareaField label="Monitoring Device" value={serviceSpec.monitoringDevices} onChange={v => updateServiceSpec("monitoringDevices", v)} rows={2} />
+              <TextareaField label="Area Coverage" value={serviceSpec.areaCoverage} onChange={v => updateServiceSpec("areaCoverage", v)} rows={2} />
+              <InputField label="Garansi" value={serviceSpec.guarantee} onChange={v => updateServiceSpec("guarantee", v)} />
+              <TextareaField label="Catatan Detail Service" value={serviceSpec.notes} onChange={v => updateServiceSpec("notes", v)} rows={3} />
+            </div>
+          ) : (
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+              <tbody>
+              {[
+                ["Jenis Layanan", serviceSpec.serviceType || data.jenisLayanan],
+                ["Target Hama", serviceSpec.targetPests],
+                ["Metode Treatment", serviceSpec.treatmentMethod],
+                ["Monitoring Device", serviceSpec.monitoringDevices],
+                ["Frekuensi Visit", serviceSpec.visitFrequency],
+                ["Area Coverage", serviceSpec.areaCoverage],
+                ["Garansi", serviceSpec.guarantee],
+                ["Catatan", serviceSpec.notes],
+              ].map(([k, v]) => (
+                <tr key={k} style={{ borderBottom: "1px solid #f3f4f6" }}>
+                  <td style={{ padding: "7px 0", color: "#6b7280", width: 180, fontWeight: 600, fontSize: 12 }}>{k}</td>
+                  <td style={{ padding: "7px 0", whiteSpace: "pre-line" }}>{v || "-"}</td>
+                </tr>
+              ))}
+              </tbody>
+            </table>
+          )}
         </Section>
 
         {/* Pasal 2 - Jangka Waktu */}
@@ -429,6 +509,67 @@ export default function AgreementDetailPage() {
               ))}
               {!serviceSchedule.length && (
                 <tr><td colSpan={5} style={{ padding: 16, textAlign: "center", color: "#9ca3af" }}>Belum ada jadwal service.</td></tr>
+              )}
+            </tbody>
+          </table>
+        </Section>
+
+        <Section title="PASAL 3A - RENCANA QC / MONTHLY VISIT">
+          {editMode && (
+            <button onClick={addVisitRow} style={{ background: NAVY, color: "#fff", border: "none", padding: "4px 12px", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", marginBottom: 10 }}>
+              + Tambah Jadwal Visit
+            </button>
+          )}
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+            <thead>
+              <tr style={{ background: NAVY, color: "#fff" }}>
+                <th style={{ padding: "8px 10px", textAlign: "left", width: 40 }}>No</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", width: 150 }}>Jenis Visit</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", width: 170 }}>Tanggal</th>
+                <th style={{ padding: "8px 10px", textAlign: "left", width: 150 }}>PIC</th>
+                <th style={{ padding: "8px 10px", textAlign: "left" }}>Lokasi / Catatan</th>
+                {editMode && <th style={{ width: 32 }} />}
+              </tr>
+            </thead>
+            <tbody>
+              {visitPlan.map((row, i) => (
+                <tr key={i} style={{ borderBottom: "1px solid #e5e7eb", background: i % 2 === 0 ? "#f9fafb" : "#fff" }}>
+                  <td style={{ padding: "8px 10px", fontWeight: 700, color: NAVY }}>{row.no}</td>
+                  <td style={{ padding: editMode ? 4 : "8px 10px" }}>
+                    {editMode ? (
+                      <select value={row.visitType} onChange={e => updateVisitRow(i, "visitType", e.target.value)} style={inpSty}>
+                        {VISIT_TYPES.map(v => <option key={v.value} value={v.value}>{v.label}</option>)}
+                      </select>
+                    ) : VISIT_TYPES.find(v => v.value === row.visitType)?.label || row.visitType}
+                  </td>
+                  <td style={{ padding: editMode ? 4 : "8px 10px" }}>
+                    {editMode ? <input type="datetime-local" value={row.scheduledAt} onChange={e => updateVisitRow(i, "scheduledAt", e.target.value)} style={inpSty} /> : (row.scheduledAt ? new Date(row.scheduledAt).toLocaleString("id-ID") : "-")}
+                  </td>
+                  <td style={{ padding: editMode ? 4 : "8px 10px" }}>
+                    {editMode ? (
+                      <select value={row.picId} onChange={e => updateVisitRow(i, "picId", e.target.value)} style={inpSty}>
+                        <option value="">Pilih PIC</option>
+                        {users.map(u => <option key={u.id} value={u.id}>{u.name} - {u.role}</option>)}
+                      </select>
+                    ) : users.find(u => u.id === row.picId)?.name || "-"}
+                  </td>
+                  <td style={{ padding: editMode ? 4 : "8px 10px" }}>
+                    {editMode ? (
+                      <div style={{ display: "grid", gap: 4 }}>
+                        <input value={row.location} onChange={e => updateVisitRow(i, "location", e.target.value)} placeholder="Lokasi" style={inpSty} />
+                        <input value={row.notes} onChange={e => updateVisitRow(i, "notes", e.target.value)} placeholder="Catatan" style={inpSty} />
+                      </div>
+                    ) : <span style={{ whiteSpace: "pre-line" }}>{[row.location, row.notes].filter(Boolean).join("\n") || "-"}</span>}
+                  </td>
+                  {editMode && (
+                    <td style={{ padding: 4, textAlign: "center" }}>
+                      <button onClick={() => removeVisitRow(i)} style={{ background: "#fee2e2", color: "#dc2626", border: "none", borderRadius: 4, padding: "2px 6px", cursor: "pointer", fontSize: 12 }}>x</button>
+                    </td>
+                  )}
+                </tr>
+              ))}
+              {!visitPlan.length && (
+                <tr><td colSpan={editMode ? 6 : 5} style={{ padding: 16, textAlign: "center", color: "#9ca3af" }}>Belum ada jadwal visit. Tambahkan sebelum agreement diaktifkan agar Kalender Visit otomatis terisi.</td></tr>
               )}
             </tbody>
           </table>

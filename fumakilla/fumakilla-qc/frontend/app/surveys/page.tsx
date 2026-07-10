@@ -2,6 +2,8 @@
 
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import api from "@/lib/api";
 import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
 import { LiveSurveyEvidence } from "@/components/erp/live-survey-evidence";
@@ -344,6 +346,7 @@ export default function Surveys() {
   const { user } = useAuth();
   const { data, loading, reload } = useGet<any>("/erp/surveys");
   const [tab, setTab] = useState<"calendar" | "b2c" | "b2b">("calendar");
+  const [calView, setCalView] = useState<"calendar" | "list">("calendar");
   const [month, setMonth] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1));
   const [selected, setSelected] = useState<any>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -373,8 +376,37 @@ export default function Surveys() {
   });
   const b2cSurveys = useMemo(() => applyFilters(surveys.filter((s: any) => (s.inquiry?.segmentType || s.customer?.segmentType) === "B2C")), [surveys, search, statusFilter]);
   const b2bSurveys = useMemo(() => applyFilters(surveys.filter((s: any) => (s.inquiry?.segmentType || s.customer?.segmentType) === "B2B")), [surveys, search, statusFilter]);
+  const monthSurveys = useMemo(() => applyFilters(surveys.filter((s: any) => {
+    const d = new Date(s.scheduledAt);
+    return d.getFullYear() === month.getFullYear() && d.getMonth() === month.getMonth();
+  })), [surveys, month, search, statusFilter]);
 
-  const tabLabel: Record<string, string> = { calendar: "Kalender", b2c: "Report After Survey B2C", b2b: "Report After Survey B2B" };
+  const downloadPdf = () => {
+    const doc = new jsPDF({ orientation: "landscape" });
+    doc.setFontSize(14);
+    doc.text("Kalender Survey - Fumakilla ERP", 14, 14);
+    doc.setFontSize(9);
+    doc.text(`Periode: ${monthTitle} | Export: ${new Date().toLocaleString("id-ID")} | Data: ${monthSurveys.length}`, 14, 21);
+    autoTable(doc, {
+      startY: 27,
+      head: [["Jadwal", "No. Survey", "Customer", "Segmentasi", "PIC Survey", "Status", "Check In", "Check Out"]],
+      body: monthSurveys.map((s: any) => [
+        new Date(s.scheduledAt).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" }),
+        s.number || "-",
+        s.customer?.name || "-",
+        s.inquiry?.segmentType || s.customer?.segmentType || "-",
+        s.picAssignments?.length ? s.picAssignments.map((a: any) => a.pic?.name).filter(Boolean).join(", ") : (s.pic?.name || "-"),
+        String(s.status || "-").replaceAll("_", " "),
+        s.evidenceImagePath ? "✓" : "—",
+        s.checkoutImagePath ? "✓" : "—",
+      ]),
+      styles: { fontSize: 7, cellPadding: 1.5 },
+      headStyles: { fillColor: [40, 95, 144] },
+    });
+    doc.save(`kalender-survey-${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}.pdf`);
+  };
+
+  const tabLabel: Record<string, string> = { calendar: "Kalender Survey", b2c: "Report After Survey B2C", b2b: "Report After Survey B2B" };
   const exportReport = (segment: "B2C" | "B2B", surveyId: string, format: "pdf" | "ppt") => {
     router.push(`/${segment === "B2C" ? "b2c-report" : "b2b-report"}/${surveyId}?export=${format}`);
   };
@@ -484,7 +516,7 @@ export default function Surveys() {
         </section>
       )}
 
-      <div className="mt-7 flex flex-wrap items-center justify-between gap-4">
+      <div className="mt-7 flex flex-wrap items-center gap-4">
         <div className="flex gap-1 rounded-lg bg-surface p-1">
           {(["calendar", "b2c", "b2b"] as const).map((t) => (
             <button
@@ -496,16 +528,31 @@ export default function Surveys() {
             </button>
           ))}
         </div>
-        {tab === "calendar" && (
-          <div className="flex items-center gap-2">
-            <button className="btn" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>Prev</button>
-            <b className="min-w-40 text-center">{monthTitle}</b>
-            <button className="btn" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>Next</button>
-          </div>
-        )}
       </div>
 
       {tab === "calendar" && (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+          <div className="flex gap-1 rounded-lg bg-surface p-1">
+            {(["calendar", "list"] as const).map(v => (
+              <button key={v}
+                className={`px-4 py-2 text-sm font-semibold ${calView === v ? "rounded bg-white text-accent shadow" : "text-ts"}`}
+                onClick={() => setCalView(v)}>
+                {v === "calendar" ? "Kalender" : "List"}
+              </button>
+            ))}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <button className="btn" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>Prev</button>
+              <b className="min-w-40 text-center">{monthTitle}</b>
+              <button className="btn" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>Next</button>
+            </div>
+            <button className="btn" disabled={!monthSurveys.length} onClick={downloadPdf}>Download PDF</button>
+          </div>
+        </div>
+      )}
+
+      {tab === "calendar" && calView === "calendar" && (
         loading
           ? <div className="card mt-6 p-8"><Loading /></div>
           : <div className="card mt-6 overflow-hidden">
@@ -514,10 +561,7 @@ export default function Surveys() {
               </div>
               <div className="grid grid-cols-7">
                 {days.map((day, index) => {
-                  const items = day ? surveys.filter((item: any) => {
-                    const v = new Date(item.scheduledAt);
-                    return v.getFullYear() === day.getFullYear() && v.getMonth() === day.getMonth() && v.getDate() === day.getDate();
-                  }) : [];
+                  const items = day ? monthSurveys.filter((item: any) => new Date(item.scheduledAt).getDate() === day.getDate()) : [];
                   return (
                     <div className="min-h-32 border-b border-r border-bdr p-2" key={index}>
                       {day && (
@@ -538,6 +582,48 @@ export default function Surveys() {
                 })}
               </div>
             </div>
+      )}
+
+      {tab === "calendar" && calView === "list" && (
+        <div className="card mt-6 overflow-x-auto">
+          {loading ? <Loading /> : (
+            <>
+              <table>
+                <thead>
+                  <tr>
+                    <th>Jadwal</th>
+                    <th>No. Survey</th>
+                    <th>Customer</th>
+                    <th>Segmentasi</th>
+                    <th>PIC Survey</th>
+                    <th>Status</th>
+                    <th>Check In/Out</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...monthSurveys].sort((a: any, b: any) => new Date(b.scheduledAt).getTime() - new Date(a.scheduledAt).getTime()).map((item: any) => (
+                    <tr key={item.id} className="table-row cursor-pointer" onClick={() => setSelected(item)}>
+                      <td><b>{dateLabel(item.scheduledAt)}</b></td>
+                      <td>
+                        <b className="text-accent">{item.number}</b>
+                        {item.inquiry && <p className="mt-0.5 text-xs text-ts">{item.inquiry.number}</p>}
+                      </td>
+                      <td>{item.customer?.name || "-"}</td>
+                      <td>{item.inquiry?.segmentType || item.customer?.segmentType || "-"}</td>
+                      <td>{item.picAssignments?.length ? item.picAssignments.map((a: any) => a.pic?.name).filter(Boolean).join(", ") : (item.pic?.name || "-")}</td>
+                      <td><Status value={item.status} /></td>
+                      <td>
+                        <span className={`mr-2 text-xs font-semibold ${item.evidenceImagePath ? "text-green-700" : "text-ts"}`}>CI: {item.evidenceImagePath ? "✓" : "—"}</span>
+                        <span className={`text-xs font-semibold ${item.checkoutImagePath ? "text-green-700" : "text-ts"}`}>CO: {item.checkoutImagePath ? "✓" : "—"}</span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!monthSurveys.length && <p className="p-10 text-center text-sm text-ts">Belum ada data survey di {monthTitle}.</p>}
+            </>
+          )}
+        </div>
       )}
 
       {tab === "b2c" && renderSurveyTable(b2cSurveys, "B2C")}

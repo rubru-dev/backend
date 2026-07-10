@@ -46,6 +46,77 @@ function customerSnapshot(customer: any) {
   };
 }
 
+function serviceSpecText(serviceSpec: any) {
+  if (!serviceSpec || typeof serviceSpec !== "object") return "";
+  const lines = [
+    serviceSpec.serviceType ? `Jenis layanan: ${serviceSpec.serviceType}` : "",
+    serviceSpec.targetPests ? `Target hama: ${serviceSpec.targetPests}` : "",
+    serviceSpec.treatmentMethod ? `Metode treatment: ${serviceSpec.treatmentMethod}` : "",
+    serviceSpec.monitoringDevices ? `Monitoring device: ${serviceSpec.monitoringDevices}` : "",
+    serviceSpec.visitFrequency ? `Frekuensi visit: ${serviceSpec.visitFrequency}` : "",
+    serviceSpec.areaCoverage ? `Area coverage: ${serviceSpec.areaCoverage}` : "",
+    serviceSpec.guarantee ? `Garansi: ${serviceSpec.guarantee}` : "",
+    serviceSpec.notes ? `Catatan: ${serviceSpec.notes}` : "",
+  ].filter(Boolean);
+  return lines.join("\n");
+}
+
+function visitTypeFrom(value: any, segmentType?: string | null) {
+  const raw = String(value || "").toUpperCase();
+  if (raw === "MONTHLY_VISIT_B2C" || raw === "MONTHLY B2C") return "MONTHLY_VISIT_B2C";
+  if (raw === "MONTHLY_VISIT_B2B" || raw === "MONTHLY B2B") return "MONTHLY_VISIT_B2B";
+  if ((segmentType || "").toUpperCase() === "B2C" && raw.includes("MONTHLY")) return "MONTHLY_VISIT_B2C";
+  if ((segmentType || "").toUpperCase() === "B2B" && raw.includes("MONTHLY")) return "MONTHLY_VISIT_B2B";
+  return "QC_VISIT";
+}
+
+async function createVisitsFromAgreement(tx: any, ag: any, serviceContractId: string | null, actorId?: string) {
+  const plan = Array.isArray(ag.visitPlan) ? ag.visitPlan : [];
+  const created: any[] = [];
+  for (const row of plan) {
+    if (!row?.scheduledAt || !row?.picId) continue;
+    const scheduledAt = toDate(row.scheduledAt);
+    if (!scheduledAt) continue;
+    const visitType = visitTypeFrom(row.visitType, ag.quotation?.segmentType);
+    const segmentType = visitType === "MONTHLY_VISIT_B2C" ? "B2C" : "B2B";
+    const item = await tx.serviceVisit.upsert({
+      where: { agreementId_scheduledAt_visitType: { agreementId: ag.id, scheduledAt, visitType } },
+      update: {
+        serviceContractId,
+        customerId: ag.customerId,
+        picId: row.picId,
+        segmentType,
+        serviceType: ag.jenisLayanan,
+        location: row.location || ag.lokasiPekerjaan || "",
+        notes: row.notes || null,
+      },
+      create: {
+        agreementId: ag.id,
+        serviceContractId,
+        customerId: ag.customerId,
+        picId: row.picId,
+        visitType,
+        segmentType,
+        serviceType: ag.jenisLayanan,
+        scheduledAt,
+        location: row.location || ag.lokasiPekerjaan || "",
+        notes: row.notes || null,
+      },
+    });
+    created.push(item);
+  }
+  if (created.length) {
+    await tx.activityLog.create({
+      data: {
+        message: `${created.length} jadwal visit dibuat dari agreement ${ag.number}`,
+        type: "SERVICE_VISIT",
+        userId: actorId,
+      },
+    });
+  }
+  return created;
+}
+
 async function ensurePendingMonthlyReport(customerId: string, preferredInquiryId?: string | null, preferredSegment?: string | null) {
   const inquiry = preferredInquiryId
     ? await prisma.inquiry.findUnique({ where: { id: preferredInquiryId }, select: { id: true, segmentType: true } })
@@ -234,6 +305,8 @@ router.post("/", async (req, res, next) => {
           tanggalBerakhir: toDate(b.tanggalBerakhir) ?? new Date(),
           durasiKontrak: b.durasiKontrak ? Number(b.durasiKontrak) : null,
           serviceSchedule: b.serviceSchedule ?? [],
+          serviceSpec: b.serviceSpec ?? {},
+          visitPlan: b.visitPlan ?? [],
           nilaiKontrak: toDecimal(b.nilaiKontrak) ?? 0,
           ppn: toDecimal(b.ppn),
           grandTotal: toDecimal(b.grandTotal),
@@ -271,9 +344,9 @@ router.post("/", async (req, res, next) => {
           jobTitle: ag.jenisLayanan || "Pest Control",
           serviceType: ag.jenisLayanan || null,
           workDate: ag.tanggalMulai,
-          jobDescription: `Order sheet otomatis dari Agreement ${ag.number}`,
+          jobDescription: [`Order sheet otomatis dari Agreement ${ag.number}`, serviceSpecText(b.serviceSpec)].filter(Boolean).join("\n\n"),
           specialInstruction: ag.notes || null,
-          treatmentLocations: ag.lokasiPekerjaan ? [{ area: ag.lokasiPekerjaan, treatmentType: ag.jenisLayanan || "", notes: ag.areaPekerjaan || "" }] : [],
+          treatmentLocations: ag.lokasiPekerjaan ? [{ area: ag.lokasiPekerjaan, treatmentType: ag.jenisLayanan || "", notes: [ag.areaPekerjaan || "", serviceSpecText(b.serviceSpec)].filter(Boolean).join("\n") }] : [],
           costItems: [{ description: ag.jenisLayanan || "Pest Control", qty: "1", unitPrice: String(ag.nilaiKontrak || 0), total: String(ag.nilaiKontrak || 0) }],
           subtotal: ag.nilaiKontrak,
           ppnAmount: ag.ppn || null,
@@ -305,6 +378,13 @@ router.patch("/:id", async (req, res, next) => {
   try {
     const b = req.body;
     const data: any = {};
+    if ("status" in b) {
+      const current = await prisma.agreement.findUnique({ where: { id: req.params.id }, select: { status: true, approvedAt: true } });
+      if (!current) return res.status(404).json({ error: "Agreement tidak ditemukan" });
+      if (b.status !== current.status && !current.approvedAt) {
+        return res.status(400).json({ error: "Agreement harus di-approve dengan tanda tangan sebelum status bisa diganti." });
+      }
+    }
 
     const strFields = [
       "jenisLayanan", "lokasiPekerjaan", "areaPekerjaan", "metodePembayaran",
@@ -315,7 +395,7 @@ router.patch("/:id", async (req, res, next) => {
     ];
     const dateFields = ["tanggal", "tanggalMulai", "tanggalBerakhir", "ttdFumakillaTanggal", "ttdKlienTanggal"];
     const numFields = ["durasiKontrak", "nilaiKontrak", "ppn", "grandTotal"];
-    const jsonFields = ["serviceSchedule", "terminPembayaran"];
+    const jsonFields = ["serviceSchedule", "serviceSpec", "visitPlan", "terminPembayaran"];
     const optionalRelFields = ["quotationId"];
 
     for (const f of strFields) {
@@ -335,8 +415,50 @@ router.patch("/:id", async (req, res, next) => {
     }
     if ("customerId" in b) data.customerId = b.customerId;
 
-    const ag = await prisma.agreement.update({ where: { id: req.params.id }, data });
+    const ag = await prisma.agreement.update({
+      where: { id: req.params.id },
+      data,
+      include: {
+        quotation: { select: { segmentType: true } },
+        serviceContract: { select: { id: true } },
+      },
+    });
+    if ("visitPlan" in b && ag.approvedAt) {
+      await prisma.$transaction(async (tx) => {
+        await createVisitsFromAgreement(tx, ag, ag.serviceContract?.id || null, (req as any).user?.id);
+      });
+    }
     res.json(ag);
+  } catch (e) { next(e); }
+});
+
+router.post("/:id/approve", async (req: any, res, next) => {
+  try {
+    const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : "";
+    if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." });
+    const existing = await prisma.agreement.findUnique({ where: { id: req.params.id }, select: { id: true, number: true } });
+    if (!existing) return res.status(404).json({ error: "Agreement tidak ditemukan" });
+    const item = await prisma.$transaction(async (tx) => {
+      const updated = await tx.agreement.update({
+        where: { id: existing.id },
+        data: {
+          approvedAt: new Date(),
+          approvedByName: req.user?.name || "Approver",
+          approvedSignature: signature,
+        },
+        include: {
+          customer: { select: { id: true, name: true, company: true, code: true } },
+          quotation: { select: { id: true, number: true, title: true, segmentType: true } },
+          serviceContract: { select: { id: true } },
+        },
+      });
+      await createVisitsFromAgreement(tx, updated, updated.serviceContract?.id || null, req.user?.id);
+      await tx.activityLog.create({
+        data: { message: `${req.user?.name || "System"} approve agreement ${existing.number}`, type: "AGREEMENT", userId: req.user?.id },
+      });
+      return updated;
+    });
+    res.json(item);
   } catch (e) { next(e); }
 });
 
@@ -352,6 +474,7 @@ router.post("/:id/activate", async (req, res, next) => {
     });
     if (!ag) return res.status(404).json({ error: "Agreement tidak ditemukan" });
     if (ag.status === "ACTIVE") return res.status(400).json({ error: "Agreement sudah aktif" });
+    if (!ag.approvedAt) return res.status(400).json({ error: "Agreement harus di-approve dengan tanda tangan sebelum status bisa diganti." });
 
     // Enforce: satu active agreement per customer — kecuali ini adalah renewal
     if (!ag.isRenewal) {
@@ -376,41 +499,57 @@ router.post("/:id/activate", async (req, res, next) => {
     const lastScSeq = lastSc ? (parseInt(lastSc.number.slice(-3)) || 0) : 0;
     const scNumber = `${scPrefix}${String(lastScSeq + 1).padStart(3, "0")}`;
 
-    const updatedAg = await prisma.agreement.update({
-      where: { id: ag.id },
-      data: { status: "ACTIVE" },
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedAg = await tx.agreement.update({
+        where: { id: ag.id },
+        data: { status: "ACTIVE" },
+      });
 
-    const sc = await prisma.serviceContract.create({
-      data: {
-        customerId: ag.customerId,
-        agreementId: ag.id,
-        number: scNumber,
-        service: ag.jenisLayanan,
-        startDate: ag.tanggalMulai,
-        endDate: ag.tanggalBerakhir,
-        status: "ACTIVE",
-      },
-      include: { customer: true },
-    });
+      const sc = await tx.serviceContract.create({
+        data: {
+          customerId: ag.customerId,
+          agreementId: ag.id,
+          number: scNumber,
+          service: ag.jenisLayanan,
+          startDate: ag.tanggalMulai,
+          endDate: ag.tanggalBerakhir,
+          status: "ACTIVE",
+        },
+        include: { customer: true },
+      });
 
-    // Update customer status ke Kontrak
-    await prisma.customer.update({
-      where: { id: ag.customerId },
-      data: {
-        status: "Kontrak",
-        agreementNumber: ag.number,
-        agreementStart: ag.tanggalMulai,
-        agreementEnd: ag.tanggalBerakhir,
-        agreementValue: ag.grandTotal ?? ag.nilaiKontrak,
-      },
+      await tx.customer.update({
+        where: { id: ag.customerId },
+        data: {
+          status: "Kontrak",
+          agreementNumber: ag.number,
+          agreementStart: ag.tanggalMulai,
+          agreementEnd: ag.tanggalBerakhir,
+          agreementValue: ag.grandTotal ?? ag.nilaiKontrak,
+        },
+      });
+
+      const serviceSpec = ag.serviceSpec as any;
+      const specText = serviceSpecText(serviceSpec);
+      await tx.orderSheet.updateMany({
+        where: { customerId: ag.customerId, agreementRef: ag.number },
+        data: {
+          serviceType: ag.jenisLayanan,
+          jobTitle: ag.jenisLayanan || "Pest Control",
+          jobDescription: [`Order sheet otomatis dari Agreement ${ag.number}`, specText].filter(Boolean).join("\n\n"),
+          treatmentLocations: ag.lokasiPekerjaan ? [{ area: ag.lokasiPekerjaan, treatmentType: ag.jenisLayanan || "", notes: [ag.areaPekerjaan || "", specText].filter(Boolean).join("\n") }] : [],
+        },
+      });
+
+      const visits = await createVisitsFromAgreement(tx, ag, sc.id, (req as any).user?.id);
+      return { updatedAg, sc, visits };
     });
 
     // Auto-create monthly report "pending" jika ada inquiryId (dari quotation)
     // pagesData: { _pending: true } → user pilih jenis (Complete/Simple) dari menu Monthly Report
     const monthlyReport = await ensurePendingMonthlyReport(ag.customerId, ag.quotation?.inquiryId, ag.quotation?.segmentType);
 
-    res.json({ agreement: updatedAg, serviceContract: sc, monthlyReport });
+    res.json({ agreement: result.updatedAg, serviceContract: result.sc, monthlyReport, visits: result.visits });
   } catch (e) { next(e); }
 });
 
