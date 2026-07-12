@@ -7,6 +7,7 @@ import { storageUrl } from "@/lib/storage-url";
 import { toast } from "sonner";
 import { CalendarDays, ChevronLeft, ChevronRight, MapPin, X, Plus, Trash2, List } from "lucide-react";
 import { ClockCameraButton } from "@/components/clock-camera-button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 type Visit = {
   id: string; lead_id: string; client_nama: string | null; tanggal: string | null; jam: string | null;
@@ -25,6 +26,8 @@ export default function KalenderVisitClientPage() {
   const [form, setForm] = useState({ lead_id: "", tanggal: "", jam: "" });
   const [hasil, setHasil] = useState("");
   const [view, setView] = useState<"calendar" | "list">("calendar");
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const { data: visitsData } = useQuery({ queryKey: ["sales-visits"], queryFn: () => apiClient.get("/sales-visit").then((r) => r.data) });
   const { data: leadsData } = useQuery({ queryKey: ["sales-client-leads-opt"], queryFn: () => apiClient.get("/bd/sales-client/leads", { params: { limit: 500 } }).then((r) => r.data) });
@@ -78,13 +81,23 @@ export default function KalenderVisitClientPage() {
       await apiClient.patch(`/sales-visit/${selected.id}`, { keterangan_hasil: hasil });
       toast.success("Keterangan hasil disimpan.");
       refresh();
+      setSelected(null);
     } catch { toast.error("Gagal menyimpan keterangan."); }
   };
 
   const delJadwal = async (id: string) => {
-    if (!confirm("Hapus jadwal visit ini?")) return;
-    try { await apiClient.delete(`/sales-visit/${id}`); toast.success("Jadwal dihapus."); setSelected(null); refresh(); }
-    catch { toast.error("Gagal menghapus."); }
+    setDeleting(true);
+    try {
+      await apiClient.delete(`/sales-visit/${id}`);
+      toast.success("Jadwal dihapus.");
+      setSelected(null);
+      setConfirmDeleteId(null);
+      refresh();
+    } catch {
+      toast.error("Gagal menghapus.");
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const sel = selected ? visits.find((v) => v.id === selected.id) ?? selected : null;
@@ -199,9 +212,17 @@ export default function KalenderVisitClientPage() {
                 <h2 className="text-lg font-bold">{sel.client_nama || "Client"}</h2>
                 <p className="text-xs text-muted-foreground">Visit {sel.tanggal ? new Date(sel.tanggal).toLocaleDateString("id-ID") : "-"} {sel.jam || ""}</p>
               </div>
-              <div className="flex items-center gap-2">
-                <button onClick={() => delJadwal(sel.id)} title="Hapus jadwal" className="text-red-500 hover:text-red-600"><Trash2 className="h-4 w-4" /></button>
-                <button onClick={() => setSelected(null)}><X className="h-5 w-5" /></button>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setConfirmDeleteId(sel.id)}
+                  title="Hapus jadwal"
+                  className="rounded-md border border-red-200 bg-red-50 px-2 py-1 text-red-600 hover:bg-red-100 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+                <button onClick={() => setSelected(null)} className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground">
+                  <X className="h-5 w-5" />
+                </button>
               </div>
             </div>
 
@@ -240,6 +261,16 @@ export default function KalenderVisitClientPage() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onClose={() => setConfirmDeleteId(null)}
+        title="Hapus Jadwal Visit?"
+        description="Jadwal visit client ini akan dihapus permanen. Data clock in/out dan keterangan hasil visit pada jadwal ini juga tidak akan tampil lagi."
+        confirmLabel="Hapus Jadwal"
+        loading={deleting}
+        onConfirm={() => confirmDeleteId && delJadwal(confirmDeleteId)}
+      />
     </div>
   );
 }
