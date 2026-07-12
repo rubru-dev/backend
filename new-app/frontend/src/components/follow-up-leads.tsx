@@ -106,7 +106,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const canDelete = useAuthStore((s) =>
     !isGolden || s.isSuperAdmin() || s.hasAnyRole("Head Golden")
   );
-  const canBulkDelete = isSuperAdmin && (modul === "sales-admin" || modul === "telemarketing");
+  const canBulkDelete = isSuperAdmin && (modul === "sales-admin" || modul === "telemarketing" || modul === "sales-client");
   const activeJenisOptions = isGolden ? JENIS_OPTIONS_GOLDEN : isFilterAir ? JENIS_OPTIONS_FILTER_AIR : isRkr ? JENIS_OPTIONS_RKR : JENIS_OPTIONS;
   const defaultJenis = activeJenisOptions[0];
   const endpoint = `/bd/${modul}/leads`;

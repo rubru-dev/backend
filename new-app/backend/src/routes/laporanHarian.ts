@@ -150,7 +150,7 @@ router.get("/follow-up-summary", async (req: Request, res: Response) => {
   const followUps = await prisma.followUpClient.findMany({
     where,
     include: {
-      lead: { select: { id: true, nama: true, tanggal_masuk: true } },
+      lead: { select: { id: true, nama: true, tanggal_masuk: true, created_at: true } },
       user: { select: { id: true, name: true } },
     },
     orderBy: [{ tanggal: "desc" }, { id: "desc" }],
@@ -177,8 +177,8 @@ router.get("/follow-up-summary", async (req: Request, res: Response) => {
       lead_nama: fu.lead?.nama ?? "—",
       catatan: fu.catatan ?? null,
       next_follow_up: isoDate(fu.next_follow_up as Date | null),
-      // tanggal input lead — untuk memisah "leads baru hari ini" vs "follow-up leads lama"
-      lead_tanggal_masuk: isoDate(fu.lead?.tanggal_masuk as Date | null),
+      // tanggal input lead (fallback ke created_at kalau tanggal_masuk kosong) — untuk memisah "baru" vs "lama"
+      lead_tanggal_masuk: isoDate((fu.lead?.tanggal_masuk ?? fu.lead?.created_at) as Date | null),
     });
   }
 
@@ -228,9 +228,9 @@ function weekOfMonthNum(d: Date): 1 | 2 | 3 | 4 {
   return Math.min(4, Math.max(1, Math.ceil(d.getDate() / 7))) as 1 | 2 | 3 | 4;
 }
 type WeekDetail = {
-  leads_masuk: { id: string; nama: string }[];
+  leads_masuk: { id: string; nama: string; tanggal: string | null }[];
   follow_ups: { lead_id: string; lead_nama: string; catatan: string | null; tanggal: string | null }[];
-  closing_survey: { id: string; nama: string }[];
+  closing_survey: { id: string; nama: string; tanggal: string | null }[];
 };
 const emptyWeeks = (): Record<"W1" | "W2" | "W3" | "W4", WeekDetail> => ({
   W1: { leads_masuk: [], follow_ups: [], closing_survey: [] },
@@ -267,7 +267,7 @@ router.get("/follow-up-stats", async (req: Request, res: Response) => {
 
   const weeks = emptyWeeks();
   const wk = (d: Date) => `W${weekOfMonthNum(d)}` as keyof typeof weeks;
-  for (const l of leads) if (l.tanggal_masuk) weeks[wk(l.tanggal_masuk)].leads_masuk.push({ id: String(l.id), nama: l.nama });
+  for (const l of leads) if (l.tanggal_masuk) weeks[wk(l.tanggal_masuk)].leads_masuk.push({ id: String(l.id), nama: l.nama, tanggal: isoDate(l.tanggal_masuk) });
   const distinctLeads = new Set<string>();
   for (const fu of fus) {
     if (!fu.tanggal) continue;
@@ -277,7 +277,7 @@ router.get("/follow-up-stats", async (req: Request, res: Response) => {
     });
     if (fu.lead_id != null) distinctLeads.add(String(fu.lead_id));
   }
-  for (const s of surveys) if (s.tanggal_survey) weeks[wk(s.tanggal_survey)].closing_survey.push({ id: String(s.id), nama: s.nama });
+  for (const s of surveys) if (s.tanggal_survey) weeks[wk(s.tanggal_survey)].closing_survey.push({ id: String(s.id), nama: s.nama, tanggal: isoDate(s.tanggal_survey) });
 
   return res.json({
     total_follow_up: fus.length,

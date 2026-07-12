@@ -17,8 +17,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   CalendarDays, Plus, Pencil, Trash2, X, Camera, CheckCircle, Clock,
-  ChevronLeft, ChevronRight, Users,
+  ChevronLeft, ChevronRight, Users, List,
 } from "lucide-react";
+import { ClockCameraButton } from "@/components/clock-camera-button";
 
 const MONTH_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const DAY_NAMES   = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"];
@@ -55,38 +56,6 @@ const picApi = {
   saveHasil:        (id: string, keterangan_hasil: string) => apiClient.patch(`/pic/kalender-visit/${id}/hasil`, { keterangan_hasil }).then(r => r.data),
 };
 
-function getVisitPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("Browser tidak mendukung lokasi."));
-    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 });
-  });
-}
-
-function VisitClockButton({ visitId, type, onDone }: { visitId: string; type: "in" | "out"; onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const submit = async (file?: File | null) => {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const pos = await getVisitPosition();
-      const fd = new FormData();
-      fd.append("photo", file);
-      fd.append("lat", String(pos.coords.latitude));
-      fd.append("lng", String(pos.coords.longitude));
-      await (type === "in" ? picApi.clockIn(visitId, fd) : picApi.clockOut(visitId, fd));
-      toast.success(type === "in" ? "Clock in tersimpan." : "Clock out tersimpan.");
-      onDone();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.detail || e?.message || "Gagal. Pastikan izin lokasi & kamera aktif.");
-    } finally { setBusy(false); }
-  };
-  return (
-    <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-white ${type === "in" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-orange-600 hover:bg-orange-700"} ${busy ? "opacity-50" : ""}`}>
-      <Clock className="h-4 w-4" /> {busy ? "Mengirim…" : type === "in" ? "Clock In" : "Clock Out"}
-      <input disabled={busy} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { submit(e.target.files?.[0]); e.currentTarget.value = ""; }} />
-    </label>
-  );
-}
 const visitJam = (d?: string | null) => (d ? new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-");
 
 const EMPTY_FORM = { nama_projek: "", projek_id: "", projek_type: "", tanggal: "", jam: "", keterangan: "", status: "Terjadwal", pic_user_ids: [] as string[] };
@@ -115,6 +84,17 @@ export default function KalenderVisitPage() {
   const [filterPicId, setFilterPicId]         = useState("");
   const [visitDetail, setVisitDetail]         = useState<any | null>(null); // clock in/out + keterangan hasil
   const [hasilText, setHasilText]             = useState("");
+  const [view, setView]                       = useState<"calendar" | "list">("calendar");
+
+  const doProjekClock = async (visitId: string, type: "in" | "out", file: File, lat: number, lng: number) => {
+    const fd = new FormData();
+    fd.append("photo", file); fd.append("lat", String(lat)); fd.append("lng", String(lng));
+    try {
+      await (type === "in" ? picApi.clockIn(visitId, fd) : picApi.clockOut(visitId, fd));
+      toast.success(type === "in" ? "Clock in tersimpan." : "Clock out tersimpan.");
+      qc.invalidateQueries({ queryKey: ["kalender-visit"] });
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Gagal menyimpan."); }
+  };
 
   const { data: allVisits = [], isLoading } = useQuery({
     queryKey: ["kalender-visit", bulan, tahun],
@@ -341,7 +321,19 @@ export default function KalenderVisitPage() {
         )}
       </div>
 
+      {/* Toggle tampilan */}
+      <div className="flex justify-end">
+        <div className="flex gap-1 rounded-lg bg-muted p-1">
+          {(["calendar", "list"] as const).map((vv) => (
+            <button key={vv} onClick={() => setView(vv)} className={`inline-flex items-center gap-1 rounded px-3 py-1.5 text-sm font-medium ${view === vv ? "bg-background text-orange-600 shadow" : "text-muted-foreground"}`}>
+              {vv === "calendar" ? <CalendarDays className="h-4 w-4" /> : <List className="h-4 w-4" />} {vv === "calendar" ? "Kalender" : "List"}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Calendar */}
+      {view === "calendar" && (
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -432,6 +424,29 @@ export default function KalenderVisitPage() {
           )}
         </CardContent>
       </Card>
+      )}
+
+      {view === "list" && (
+        <Card>
+          <CardContent className="divide-y p-0">
+            {(allVisits as any[]).length === 0 ? (
+              <p className="p-6 text-center text-sm text-muted-foreground">Tidak ada jadwal di {MONTH_NAMES[bulan - 1]} {tahun}.</p>
+            ) : [...(allVisits as any[])].sort((a, b) => (String(a.tanggal) < String(b.tanggal) ? -1 : 1)).map((v: any) => (
+              <button key={v.id} onClick={() => { setVisitDetail(v); setHasilText(v.keterangan_hasil ?? ""); }} className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/40">
+                <div className="flex flex-col items-center justify-center rounded-md bg-orange-50 px-2 py-1 text-orange-700">
+                  <span className="text-[10px] uppercase">{new Date(v.tanggal).toLocaleDateString("id-ID", { month: "short" })}</span>
+                  <span className="text-lg font-bold leading-none">{new Date(v.tanggal).getDate()}</span>
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate font-semibold">{v.nama_projek}</p>
+                  <p className="text-xs text-muted-foreground">{v.jam || "-"} · {v.pics?.length ?? 0} PIC{v.clock_in_at ? (v.clock_out_at ? " · ✓ Selesai" : " · ● Clock in") : ""}</p>
+                </div>
+                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+              </button>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Selected date detail */}
       {selectedDate && (
@@ -702,8 +717,8 @@ export default function KalenderVisitPage() {
                     })}
                   </div>
                   <div className="flex justify-end gap-2">
-                    {!vd.clock_in_at && <VisitClockButton visitId={String(vd.id)} type="in" onDone={refresh} />}
-                    {vd.clock_in_at && !vd.clock_out_at && <VisitClockButton visitId={String(vd.id)} type="out" onDone={refresh} />}
+                    {!vd.clock_in_at && <ClockCameraButton label="Clock In" tone="in" onCapture={(f, lat, lng) => doProjekClock(String(vd.id), "in", f, lat, lng)} />}
+                    {vd.clock_in_at && !vd.clock_out_at && <ClockCameraButton label="Clock Out" tone="out" onCapture={(f, lat, lng) => doProjekClock(String(vd.id), "out", f, lat, lng)} />}
                     {vd.clock_in_at && vd.clock_out_at && <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">✓ Visit selesai</span>}
                   </div>
                   <div>

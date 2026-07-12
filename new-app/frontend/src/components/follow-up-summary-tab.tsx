@@ -13,10 +13,11 @@ const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 const WEEKS = ["W1", "W2", "W3", "W4"] as const;
 
 type WeekDetail = {
-  leads_masuk: { id: string; nama: string }[];
+  leads_masuk: { id: string; nama: string; tanggal: string | null }[];
   follow_ups: { lead_id: string; lead_nama: string; catatan: string | null; tanggal: string | null }[];
-  closing_survey: { id: string; nama: string }[];
+  closing_survey: { id: string; nama: string; tanggal: string | null }[];
 };
+const fmtDate = (d: string) => new Date(d + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 type Stats = {
   total_follow_up: number; total_leads_followed: number; total_leads: number; closing_survey: number;
   weeks: Record<"W1" | "W2" | "W3" | "W4", WeekDetail>;
@@ -116,41 +117,60 @@ export function FollowUpSummaryTab({ brands, showClosingSurvey }: { brands: Bran
                           {showClosingSurvey && <> · Closing survey <b className="text-foreground">{nClose}</b></>}
                         </span>
                       </button>
-                      {isOpen && (
-                        <div className="space-y-3 px-4 pb-4 pl-11 text-sm">
-                          <div>
-                            <p className="mb-1 text-[11px] font-semibold text-amber-700">Follow Up ({nFu})</p>
-                            {nFu === 0 ? <p className="text-xs italic text-muted-foreground">Tidak ada follow up.</p> : (
-                              <div className="space-y-1.5">
-                                {wd!.follow_ups.map((fu, i) => (
-                                  <div key={i} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
-                                    <div className="font-medium text-amber-900">{fu.lead_nama}</div>
-                                    {fu.catatan ? <p className="mt-0.5 text-xs text-amber-800">{fu.catatan}</p> : <p className="mt-0.5 text-xs italic text-muted-foreground/60">Tanpa catatan</p>}
+                      {isOpen && (() => {
+                        const dates = Array.from(new Set([
+                          ...(wd?.follow_ups ?? []).map((x) => x.tanggal),
+                          ...(wd?.leads_masuk ?? []).map((x) => x.tanggal),
+                          ...(showClosingSurvey ? (wd?.closing_survey ?? []).map((x) => x.tanggal) : []),
+                        ].filter(Boolean) as string[])).sort();
+                        return (
+                          <div className="space-y-3 px-4 pb-4 pl-11 text-sm">
+                            {dates.length === 0 ? (
+                              <p className="text-xs italic text-muted-foreground">Tidak ada aktivitas di minggu ini.</p>
+                            ) : dates.map((d) => {
+                              const fus = (wd?.follow_ups ?? []).filter((x) => x.tanggal === d);
+                              const masuk = (wd?.leads_masuk ?? []).filter((x) => x.tanggal === d);
+                              const survey = showClosingSurvey ? (wd?.closing_survey ?? []).filter((x) => x.tanggal === d) : [];
+                              return (
+                                <div key={d} className="overflow-hidden rounded-md border">
+                                  <div className="border-b bg-muted/40 px-3 py-1.5 text-xs font-bold">{fmtDate(d)}</div>
+                                  <div className="space-y-2 p-3">
+                                    {fus.length > 0 && (
+                                      <div>
+                                        <p className="mb-1 text-[11px] font-semibold text-amber-700">Follow Up ({fus.length})</p>
+                                        <div className="space-y-1.5">
+                                          {fus.map((fu, i) => (
+                                            <div key={i} className="rounded border border-amber-200 bg-amber-50 px-2 py-1.5">
+                                              <div className="font-medium text-amber-900">{fu.lead_nama}</div>
+                                              {fu.catatan ? <p className="mt-0.5 text-xs text-amber-800">{fu.catatan}</p> : <p className="mt-0.5 text-xs italic text-muted-foreground/60">Tanpa catatan</p>}
+                                            </div>
+                                          ))}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {masuk.length > 0 && (
+                                      <div>
+                                        <p className="mb-1 text-[11px] font-semibold text-violet-700">Leads Masuk ({masuk.length})</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {masuk.map((l, i) => <span key={i} className="rounded border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs">{l.nama}</span>)}
+                                        </div>
+                                      </div>
+                                    )}
+                                    {survey.length > 0 && (
+                                      <div>
+                                        <p className="mb-1 text-[11px] font-semibold text-green-700">Closing Survey ({survey.length})</p>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {survey.map((l, i) => <span key={i} className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs">{l.nama}</span>)}
+                                        </div>
+                                      </div>
+                                    )}
                                   </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          <div>
-                            <p className="mb-1 text-[11px] font-semibold text-violet-700">Leads Masuk ({nMasuk})</p>
-                            {nMasuk === 0 ? <p className="text-xs italic text-muted-foreground">Tidak ada.</p> : (
-                              <div className="flex flex-wrap gap-1.5">
-                                {wd!.leads_masuk.map((l, i) => <span key={i} className="rounded border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs">{l.nama}</span>)}
-                              </div>
-                            )}
-                          </div>
-                          {showClosingSurvey && (
-                            <div>
-                              <p className="mb-1 text-[11px] font-semibold text-green-700">Closing Survey ({nClose})</p>
-                              {nClose === 0 ? <p className="text-xs italic text-muted-foreground">Tidak ada.</p> : (
-                                <div className="flex flex-wrap gap-1.5">
-                                  {wd!.closing_survey.map((l, i) => <span key={i} className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs">{l.nama}</span>)}
                                 </div>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
                   );
                 })}

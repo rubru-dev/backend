@@ -5,7 +5,8 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { storageUrl } from "@/lib/storage-url";
 import { toast } from "sonner";
-import { CalendarDays, ChevronLeft, ChevronRight, MapPin, Clock, X, Plus, Trash2 } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, MapPin, X, Plus, Trash2, List } from "lucide-react";
+import { ClockCameraButton } from "@/components/clock-camera-button";
 
 type Visit = {
   id: string; lead_id: string; client_nama: string | null; tanggal: string | null; jam: string | null;
@@ -14,41 +15,7 @@ type Visit = {
   clock_out_at: string | null; clock_out_location: string | null; clock_out_photo: string | null;
 };
 
-function getPosition(): Promise<GeolocationPosition> {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) return reject(new Error("Browser tidak mendukung lokasi."));
-    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 });
-  });
-}
 const jam = (d?: string | null) => (d ? new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-");
-
-function ClockButton({ visitId, type, onDone }: { visitId: string; type: "in" | "out"; onDone: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const submit = async (file?: File | null) => {
-    if (!file) return;
-    setBusy(true);
-    try {
-      const pos = await getPosition();
-      const fd = new FormData();
-      fd.append("photo", file);
-      fd.append("lat", String(pos.coords.latitude));
-      fd.append("lng", String(pos.coords.longitude));
-      await apiClient.post(`/sales-visit/${visitId}/clock-${type}`, fd, { headers: { "Content-Type": "multipart/form-data" } });
-      toast.success(type === "in" ? "Clock in tersimpan." : "Clock out tersimpan.");
-      onDone();
-    } catch (e: any) {
-      toast.error(e?.response?.data?.detail || e?.message || "Gagal. Pastikan izin lokasi & kamera aktif.");
-    } finally {
-      setBusy(false);
-    }
-  };
-  return (
-    <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-white ${type === "in" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-orange-600 hover:bg-orange-700"} ${busy ? "opacity-50" : ""}`}>
-      <Clock className="h-4 w-4" /> {busy ? "Mengirim…" : type === "in" ? "Clock In" : "Clock Out"}
-      <input disabled={busy} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { submit(e.target.files?.[0]); e.currentTarget.value = ""; }} />
-    </label>
-  );
-}
 
 export default function KalenderVisitClientPage() {
   const qc = useQueryClient();
@@ -57,6 +24,7 @@ export default function KalenderVisitClientPage() {
   const [addOpen, setAddOpen] = useState(false);
   const [form, setForm] = useState({ lead_id: "", tanggal: "", jam: "" });
   const [hasil, setHasil] = useState("");
+  const [view, setView] = useState<"calendar" | "list">("calendar");
 
   const { data: visitsData } = useQuery({ queryKey: ["sales-visits"], queryFn: () => apiClient.get("/sales-visit").then((r) => r.data) });
   const { data: leadsData } = useQuery({ queryKey: ["sales-client-leads-opt"], queryFn: () => apiClient.get("/bd/sales-client/leads", { params: { limit: 500 } }).then((r) => r.data) });
@@ -77,6 +45,20 @@ export default function KalenderVisitClientPage() {
 
   const refresh = () => qc.invalidateQueries({ queryKey: ["sales-visits"] });
   const openDetail = (v: Visit) => { setSelected(v); setHasil(v.keterangan_hasil ?? ""); };
+
+  const doClock = async (visitId: string, type: "in" | "out", file: File, lat: number, lng: number) => {
+    const fd = new FormData();
+    fd.append("photo", file); fd.append("lat", String(lat)); fd.append("lng", String(lng));
+    try {
+      await apiClient.post(`/sales-visit/${visitId}/clock-${type}`, fd, { headers: { "Content-Type": "multipart/form-data" } });
+      toast.success(type === "in" ? "Clock in tersimpan." : "Clock out tersimpan.");
+      refresh();
+    } catch (e: any) { toast.error(e?.response?.data?.detail || "Gagal menyimpan."); }
+  };
+
+  const monthVisits = useMemo(() =>
+    visits.filter((v) => v.tanggal && new Date(v.tanggal).getMonth() === month.getMonth() && new Date(v.tanggal).getFullYear() === month.getFullYear())
+      .sort((a, b) => (a.tanggal! < b.tanggal! ? -1 : 1)), [visits, month]);
 
   const saveJadwal = async () => {
     if (!form.lead_id || !form.tanggal) return toast.error("Client dan tanggal wajib diisi.");
@@ -114,9 +96,16 @@ export default function KalenderVisitClientPage() {
           <h1 className="flex items-center gap-2 text-2xl font-bold"><CalendarDays className="h-6 w-6 text-blue-600" /> Kalender Visit Client</h1>
           <p className="text-muted-foreground">Jadwalkan visit ke client (dari Follow Up Leads Client), lalu clock in/out saat kunjungan.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex gap-1 rounded-lg bg-muted p-1">
+            {(["calendar", "list"] as const).map((vv) => (
+              <button key={vv} onClick={() => setView(vv)} className={`inline-flex items-center gap-1 rounded px-3 py-1.5 text-sm font-medium ${view === vv ? "bg-background text-blue-600 shadow" : "text-muted-foreground"}`}>
+                {vv === "calendar" ? <CalendarDays className="h-4 w-4" /> : <List className="h-4 w-4" />} {vv === "calendar" ? "Kalender" : "List"}
+              </button>
+            ))}
+          </div>
           <button className="rounded-md border px-2 py-1.5 hover:bg-muted" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}><ChevronLeft className="h-4 w-4" /></button>
-          <b className="min-w-40 text-center">{monthTitle}</b>
+          <b className="min-w-36 text-center">{monthTitle}</b>
           <button className="rounded-md border px-2 py-1.5 hover:bg-muted" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}><ChevronRight className="h-4 w-4" /></button>
           <button className="inline-flex items-center gap-1.5 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700" onClick={() => setAddOpen(true)}>
             <Plus className="h-4 w-4" /> Tambah Jadwal
@@ -124,34 +113,56 @@ export default function KalenderVisitClientPage() {
         </div>
       </div>
 
-      <div className="overflow-hidden rounded-xl border">
-        <div className="grid grid-cols-7 bg-muted/40 text-center text-xs font-bold text-muted-foreground">
-          {["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"].map((d) => <div key={d} className="p-3">{d}</div>)}
-        </div>
-        <div className="grid grid-cols-7">
-          {days.map((day, i) => {
-            const items = day ? visits.filter((v) => v.tanggal && sameDay(new Date(v.tanggal), day)) : [];
-            return (
-              <div key={i} className="min-h-28 border-b border-r p-2">
-                {day && (
-                  <>
-                    <b className="text-sm">{day.getDate()}</b>
-                    <div className="mt-1 space-y-1">
-                      {items.map((v) => (
-                        <button key={v.id} onClick={() => openDetail(v)} className="block w-full rounded border-l-4 border-blue-500 bg-blue-50 px-2 py-1 text-left text-xs hover:bg-blue-100">
-                          <b className="block truncate">{v.client_nama || "Client"}</b>
-                          <span className="text-muted-foreground">{v.jam || ""}</span>
-                          {v.clock_in_at && <span className="mt-0.5 block text-[10px] font-semibold text-emerald-700">{v.clock_out_at ? "✓ Selesai" : "● Clock in"}</span>}
-                        </button>
-                      ))}
-                    </div>
-                  </>
-                )}
-              </div>
-            );
-          })}
+      {view === "calendar" ? (
+      <div className="overflow-x-auto rounded-xl border">
+        <div className="min-w-[560px]">
+          <div className="grid grid-cols-7 bg-muted/40 text-center text-xs font-bold text-muted-foreground">
+            {["SEN", "SEL", "RAB", "KAM", "JUM", "SAB", "MIN"].map((d) => <div key={d} className="p-3">{d}</div>)}
+          </div>
+          <div className="grid grid-cols-7">
+            {days.map((day, i) => {
+              const items = day ? visits.filter((v) => v.tanggal && sameDay(new Date(v.tanggal), day)) : [];
+              return (
+                <div key={i} className="min-h-28 border-b border-r p-2">
+                  {day && (
+                    <>
+                      <b className="text-sm">{day.getDate()}</b>
+                      <div className="mt-1 space-y-1">
+                        {items.map((v) => (
+                          <button key={v.id} onClick={() => openDetail(v)} className="block w-full rounded border-l-4 border-blue-500 bg-blue-50 px-2 py-1 text-left text-xs hover:bg-blue-100">
+                            <b className="block truncate">{v.client_nama || "Client"}</b>
+                            <span className="text-muted-foreground">{v.jam || ""}</span>
+                            {v.clock_in_at && <span className="mt-0.5 block text-[10px] font-semibold text-emerald-700">{v.clock_out_at ? "✓ Selesai" : "● Clock in"}</span>}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
+      ) : (
+        <div className="divide-y rounded-xl border">
+          {monthVisits.length === 0 ? (
+            <p className="p-6 text-center text-sm text-muted-foreground">Belum ada jadwal visit di {monthTitle}.</p>
+          ) : monthVisits.map((v) => (
+            <button key={v.id} onClick={() => openDetail(v)} className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/40">
+              <div className="flex flex-col items-center justify-center rounded-md bg-blue-50 px-2 py-1 text-blue-700">
+                <span className="text-[10px] uppercase">{new Date(v.tanggal!).toLocaleDateString("id-ID", { month: "short" })}</span>
+                <span className="text-lg font-bold leading-none">{new Date(v.tanggal!).getDate()}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate font-semibold">{v.client_nama || "Client"}</p>
+                <p className="text-xs text-muted-foreground">{v.jam || "-"}{v.clock_in_at ? (v.clock_out_at ? " · ✓ Selesai" : " · ● Clock in") : ""}</p>
+              </div>
+              <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Tambah Jadwal */}
       {addOpen && (
@@ -214,8 +225,8 @@ export default function KalenderVisitClientPage() {
               })}
             </div>
             <div className="mt-3 flex justify-end gap-2">
-              {!sel.clock_in_at && <ClockButton visitId={sel.id} type="in" onDone={refresh} />}
-              {sel.clock_in_at && !sel.clock_out_at && <ClockButton visitId={sel.id} type="out" onDone={refresh} />}
+              {!sel.clock_in_at && <ClockCameraButton label="Clock In" tone="in" onCapture={(f, lat, lng) => doClock(sel.id, "in", f, lat, lng)} />}
+              {sel.clock_in_at && !sel.clock_out_at && <ClockCameraButton label="Clock Out" tone="out" onCapture={(f, lat, lng) => doClock(sel.id, "out", f, lat, lng)} />}
               {sel.clock_in_at && sel.clock_out_at && <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">✓ Visit selesai</span>}
             </div>
 
