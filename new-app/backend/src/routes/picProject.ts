@@ -5,6 +5,7 @@ import fs from "fs";
 import { prisma } from "../lib/prisma";
 import { config } from "../config";
 import { triggerEventReminder, triggerEventReminderToUsers } from "../lib/fontee";
+import { reverseGeocode, numOrNull } from "../lib/reverseGeocode";
 
 const router = Router();
 
@@ -611,6 +612,40 @@ router.post("/kalender-visit", async (req: Request, res: Response) => {
     keterangan: keterangan ?? "",
   }).catch(() => {});
   return res.status(201).json(visit);
+});
+
+// PATCH /pic/kalender-visit/:id/hasil — simpan keterangan hasil visit
+router.patch("/kalender-visit/:id/hasil", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const row = await prisma.kalenderVisit.update({
+    where: { id },
+    data: { keterangan_hasil: req.body.keterangan_hasil || null },
+  });
+  return res.json(row);
+});
+
+// POST /pic/kalender-visit/:id/clock-in|out — bukti kehadiran (foto + jam + nama lokasi)
+async function kvClock(id: bigint, type: "in" | "out", req: Request) {
+  const lat = numOrNull(req.body.lat);
+  const lng = numOrNull(req.body.lng);
+  const photo = (req as any).file ? `/storage/pic-docs/${(req as any).file.filename}` : null;
+  const location = lat != null && lng != null ? await reverseGeocode(lat, lng) : null;
+  const now = new Date();
+  const data =
+    type === "in"
+      ? { clock_in_photo: photo, clock_in_at: now, clock_in_lat: lat, clock_in_lng: lng, clock_in_location: location }
+      : { clock_out_photo: photo, clock_out_at: now, clock_out_lat: lat, clock_out_lng: lng, clock_out_location: location };
+  return prisma.kalenderVisit.update({ where: { id }, data });
+}
+router.post("/kalender-visit/:id/clock-in", picUpload.single("photo"), async (req: Request, res: Response) => {
+  const row = await kvClock(BigInt(req.params.id), "in", req);
+  return res.json(row);
+});
+router.post("/kalender-visit/:id/clock-out", picUpload.single("photo"), async (req: Request, res: Response) => {
+  const existing = await prisma.kalenderVisit.findUnique({ where: { id: BigInt(req.params.id) } });
+  if (!existing?.clock_in_at) return res.status(400).json({ detail: "Harus clock in terlebih dahulu." });
+  const row = await kvClock(BigInt(req.params.id), "out", req);
+  return res.json(row);
 });
 
 // PATCH /pic/kalender-visit/:id — update jadwal

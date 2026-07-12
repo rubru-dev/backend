@@ -227,51 +227,64 @@ router.get("/follow-up-summary", async (req: Request, res: Response) => {
 function weekOfMonthNum(d: Date): 1 | 2 | 3 | 4 {
   return Math.min(4, Math.max(1, Math.ceil(d.getDate() / 7))) as 1 | 2 | 3 | 4;
 }
+type WeekDetail = {
+  leads_masuk: { id: string; nama: string }[];
+  follow_ups: { lead_id: string; lead_nama: string; catatan: string | null; tanggal: string | null }[];
+  closing_survey: { id: string; nama: string }[];
+};
+const emptyWeeks = (): Record<"W1" | "W2" | "W3" | "W4", WeekDetail> => ({
+  W1: { leads_masuk: [], follow_ups: [], closing_survey: [] },
+  W2: { leads_masuk: [], follow_ups: [], closing_survey: [] },
+  W3: { leads_masuk: [], follow_ups: [], closing_survey: [] },
+  W4: { leads_masuk: [], follow_ups: [], closing_survey: [] },
+});
+
 router.get("/follow-up-stats", async (req: Request, res: Response) => {
   const { lead_modul } = req.query;
   const bulan = req.query.bulan ? parseInt(req.query.bulan as string) : new Date().getMonth() + 1;
   const tahun = req.query.tahun ? parseInt(req.query.tahun as string) : new Date().getFullYear();
-  const empty = {
-    total_follow_up: 0, total_leads_followed: 0, total_leads: 0, closing_survey: 0,
-    leads_by_week: { W1: 0, W2: 0, W3: 0, W4: 0 },
-    followups_by_week: { W1: 0, W2: 0, W3: 0, W4: 0 },
-  };
-  if (!lead_modul) return res.json(empty);
+  const base = { total_follow_up: 0, total_leads_followed: 0, total_leads: 0, closing_survey: 0, weeks: emptyWeeks() };
+  if (!lead_modul) return res.json(base);
 
   const start = new Date(tahun, bulan - 1, 1);
   const end = new Date(tahun, bulan, 0, 23, 59, 59, 999);
 
-  const [leads, fus, closingSurvey] = await Promise.all([
+  const [leads, fus, surveys] = await Promise.all([
     prisma.lead.findMany({
       where: { modul: lead_modul as string, tanggal_masuk: { gte: start, lte: end } },
-      select: { tanggal_masuk: true },
+      select: { id: true, nama: true, tanggal_masuk: true },
     }),
     prisma.followUpClient.findMany({
       where: { lead: { modul: lead_modul as string }, tanggal: { gte: start, lte: end } },
-      select: { tanggal: true, lead_id: true },
+      select: { tanggal: true, lead_id: true, catatan: true, lead: { select: { nama: true } } },
+      orderBy: { tanggal: "asc" },
     }),
-    prisma.lead.count({
+    prisma.lead.findMany({
       where: { modul: lead_modul as string, rencana_survey: "Ya", tanggal_survey: { gte: start, lte: end } },
+      select: { id: true, nama: true, tanggal_survey: true },
     }),
   ]);
 
-  const leadsByWeek = { W1: 0, W2: 0, W3: 0, W4: 0 };
-  for (const l of leads) if (l.tanggal_masuk) leadsByWeek[`W${weekOfMonthNum(l.tanggal_masuk)}` as keyof typeof leadsByWeek]++;
-
-  const fuByWeek = { W1: 0, W2: 0, W3: 0, W4: 0 };
+  const weeks = emptyWeeks();
+  const wk = (d: Date) => `W${weekOfMonthNum(d)}` as keyof typeof weeks;
+  for (const l of leads) if (l.tanggal_masuk) weeks[wk(l.tanggal_masuk)].leads_masuk.push({ id: String(l.id), nama: l.nama });
   const distinctLeads = new Set<string>();
   for (const fu of fus) {
-    if (fu.tanggal) fuByWeek[`W${weekOfMonthNum(fu.tanggal)}` as keyof typeof fuByWeek]++;
+    if (!fu.tanggal) continue;
+    weeks[wk(fu.tanggal)].follow_ups.push({
+      lead_id: String(fu.lead_id), lead_nama: fu.lead?.nama ?? "—",
+      catatan: fu.catatan ?? null, tanggal: isoDate(fu.tanggal),
+    });
     if (fu.lead_id != null) distinctLeads.add(String(fu.lead_id));
   }
+  for (const s of surveys) if (s.tanggal_survey) weeks[wk(s.tanggal_survey)].closing_survey.push({ id: String(s.id), nama: s.nama });
 
   return res.json({
     total_follow_up: fus.length,
     total_leads_followed: distinctLeads.size,
     total_leads: leads.length,
-    closing_survey: closingSurvey,
-    leads_by_week: leadsByWeek,
-    followups_by_week: fuByWeek,
+    closing_survey: surveys.length,
+    weeks,
   });
 });
 

@@ -1,44 +1,61 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { PhoneCall, Users, UserCheck, CalendarCheck } from "lucide-react";
+import { PhoneCall, Users, UserCheck, CalendarCheck, ChevronDown, ChevronRight } from "lucide-react";
 
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const YEARS = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
 const WEEKS = ["W1", "W2", "W3", "W4"] as const;
 
-type Stats = {
-  total_follow_up: number;
-  total_leads_followed: number;
-  total_leads: number;
-  closing_survey: number;
-  leads_by_week: Record<"W1" | "W2" | "W3" | "W4", number>;
-  followups_by_week: Record<"W1" | "W2" | "W3" | "W4", number>;
+type WeekDetail = {
+  leads_masuk: { id: string; nama: string }[];
+  follow_ups: { lead_id: string; lead_nama: string; catatan: string | null; tanggal: string | null }[];
+  closing_survey: { id: string; nama: string }[];
 };
+type Stats = {
+  total_follow_up: number; total_leads_followed: number; total_leads: number; closing_survey: number;
+  weeks: Record<"W1" | "W2" | "W3" | "W4", WeekDetail>;
+};
+type BrandStats = { label: string; leadModul: string; stats: Stats };
+type Brand = { label: string; leadModul: string };
 
-export function FollowUpSummaryTab({ leadModul }: { leadModul: string }) {
+export function FollowUpSummaryTab({ brands, showClosingSurvey }: { brands: Brand[]; showClosingSurvey: boolean }) {
   const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
+  const [expanded, setExpanded] = useState<string | null>(null);
 
-  const { data, isLoading } = useQuery<Stats>({
-    queryKey: ["fu-stats", leadModul, month, year],
-    queryFn: () =>
-      apiClient
-        .get("/laporan-harian/follow-up-stats", { params: { lead_modul: leadModul, bulan: month, tahun: year } })
-        .then((r) => r.data),
+  const { data = [], isLoading } = useQuery<BrandStats[]>({
+    queryKey: ["fu-stats-detail", brands.map((b) => b.leadModul).join(","), month, year],
+    queryFn: async () =>
+      Promise.all(
+        brands.map(async (b) => {
+          const stats = await apiClient
+            .get("/laporan-harian/follow-up-stats", { params: { lead_modul: b.leadModul, bulan: month, tahun: year } })
+            .then((r) => r.data);
+          return { label: b.label, leadModul: b.leadModul, stats };
+        })
+      ),
   });
 
+  const agg = useMemo(() =>
+    data.reduce((a, b) => ({
+      total_follow_up: a.total_follow_up + (b.stats?.total_follow_up ?? 0),
+      total_leads_followed: a.total_leads_followed + (b.stats?.total_leads_followed ?? 0),
+      total_leads: a.total_leads + (b.stats?.total_leads ?? 0),
+      closing_survey: a.closing_survey + (b.stats?.closing_survey ?? 0),
+    }), { total_follow_up: 0, total_leads_followed: 0, total_leads: 0, closing_survey: 0 }), [data]);
+
   const cards = [
-    { label: "Total Follow Up", value: data?.total_follow_up ?? 0, Icon: PhoneCall, color: "text-blue-600" },
-    { label: "Leads di-Follow Up", value: data?.total_leads_followed ?? 0, Icon: UserCheck, color: "text-amber-600" },
-    { label: "Leads Masuk", value: data?.total_leads ?? 0, Icon: Users, color: "text-violet-600" },
-    { label: "Closing Survey", value: data?.closing_survey ?? 0, Icon: CalendarCheck, color: "text-green-600" },
+    { label: "Total Follow Up", value: agg.total_follow_up, Icon: PhoneCall, color: "text-blue-600" },
+    { label: "Leads di-Follow Up", value: agg.total_leads_followed, Icon: UserCheck, color: "text-amber-600" },
+    { label: "Leads Masuk", value: agg.total_leads, Icon: Users, color: "text-violet-600" },
+    ...(showClosingSurvey ? [{ label: "Closing Survey", value: agg.closing_survey, Icon: CalendarCheck, color: "text-green-600" }] : []),
   ];
 
   return (
@@ -57,9 +74,9 @@ export function FollowUpSummaryTab({ leadModul }: { leadModul: string }) {
       </div>
 
       {/* Kartu ringkas */}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div className={`grid grid-cols-2 gap-4 ${showClosingSurvey ? "sm:grid-cols-4" : "sm:grid-cols-3"}`}>
         {isLoading
-          ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
+          ? Array.from({ length: cards.length }).map((_, i) => <Skeleton key={i} className="h-24 rounded-xl" />)
           : cards.map((c) => (
               <Card key={c.label}>
                 <CardContent className="pt-4 pb-3">
@@ -73,32 +90,75 @@ export function FollowUpSummaryTab({ leadModul }: { leadModul: string }) {
             ))}
       </div>
 
-      {/* Breakdown per minggu (W1–W4) */}
-      <Card>
-        <CardContent className="p-0 overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b bg-muted/40">
-                <th className="text-left px-4 py-2 font-medium">Per Minggu</th>
-                {WEEKS.map((w) => <th key={w} className="px-4 py-2 font-medium text-center">{w}</th>)}
-                <th className="px-4 py-2 font-medium text-center">Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr className="border-b">
-                <td className="px-4 py-3 font-medium">Leads masuk</td>
-                {WEEKS.map((w) => <td key={w} className="px-4 py-3 text-center">{data?.leads_by_week?.[w] ?? 0}</td>)}
-                <td className="px-4 py-3 text-center font-bold">{data?.total_leads ?? 0}</td>
-              </tr>
-              <tr>
-                <td className="px-4 py-3 font-medium">Aktivitas follow-up</td>
-                {WEEKS.map((w) => <td key={w} className="px-4 py-3 text-center">{data?.followups_by_week?.[w] ?? 0}</td>)}
-                <td className="px-4 py-3 text-center font-bold">{data?.total_follow_up ?? 0}</td>
-              </tr>
-            </tbody>
-          </table>
-        </CardContent>
-      </Card>
+      {/* Detail per brand → per minggu (expandable) */}
+      {isLoading ? (
+        <Skeleton className="h-40 w-full rounded-xl" />
+      ) : (
+        data.map((b) => (
+          <div key={b.leadModul} className="space-y-2">
+            {brands.length > 1 && <p className="text-sm font-bold uppercase tracking-wide text-amber-700">{b.label}</p>}
+            <Card>
+              <CardContent className="divide-y p-0">
+                {WEEKS.map((w) => {
+                  const wd = b.stats?.weeks?.[w];
+                  const key = `${b.leadModul}:${w}`;
+                  const isOpen = expanded === key;
+                  const nMasuk = wd?.leads_masuk.length ?? 0;
+                  const nFu = wd?.follow_ups.length ?? 0;
+                  const nClose = wd?.closing_survey.length ?? 0;
+                  return (
+                    <div key={w}>
+                      <button className="flex w-full items-center gap-3 px-4 py-3 text-left hover:bg-muted/30" onClick={() => setExpanded(isOpen ? null : key)}>
+                        {isOpen ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                        <span className="w-8 font-semibold">{w}</span>
+                        <span className="text-xs text-muted-foreground">
+                          Leads masuk <b className="text-foreground">{nMasuk}</b> · Follow-up <b className="text-foreground">{nFu}</b>
+                          {showClosingSurvey && <> · Closing survey <b className="text-foreground">{nClose}</b></>}
+                        </span>
+                      </button>
+                      {isOpen && (
+                        <div className="space-y-3 px-4 pb-4 pl-11 text-sm">
+                          <div>
+                            <p className="mb-1 text-[11px] font-semibold text-amber-700">Follow Up ({nFu})</p>
+                            {nFu === 0 ? <p className="text-xs italic text-muted-foreground">Tidak ada follow up.</p> : (
+                              <div className="space-y-1.5">
+                                {wd!.follow_ups.map((fu, i) => (
+                                  <div key={i} className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2">
+                                    <div className="font-medium text-amber-900">{fu.lead_nama}</div>
+                                    {fu.catatan ? <p className="mt-0.5 text-xs text-amber-800">{fu.catatan}</p> : <p className="mt-0.5 text-xs italic text-muted-foreground/60">Tanpa catatan</p>}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                          <div>
+                            <p className="mb-1 text-[11px] font-semibold text-violet-700">Leads Masuk ({nMasuk})</p>
+                            {nMasuk === 0 ? <p className="text-xs italic text-muted-foreground">Tidak ada.</p> : (
+                              <div className="flex flex-wrap gap-1.5">
+                                {wd!.leads_masuk.map((l, i) => <span key={i} className="rounded border border-violet-200 bg-violet-50 px-2 py-0.5 text-xs">{l.nama}</span>)}
+                              </div>
+                            )}
+                          </div>
+                          {showClosingSurvey && (
+                            <div>
+                              <p className="mb-1 text-[11px] font-semibold text-green-700">Closing Survey ({nClose})</p>
+                              {nClose === 0 ? <p className="text-xs italic text-muted-foreground">Tidak ada.</p> : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {wd!.closing_survey.map((l, i) => <span key={i} className="rounded border border-green-200 bg-green-50 px-2 py-0.5 text-xs">{l.nama}</span>)}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          </div>
+        ))
+      )}
     </div>
   );
 }

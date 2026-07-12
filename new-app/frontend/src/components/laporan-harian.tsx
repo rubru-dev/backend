@@ -243,7 +243,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   const brands = MODUL_TO_BRANDS[modul] ?? (leadModul ? [{ label: modul, leadModul }] : []);
 
   const [activeSection, setActiveSection] = useState<"laporan" | "follow-up" | "summary">("laporan");
-  const showSummaryTab = modul === "Sales Admin" || modul === "Sales"; // tab Summary Follow Up: Sales Admin & Sales
+  const showSummaryTab = modul === "Sales Admin" || modul === "Sales" || modul === "Telemarketing"; // tab Summary Follow Up
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
   const [filterMulai, setFilterMulai] = useState(MONTH_START);
@@ -786,8 +786,8 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
       </div>
 
       {/* Tab Summary Follow Up (khusus Sales Admin) */}
-      {activeSection === "summary" && leadModul && (
-        <FollowUpSummaryTab leadModul={leadModul} />
+      {activeSection === "summary" && brands.length > 0 && (
+        <FollowUpSummaryTab brands={brands} showClosingSurvey={modul !== "Sales"} />
       )}
 
       {/* Table Laporan Harian */}

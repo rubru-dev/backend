@@ -50,7 +50,44 @@ const picApi = {
   update:           (id: string, data: any) => apiClient.patch(`/pic/kalender-visit/${id}`, data).then(r => r.data),
   delete:           (id: string) => apiClient.delete(`/pic/kalender-visit/${id}`).then(r => r.data),
   konfirmasi:       (id: string, data: any) => apiClient.post(`/pic/kalender-visit/${id}/konfirmasi`, data).then(r => r.data),
+  clockIn:          (id: string, fd: FormData) => apiClient.post(`/pic/kalender-visit/${id}/clock-in`, fd, { headers: { "Content-Type": "multipart/form-data" } }).then(r => r.data),
+  clockOut:         (id: string, fd: FormData) => apiClient.post(`/pic/kalender-visit/${id}/clock-out`, fd, { headers: { "Content-Type": "multipart/form-data" } }).then(r => r.data),
+  saveHasil:        (id: string, keterangan_hasil: string) => apiClient.patch(`/pic/kalender-visit/${id}/hasil`, { keterangan_hasil }).then(r => r.data),
 };
+
+function getVisitPosition(): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error("Browser tidak mendukung lokasi."));
+    navigator.geolocation.getCurrentPosition(resolve, reject, { enableHighAccuracy: true, timeout: 15000 });
+  });
+}
+
+function VisitClockButton({ visitId, type, onDone }: { visitId: string; type: "in" | "out"; onDone: () => void }) {
+  const [busy, setBusy] = useState(false);
+  const submit = async (file?: File | null) => {
+    if (!file) return;
+    setBusy(true);
+    try {
+      const pos = await getVisitPosition();
+      const fd = new FormData();
+      fd.append("photo", file);
+      fd.append("lat", String(pos.coords.latitude));
+      fd.append("lng", String(pos.coords.longitude));
+      await (type === "in" ? picApi.clockIn(visitId, fd) : picApi.clockOut(visitId, fd));
+      toast.success(type === "in" ? "Clock in tersimpan." : "Clock out tersimpan.");
+      onDone();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || e?.message || "Gagal. Pastikan izin lokasi & kamera aktif.");
+    } finally { setBusy(false); }
+  };
+  return (
+    <label className={`inline-flex cursor-pointer items-center gap-1.5 rounded-md px-3 py-2 text-sm font-medium text-white ${type === "in" ? "bg-emerald-600 hover:bg-emerald-700" : "bg-orange-600 hover:bg-orange-700"} ${busy ? "opacity-50" : ""}`}>
+      <Clock className="h-4 w-4" /> {busy ? "Mengirim…" : type === "in" ? "Clock In" : "Clock Out"}
+      <input disabled={busy} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { submit(e.target.files?.[0]); e.currentTarget.value = ""; }} />
+    </label>
+  );
+}
+const visitJam = (d?: string | null) => (d ? new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-");
 
 const EMPTY_FORM = { nama_projek: "", projek_id: "", projek_type: "", tanggal: "", jam: "", keterangan: "", status: "Terjadwal", pic_user_ids: [] as string[] };
 
@@ -76,6 +113,8 @@ export default function KalenderVisitPage() {
   const fileRef = useRef<HTMLInputElement>(null);
   const [filterProjekId, setFilterProjekId]   = useState("");
   const [filterPicId, setFilterPicId]         = useState("");
+  const [visitDetail, setVisitDetail]         = useState<any | null>(null); // clock in/out + keterangan hasil
+  const [hasilText, setHasilText]             = useState("");
 
   const { data: allVisits = [], isLoading } = useQuery({
     queryKey: ["kalender-visit", bulan, tahun],
@@ -467,6 +506,10 @@ export default function KalenderVisitPage() {
                       <CheckCircle className="h-3.5 w-3.5" /> Anda sudah konfirmasi kehadiran
                     </p>
                   )}
+                  <Button size="sm" variant="outline" className="h-7 w-full gap-1 text-xs"
+                    onClick={() => { setVisitDetail(v); setHasilText(v.keterangan_hasil ?? ""); }}>
+                    <Clock className="h-3.5 w-3.5" /> Clock In/Out &amp; Hasil {v.clock_in_at ? (v.clock_out_at ? "✓" : "●") : ""}
+                  </Button>
                 </div>
               );
             })}
@@ -624,6 +667,56 @@ export default function KalenderVisitPage() {
             // eslint-disable-next-line @next/next/no-img-element
             <img src={viewFotoUrl} alt="foto bukti" className="w-full rounded-lg max-h-[70vh] object-contain" />
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Dialog Clock In/Out & Keterangan Hasil ── */}
+      <Dialog open={!!visitDetail} onOpenChange={v => { if(!v) setVisitDetail(null); }}>
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          {(() => {
+            const vd = visitDetail ? (allVisits.find((x: any) => String(x.id) === String(visitDetail.id)) ?? visitDetail) : null;
+            if (!vd) return null;
+            const refresh = () => qc.invalidateQueries({ queryKey: ["kalender-visit"] });
+            return (
+              <>
+                <DialogHeader><DialogTitle>{vd.nama_projek} — Bukti Visit</DialogTitle></DialogHeader>
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">{new Date(vd.tanggal).toLocaleDateString("id-ID")} {vd.jam || ""}</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    {(["in","out"] as const).map((t) => {
+                      const at = t === "in" ? vd.clock_in_at : vd.clock_out_at;
+                      const loc = t === "in" ? vd.clock_in_location : vd.clock_out_location;
+                      const photo = t === "in" ? vd.clock_in_photo : vd.clock_out_photo;
+                      return (
+                        <div key={t} className="rounded-lg border p-3">
+                          <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Clock {t}</p>
+                          {at ? (
+                            <>
+                              <p className="text-sm font-semibold">{visitJam(at)}</p>
+                              {photo && <img src={storageUrl(photo)} alt={`clock ${t}`} className="mt-2 h-24 w-full rounded object-cover" />}
+                              <p className="mt-1 text-[11px] text-muted-foreground">{loc || "Lokasi tidak tersedia"}</p>
+                            </>
+                          ) : <p className="text-xs italic text-muted-foreground">Belum clock {t}</p>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex justify-end gap-2">
+                    {!vd.clock_in_at && <VisitClockButton visitId={String(vd.id)} type="in" onDone={refresh} />}
+                    {vd.clock_in_at && !vd.clock_out_at && <VisitClockButton visitId={String(vd.id)} type="out" onDone={refresh} />}
+                    {vd.clock_in_at && vd.clock_out_at && <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">✓ Visit selesai</span>}
+                  </div>
+                  <div>
+                    <Label>Keterangan Hasil Visit</Label>
+                    <Textarea className="mt-1" rows={3} value={hasilText} onChange={e => setHasilText(e.target.value)} placeholder="Hasil kunjungan / tindak lanjut…" />
+                    <div className="mt-2 flex justify-end">
+                      <Button size="sm" onClick={async () => { try { await picApi.saveHasil(String(vd.id), hasilText); toast.success("Keterangan hasil disimpan."); refresh(); } catch { toast.error("Gagal menyimpan."); } }}>Simpan Keterangan</Button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </div>

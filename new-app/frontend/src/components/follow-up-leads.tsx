@@ -12,9 +12,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Plus, Pencil, Trash2, Search, PhoneCall, Printer, FileUp, FileDown, History, DatabaseZap } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, PhoneCall, Printer, FileUp, FileDown, History, DatabaseZap, Download, Filter, ChevronDown } from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface FollowUpLeadsProps {
@@ -171,6 +172,71 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     tanggal_masuk: c.tanggal_masuk ?? null,
     projection: weekProjectionOf(c.tanggal_masuk),
   });
+
+  // Antrian import: modal field-update muncul satu per satu per klien terpilih
+  const [importQueue, setImportQueue] = useState<any[]>([]);
+  const [queueIndex, setQueueIndex] = useState(0);
+  const [queueSaving, setQueueSaving] = useState(false);
+  const [updateForm, setUpdateForm] = useState({ status: "Low", rencana_survey: "Tidak", tanggal_survey: "", projection: "W1", catatan: "", next_follow_up: "" });
+
+  const prefillUpdate = (c: any) => setUpdateForm({
+    status: c.status ?? "Low",
+    rencana_survey: "Tidak",
+    tanggal_survey: "",
+    projection: weekProjectionOf(c.tanggal_masuk),
+    catatan: "",
+    next_follow_up: "",
+  });
+
+  const startImportQueue = () => {
+    const list = Object.values(importSelected);
+    if (list.length === 0) return;
+    setImportQueue(list);
+    setQueueIndex(0);
+    prefillUpdate(list[0]);
+    setImportClientOpen(false);
+    setImportSelected({});
+  };
+
+  const advanceOrFinish = () => {
+    const next = queueIndex + 1;
+    if (next < importQueue.length) {
+      setQueueIndex(next);
+      prefillUpdate(importQueue[next]);
+    } else {
+      setImportQueue([]);
+      setQueueIndex(0);
+      qc.invalidateQueries({ queryKey: ["follow-up-leads", modul] });
+      toast.success("Import selesai.");
+    }
+  };
+
+  const saveQueueItem = async () => {
+    const c = importQueue[queueIndex];
+    if (!c) return;
+    setQueueSaving(true);
+    try {
+      const payload = {
+        ...toLeadPayload(c),
+        status: updateForm.status,
+        rencana_survey: updateForm.rencana_survey,
+        tanggal_survey: updateForm.rencana_survey === "Ya" ? (updateForm.tanggal_survey || null) : null,
+        projection: updateForm.projection,
+      };
+      const created = await apiClient.post(endpoint, payload).then((r) => r.data);
+      if (updateForm.catatan.trim() && created?.id != null) {
+        await apiClient.post(`${endpoint}/${created.id}/follow-up`, {
+          catatan: updateForm.catatan,
+          next_follow_up: updateForm.next_follow_up || null,
+        });
+      }
+      advanceOrFinish();
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Gagal menyimpan.");
+    } finally {
+      setQueueSaving(false);
+    }
+  };
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string; attachments?: FollowUpAttachment[] }>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
@@ -929,22 +995,32 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={handlePrint} disabled={isLoading || items.length === 0}>
-            <Printer className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">PDF Ringkasan</span><span className="sm:hidden">PDF</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={isLoading || items.length === 0}>
-            <FileDown className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Excel Ringkasan</span><span className="sm:hidden">Excel</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={handlePrintBulkPdf} disabled={isLoading || items.length === 0}>
-            <Printer className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">PDF + Catatan</span><span className="sm:hidden">PDF+</span>
-          </Button>
-          <Button variant="outline" size="sm" onClick={handleExportBulkExcel} disabled={isLoading || items.length === 0}>
-            <FileDown className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Excel + Catatan</span><span className="sm:hidden">Excel+</span>
-          </Button>
-          <Button variant="outline" size="sm" disabled={bulkImportMut.isPending} onClick={() => excelInputRef.current?.click()}>
-            <FileUp className="h-4 w-4 mr-1.5" /> {bulkImportMut.isPending ? "Mengimport..." : <><span className="hidden sm:inline">Upload Excel</span><span className="sm:hidden">Upload</span></>}
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-1.5" /> Download / Excel <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-60 p-1">
+              <button className="flex w-full items-center gap-2 rounded px-2 py-2 text-sm hover:bg-muted disabled:opacity-50" disabled={isLoading || items.length === 0} onClick={handlePrintBulkPdf}>
+                <Printer className="h-4 w-4" /> Download PDF <span className="ml-auto text-[10px] text-muted-foreground">termasuk catatan</span>
+              </button>
+              <button className="flex w-full items-center gap-2 rounded px-2 py-2 text-sm hover:bg-muted disabled:opacity-50" disabled={isLoading || items.length === 0} onClick={handleExportBulkExcel}>
+                <FileDown className="h-4 w-4" /> Download Excel <span className="ml-auto text-[10px] text-muted-foreground">termasuk catatan</span>
+              </button>
+              <div className="my-1 border-t" />
+              <button className="flex w-full items-center gap-2 rounded px-2 py-2 text-sm hover:bg-muted disabled:opacity-50" disabled={bulkImportMut.isPending} onClick={() => excelInputRef.current?.click()}>
+                <FileUp className="h-4 w-4" /> {bulkImportMut.isPending ? "Mengimport…" : "Upload Excel"}
+              </button>
+            </PopoverContent>
+          </Popover>
           <input ref={excelInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={handleExcelUpload} />
+          {/* Import Data Klien dari toolbar. Sales-client: hanya Super Admin. Golden/Filter Air/RKR/Sales Admin: semua user */}
+          {(modul !== "sales-client" || isSuperAdmin) && (
+            <Button variant="outline" size="sm" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); setImportClientPage(1); setImportSelected({}); }}>
+              <DatabaseZap className="h-4 w-4 mr-1.5" /> <span className="hidden sm:inline">Import Data Klien</span><span className="sm:hidden">Import</span>
+            </Button>
+          )}
           <Button onClick={openCreate}>
             <Plus className="h-4 w-4 mr-2" /> Tambah Lead
           </Button>
@@ -958,95 +1034,118 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input className="pl-9" placeholder="Cari nama / telepon..." value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} />
           </div>
-          <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-[130px]"><SelectValue placeholder="Status" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Status</SelectItem>
-              {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterJenis} onValueChange={setFilterJenis}>
-            <SelectTrigger className="w-[130px]"><SelectValue placeholder="Jenis" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Jenis</SelectItem>
-              {activeJenisOptions.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={filterSurvey} onValueChange={setFilterSurvey}>
-            <SelectTrigger className="w-[120px]"><SelectValue placeholder="Survey" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua</SelectItem>
-              <SelectItem value="Ya">Survey: Ya</SelectItem>
-              <SelectItem value="Tidak">Survey: Tidak</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterSumber} onValueChange={setFilterSumber}>
-            <SelectTrigger className="w-[160px]"><SelectValue placeholder="Sumber" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Sumber</SelectItem>
-              {campaignOptions.length > 0 && (
-                <SelectItem value="__sep_campaign__" disabled className="text-xs text-muted-foreground font-semibold">── Iklan ──</SelectItem>
-              )}
-              {campaignOptions.map((c) => (
-                <SelectItem key={c.id} value={`campaign:${c.id}:${c.campaign_name}`}>
-                  📢 {c.campaign_name}
-                </SelectItem>
-              ))}
-              {campaignOptions.length > 0 && (
-                <SelectItem value="__sep_static__" disabled className="text-xs text-muted-foreground font-semibold">── Lainnya ──</SelectItem>
-              )}
-              {STATIC_SUMBER_OPTIONS.map((s) => (
-                <SelectItem key={s} value={s}>{s}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select value={filterHasFollowUp} onValueChange={(v) => { setFilterHasFollowUp(v); setPage(1); }}>
-            <SelectTrigger className="w-[140px]"><SelectValue placeholder="Follow Up" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua</SelectItem>
-              <SelectItem value="ya">Sudah Follow Up</SelectItem>
-              <SelectItem value="tidak">Belum Follow Up</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterFuCall} onValueChange={(v) => { setFilterFuCall(v); setPage(1); }}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="FU Call" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua FU Call</SelectItem>
-              <SelectItem value="Sudah">✅ Sudah Ditelfon</SelectItem>
-              <SelectItem value="Belum">📵 Belum Ditelfon</SelectItem>
-            </SelectContent>
-          </Select>
-          <Select value={filterDataKlien} onValueChange={(v) => { setFilterDataKlien(v); setPage(1); }}>
-            <SelectTrigger className="w-[150px]"><SelectValue placeholder="Data Klien" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Semua Data</SelectItem>
-              <SelectItem value="ya">Data Klien: Ya</SelectItem>
-              <SelectItem value="tidak">Data Klien: Tidak</SelectItem>
-            </SelectContent>
-          </Select>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="h-9">
+                <Filter className="h-4 w-4 mr-1.5" /> Filter
+                {(() => { const n = [filterStatus, filterJenis, filterSurvey, filterSumber, filterHasFollowUp, filterFuCall, filterDataKlien].filter((v) => v !== "all").length; return n > 0 ? ` (${n})` : ""; })()}
+                <ChevronDown className="h-3.5 w-3.5 ml-1" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent align="end" className="w-64 space-y-2.5 max-h-[70vh] overflow-y-auto">
+              <div>
+                <Label className="text-xs">Status</Label>
+                <Select value={filterStatus} onValueChange={setFilterStatus}>
+                  <SelectTrigger className="w-full h-9"><SelectValue placeholder="Semua Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Status</SelectItem>
+                    {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Jenis</Label>
+                <Select value={filterJenis} onValueChange={setFilterJenis}>
+                  <SelectTrigger className="w-full h-9"><SelectValue placeholder="Semua Jenis" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Jenis</SelectItem>
+                    {activeJenisOptions.map((j) => <SelectItem key={j} value={j}>{j}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Rencana Survey</Label>
+                <Select value={filterSurvey} onValueChange={setFilterSurvey}>
+                  <SelectTrigger className="w-full h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua</SelectItem>
+                    <SelectItem value="Ya">Ada rencana survey</SelectItem>
+                    <SelectItem value="Tidak">Tanpa survey</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Sumber</Label>
+                <Select value={filterSumber} onValueChange={setFilterSumber}>
+                  <SelectTrigger className="w-full h-9"><SelectValue placeholder="Semua Sumber" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Sumber</SelectItem>
+                    {campaignOptions.length > 0 && (<SelectItem value="__sep_campaign__" disabled className="text-xs text-muted-foreground font-semibold">── Iklan ──</SelectItem>)}
+                    {campaignOptions.map((c) => (<SelectItem key={c.id} value={`campaign:${c.id}:${c.campaign_name}`}>📢 {c.campaign_name}</SelectItem>))}
+                    {campaignOptions.length > 0 && (<SelectItem value="__sep_static__" disabled className="text-xs text-muted-foreground font-semibold">── Lainnya ──</SelectItem>)}
+                    {STATIC_SUMBER_OPTIONS.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Follow Up</Label>
+                <Select value={filterHasFollowUp} onValueChange={(v) => { setFilterHasFollowUp(v); setPage(1); }}>
+                  <SelectTrigger className="w-full h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua</SelectItem>
+                    <SelectItem value="ya">Sudah Follow Up</SelectItem>
+                    <SelectItem value="tidak">Belum Follow Up</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">FU Call (telepon)</Label>
+                <Select value={filterFuCall} onValueChange={(v) => { setFilterFuCall(v); setPage(1); }}>
+                  <SelectTrigger className="w-full h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua FU Call</SelectItem>
+                    <SelectItem value="Sudah">✅ Sudah Ditelfon</SelectItem>
+                    <SelectItem value="Belum">📵 Belum Ditelfon</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label className="text-xs">Data Klien</Label>
+                <Select value={filterDataKlien} onValueChange={(v) => { setFilterDataKlien(v); setPage(1); }}>
+                  <SelectTrigger className="w-full h-9"><SelectValue placeholder="Semua" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Semua Data</SelectItem>
+                    <SelectItem value="ya">Dari Data Klien</SelectItem>
+                    <SelectItem value="tidak">Bukan Data Klien</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </PopoverContent>
+          </Popover>
         </div>
-        <div className="flex gap-2 flex-wrap items-center">
-          <span className="text-xs text-muted-foreground">Tanggal:</span>
+        <div className="flex flex-wrap items-center gap-2 rounded-md border bg-muted/20 px-3 py-2">
+          <span className="text-xs font-medium">Periode masuk:</span>
           <Input
             type="date" value={filterTanggalMulai}
             onChange={(e) => setFilterTanggalMulai(e.target.value)}
-            className="w-36 text-sm h-9"
+            className="w-36 text-sm h-9" title="Dari tanggal"
           />
           <span className="text-xs text-muted-foreground">s/d</span>
           <Input
             type="date" value={filterTanggalSelesai}
             onChange={(e) => setFilterTanggalSelesai(e.target.value)}
-            className="w-36 text-sm h-9"
+            className="w-36 text-sm h-9" title="Sampai tanggal"
           />
+          <span className="mx-1 text-xs text-muted-foreground">— atau pilih —</span>
           <Select value={filterBulan} onValueChange={setFilterBulan}>
-            <SelectTrigger className="w-[120px]"><SelectValue placeholder="Bulan" /></SelectTrigger>
+            <SelectTrigger className="w-[130px] h-9"><SelectValue placeholder="Semua Bulan" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Bulan</SelectItem>
               {BULAN_OPTIONS.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={filterTahun} onValueChange={setFilterTahun}>
-            <SelectTrigger className="w-[100px]"><SelectValue placeholder="Tahun" /></SelectTrigger>
+            <SelectTrigger className="w-[110px] h-9"><SelectValue placeholder="Semua Tahun" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Semua Tahun</SelectItem>
               {TAHUN_OPTIONS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
@@ -1054,7 +1153,7 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
           </Select>
           {hasActiveFilters && (
             <Button variant="ghost" size="sm" className="text-xs px-2 h-9" onClick={resetFilters}>
-              Reset Filter
+              Reset Semua Filter
             </Button>
           )}
         </div>
@@ -1375,12 +1474,6 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
           <DialogHeader>
             <div className="flex items-center justify-between gap-2">
               <DialogTitle>{editItem ? "Edit Lead" : "Tambah Lead Baru"}</DialogTitle>
-              {/* Follow Up Leads Client: import Data Klien hanya untuk Super Admin */}
-              {!editItem && !isGolden && (modul !== "sales-client" || isSuperAdmin) && (
-                <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); setImportClientPage(1); setImportSelected({}); }}>
-                  <DatabaseZap className="h-3.5 w-3.5" /> Import Data Klien
-                </Button>
-              )}
             </div>
           </DialogHeader>
           <div className="space-y-3">
@@ -1524,14 +1617,10 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      disabled={bulkImportMut.isPending || selectedCount === 0}
-                      onClick={() => {
-                        bulkImportMut.mutate(Object.values(importSelected).map(toLeadPayload), {
-                          onSuccess: () => { setImportSelected({}); setImportClientOpen(false); },
-                        });
-                      }}
+                      disabled={selectedCount === 0}
+                      onClick={startImportQueue}
                     >
-                      {bulkImportMut.isPending ? "Mengimport..." : `Import Terpilih (${selectedCount})`}
+                      Import Terpilih ({selectedCount})
                     </Button>
                     <Button
                       size="sm" variant="outline"
@@ -1616,8 +1705,71 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                 </div>
               );
             })()}
-            <p className="text-xs text-muted-foreground">Klik data klien untuk mengisi form satuan, atau gunakan Import Semua untuk add bulk maksimal 1000 leads. Duplikat nama+telepon atau nomor telepon akan dilewati.</p>
+            <p className="text-xs text-muted-foreground">Centang klien (bisa banyak, lintas halaman) lalu klik <b>Import Terpilih</b> — form isi Status / Kanban / Catatan muncul per klien. <b>Import Semua</b> = add bulk cepat tanpa form. Duplikat nama+telepon dilewati.</p>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal field-update per klien (antrian import) */}
+      <Dialog open={importQueue.length > 0} onOpenChange={(v) => { if (!v) { setImportQueue([]); setQueueIndex(0); } }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Import Klien ({queueIndex + 1} / {importQueue.length})</DialogTitle>
+          </DialogHeader>
+          {importQueue[queueIndex] && (
+            <div className="space-y-3">
+              <div className="rounded-md border bg-muted/30 px-3 py-2">
+                <div className="text-sm font-semibold">{leadDisplayName(importQueue[queueIndex])}</div>
+                <div className="text-xs text-muted-foreground">
+                  {importQueue[queueIndex].nomor_telepon || "-"}{importQueue[queueIndex].jenis ? ` · ${importQueue[queueIndex].jenis}` : ""}
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Status</Label>
+                  <Select value={updateForm.status} onValueChange={(v) => setUpdateForm({ ...updateForm, status: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Kanban (Minggu)</Label>
+                  <Select value={updateForm.projection} onValueChange={(v) => setUpdateForm({ ...updateForm, projection: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>{["W1", "W2", "W3", "W4"].map((w) => <SelectItem key={w} value={w}>{w}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Rencana Survey</Label>
+                  <Select value={updateForm.rencana_survey} onValueChange={(v) => setUpdateForm({ ...updateForm, rencana_survey: v })}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="Tidak">Tidak</SelectItem><SelectItem value="Ya">Ya</SelectItem></SelectContent>
+                  </Select>
+                </div>
+                {updateForm.rencana_survey === "Ya" && (
+                  <div>
+                    <Label>Tanggal Survey</Label>
+                    <Input type="date" value={updateForm.tanggal_survey} onChange={(e) => setUpdateForm({ ...updateForm, tanggal_survey: e.target.value })} />
+                  </div>
+                )}
+              </div>
+              <div>
+                <Label>Catatan Follow Up</Label>
+                <textarea
+                  className="w-full min-h-[72px] rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+                  value={updateForm.catatan}
+                  onChange={(e) => setUpdateForm({ ...updateForm, catatan: e.target.value })}
+                  placeholder="Catatan follow up pertama untuk klien ini…"
+                />
+              </div>
+              <div className="flex justify-between gap-2 pt-1">
+                <Button variant="ghost" onClick={advanceOrFinish} disabled={queueSaving}>Lewati</Button>
+                <Button onClick={saveQueueItem} disabled={queueSaving}>
+                  {queueSaving ? "Menyimpan…" : (queueIndex + 1 < importQueue.length ? "Simpan & Lanjut" : "Simpan & Selesai")}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 
