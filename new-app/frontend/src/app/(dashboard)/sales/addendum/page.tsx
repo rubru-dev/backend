@@ -8,6 +8,7 @@ import {
   type KontrakTemplate, type KontrakDokumen, type KontrakLampiran,
 } from "@/lib/api/addendum";
 import { apiClient } from "@/lib/api/client";
+import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -836,6 +837,14 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function AddendumKontrakPage() {
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
+  if (!isSuperAdmin()) {
+    return <div className="p-10 text-center text-muted-foreground">Halaman Addendum Kontrak hanya dapat diakses oleh Super Admin.</div>;
+  }
+  return <AddendumKontrakInner />;
+}
+
+function AddendumKontrakInner() {
   const [templateFormOpen, setTemplateFormOpen] = useState(false);
   const [editTemplate, setEditTemplate] = useState<KontrakTemplate | null>(null);
   const [deleteTemplate, setDeleteTemplate] = useState<KontrakTemplate | null>(null);

@@ -738,7 +738,19 @@ router.post(
   async (req: Request, res: Response) => {
   const user = req.user!;
   const { project_type, project_id, kegiatan, kendala, expected_file_count } = req.body;
+  const files = getUploadedFiles(req).slice(0, 20);
+  const expectedFileCount = Number(expected_file_count ?? 0);
+  console.log("[LaporanPIC] request upload diterima", {
+    user_id: String(user.id),
+    project_type,
+    project_id,
+    expected_file_count: expectedFileCount,
+    received_file_count: files.length,
+    file_fields: Array.isArray(req.files) ? ["array"] : Object.keys((req.files as Record<string, unknown>) ?? {}),
+    files: files.map((file) => ({ field: file.fieldname, name: file.originalname, type: file.mimetype, size: file.size, saved_as: file.filename })),
+  });
   if (!project_type || !project_id || !kegiatan) {
+    console.warn("[LaporanPIC] upload gagal validasi field wajib", { project_type, project_id, has_kegiatan: Boolean(kegiatan) });
     return res.status(400).json({ detail: "Tipe projek, nama projek, dan kegiatan wajib diisi" });
   }
   const type = project_type === "interior" ? "interior" : "sipil";
@@ -746,9 +758,11 @@ router.post(
   const proj = type === "interior"
     ? await prisma.proyekInterior.findUnique({ where: { id: pid }, select: { nama_proyek: true } })
     : await prisma.proyekBerjalan.findUnique({ where: { id: pid }, select: { nama_proyek: true } });
-  const files = getUploadedFiles(req).slice(0, 20);
-  const expectedFileCount = Number(expected_file_count ?? 0);
   if (expectedFileCount > 0 && files.length === 0) {
+    console.warn("[LaporanPIC] upload gagal: frontend kirim file tapi backend tidak menerima file", {
+      expected_file_count: expectedFileCount,
+      received_file_count: files.length,
+    });
     return res.status(400).json({
       detail: "Foto tidak diterima backend. Coba refresh halaman lalu upload ulang.",
     });
@@ -766,6 +780,11 @@ router.post(
     include: { user: { select: { name: true } } },
   });
   const images = await insertLaporanPicImages(row.id, files);
+  console.log("[LaporanPIC] upload berhasil disimpan", {
+    laporan_id: String(row.id),
+    image_count: images.length,
+    images,
+  });
   return res.status(201).json({ ...mapLaporanPic(row), images });
 });
 

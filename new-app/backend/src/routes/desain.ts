@@ -14,7 +14,6 @@ const DEFAULT_PEKERJAAN = [
   "Shop Drawing",
   "Pembuatan 3D Interior",
   "Pembuatan RAB",
-  "Presentasi RAB",
 ];
 
 const KANBAN_PAKET_STAGES = [
@@ -23,8 +22,58 @@ const KANBAN_PAKET_STAGES = [
   "Shop Drawing",
   "Pembuatan 3D Interior",
   "Pembuatan RAB",
-  "Presentasi RAB",
 ];
+
+// Template item pekerjaan + durasi (hari) per jenis desain. Timeline dibuat otomatis dari tanggal mulai.
+const TIMELINE_TEMPLATES: Record<string, { nama: string; durasi: number }[]> = {
+  Basic: [
+    { nama: "Pembuatan Layout Eksisting & Perubahan", durasi: 2 },
+    { nama: "Shop Drawing", durasi: 1 },
+    { nama: "3D Interior", durasi: 2 },
+    { nama: "Pembuatan RAB", durasi: 2 },
+  ],
+  Standart: [
+    { nama: "Pembuatan Layout Eksisting & Perubahan", durasi: 2 },
+    { nama: "Pembuatan Fasad 3D", durasi: 3 },
+    { nama: "Shop Drawing", durasi: 2 },
+    { nama: "3D Interior", durasi: 5 },
+    { nama: "Pembuatan RAB", durasi: 2 },
+  ],
+  Premium: [
+    { nama: "Pembuatan Layout Eksisting & Perubahan", durasi: 2 },
+    { nama: "Pembuatan Fasad 3D", durasi: 5 },
+    { nama: "Shop Drawing", durasi: 4 },
+    { nama: "3D Interior", durasi: 6 },
+    { nama: "Pembuatan RAB", durasi: 4 },
+  ],
+  Deluxe: [
+    { nama: "Pembuatan Layout Eksisting & Perubahan", durasi: 3 },
+    { nama: "Pembuatan Fasad 3D", durasi: 5 },
+    { nama: "Shop Drawing", durasi: 5 },
+    { nama: "3D Interior", durasi: 8 },
+    { nama: "Pembuatan RAB", durasi: 3 },
+  ],
+};
+
+// Bangun daftar item timeline dengan tanggal berurutan dari tanggal mulai (durasi hari inklusif per item).
+function buildTimelineItems(jenis: string | null, start: Date | null) {
+  const tpl = (jenis && TIMELINE_TEMPLATES[jenis]) || DEFAULT_PEKERJAAN.map((nama) => ({ nama, durasi: 0 }));
+  let cursor = start ? new Date(start) : null;
+  const items = tpl.map(({ nama, durasi }) => {
+    let mulai: Date | null = null;
+    let selesai: Date | null = null;
+    if (cursor && durasi > 0) {
+      mulai = new Date(cursor);
+      selesai = new Date(cursor);
+      selesai.setDate(selesai.getDate() + durasi - 1);
+      cursor = new Date(selesai);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    return { item_pekerjaan: nama, status: "Belum Mulai", tanggal_mulai: mulai, target_selesai: selesai };
+  });
+  const end = items.length ? items[items.length - 1].target_selesai : null;
+  return { items, end };
+}
 
 const BULAN_NAMES = [
   "", "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -117,7 +166,10 @@ router.get("/timeline", async (req: Request, res: Response) => {
 
 // POST /timeline
 router.post("/timeline", async (req: Request, res: Response) => {
-  const { lead_id, ro_id, jenis_desain, bulan, tahun, tanggal_mulai, tanggal_selesai } = req.body;
+  const { lead_id, ro_id, jenis_desain, bulan, tahun, tanggal_mulai } = req.body;
+  const start = tanggal_mulai ? new Date(tanggal_mulai) : null;
+  // Item pekerjaan + tanggal dibuat otomatis sesuai jenis desain; user cukup isi tanggal mulai.
+  const { items, end } = buildTimelineItems(jenis_desain ?? null, start);
   const t = await prisma.desainTimeline.create({
     data: {
       lead_id: lead_id ? BigInt(lead_id) : null,
@@ -125,17 +177,10 @@ router.post("/timeline", async (req: Request, res: Response) => {
       jenis_desain: jenis_desain ?? null,
       bulan: bulan ?? null,
       tahun: tahun ?? null,
-      tanggal_mulai: tanggal_mulai ? new Date(tanggal_mulai) : null,
-      tanggal_selesai: tanggal_selesai ? new Date(tanggal_selesai) : null,
+      tanggal_mulai: start,
+      tanggal_selesai: end, // otomatis dari total durasi template
       created_by: req.user!.id,
-      items: {
-        createMany: {
-          data: DEFAULT_PEKERJAAN.map((nama) => ({
-            item_pekerjaan: nama,
-            status: "Belum Mulai",
-          })),
-        },
-      },
+      items: { createMany: { data: items } },
     },
   });
   return res.status(201).json({ id: t.id });
@@ -358,9 +403,14 @@ router.patch("/timeline/items/:id", async (req: Request, res: Response) => {
   const tl = item.desain_timeline;
 
   if (status !== undefined) {
-    const validStatus = ["Belum Mulai", "Proses", "Selesai"];
+    const validStatus = ["Belum Mulai", "Proses", "Submit Gambar", "Selesai"];
     if (!validStatus.includes(status)) {
-      return res.status(400).json({ detail: "Status tidak valid. Pilihan: Belum Mulai, Proses, Selesai" });
+      return res.status(400).json({ detail: "Status tidak valid. Pilihan: Belum Mulai, Proses, Submit Gambar, Selesai" });
+    }
+    // Approve "Selesai" hanya boleh oleh Super Admin
+    const isSuperAdmin = (req.user?.roles ?? []).some((r) => r.role.name === "Super Admin");
+    if (status === "Selesai" && !isSuperAdmin) {
+      return res.status(403).json({ detail: "Hanya Super Admin yang dapat menyetujui pekerjaan sebagai Selesai." });
     }
     if (status === "Selesai" && !item.file_bukti) {
       return res.status(400).json({

@@ -3208,3 +3208,23 @@ model GoldenWhatsappChatMetric {
   @@unique([meta_ads_campaign_id, date])
   @@map("golden_whatsapp_chat_metrics")
 }
+
+// Absensi clock in/out visit client (Kalender Visit Client, menu Sales)
+model SalesVisitAttendance {
+  id                 BigInt    @id @default(autoincrement())
+  lead_id            BigInt    @unique
+  clock_in_photo     String?
+  clock_in_at        DateTime? @db.Timestamptz(6)
+  clock_in_lat       Float?
+  clock_in_lng       Float?
+  clock_in_location  String?
+  clock_out_photo    String?
+  clock_out_at       DateTime? @db.Timestamptz(6)
+  clock_out_lat      Float?
+  clock_out_lng      Float?
+  clock_out_location String?
+  created_at         DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
+
+  @@map("sales_visit_attendances")
+}

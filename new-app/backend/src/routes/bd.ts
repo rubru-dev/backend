@@ -266,6 +266,36 @@ async function addLeadToGoldenAdminProjection(lead: { id: bigint; nama: string }
   });
 }
 
+// Minggu ke-berapa dalam bulan dari sebuah tanggal (1..4). Hari 1–7 → W1, 8–14 → W2, dst (di-cap W4).
+function weekOfMonth(date: Date): number {
+  return Math.min(4, Math.max(1, Math.ceil(date.getDate() / 7)));
+}
+const W_COL_DEFAULTS: Record<string, { color: string; urutan: number }> = {
+  W1: { color: "#3b82f6", urutan: 0 }, W2: { color: "#8b5cf6", urutan: 1 },
+  W3: { color: "#f59e0b", urutan: 2 }, W4: { color: "#10b981", urutan: 3 },
+};
+
+// Tempatkan lead ke Kanban Admin di kolom W (W1–W4) sesuai brand/modul. Kolom dibuat kalau belum ada.
+async function addLeadToAdminKanban(modul: string, lead: { id: bigint; nama: string }, projection: string, bulan: number, tahun: number) {
+  if (!W_COL_DEFAULTS[projection]) return;
+  if (modul === "golden") {
+    await addLeadToGoldenAdminProjection(lead, projection, bulan, tahun);
+    return;
+  }
+  const def = W_COL_DEFAULTS[projection];
+  if (modul === "sales-admin") {
+    let col = await prisma.adminKanbanColumn.findFirst({ where: { title: projection, bulan, tahun } });
+    if (!col) col = await prisma.adminKanbanColumn.create({ data: { title: projection, color: def.color, urutan: def.urutan, bulan, tahun } });
+    const exists = await prisma.adminKanbanCard.findFirst({ where: { column_id: col.id, lead_id: lead.id } });
+    if (!exists) await prisma.adminKanbanCard.create({ data: { column_id: col.id, title: lead.nama, lead_id: lead.id, urutan: 0 } });
+  } else if (modul === "telemarketing") {
+    let col = await prisma.telemarketingKanbanColumn.findFirst({ where: { title: projection, bulan, tahun } });
+    if (!col) col = await prisma.telemarketingKanbanColumn.create({ data: { title: projection, color: def.color, urutan: def.urutan, bulan, tahun } });
+    const exists = await prisma.telemarketingKanbanCard.findFirst({ where: { column_id: col.id, lead_id: lead.id } });
+    if (!exists) await prisma.telemarketingKanbanCard.create({ data: { column_id: col.id, title: lead.nama, lead_id: lead.id, urutan: 0 } });
+  }
+}
+
 router.get("/leads", requirePermission("bd", "view"), async (req: Request, res: Response) => {
   const { page, limit, skip } = getPagination(req.query);
   const search = req.query.search as string | undefined;
@@ -2039,7 +2069,7 @@ router.post("/kanban/labels", async (_req: Request, res: Response) => {
 
 // ── MODULAR LEADS (sales-admin / telemarketing) ───────────────────────────────
 
-const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client", "golden", "filter-air"]);
+const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client", "golden", "filter-air", "sales-client"]);
 
 function validateModul(modul: string, res: Response): boolean {
   if (!VALID_MODUL.has(modul)) {
@@ -2238,28 +2268,26 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
     },
   });
 
-  // Auto-add ke Kanban jika projection diisi
-  if (b.projection && (modul === "sales-admin" || modul === "telemarketing" || modul === "golden")) {
-    const now = new Date();
-    const bln = b.bulan != null ? parseInt(b.bulan) : now.getMonth() + 1;
-    const thn = b.tahun != null ? parseInt(b.tahun) : now.getFullYear();
-    if (modul === "golden") {
-      await addLeadToGoldenAdminProjection(lead, b.projection, bln, thn);
-    } else if (modul === "sales-admin") {
-      let col = await prisma.adminKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
-      if (col) {
-        await prisma.adminKanbanCard.create({
-          data: { column_id: col.id, title: lead.nama, lead_id: lead.id, urutan: 0 },
-        });
-      }
-    } else {
-      let col = await prisma.telemarketingKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
-      if (col) {
-        await prisma.telemarketingKanbanCard.create({
-          data: { column_id: col.id, title: lead.nama, lead_id: lead.id, urutan: 0 },
-        });
-      }
-    }
+  // Auto-add ke Kanban jika projection diisi (bulan/tahun ikut tanggal_masuk kalau tidak dikirim eksplisit)
+  if (b.projection) {
+    const src = b.tanggal_masuk ? new Date(b.tanggal_masuk) : new Date();
+    const bln = b.bulan != null ? parseInt(b.bulan) : src.getMonth() + 1;
+    const thn = b.tahun != null ? parseInt(b.tahun) : src.getFullYear();
+    await addLeadToAdminKanban(modul, lead, b.projection, bln, thn);
+  }
+
+  // Follow Up Leads Client: lead yang diinput otomatis tercopy ke Database Client (Data Klien).
+  if (modul === "sales-client") {
+    await prisma.lead.create({
+      data: {
+        user_id: req.user!.id, modul: "database-client",
+        salutation: normalizeSalutation(b.salutation), nama: b.nama,
+        nomor_telepon: b.nomor_telepon ?? null, alamat: b.alamat ?? null,
+        sumber_leads: b.sumber_leads ?? null, keterangan: b.keterangan ?? null,
+        jenis: b.jenis ?? null, status: b.status ?? "Low",
+        tanggal_masuk: b.tanggal_masuk ? new Date(b.tanggal_masuk) : new Date(),
+      },
+    }).catch(() => {});
   }
 
   triggerEventReminder("lead_new", { nama: lead.nama, sumber: b.sumber_leads ?? "-", modul }).catch(() => {});
@@ -2832,10 +2860,19 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
   });
   if (insertLeads.length === 0)
     return res.json({ inserted: 0, skipped_duplicates: skippedDuplicates });
+  // Siapkan tiap lead: W (minggu-ke dalam bulan) dari tanggal_masuk → projection + kolom Kanban.
+  const prepared = insertLeads.map((l) => {
+    const tanggalMasuk = l.tanggal_masuk ? new Date(l.tanggal_masuk) : now;
+    const bulan = tanggalMasuk.getMonth() + 1;
+    const tahun = tanggalMasuk.getFullYear();
+    const proj = typeof l.projection === "string" && /^W[1-4]$/.test(l.projection)
+      ? l.projection
+      : `W${weekOfMonth(tanggalMasuk)}`;
+    return { l, tanggalMasuk, bulan, tahun, proj };
+  });
   const created = await prisma.$transaction(
-    insertLeads.map((l) => {
-      const tanggalMasuk = l.tanggal_masuk ? new Date(l.tanggal_masuk) : now;
-      return prisma.lead.create({
+    prepared.map(({ l, tanggalMasuk, bulan, tahun, proj }) =>
+      prisma.lead.create({
         data: {
           nama: l.nama, nomor_telepon: l.nomor_telepon || null,
           salutation: normalizeSalutation(l.salutation),
@@ -2844,11 +2881,15 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
           keterangan: l.keterangan || null,
           tanggal_masuk: tanggalMasuk,
           modul, user_id: req.user!.id,
-          bulan: tanggalMasuk.getMonth() + 1, tahun: tanggalMasuk.getFullYear(),
+          bulan, tahun, week: parseInt(proj.slice(1)), projection: proj,
         },
-      });
-    })
+      })
+    )
   );
+  // Tempatkan tiap lead ke Kanban Admin sesuai W (sales-admin / telemarketing / golden).
+  for (let i = 0; i < created.length; i++) {
+    await addLeadToAdminKanban(modul, created[i], prepared[i].proj, prepared[i].bulan, prepared[i].tahun);
+  }
   return res.json({ inserted: created.length, skipped_duplicates: skippedDuplicates });
 });
 

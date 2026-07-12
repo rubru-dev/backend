@@ -9,6 +9,8 @@ import { saveAs } from "file-saver";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { desainApi } from "@/lib/api/content";
+import { storageUrl } from "@/lib/storage-url";
+import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -103,17 +105,19 @@ const BULAN_OPTIONS = [
 
 const JENIS_DESAIN_OPTIONS = ["Basic", "Standard", "Premium", "Deluxe"];
 
-const STATUS_OPTIONS = ["Belum Mulai", "Proses", "Selesai"];
+const STATUS_OPTIONS = ["Belum Mulai", "Proses", "Submit Gambar", "Selesai"];
 
 const STATUS_STYLE: Record<string, string> = {
   "Belum Mulai": "bg-gray-100 text-gray-700 border-gray-200",
   Proses: "bg-blue-100 text-blue-700 border-blue-200",
+  "Submit Gambar": "bg-amber-100 text-amber-700 border-amber-200",
   Selesai: "bg-green-100 text-green-700 border-green-200",
 };
 
 const GANTT_BAR_COLOR: Record<string, string> = {
   "Belum Mulai": "bg-gray-400",
   Proses: "bg-blue-500",
+  "Submit Gambar": "bg-amber-500",
   Selesai: "bg-green-500",
 };
 
@@ -404,6 +408,8 @@ const EMPTY_ITEM = {
 
 export default function ProyekDesainPage() {
   const qc = useQueryClient();
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin());
+  const [showDone, setShowDone] = useState(false); // Part 3: projek 100% disembunyikan, tampilkan via filter
 
   // Expand & view state
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -817,6 +823,15 @@ export default function ProyekDesainPage() {
         </div>
       </div>
 
+      {/* Filter: projek 100% disembunyikan, bisa ditampilkan */}
+      <div className="flex items-center justify-end">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
+          <input type="checkbox" checked={showDone} onChange={(e) => setShowDone(e.target.checked)} />
+          Tampilkan projek selesai (100%)
+          {(() => { const done = timelines.filter((tl) => (tl.progress ?? 0) >= 100).length; return done > 0 ? <span className="rounded bg-muted px-1.5 text-xs">{done}</span> : null; })()}
+        </label>
+      </div>
+
       {/* List */}
       <div className="space-y-3">
         {isLoading &&
@@ -825,7 +840,7 @@ export default function ProyekDesainPage() {
           ))}
 
         {!isLoading &&
-          timelines.map((tl) => {
+          (showDone ? timelines : timelines.filter((tl) => (tl.progress ?? 0) < 100)).map((tl) => {
             const isExpanded = expandedId === tl.id;
             const view = getView(tl.id);
 
@@ -1089,7 +1104,7 @@ export default function ProyekDesainPage() {
                                     </Badge>
                                     {item.file_bukti && (
                                       <a
-                                        href={`http://localhost:8000${item.file_bukti}`}
+                                        href={storageUrl(item.file_bukti)}
                                         target="_blank"
                                         rel="noopener noreferrer"
                                         title="Lihat file bukti"
@@ -1445,25 +1460,14 @@ export default function ProyekDesainPage() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label>Tanggal Mulai Proyek</Label>
-                <Input
-                  type="date"
-                  value={tlForm.tanggal_mulai}
-                  max={tlForm.tanggal_selesai || undefined}
-                  onChange={(e) => setTlForm({ ...tlForm, tanggal_mulai: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label>Tanggal Selesai Proyek</Label>
-                <Input
-                  type="date"
-                  value={tlForm.tanggal_selesai}
-                  min={tlForm.tanggal_mulai || undefined}
-                  onChange={(e) => setTlForm({ ...tlForm, tanggal_selesai: e.target.value })}
-                />
-              </div>
+            <div>
+              <Label>Tanggal Mulai Proyek</Label>
+              <Input
+                type="date"
+                value={tlForm.tanggal_mulai}
+                onChange={(e) => setTlForm({ ...tlForm, tanggal_mulai: e.target.value })}
+              />
+              <p className="mt-1 text-xs text-muted-foreground">Item pekerjaan &amp; tanggal selesai dibuat otomatis sesuai jenis desain — cukup isi tanggal mulai.</p>
             </div>
             {!editTl && (
               <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
@@ -1576,13 +1580,14 @@ export default function ProyekDesainPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {STATUS_OPTIONS.map((s) => (
+                  {STATUS_OPTIONS.filter((s) => s !== "Selesai" || isSuperAdmin).map((s) => (
                     <SelectItem key={s} value={s}>
                       {s}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {!isSuperAdmin && <p className="mt-1 text-xs text-muted-foreground">Status <b>Selesai</b> hanya dapat disetujui oleh Super Admin.</p>}
             </div>
 
             {/* ── File Bukti (wajib saat status Selesai) ───────────────────── */}
@@ -1600,7 +1605,7 @@ export default function ProyekDesainPage() {
                     <FileCheck className="h-3.5 w-3.5 flex-shrink-0" />
                     <span className="truncate">File sudah ada</span>
                     <a
-                      href={`http://localhost:8000${editItem.file_bukti}`}
+                      href={storageUrl(editItem.file_bukti)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="ml-auto flex items-center gap-1 text-xs text-green-600 hover:underline flex-shrink-0"

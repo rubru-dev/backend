@@ -39,6 +39,11 @@ function SidebarItem({ item }: { item: NavItem }) {
   const { hasPermission, isSuperAdmin, hasAnyRole } = useAuthStore();
   const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
 
+  // Hanya Super Admin (mis. Addendum Kontrak)
+  if (item.superAdminOnly && !isSuperAdmin()) {
+    return null;
+  }
+
   // Sembunyikan item untuk role tertentu (mis. Form BAST untuk PIC Project)
   if (item.hideForRoles?.length && !isSuperAdmin() && hasAnyRole(...item.hideForRoles)) {
     return null;

@@ -10,6 +10,7 @@ export interface NavItem {
   permission?: string; // item-level: jika diset, user harus punya permission ini untuk melihat item
   roles?: string[];    // optional item-level role allowlist
   hideForRoles?: string[]; // sembunyikan item untuk role tertentu (mis. ["PIC Project"])
+  superAdminOnly?: boolean; // hanya Super Admin yang bisa melihat & akses item ini
 }
 
 export interface NavGroup {
@@ -128,8 +129,9 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Kanban Sales RKR",        href: "/sales/kanban-rkr",         icon: "Kanban",        permission: "sales.kanban" },
       { label: "Kanban Sales Golden",     href: "/sales/kanban-golden",      icon: "Kanban",        permission: "sales.kanban" },
       { label: "Kanban Sales Filter Air", href: "/sales/kanban-filter-air",  icon: "Kanban",        permission: "sales.kanban" },
+      { label: "Follow Up Leads Client",  href: "/sales/follow-up-client",   icon: "PhoneCall",     permission: "sales.view" },
+      { label: "Kalender Visit Client",   href: "/sales/kalender-visit-client", icon: "CalendarDays", permission: "sales.view" },
       { label: "Laporan Harian",    href: "/sales/laporan-harian",  icon: "ClipboardList", permission: "sales.laporan_harian" },
-      { label: "Addendum Kontrak",  href: "/sales/addendum",        icon: "FileSignature", permission: "sales.view" },
     ],
   },
 
@@ -158,7 +160,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Projek Interior",           href: "/projek/interior",    icon: "Home",         permission: "projek_interior.view" },
       { label: "Form BAST",                 href: "/projek/form-bast",   icon: "FileText",     permission: "projek_sipil.view", hideForRoles: ["PIC Project"] },
       { label: "Gudang/Workshop",           href: "/projek/gudang-workshop", icon: "Warehouse", permission: "projek.gudang_workshop" },
-      { label: "Kalender Visit",            href: "/pic/kalender-visit", icon: "CalendarDays", permission: "pic.kalender_visit" },
+      { label: "Kalender Visit Projek",     href: "/pic/kalender-visit", icon: "CalendarDays", permission: "pic.kalender_visit" },
       { label: "Upload Dokumentasi Projek", href: "/pic/dokumentasi",    icon: "Images",       permission: "pic.dokumentasi", roles: ["PIC Project"] },
     ],
   },
@@ -178,6 +180,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Administrasi Kantor",     href: "/finance/administrasi-kantor", icon: "Folder",         permission: "finance.adm_kantor" },
       { label: "Absen Karyawan",          href: "/finance/absen-karyawan",      icon: "ClipboardCheck", permission: "absen.manage" },
       { label: "Laporan Harian",          href: "/finance/laporan-harian",      icon: "ClipboardList",  permission: "finance.laporan_harian" },
+      { label: "Addendum Kontrak",        href: "/sales/addendum",              icon: "FileSignature",  superAdminOnly: true },
     ],
   },
 

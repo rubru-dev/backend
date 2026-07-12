@@ -114,11 +114,22 @@ export default function PICLaporanHarianPage() {
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
-    setFiles((prev) => [...prev, ...Array.from(list)].slice(0, 20));
+    const selected = Array.from(list);
+    console.groupCollapsed("[LaporanPIC] File gambar dipilih");
+    console.table(selected.map((file) => ({ name: file.name, type: file.type, size: file.size })));
+    console.groupEnd();
+    setFiles((prev) => [...prev, ...selected].slice(0, 20));
   };
 
   const createMut = useMutation({
     mutationFn: () => {
+      console.groupCollapsed("[LaporanPIC] Mulai upload laporan");
+      console.log("project_type", projectType);
+      console.log("project_id", projectId);
+      console.log("jumlah_file_frontend", files.length);
+      console.table(files.map((file) => ({ name: file.name, type: file.type, size: file.size })));
+      console.groupEnd();
+
       const fd = new FormData();
       fd.append("project_type", projectType);
       fd.append("project_id", projectId);
@@ -128,7 +139,12 @@ export default function PICLaporanHarianPage() {
       files.forEach((f) => fd.append("fotos", f));
       return laporanPicApi.create(fd);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.groupCollapsed("[LaporanPIC] Upload berhasil");
+      console.log("response", data);
+      console.log("jumlah_gambar_response", Array.isArray(data.images) ? data.images.length : "images bukan array");
+      console.table((data.images || []).map((path) => ({ path, url: storageUrl(path) })));
+      console.groupEnd();
       toast.success("Laporan tersimpan & otomatis terhubung ke projek terpilih.");
       setKegiatan("");
       setKendala("");
@@ -136,7 +152,15 @@ export default function PICLaporanHarianPage() {
       setFiles([]);
       qc.invalidateQueries({ queryKey: ["laporan-pic-mine"] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan laporan."),
+    onError: (e: any) => {
+      console.groupCollapsed("[LaporanPIC] Upload gagal");
+      console.error(e);
+      console.log("status", e?.response?.status);
+      console.log("response", e?.response?.data);
+      console.log("jumlah_file_frontend", files.length);
+      console.groupEnd();
+      toast.error(e?.response?.data?.detail || "Gagal menyimpan laporan.");
+    },
   });
 
   const delMut = useMutation({
@@ -350,7 +374,28 @@ export default function PICLaporanHarianPage() {
                   <div className="mt-2 flex flex-wrap gap-2">
                     {r.images.map((p, i) => (
                       <a key={i} href={storageUrl(p)} target="_blank" rel="noreferrer">
-                        <img src={storageUrl(p)} alt={`foto ${i + 1}`} className="h-20 w-20 rounded border object-cover" />
+                        <img
+                          src={storageUrl(p)}
+                          alt={`foto ${i + 1}`}
+                          className="h-20 w-20 rounded border object-cover"
+                          onLoad={() =>
+                            console.log("[LaporanPIC] Gambar tampil di Laporan Saya", {
+                              report_id: r.id,
+                              image_index: i,
+                              path: p,
+                              url: storageUrl(p),
+                            })
+                          }
+                          onError={(event) =>
+                            console.error("[LaporanPIC] Gambar gagal tampil di Laporan Saya", {
+                              report_id: r.id,
+                              image_index: i,
+                              path: p,
+                              url: storageUrl(p),
+                              currentSrc: event.currentTarget.currentSrc,
+                            })
+                          }
+                        />
                       </a>
                     ))}
                   </div>

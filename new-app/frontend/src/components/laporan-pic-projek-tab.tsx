@@ -76,6 +76,27 @@ export function LaporanPicProjekTab({
                     src={storageUrl(p)}
                     alt={`Foto ${i + 1}`}
                     className="h-24 w-24 rounded border object-cover transition-opacity hover:opacity-90"
+                    onLoad={() =>
+                      console.log("[LaporanPIC] Gambar tampil di tab project", {
+                        report_id: r.id,
+                        project_type: projectType,
+                        project_id: String(projectId),
+                        image_index: i,
+                        path: p,
+                        url: storageUrl(p),
+                      })
+                    }
+                    onError={(event) =>
+                      console.error("[LaporanPIC] Gambar gagal tampil di tab project", {
+                        report_id: r.id,
+                        project_type: projectType,
+                        project_id: String(projectId),
+                        image_index: i,
+                        path: p,
+                        url: storageUrl(p),
+                        currentSrc: event.currentTarget.currentSrc,
+                      })
+                    }
                   />
                 </a>
               ))}

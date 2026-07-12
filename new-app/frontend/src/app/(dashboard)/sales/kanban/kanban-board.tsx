@@ -1,8 +1,9 @@
 "use client";
 
 import { DualScrollContainer } from "@/components/ui/dual-scroll-container";
-import { useState, useCallback, useEffect, useRef, useMemo } from "react";
+import { useState, useCallback, useEffect, useRef, useMemo, Fragment } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/lib/api/client";
 import {
   DragDropContext, Droppable, Draggable,
   type DropResult,
@@ -35,6 +36,36 @@ import type { KanbanColumn, KanbanCard } from "@/types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 const PERMANENT_COLUMNS = ["W1", "W2", "W3", "W4", "Closing", "Lost", "Outstanding"];
+
+// Kolom read-only "Projek Desain Berjalan" — data dari Projek Desain (menu Desain),
+// hanya yang belum 100%, tampil nama client + jenis desain saja.
+function ProjekDesainColumn() {
+  const { data } = useQuery({
+    queryKey: ["projek-desain-berjalan"],
+    queryFn: () => apiClient.get("/desain/timeline").then((r) => r.data),
+  });
+  const items = (Array.isArray(data) ? data : []).filter((t: any) => (t.progress ?? 0) < 100);
+  return (
+    <div className="w-72 shrink-0">
+      <div className="flex items-center gap-2 rounded-t-lg px-3 py-2 text-sm font-semibold" style={{ background: "#dcfce7" }}>
+        <Palette className="h-4 w-4 text-emerald-600" /> Projek Desain Berjalan
+        <span className="ml-auto rounded bg-white/70 px-1.5 text-xs">{items.length}</span>
+      </div>
+      <div className="min-h-24 space-y-2 rounded-b-lg border border-t-0 bg-muted/20 p-2">
+        {items.length === 0 ? (
+          <p className="py-6 text-center text-xs text-muted-foreground">Tidak ada projek desain berjalan.</p>
+        ) : (
+          items.map((t: any) => (
+            <div key={t.id} className="rounded-md border bg-white px-3 py-2">
+              <p className="truncate text-sm font-medium">{t.lead?.nama ?? "-"}</p>
+              <p className="text-xs text-muted-foreground">{t.jenis_desain ?? "-"}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
 const MONTHS = [
   "Januari","Februari","Maret","April","Mei","Juni",
@@ -855,24 +886,28 @@ export function SalesKanbanBoard({
                 style={{ minWidth: "max-content" }}
               >
                 {displayColumns.map((column, idx) => (
-                  <Draggable key={String(column.id)} draggableId={`col-${column.id}`} index={idx}>
-                    {(colProvided) => (
-                      <div ref={colProvided.innerRef} {...colProvided.draggableProps}>
-                        <KanbanColumnComp
-                          column={column}
-                          leads={leads}
-                          onAddCard={handleAddCard}
-                          onDeleteCard={handleDeleteCard}
-                          onUpdateCard={handleUpdateCard}
-                          onColorChangeCard={handleColorChange}
-                          onUpdateColumn={handleUpdateColumn}
-                          onDeleteColumn={handleDeleteColumn}
-                          isPermanent={PERMANENT_COLUMNS.includes(column.title)}
-                          dragHandleProps={colProvided.dragHandleProps}
-                        />
-                      </div>
-                    )}
-                  </Draggable>
+                  <Fragment key={String(column.id)}>
+                    <Draggable draggableId={`col-${column.id}`} index={idx}>
+                      {(colProvided) => (
+                        <div ref={colProvided.innerRef} {...colProvided.draggableProps}>
+                          <KanbanColumnComp
+                            column={column}
+                            leads={leads}
+                            onAddCard={handleAddCard}
+                            onDeleteCard={handleDeleteCard}
+                            onUpdateCard={handleUpdateCard}
+                            onColorChangeCard={handleColorChange}
+                            onUpdateColumn={handleUpdateColumn}
+                            onDeleteColumn={handleDeleteColumn}
+                            isPermanent={PERMANENT_COLUMNS.includes(column.title)}
+                            dragHandleProps={colProvided.dragHandleProps}
+                          />
+                        </div>
+                      )}
+                    </Draggable>
+                    {/* Kolom read-only tepat di sebelah W4 */}
+                    {column.title === "W4" && <ProjekDesainColumn />}
+                  </Fragment>
                 ))}
                 {boardProvided.placeholder}
                 <AddColumnButton onAdd={handleAddColumn} />

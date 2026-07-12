@@ -18,7 +18,7 @@ import { Plus, Pencil, Trash2, Search, PhoneCall, Printer, FileUp, FileDown, His
 import * as XLSX from "xlsx";
 
 interface FollowUpLeadsProps {
-  modul: "sales-admin" | "telemarketing" | "database-client" | "golden" | "filter-air";
+  modul: "sales-admin" | "telemarketing" | "database-client" | "golden" | "filter-air" | "sales-client";
   campaignSelectUrl?: string;
 }
 
@@ -87,6 +87,13 @@ function leadDisplayName(item: { salutation?: string | null; nama?: string | nul
   if (item.display_name) return item.display_name;
   if (!item.nama) return "";
   return item.salutation ? `${item.salutation} ${item.nama}` : item.nama;
+}
+
+// Minggu ke-berapa dalam bulan dari tanggal input → "W1".."W4" (hari 1–7=W1, 8–14=W2, dst, di-cap W4).
+function weekProjectionOf(dateStr?: string | null): string {
+  const d = dateStr ? new Date(dateStr) : new Date();
+  const day = isNaN(d.getTime()) ? new Date().getDate() : d.getDate();
+  return `W${Math.min(4, Math.max(1, Math.ceil(day / 7)))}`;
 }
 
 export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) {
@@ -1353,7 +1360,8 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
           <DialogHeader>
             <div className="flex items-center justify-between gap-2">
               <DialogTitle>{editItem ? "Edit Lead" : "Tambah Lead Baru"}</DialogTitle>
-              {!editItem && !isGolden && (
+              {/* Follow Up Leads Client: import Data Klien hanya untuk Super Admin */}
+              {!editItem && !isGolden && (modul !== "sales-client" || isSuperAdmin) && (
                 <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); setImportClientPage(1); }}>
                   <DatabaseZap className="h-3.5 w-3.5" /> Import Data Klien
                 </Button>
@@ -1502,6 +1510,8 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                 status: c.status ?? "Low",
                 keterangan: c.keterangan ?? "",
                 tanggal_masuk: c.tanggal_masuk ?? null,
+                // Auto W (minggu-ke dalam bulan tanggal input) → masuk kolom Kanban Admin W1–W4
+                projection: weekProjectionOf(c.tanggal_masuk),
               });
               return (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
@@ -1547,6 +1557,9 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                         jenis: c.jenis ?? prev.jenis,
                         status: c.status ?? prev.status,
                         keterangan: c.keterangan ?? prev.keterangan,
+                        tanggal_masuk: c.tanggal_masuk ? String(c.tanggal_masuk).slice(0, 10) : prev.tanggal_masuk,
+                        // Auto W → saat disimpan, lead masuk kolom Kanban Admin W1–W4 sesuai minggu input
+                        projection: weekProjectionOf(c.tanggal_masuk),
                       }));
                       setImportClientOpen(false);
                     }}

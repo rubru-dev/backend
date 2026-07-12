@@ -16,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Trash2, ClipboardList, Bold, Italic, List, Printer, Link2, Upload, FileText, ExternalLink, X, Loader2, Download, PhoneCall, ChevronDown, ChevronRight } from "lucide-react";
+import { FollowUpSummaryTab } from "@/components/follow-up-summary-tab";
 
 interface LaporanHarianProps {
   modul: string;
@@ -154,10 +155,30 @@ function MarkdownEditor({
 const today = new Date().toISOString().split("T")[0];
 const EMPTY = { tanggal_mulai: today, tanggal_selesai: today, kegiatan: "", kendala: "", user_id: "" };
 
+// Default tampilan = bulan berjalan (1 s/d akhir bulan). Dihitung lokal agar tidak geser timezone.
+const _pad = (n: number) => String(n).padStart(2, "0");
+const _now = new Date();
+const MONTH_START = `${_now.getFullYear()}-${_pad(_now.getMonth() + 1)}-01`;
+const MONTH_END = `${_now.getFullYear()}-${_pad(_now.getMonth() + 1)}-${_pad(new Date(_now.getFullYear(), _now.getMonth() + 1, 0).getDate())}`;
+
 const MODUL_TO_LEAD_MODUL: Record<string, string> = {
   "Sales Admin": "sales-admin",
   "Telemarketing": "telemarketing",
   "Golden": "golden",
+  "Sales": "sales-client",
+};
+
+// Brand sumber follow-up per modul laporan harian.
+// "Telemarketing" = grup "Sales Admin Product & Mitra" → 3 brand (RKR, Golden, Filter Air).
+const MODUL_TO_BRANDS: Record<string, { label: string; leadModul: string }[]> = {
+  "Sales Admin": [{ label: "Sales Admin", leadModul: "sales-admin" }],
+  "Telemarketing": [
+    { label: "RKR", leadModul: "telemarketing" },
+    { label: "Golden", leadModul: "golden" },
+    { label: "Filter Air", leadModul: "filter-air" },
+  ],
+  "Golden": [{ label: "Golden", leadModul: "golden" }],
+  "Sales": [{ label: "Client", leadModul: "sales-client" }],
 };
 
 const BULAN_OPTIONS = [
@@ -183,18 +204,50 @@ function safeFmtDateLong(d: string | null | undefined): string {
   return safeFmtDate(d, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
+// Satu grup follow-up (mis. "Leads baru hari ini" atau "Follow-up leads lama")
+function FuGroup({ title, tone, items }: { title: string; tone: "green" | "amber"; items: any[] }) {
+  const c = tone === "green"
+    ? { head: "text-green-700", box: "bg-green-50 border-green-200", name: "text-green-900", note: "text-green-800" }
+    : { head: "text-amber-700", box: "bg-amber-50 border-amber-200", name: "text-amber-900", note: "text-amber-800" };
+  return (
+    <div>
+      <p className={`text-[11px] font-semibold mb-1 ${c.head}`}>{title}</p>
+      <div className="space-y-1.5">
+        {items.map((fu: any, i: number) => (
+          <div key={fu.id ?? i} className={`border rounded-md px-3 py-2 ${c.box}`}>
+            <div className="flex items-start gap-2">
+              <span className={`text-[10px] font-bold mt-0.5 w-4 shrink-0 ${c.head}`}>{i + 1}.</span>
+              <div className="flex-1 min-w-0">
+                <div className={`font-semibold text-sm ${c.name}`}>{fu.lead_nama}</div>
+                {fu.catatan
+                  ? <p className={`text-xs mt-0.5 leading-relaxed ${c.note}`}>{fu.catatan}</p>
+                  : <p className="text-xs mt-0.5 italic text-muted-foreground/60">Tidak ada catatan</p>}
+                {fu.next_follow_up && (
+                  <p className="text-[10px] text-orange-600 mt-1 font-medium">Next FU: {safeFmtDate(fu.next_follow_up)}</p>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianProps) {
   const qc = useQueryClient();
   const { user: currentUser } = useAuthStore();
   const leadModul = MODUL_TO_LEAD_MODUL[modul] ?? null;
+  const brands = MODUL_TO_BRANDS[modul] ?? (leadModul ? [{ label: modul, leadModul }] : []);
 
-  const [activeSection, setActiveSection] = useState<"laporan" | "follow-up">("laporan");
+  const [activeSection, setActiveSection] = useState<"laporan" | "follow-up" | "summary">("laporan");
+  const showSummaryTab = modul === "Sales Admin" || modul === "Sales"; // tab Summary Follow Up: Sales Admin & Sales
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
-  const [filterMulai, setFilterMulai] = useState("");
-  const [filterSelesai, setFilterSelesai] = useState("");
+  const [filterMulai, setFilterMulai] = useState(MONTH_START);
+  const [filterSelesai, setFilterSelesai] = useState(MONTH_END);
   const [filterUserId, setFilterUserId] = useState("");
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [viewItem, setViewItem] = useState<any>(null);
@@ -286,6 +339,31 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
     queryFn: () => apiClient.get(`/laporan-harian/${viewItem.id}/docs`).then((r) => r.data),
     enabled: !!viewItem,
     retry: false,
+  });
+
+  // Ringkasan follow-up untuk laporan yang sedang dipreview: tanggal + user laporan, dikelompokkan per brand,
+  // lalu dipisah "leads baru (diinput hari itu)" vs "follow-up leads lama".
+  const viewDate = viewItem ? String(viewItem.tanggal_mulai).split("T")[0] : "";
+  const { data: fuPreview = [], isLoading: fuPreviewLoading } = useQuery<{ label: string; baru: any[]; lama: any[] }[]>({
+    queryKey: ["laporan-fu-preview", viewItem?.id, modul, viewDate],
+    enabled: !!viewItem && brands.length > 0,
+    queryFn: async () => {
+      const uid = viewItem?.user?.id;
+      return Promise.all(
+        brands.map(async (b) => {
+          const r = await apiClient.get("/laporan-harian/follow-up-summary", {
+            params: { lead_modul: b.leadModul, user_id: uid || undefined, tanggal_mulai: viewDate, tanggal_selesai: viewDate },
+          });
+          const groups: any[] = Array.isArray(r.data) ? r.data : [];
+          const fus = groups.flatMap((g: any) => g.follow_ups ?? []);
+          return {
+            label: b.label,
+            baru: fus.filter((fu: any) => fu.lead_tanggal_masuk === viewDate),
+            lama: fus.filter((fu: any) => fu.lead_tanggal_masuk !== viewDate),
+          };
+        })
+      );
+    },
   });
 
   const addDocMut = useMutation({
@@ -616,24 +694,25 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
             <ClipboardList className={`h-6 w-6 ${color}`} />
             Laporan Harian
           </h1>
-          <p className="text-muted-foreground">{modul} — Laporan kegiatan harian</p>
-          {leadModul && (
+          <p className="text-muted-foreground">{modul} — Laporan kegiatan harian{brands.length > 0 ? " + ringkasan follow up" : ""}</p>
+          {showSummaryTab && (
             <div className="flex gap-1 mt-2">
               <button
                 onClick={() => setActiveSection("laporan")}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${activeSection === "laporan" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${activeSection !== "summary" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
               >
                 <ClipboardList className="h-3.5 w-3.5 inline mr-1.5" />Laporan Harian
               </button>
               <button
-                onClick={() => setActiveSection("follow-up")}
-                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${activeSection === "follow-up" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
+                onClick={() => setActiveSection("summary")}
+                className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${activeSection === "summary" ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"}`}
               >
-                <PhoneCall className="h-3.5 w-3.5 inline mr-1.5" />Ringkasan Follow Up
+                <PhoneCall className="h-3.5 w-3.5 inline mr-1.5" />Summary Follow Up
               </button>
             </div>
           )}
         </div>
+        {activeSection !== "summary" && (
         <div className="flex gap-2 items-center flex-wrap">
           <div className="flex items-center gap-1.5">
             <Input
@@ -647,10 +726,10 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
               onChange={(e) => setFilterSelesai(e.target.value)}
               className="w-36 text-sm"
             />
-            {(filterMulai || filterSelesai) && (
+            {(filterMulai !== MONTH_START || filterSelesai !== MONTH_END) && (
               <Button variant="ghost" size="sm" className="text-xs px-2 h-8"
-                onClick={() => { setFilterMulai(""); setFilterSelesai(""); }}>
-                Reset
+                onClick={() => { setFilterMulai(MONTH_START); setFilterSelesai(MONTH_END); }}>
+                Bulan ini
               </Button>
             )}
           </div>
@@ -674,23 +753,20 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
               Reset User
             </Button>
           )}
-          {activeSection === "laporan" && (
-            <>
-              <Button variant="outline" size="sm" onClick={handlePrint} disabled={isLoading || items.length === 0}>
-                <Printer className="h-4 w-4 mr-1.5" /> Cetak PDF
-              </Button>
-              <Button onClick={openCreate}>
-                <Plus className="h-4 w-4 mr-2" /> Isi Laporan
-              </Button>
-            </>
-          )}
-          {activeSection === "follow-up" && leadModul && (
-            <Button variant="outline" size="sm" onClick={() => generateFollowUpPDF(fuSummary)} disabled={fuSummaryLoading || fuSummary.length === 0}>
-              <Download className="h-4 w-4 mr-1.5" /> Download PDF
-            </Button>
-          )}
+          <Button variant="outline" size="sm" onClick={handlePrint} disabled={isLoading || items.length === 0}>
+            <Printer className="h-4 w-4 mr-1.5" /> Cetak PDF
+          </Button>
+          <Button onClick={openCreate}>
+            <Plus className="h-4 w-4 mr-2" /> Isi Laporan
+          </Button>
         </div>
+        )}
       </div>
+
+      {/* Tab Summary Follow Up (khusus Sales Admin) */}
+      {activeSection === "summary" && leadModul && (
+        <FollowUpSummaryTab leadModul={leadModul} />
+      )}
 
       {/* Table Laporan Harian */}
       {activeSection === "laporan" && (
@@ -758,172 +834,6 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
             </Table>
           </CardContent>
         </Card>
-      )}
-
-      {/* Tab Ringkasan Follow Up */}
-      {activeSection === "follow-up" && leadModul && (
-        <div className="space-y-3">
-          {/* Dedicated filter panel */}
-          <Card>
-            <CardContent className="py-3 px-4">
-              <div className="flex flex-wrap gap-2 items-center">
-                <Select value={fuFilterUserId || "__all__"} onValueChange={(v) => setFuFilterUserId(v === "__all__" ? "" : v)}>
-                  <SelectTrigger className="w-[150px] h-8 text-sm"><SelectValue placeholder="Semua User" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__all__">Semua User</SelectItem>
-                    {users.map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={fuFilterBulan} onValueChange={(v) => { setFuFilterBulan(v); setFuFilterMulai(""); setFuFilterSelesai(""); }}>
-                  <SelectTrigger className="w-[120px] h-8 text-sm"><SelectValue placeholder="Bulan" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Bulan</SelectItem>
-                    {BULAN_OPTIONS.map(b => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={fuFilterTahun} onValueChange={(v) => { setFuFilterTahun(v); setFuFilterMulai(""); setFuFilterSelesai(""); }}>
-                  <SelectTrigger className="w-[100px] h-8 text-sm"><SelectValue placeholder="Tahun" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">Semua Tahun</SelectItem>
-                    {TAHUN_OPTIONS.map(y => <SelectItem key={y} value={y}>{y}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <span className="text-xs text-muted-foreground px-1">atau rentang:</span>
-                <Input type="date" className="w-36 h-8 text-sm" value={fuFilterMulai}
-                  onChange={(e) => { setFuFilterMulai(e.target.value); setFuFilterBulan("all"); setFuFilterTahun("all"); }} />
-                <span className="text-xs text-muted-foreground">s/d</span>
-                <Input type="date" className="w-36 h-8 text-sm" value={fuFilterSelesai}
-                  onChange={(e) => { setFuFilterSelesai(e.target.value); setFuFilterBulan("all"); setFuFilterTahun("all"); }} />
-                {(fuFilterUserId || fuFilterBulan !== "all" || fuFilterTahun !== "all" || fuFilterMulai || fuFilterSelesai) && (
-                  <Button variant="ghost" size="sm" className="h-8 text-xs px-2" onClick={() => {
-                    setFuFilterUserId(""); setFuFilterBulan("all"); setFuFilterTahun("all");
-                    setFuFilterMulai(""); setFuFilterSelesai("");
-                  }}>Reset</Button>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Summary stats */}
-          {!fuSummaryLoading && fuSummary.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 text-center">
-                <div className="text-xl font-bold text-amber-700">{fuSummary.length}</div>
-                <div className="text-[10px] text-amber-600">Hari Aktif</div>
-              </div>
-              <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 text-center">
-                <div className="text-xl font-bold text-blue-700">{fuSummary.reduce((s: number, g: any) => s + g.follow_ups.length, 0)}</div>
-                <div className="text-[10px] text-blue-600">Total Follow Up</div>
-              </div>
-              <div className="bg-green-50 border border-green-200 rounded-lg px-3 py-2 text-center">
-                <div className="text-xl font-bold text-green-700">{fuSummary.filter((g: any) => g.laporan_harian).length}</div>
-                <div className="text-[10px] text-green-600">Ada Laporan Harian</div>
-              </div>
-            </div>
-          )}
-
-          <Card>
-            <CardContent className="p-0">
-              {fuSummaryLoading ? (
-                <div className="p-6 space-y-3">
-                  {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-20 w-full" />)}
-                </div>
-              ) : fuSummary.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground">
-                  <PhoneCall className="mx-auto h-10 w-10 opacity-20 mb-3" />
-                  <p>Belum ada aktivitas follow up pada periode ini</p>
-                  <p className="text-xs mt-1">Coba ubah filter atau tambah follow up leads terlebih dahulu</p>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {fuSummary.map((group: any) => {
-                    const key = `${group.tanggal}_${group.user?.id ?? "unknown"}`;
-                    const isExpanded = expandedFuKey === key;
-                    const lap = group.laporan_harian;
-                    return (
-                      <div key={key}>
-                        {/* Group header */}
-                        <button
-                          className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted/30 transition-colors text-left"
-                          onClick={() => setExpandedFuKey(isExpanded ? null : key)}
-                        >
-                          {isExpanded
-                            ? <ChevronDown className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                            : <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                          }
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-semibold text-sm">{safeFmtDateLong(group.tanggal)}</span>
-                              <span className="text-xs text-muted-foreground">·</span>
-                              <span className="text-sm text-amber-700 font-medium">{group.user?.name ?? "—"}</span>
-                              {lap && (
-                                <span className="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded border border-blue-200 font-medium">Ada Laporan Harian</span>
-                              )}
-                            </div>
-                            <span className="text-xs text-muted-foreground">{group.follow_ups.length} lead di-follow-up</span>
-                          </div>
-                          <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-semibold flex-shrink-0">
-                            {group.follow_ups.length}×
-                          </span>
-                        </button>
-
-                        {/* Expanded content */}
-                        {isExpanded && (
-                          <div className="px-4 pb-4 pl-11 space-y-3">
-                            {/* Laporan Harian entry */}
-                            {lap && (
-                              <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-3">
-                                <p className="text-[11px] font-semibold text-blue-700 mb-1 flex items-center gap-1">
-                                  <ClipboardList className="h-3 w-3" /> Laporan Harian ({group.user?.name ?? "—"})
-                                </p>
-                                <div className="text-xs text-blue-900 leading-relaxed whitespace-pre-line line-clamp-4">
-                                  {lap.kegiatan}
-                                </div>
-                                {lap.kendala && (
-                                  <div className="mt-2 text-xs text-red-600 border-t border-blue-200 pt-2">
-                                    <span className="font-medium">Kendala:</span> {lap.kendala}
-                                  </div>
-                                )}
-                              </div>
-                            )}
-
-                            {/* Follow-up list */}
-                            <div>
-                              <p className="text-[11px] font-semibold text-muted-foreground mb-1.5 flex items-center gap-1">
-                                <PhoneCall className="h-3 w-3" /> Follow Up Leads
-                              </p>
-                              <div className="space-y-1.5">
-                                {group.follow_ups.map((fu: any, idx: number) => (
-                                  <div key={fu.id} className="bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
-                                    <div className="flex items-start gap-2">
-                                      <span className="text-[10px] text-amber-600 font-bold mt-0.5 w-4 shrink-0">{idx + 1}.</span>
-                                      <div className="flex-1 min-w-0">
-                                        <div className="font-semibold text-sm text-amber-900">{fu.lead_nama}</div>
-                                        {fu.catatan
-                                          ? <p className="text-xs text-amber-800 mt-0.5 leading-relaxed">{fu.catatan}</p>
-                                          : <p className="text-xs text-muted-foreground/60 mt-0.5 italic">Tidak ada catatan</p>
-                                        }
-                                        {fu.next_follow_up && (
-                                          <p className="text-[10px] text-orange-600 mt-1 font-medium">
-                                            Next FU: {safeFmtDate(fu.next_follow_up)}
-                                          </p>
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
       )}
 
       {/* ── Create dialog ── */}
@@ -1054,6 +964,40 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
                     <div className="border border-red-200 rounded-md px-4 py-3 bg-red-50/50 text-sm">{viewItem.kendala}</div>
                   </div>
                 )}
+
+                {/* Ringkasan Follow Up — di bawah laporan, per brand, dipisah leads baru vs lama */}
+                {brands.length > 0 && (
+                  <div className="border-t pt-4">
+                    <p className="text-sm font-semibold flex items-center gap-1.5 mb-2">
+                      <PhoneCall className="h-4 w-4" /> Ringkasan Follow Up
+                      <span className="text-xs font-normal text-muted-foreground">— {fmtDate(viewDate)}</span>
+                    </p>
+                    {fuPreviewLoading ? (
+                      <Skeleton className="h-16 w-full" />
+                    ) : fuPreview.every((b) => b.baru.length === 0 && b.lama.length === 0) ? (
+                      <p className="text-sm text-muted-foreground italic py-1">Tidak ada follow up pada tanggal ini.</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {fuPreview.map((b) =>
+                          (b.baru.length === 0 && b.lama.length === 0) ? null : (
+                            <div key={b.label} className="space-y-2">
+                              {brands.length > 1 && (
+                                <p className="text-xs font-bold uppercase tracking-wide text-amber-700">{b.label}</p>
+                              )}
+                              {b.baru.length > 0 && (
+                                <FuGroup title={`Leads baru (diinput hari ini) · ${b.baru.length}`} tone="green" items={b.baru} />
+                              )}
+                              {b.lama.length > 0 && (
+                                <FuGroup title={`Follow-up leads lama · ${b.lama.length}`} tone="amber" items={b.lama} />
+                              )}
+                            </div>
+                          )
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="flex justify-end">
                   <Button variant="outline" onClick={() => setViewItem(null)}>Tutup</Button>
                 </div>
