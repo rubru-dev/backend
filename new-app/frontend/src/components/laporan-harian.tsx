@@ -249,6 +249,16 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   const [filterMulai, setFilterMulai] = useState(MONTH_START);
   const [filterSelesai, setFilterSelesai] = useState(MONTH_END);
   const [filterUserId, setFilterUserId] = useState("");
+
+  // Filter cepat per bulan+tahun (selain rentang tanggal): set rentang ke seluruh bulan itu
+  const _pad2 = (n: number) => String(n).padStart(2, "0");
+  const curBulan = filterMulai ? Number(filterMulai.slice(5, 7)) : new Date().getMonth() + 1;
+  const curTahun = filterMulai ? Number(filterMulai.slice(0, 4)) : new Date().getFullYear();
+  const setMonthFilter = (bulan: number, tahun: number) => {
+    const last = new Date(tahun, bulan, 0).getDate();
+    setFilterMulai(`${tahun}-${_pad2(bulan)}-01`);
+    setFilterSelesai(`${tahun}-${_pad2(bulan)}-${_pad2(last)}`);
+  };
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
   const [viewItem, setViewItem] = useState<any>(null);
   const [expandedFuKey, setExpandedFuKey] = useState<string | null>(null);
@@ -714,6 +724,18 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
         </div>
         {activeSection !== "summary" && (
         <div className="flex gap-2 items-center flex-wrap">
+          <Select value={String(curBulan)} onValueChange={(v) => setMonthFilter(Number(v), curTahun)}>
+            <SelectTrigger className="w-32 text-sm h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {BULAN_OPTIONS.map((b) => <SelectItem key={b.value} value={b.value}>{b.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <Select value={String(curTahun)} onValueChange={(v) => setMonthFilter(curBulan, Number(v))}>
+            <SelectTrigger className="w-24 text-sm h-9"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {TAHUN_OPTIONS.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}
+            </SelectContent>
+          </Select>
           <div className="flex items-center gap-1.5">
             <Input
               type="date" value={filterMulai}
@@ -838,7 +860,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
 
       {/* ── Create dialog ── */}
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" /> Isi Laporan Harian
@@ -930,7 +952,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
 
       {/* ── View detail dialog ── */}
       <Dialog open={!!viewItem} onOpenChange={(v) => { if (!v) { setViewItem(null); setDocForm({ title: "", url: "", catatan: "" }); setDocFile(null); } }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <ClipboardList className="h-5 w-5" /> Detail Laporan Harian

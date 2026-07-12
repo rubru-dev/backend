@@ -156,6 +156,21 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   const [importClientOpen, setImportClientOpen] = useState(false);
   const [importClientSearch, setImportClientSearch] = useState("");
   const [importClientPage, setImportClientPage] = useState(1);
+  const [importSelected, setImportSelected] = useState<Record<string, any>>({}); // pilih banyak klien (lintas halaman)
+
+  // Payload lead saat import dari Data Klien (data disalin apa adanya; status/rencana survey/catatan diisi belakangan)
+  const toLeadPayload = (c: any) => ({
+    salutation: c.salutation ?? "Mr",
+    nama: c.nama ?? "",
+    nomor_telepon: c.nomor_telepon ?? "",
+    alamat: c.alamat ?? "",
+    sumber_leads: DATA_KLIEN_SOURCE,
+    jenis: c.jenis ?? "",
+    status: c.status ?? "Low",
+    keterangan: c.keterangan ?? "",
+    tanggal_masuk: c.tanggal_masuk ?? null,
+    projection: weekProjectionOf(c.tanggal_masuk),
+  });
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [inlineFollowUpForm, setInlineFollowUpForm] = useState<Record<number, { catatan: string; next_follow_up: string; attachments?: FollowUpAttachment[] }>>({});
   const [confirmDelete, setConfirmDelete] = useState<number | null>(null);
@@ -1362,7 +1377,7 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
               <DialogTitle>{editItem ? "Edit Lead" : "Tambah Lead Baru"}</DialogTitle>
               {/* Follow Up Leads Client: import Data Klien hanya untuk Super Admin */}
               {!editItem && !isGolden && (modul !== "sales-client" || isSuperAdmin) && (
-                <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); setImportClientPage(1); }}>
+                <Button variant="outline" size="sm" className="text-xs h-7 gap-1" onClick={() => { setImportClientOpen(true); setImportClientSearch(""); setImportClientPage(1); setImportSelected({}); }}>
                   <DatabaseZap className="h-3.5 w-3.5" /> Import Data Klien
                 </Button>
               )}
@@ -1500,39 +1515,40 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
             {(() => {
               const clientItems: any[] = Array.isArray(importClientData) ? importClientData : importClientData?.items ?? [];
               const totalClients = Array.isArray(importClientData) ? clientItems.length : importClientData?.total ?? clientItems.length;
-              const toLeadPayload = (c: any) => ({
-                salutation: c.salutation ?? "Mr",
-                nama: c.nama ?? "",
-                nomor_telepon: c.nomor_telepon ?? "",
-                alamat: c.alamat ?? "",
-                sumber_leads: DATA_KLIEN_SOURCE,
-                jenis: c.jenis ?? "",
-                status: c.status ?? "Low",
-                keterangan: c.keterangan ?? "",
-                tanggal_masuk: c.tanggal_masuk ?? null,
-                // Auto W (minggu-ke dalam bulan tanggal input) → masuk kolom Kanban Admin W1–W4
-                projection: weekProjectionOf(c.tanggal_masuk),
-              });
+              const selectedCount = Object.keys(importSelected).length;
               return (
                 <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2">
                   <span className="text-xs text-muted-foreground">
-                    Menampilkan {clientItems.length} dari {totalClients} data klien.
+                    {clientItems.length} dari {totalClients} klien · dipilih <b>{selectedCount}</b>
                   </span>
-                  <Button
-                    size="sm"
-                    disabled={bulkImportMut.isPending || totalClients === 0}
-                    onClick={async () => {
-                      const res = await apiClient.get("/bd/database-client/leads", {
-                        params: { search: importClientSearch || undefined, page: 1, limit: 1000 },
-                      });
-                      const bulkItems: any[] = Array.isArray(res.data) ? res.data : res.data?.items ?? [];
-                      bulkImportMut.mutate(bulkItems.slice(0, 1000).map(toLeadPayload), {
-                        onSuccess: () => setImportClientOpen(false),
-                      });
-                    }}
-                  >
-                    {bulkImportMut.isPending ? "Mengimport..." : `Import Semua Hasil (${Math.min(totalClients, 1000)})`}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      disabled={bulkImportMut.isPending || selectedCount === 0}
+                      onClick={() => {
+                        bulkImportMut.mutate(Object.values(importSelected).map(toLeadPayload), {
+                          onSuccess: () => { setImportSelected({}); setImportClientOpen(false); },
+                        });
+                      }}
+                    >
+                      {bulkImportMut.isPending ? "Mengimport..." : `Import Terpilih (${selectedCount})`}
+                    </Button>
+                    <Button
+                      size="sm" variant="outline"
+                      disabled={bulkImportMut.isPending || totalClients === 0}
+                      onClick={async () => {
+                        const res = await apiClient.get("/bd/database-client/leads", {
+                          params: { search: importClientSearch || undefined, page: 1, limit: 1000 },
+                        });
+                        const bulkItems: any[] = Array.isArray(res.data) ? res.data : res.data?.items ?? [];
+                        bulkImportMut.mutate(bulkItems.slice(0, 1000).map(toLeadPayload), {
+                          onSuccess: () => { setImportSelected({}); setImportClientOpen(false); },
+                        });
+                      }}
+                    >
+                      Import Semua ({Math.min(totalClients, 1000)})
+                    </Button>
+                  </div>
                 </div>
               );
             })()}
@@ -1542,36 +1558,30 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
                 if (clientItems.length === 0) {
                   return <p className="text-sm text-muted-foreground text-center py-8">Tidak ada data klien</p>;
                 }
-                return clientItems.map((c: any) => (
-                  <button
-                    key={c.id}
-                    className="w-full text-left px-3 py-2 rounded hover:bg-muted/50 transition-colors"
-                    onClick={() => {
-                      setForm((prev) => ({
-                        ...prev,
-                        salutation: c.salutation ?? prev.salutation,
-                        nama: c.nama ?? prev.nama,
-                        nomor_telepon: c.nomor_telepon ?? prev.nomor_telepon,
-                        alamat: c.alamat ?? prev.alamat,
-                        sumber_leads: DATA_KLIEN_SOURCE,
-                        jenis: c.jenis ?? prev.jenis,
-                        status: c.status ?? prev.status,
-                        keterangan: c.keterangan ?? prev.keterangan,
-                        tanggal_masuk: c.tanggal_masuk ? String(c.tanggal_masuk).slice(0, 10) : prev.tanggal_masuk,
-                        // Auto W → saat disimpan, lead masuk kolom Kanban Admin W1–W4 sesuai minggu input
-                        projection: weekProjectionOf(c.tanggal_masuk),
-                      }));
-                      setImportClientOpen(false);
-                    }}
-                  >
-                    <div className="font-medium text-sm">{leadDisplayName(c)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {c.nomor_telepon && <span>{c.nomor_telepon}</span>}
-                      {c.jenis && <span> · {c.jenis}</span>}
-                      {c.alamat && <span> · {c.alamat.substring(0, 30)}{c.alamat.length > 30 ? "…" : ""}</span>}
-                    </div>
-                  </button>
-                ));
+                return clientItems.map((c: any) => {
+                  const checked = !!importSelected[String(c.id)];
+                  return (
+                    <label key={c.id} className="flex w-full cursor-pointer items-center gap-3 rounded px-3 py-2 hover:bg-muted/50">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={(e) => setImportSelected((prev) => {
+                          const next = { ...prev };
+                          if (e.target.checked) next[String(c.id)] = c; else delete next[String(c.id)];
+                          return next;
+                        })}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium">{leadDisplayName(c)}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {c.nomor_telepon && <span>{c.nomor_telepon}</span>}
+                          {c.jenis && <span> · {c.jenis}</span>}
+                          {c.alamat && <span> · {c.alamat.substring(0, 30)}{c.alamat.length > 30 ? "…" : ""}</span>}
+                        </div>
+                      </div>
+                    </label>
+                  );
+                });
               })()}
             </div>
             {(() => {
