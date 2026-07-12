@@ -4,7 +4,8 @@ import path from "path";
 import fs from "fs";
 import { prisma } from "../lib/prisma";
 import { config } from "../config";
-import { triggerEventReminder, triggerEventReminderToUsers } from "../lib/fontee";
+import { triggerEventReminder } from "../lib/fontee";
+import { sendVisitProjectAssignedReminder } from "../lib/hardcodedReminderScheduler";
 import { reverseGeocode, numOrNull } from "../lib/reverseGeocode";
 
 const router = Router();
@@ -603,14 +604,9 @@ router.post("/kalender-visit", async (req: Request, res: Response) => {
       pics: { include: { user: { select: { id: true, name: true } } } },
     },
   });
-  const picIds = pic_user_ids.map((uid: string | number) => BigInt(uid));
-  const tglStr = visit.tanggal.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  triggerEventReminderToUsers("kalender_visit_assign", picIds, {
-    nama_proyek: nama_projek,
-    tanggal: tglStr,
-    jam: jam ?? "—",
-    keterangan: keterangan ?? "",
-  }).catch(() => {});
+  sendVisitProjectAssignedReminder(visit.id).catch((err) => {
+    console.error("[HardcodedReminder] visit projek assign error:", err);
+  });
   return res.status(201).json(visit);
 });
 
@@ -684,14 +680,9 @@ router.patch("/kalender-visit/:id", async (req: Request, res: Response) => {
     },
   });
   if (Array.isArray(pic_user_ids) && pic_user_ids.length > 0) {
-    const tglStr = (updated.tanggal as Date).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    const newPicIds = pic_user_ids.map((uid: string | number) => BigInt(uid));
-    triggerEventReminderToUsers("kalender_visit_assign", newPicIds, {
-      nama_proyek: updated.nama_projek,
-      tanggal: tglStr,
-      jam: updated.jam ?? "—",
-      keterangan: updated.keterangan ?? "",
-    }).catch(() => {});
+    sendVisitProjectAssignedReminder(updated.id).catch((err) => {
+      console.error("[HardcodedReminder] visit projek assign update error:", err);
+    });
   }
   return res.json(updated);
 });

@@ -3,6 +3,7 @@ import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
 import { sendFonnte, sendFonntToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/fontee";
+import { sendSurveyScheduledReminder } from "../lib/hardcodedReminderScheduler";
 import { syncInstagram, syncInstagramAccountLevel, syncYouTube } from "../lib/socialSync";
 
 const router = Router();
@@ -2359,27 +2360,7 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   if (b.pic_survey) {
     const effectiveSurveyDate = b.tanggal_survey ?? updatedLead.tanggal_survey;
     if (effectiveSurveyDate) {
-      const calendarPath = goldenCalendarPath(modul, "survey");
-      const msg = surveyAssignmentMessage({
-        title: "Assign Survey Baru",
-        lead: updatedLead,
-        tanggal: effectiveSurveyDate,
-        jamSurvey: b.jam_survey ?? updatedLead.jam_survey,
-        calendarPath,
-      });
-      await notifyCalendarAssignment({
-        picName: b.pic_survey,
-        roleNames: calendarNotificationRoles(modul),
-        message: msg,
-      });
-      // Trigger rule-based reminder (customizable via admin settings)
-      const tglStr = new Date(effectiveSurveyDate).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
-      triggerEventReminder("survey_scheduled", {
-        nama: updatedLead.nama ?? "—",
-        tanggal: tglStr,
-        alamat: updatedLead.alamat ?? "—",
-        pic: b.pic_survey,
-      }).catch(() => {});
+      sendSurveyScheduledReminder(updatedLead.id).catch(() => {});
     }
   }
 
@@ -2626,32 +2607,7 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
   if (pic_survey) {
     const effectiveSurveyDate = tanggal_survey ?? updatedLead.tanggal_survey;
     if (effectiveSurveyDate) {
-      const calendarPath = goldenCalendarPath(req.params.modul, "survey");
-      const msg = surveyAssignmentMessage({
-        title: "Assign Survey Baru",
-        lead,
-        tanggal: effectiveSurveyDate,
-        jamSurvey: jam_survey ?? updatedLead.jam_survey,
-        calendarPath,
-      });
-      await notifyCalendarAssignment({
-        picName: pic_survey,
-        roleNames: calendarNotificationRoles(modul),
-        message: msg,
-      });
-    }
-  }
-  // Trigger rule-based reminder (customizable via admin settings)
-  if (tanggal_survey || pic_survey) {
-    const surveyDate = tanggal_survey ?? updatedLead.tanggal_survey;
-    if (surveyDate) {
-      const tglStr = new Date(surveyDate).toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", weekday: "long", day: "numeric", month: "long", year: "numeric" });
-      triggerEventReminder("survey_scheduled", {
-        nama: lead?.nama ?? "—",
-        tanggal: tglStr,
-        alamat: lead?.alamat ?? "—",
-        pic: pic_survey ?? lead?.pic_survey ?? "—",
-      }).catch(() => {});
+      sendSurveyScheduledReminder(lead.id).catch(() => {});
     }
   }
 

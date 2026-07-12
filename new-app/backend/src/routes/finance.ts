@@ -1311,6 +1311,10 @@ router.get("/reimburse", async (req: Request, res: Response) => {
   const tahun = req.query.tahun as string | undefined;
   const dari_tanggal = req.query.dari_tanggal as string | undefined;
   const sampai_tanggal = req.query.sampai_tanggal as string | undefined;
+  const parseDateOnlyUtc = (value: string) => {
+    const [year, month, day] = value.split("-").map(Number);
+    return new Date(Date.UTC(year, month - 1, day));
+  };
 
   const where: any = {};
   // Non-privileged users can only see their own reimburse
@@ -1322,18 +1326,18 @@ router.get("/reimburse", async (req: Request, res: Response) => {
   if (status) where.status = status;
   if (dari_tanggal || sampai_tanggal) {
     where.tanggal = {};
-    if (dari_tanggal) where.tanggal.gte = new Date(dari_tanggal);
+    if (dari_tanggal) where.tanggal.gte = parseDateOnlyUtc(dari_tanggal);
     if (sampai_tanggal) {
-      const d = new Date(sampai_tanggal);
-      d.setDate(d.getDate() + 1);
+      const d = parseDateOnlyUtc(sampai_tanggal);
+      d.setUTCDate(d.getUTCDate() + 1);
       where.tanggal.lt = d;
     }
   } else if (bulan && tahun) {
     const y = parseInt(tahun), m = parseInt(bulan);
-    where.tanggal = { gte: new Date(y, m - 1, 1), lt: new Date(y, m, 1) };
+    where.tanggal = { gte: new Date(Date.UTC(y, m - 1, 1)), lt: new Date(Date.UTC(y, m, 1)) };
   } else if (tahun) {
     const y = parseInt(tahun);
-    where.tanggal = { gte: new Date(y, 0, 1), lt: new Date(y + 1, 0, 1) };
+    where.tanggal = { gte: new Date(Date.UTC(y, 0, 1)), lt: new Date(Date.UTC(y + 1, 0, 1)) };
   }
 
   const [total, items] = await Promise.all([

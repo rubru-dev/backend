@@ -158,7 +158,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Projek Sipil",              href: "/projek/sipil",       icon: "Building2",   permission: "projek_sipil.view" },
       { label: "Projek Interior",           href: "/projek/interior",    icon: "Home",         permission: "projek_interior.view" },
-      { label: "Form BAST",                 href: "/projek/form-bast",   icon: "FileText",     permission: "projek_sipil.view", hideForRoles: ["PIC Project"] },
       { label: "Gudang/Workshop",           href: "/projek/gudang-workshop", icon: "Warehouse", permission: "projek.gudang_workshop" },
       { label: "Kalender Visit Projek",     href: "/pic/kalender-visit", icon: "CalendarDays", permission: "pic.kalender_visit" },
       { label: "Upload Dokumentasi Projek", href: "/pic/dokumentasi",    icon: "Images",       permission: "pic.dokumentasi", roles: ["PIC Project"] },
@@ -179,6 +178,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Administrasi Projek",     href: "/finance/administrasi-projek", icon: "Calculator",     permission: "finance.adm_projek" },
       { label: "Administrasi Kantor",     href: "/finance/administrasi-kantor", icon: "Folder",         permission: "finance.adm_kantor" },
       { label: "Absen Karyawan",          href: "/finance/absen-karyawan",      icon: "ClipboardCheck", permission: "absen.manage" },
+      { label: "Form BAST",               href: "/finance/form-bast",           icon: "FileText",       superAdminOnly: true },
       { label: "Laporan Harian",          href: "/finance/laporan-harian",      icon: "ClipboardList",  permission: "finance.laporan_harian" },
       { label: "Addendum Kontrak",        href: "/sales/addendum",              icon: "FileSignature",  superAdminOnly: true },
     ],

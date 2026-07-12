@@ -55,9 +55,21 @@ const TIMELINE_TEMPLATES: Record<string, { nama: string; durasi: number }[]> = {
   ],
 };
 
+function normalizeJenisDesain(jenis: unknown): string | null {
+  if (typeof jenis !== "string") return null;
+  const trimmed = jenis.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === "standard" || lower === "standart") return "Standart";
+  if (lower === "basic") return "Basic";
+  if (lower === "premium") return "Premium";
+  if (lower === "deluxe") return "Deluxe";
+  return trimmed || null;
+}
+
 // Bangun daftar item timeline dengan tanggal berurutan dari tanggal mulai (durasi hari inklusif per item).
 function buildTimelineItems(jenis: string | null, start: Date | null) {
-  const tpl = (jenis && TIMELINE_TEMPLATES[jenis]) || DEFAULT_PEKERJAAN.map((nama) => ({ nama, durasi: 0 }));
+  const normalizedJenis = normalizeJenisDesain(jenis);
+  const tpl = (normalizedJenis && TIMELINE_TEMPLATES[normalizedJenis]) || DEFAULT_PEKERJAAN.map((nama) => ({ nama, durasi: 0 }));
   let cursor = start ? new Date(start) : null;
   const items = tpl.map(({ nama, durasi }) => {
     let mulai: Date | null = null;
@@ -167,14 +179,15 @@ router.get("/timeline", async (req: Request, res: Response) => {
 // POST /timeline
 router.post("/timeline", async (req: Request, res: Response) => {
   const { lead_id, ro_id, jenis_desain, bulan, tahun, tanggal_mulai } = req.body;
+  const normalizedJenis = normalizeJenisDesain(jenis_desain);
   const start = tanggal_mulai ? new Date(tanggal_mulai) : null;
   // Item pekerjaan + tanggal dibuat otomatis sesuai jenis desain; user cukup isi tanggal mulai.
-  const { items, end } = buildTimelineItems(jenis_desain ?? null, start);
+  const { items, end } = buildTimelineItems(normalizedJenis, start);
   const t = await prisma.desainTimeline.create({
     data: {
       lead_id: lead_id ? BigInt(lead_id) : null,
       ro_id: ro_id ? BigInt(ro_id) : null,
-      jenis_desain: jenis_desain ?? null,
+      jenis_desain: normalizedJenis,
       bulan: bulan ?? null,
       tahun: tahun ?? null,
       tanggal_mulai: start,
@@ -236,7 +249,7 @@ router.patch("/timeline/:id", async (req: Request, res: Response) => {
   const updates: Record<string, unknown> = {};
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
   if (ro_id !== undefined) updates.ro_id = ro_id ? BigInt(ro_id) : null;
-  if (jenis_desain !== undefined) updates.jenis_desain = jenis_desain;
+  if (jenis_desain !== undefined) updates.jenis_desain = normalizeJenisDesain(jenis_desain);
   if (bulan !== undefined) updates.bulan = bulan;
   if (tahun !== undefined) updates.tahun = tahun;
   if (tanggal_mulai !== undefined) updates.tanggal_mulai = tanggal_mulai ? new Date(tanggal_mulai) : null;

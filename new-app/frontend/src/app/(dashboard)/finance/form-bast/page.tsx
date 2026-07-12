@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
+import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -96,6 +97,7 @@ function cleanClientName(value?: string | null) {
 }
 
 export default function FormBastPage() {
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
   const [activeTab, setActiveTab] = useState("generate");
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -125,6 +127,7 @@ export default function FormBastPage() {
       apiClient
         .get("/bd/sales-admin/leads", { params: { limit: 500 } })
         .then((response) => response.data?.items ?? response.data ?? []),
+    enabled: isSuperAdmin,
     staleTime: 5 * 60_000,
   });
 
@@ -147,6 +150,14 @@ export default function FormBastPage() {
       normalizeSearch(`${lead.display_name ?? lead.nama} ${lead.telepon ?? lead.nomor_telepon ?? ""} ${lead.alamat ?? ""}`).includes(needle)
     );
   }, [clientSearch, leads]);
+
+  if (!isSuperAdmin) {
+    return (
+      <div className="p-10 text-center text-muted-foreground">
+        Halaman Form BAST hanya dapat diakses oleh Super Admin.
+      </div>
+    );
+  }
 
   function syncTanggalBast(value: string) {
     setTanggalBast(value);

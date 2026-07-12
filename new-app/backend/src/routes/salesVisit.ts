@@ -5,8 +5,18 @@ import path from "path";
 import fs from "fs";
 import { config } from "../config";
 import { reverseGeocode, numOrNull } from "../lib/reverseGeocode";
+import { sendVisitClientAssignedReminder } from "../lib/hardcodedReminderScheduler";
 
 const router = Router();
+
+function parseInputDate(input: string | Date): Date {
+  const s = typeof input === "string" ? input : input.toISOString();
+  const plain = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (plain) {
+    return new Date(Date.UTC(Number(plain[1]), Number(plain[2]) - 1, Number(plain[3])));
+  }
+  return new Date(s);
+}
 
 // ── Upload foto absen visit ─────────────────────────────────────────────────────
 const visitDir = path.resolve(config.storagePath, "sales-visit");
@@ -38,10 +48,13 @@ router.post("/", async (req: Request, res: Response) => {
     data: {
       lead_id: BigInt(lead_id),
       client_nama: client_nama ?? null,
-      tanggal: new Date(tanggal),
+      tanggal: parseInputDate(tanggal),
       jam: jam || null,
       created_by: req.user?.id ?? null,
     },
+  });
+  sendVisitClientAssignedReminder(row.id).catch((err) => {
+    console.error("[HardcodedReminder] visit client assign error:", err);
   });
   return res.status(201).json(row);
 });
@@ -51,10 +64,15 @@ router.patch("/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { tanggal, jam, keterangan_hasil } = req.body;
   const data: any = {};
-  if (tanggal !== undefined) data.tanggal = tanggal ? new Date(tanggal) : null;
+  if (tanggal !== undefined) data.tanggal = tanggal ? parseInputDate(tanggal) : null;
   if (jam !== undefined) data.jam = jam || null;
   if (keterangan_hasil !== undefined) data.keterangan_hasil = keterangan_hasil || null;
   const row = await prisma.salesVisitAttendance.update({ where: { id }, data });
+  if (tanggal !== undefined || jam !== undefined) {
+    sendVisitClientAssignedReminder(row.id).catch((err) => {
+      console.error("[HardcodedReminder] visit client assign update error:", err);
+    });
+  }
   return res.json(row);
 });
 

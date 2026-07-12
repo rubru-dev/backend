@@ -103,7 +103,7 @@ const BULAN_OPTIONS = [
   { val: 12, label: "Desember" },
 ];
 
-const JENIS_DESAIN_OPTIONS = ["Basic", "Standard", "Premium", "Deluxe"];
+const JENIS_DESAIN_OPTIONS = ["Basic", "Standart", "Premium", "Deluxe"];
 
 const STATUS_OPTIONS = ["Belum Mulai", "Proses", "Submit Gambar", "Selesai"];
 
@@ -471,7 +471,7 @@ export default function ProyekDesainPage() {
   const createTl = useMutation({
     mutationFn: (d: any) => desainApi.createTimeline(d),
     onSuccess: () => {
-      toast.success("Timeline dibuat dengan 6 pekerjaan default");
+      toast.success("Timeline dibuat sesuai paket desain");
       qc.invalidateQueries({ queryKey: ["desain-timelines"] });
       setTlDialog(false);
       setTlForm(EMPTY_TIMELINE);
@@ -1471,7 +1471,7 @@ export default function ProyekDesainPage() {
             </div>
             {!editTl && (
               <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
-                6 pekerjaan default: Layout Eksisting, Fasad 3D, 3D Interior, RAB, Presentasi RAB, Shop Drawing
+                Desain Standart otomatis 14 hari: Layout Eksisting & Perubahan 2 hari, Fasad 3D 3 hari, Shop Drawing 2 hari, 3D Interior 5 hari, RAB 2 hari.
               </p>
             )}
             <div className="flex justify-end gap-2 pt-2">

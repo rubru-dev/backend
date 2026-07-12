@@ -219,6 +219,53 @@ router.post("/check-out", async (req: Request, res: Response) => {
   return res.json(updated);
 });
 
+// ── GET /absen-karyawan/admin/summary — ringkasan absen per karyawan ───────────
+router.get("/admin/summary", async (req: Request, res: Response) => {
+  const { user_id, tanggal, bulan, tahun } = req.query;
+  if (!user_id) return res.status(400).json({ detail: "user_id wajib diisi" });
+
+  const where: any = { user_id: BigInt(user_id as string) };
+  let periode = "";
+
+  if (tanggal) {
+    where.tanggal = jakartaDateOnly(tanggal as string);
+    periode = tanggal as string;
+  } else {
+    const now = jakartaDateParts();
+    const year = tahun ? parseInt(tahun as string) : now.year;
+    const month = bulan ? parseInt(bulan as string) : now.month;
+    const start = `${year}-${String(month).padStart(2, "0")}-01`;
+    const end = `${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`;
+    where.tanggal = { gte: jakartaDateOnly(start), lte: jakartaDateOnly(end) };
+    periode = `${start} s/d ${end}`;
+  }
+
+  const records = await prisma.absenKaryawan.findMany({
+    where,
+    select: {
+      status: true,
+      terlambat: true,
+      jam_masuk: true,
+      jam_keluar: true,
+    },
+  });
+
+  const telat = records.filter((r) => r.terlambat || r.status === "Terlambat").length;
+  const tepatWaktu = records.filter((r) => !r.terlambat && (r.status === "Hadir" || r.status === "Disetujui")).length;
+  const menungguPersetujuan = records.filter((r) => r.status === "Pending").length;
+  const tidakAbsenKeluar = records.filter((r) => r.status !== "Ditolak" && !!r.jam_masuk && !r.jam_keluar).length;
+
+  return res.json({
+    user_id: String(user_id),
+    periode,
+    total: records.length,
+    telat,
+    tepat_waktu: tepatWaktu,
+    menunggu_persetujuan: menungguPersetujuan,
+    tidak_absen_keluar: tidakAbsenKeluar,
+  });
+});
+
 // ── GET /absen-karyawan/admin/list — semua absen (admin/head finance) ──────────
 router.get("/admin/list", async (req: Request, res: Response) => {
   const { tanggal, tanggal_mulai, tanggal_selesai, bulan, tahun, user_id, status, page = "1", per_page = "100" } = req.query;

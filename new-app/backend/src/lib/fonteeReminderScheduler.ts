@@ -55,6 +55,17 @@ function fillTemplate(tpl: string, vars: Record<string, string>): string {
 // ── Send helpers ──────────────────────────────────────────────────────────────
 
 const PRIORITY_EMOJI: Record<string, string> = { rendah: "🟢", sedang: "🟡", tinggi: "🔴" };
+const HARDCODED_FEATURES = new Set([
+  "laporan_harian_siang",
+  "laporan_harian_sore",
+  "survey_scheduled",
+  "task_deadline",
+  "termin_deadline",
+  "item_pekerjaan_sipil",
+  "item_pekerjaan_interior",
+  "item_pekerjaan_desain",
+  "desain_deadline",
+]);
 
 async function getUsersForRoleIds(roleIds: bigint[]): Promise<{ whatsapp_number: string }[]> {
   if (roleIds.length === 0) return [];
@@ -449,6 +460,7 @@ export async function runDeadlineReminders(currentHour?: number, currentMinute =
   });
 
   for (const rule of rules) {
+    if (HARDCODED_FEATURES.has(rule.feature)) continue;
     const [ruleH, ruleM] = (rule.send_time ?? "08:00").split(":").map(Number);
     // Match exact send_time
     if (ruleH !== targetHour || ruleM !== targetMinute) continue;
@@ -472,10 +484,5 @@ export function startReminderScheduler(): void {
     runDeadlineReminders(hour, minute).catch((err) => console.error("[ReminderScheduler] Error:", err));
   }, tz);
 
-  // Absen masuk/keluar check setiap 3 menit, jam 06:00–18:00 WIB, Senin–Sabtu
-  cron.schedule("*/3 6-18 * * 1-6", () => {
-    checkAbsenReminders().catch((err) => console.error("[AbsenReminder] Error:", err));
-  }, tz);
-
-  console.log("✓ Fontee reminder scheduler aktif — WIB (tiap menit + absen check setiap 3 menit)");
+  console.log("✓ Fontee reminder scheduler aktif — WIB (rule-based, fitur hardcoded diskip)");
 }

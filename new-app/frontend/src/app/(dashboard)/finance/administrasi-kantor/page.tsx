@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import { getLogoBase64 } from "@/lib/get-logo";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -44,6 +44,7 @@ const BULAN_OPTIONS = [
 
 const _cy = new Date().getFullYear();
 const TAHUN_OPTIONS = Array.from({ length: 5 }, (_, i) => String(_cy - i));
+const REIMBURSE_PAGE_SIZE = 50;
 
 // ── API ───────────────────────────────────────────────────────────────────────
 const reimburseApi = {
@@ -213,10 +214,21 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
         ...(filterUser ? { user_id: filterUser } : {}),
         ...(filterTgl ? { tanggal: filterTgl } : {}),
         ...(filterStatus ? { status: filterStatus } : {}),
-        limit: 50,
+        per_page: 50,
       }
     }).then(r => r.data),
     enabled: canManage,
+  });
+
+  const { data: absenSummary, isLoading: isSummaryLoading } = useQuery({
+    queryKey: ["adm-kantor-absen-summary", filterUser, filterTgl],
+    queryFn: () => apiClient.get("/absen-karyawan/admin/summary", {
+      params: {
+        user_id: filterUser,
+        ...(filterTgl ? { tanggal: filterTgl } : {}),
+      },
+    }).then(r => r.data),
+    enabled: canManage && !!filterUser,
   });
 
   const { data: pendingData } = useQuery({
@@ -248,8 +260,9 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menolak"),
   });
 
-  const records: any[] = Array.isArray(absenData) ? absenData : absenData?.data ?? [];
+  const records: any[] = Array.isArray(absenData) ? absenData : absenData?.items ?? absenData?.data ?? [];
   const pending: any[] = Array.isArray(pendingData) ? pendingData : [];
+  const selectedKaryawan = (karyawanList ?? []).find((u: any) => String(u.id) === filterUser);
 
   if (!canManage) {
     return (
@@ -334,6 +347,36 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
           </Button>
         )}
       </div>
+
+      {filterUser && (
+        <div className="space-y-2">
+          <div className="text-sm">
+            <span className="font-medium">{selectedKaryawan?.name ?? "Karyawan"}</span>
+            <span className="text-muted-foreground">
+              {" "}· Ringkasan {absenSummary?.periode ?? (filterTgl || "bulan berjalan WIB")}
+            </span>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Telat", value: absenSummary?.telat ?? 0, color: "text-amber-600" },
+              { label: "Tepat Waktu", value: absenSummary?.tepat_waktu ?? 0, color: "text-green-600" },
+              { label: "Menunggu Persetujuan", value: absenSummary?.menunggu_persetujuan ?? 0, color: "text-blue-600" },
+              { label: "Tidak Absen Keluar", value: absenSummary?.tidak_absen_keluar ?? 0, color: "text-red-600" },
+            ].map((item) => (
+              <Card key={item.label}>
+                <CardContent className="pt-4">
+                  <p className="text-xs text-muted-foreground mb-1">{item.label}</p>
+                  {isSummaryLoading ? (
+                    <Skeleton className="h-7 w-16" />
+                  ) : (
+                    <p className={`text-2xl font-bold ${item.color}`}>{item.value}</p>
+                  )}
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Table */}
       <Card>
@@ -487,6 +530,7 @@ export default function AdministrasiKantorPage() {
   const [filterTahun, setFilterTahun] = useState("");
   const [filterDariTanggal, setFilterDariTanggal] = useState("");
   const [filterSampaiTanggal, setFilterSampaiTanggal] = useState("");
+  const [reimbursePage, setReimbursePage] = useState(1);
 
   // Signature dialog
   const [signTarget, setSignTarget] = useState<{ id: number; type: "head" } | null>(null);
@@ -507,20 +551,36 @@ export default function AdministrasiKantorPage() {
     u.name.toLowerCase().includes(userSearch.toLowerCase())
   );
 
-  // Reimburse list
-  const { data, isLoading } = useQuery({
-    queryKey: ["reimburse", user?.id, filterStatus, filterUserId, filterBulan, filterTahun, filterDariTanggal, filterSampaiTanggal],
-    queryFn: () => reimburseApi.list({
+  useEffect(() => {
+    setReimbursePage(1);
+  }, [filterStatus, filterUserId, filterBulan, filterTahun, filterDariTanggal, filterSampaiTanggal]);
+
+  function buildReimburseParams(extra?: Record<string, any>) {
+    return {
       ...(filterStatus ? { status: filterStatus } : {}),
       ...(filterUserId ? { user_id: filterUserId } : {}),
       ...(filterDariTanggal ? { dari_tanggal: filterDariTanggal } : {}),
       ...(filterSampaiTanggal ? { sampai_tanggal: filterSampaiTanggal } : {}),
       ...(!filterDariTanggal && !filterSampaiTanggal && filterBulan ? { bulan: filterBulan } : {}),
       ...(!filterDariTanggal && !filterSampaiTanggal && filterTahun ? { tahun: filterTahun } : {}),
-    }),
+      ...extra,
+    };
+  }
+
+  // Reimburse list
+  const { data, isLoading } = useQuery({
+    queryKey: ["reimburse", user?.id, filterStatus, filterUserId, filterBulan, filterTahun, filterDariTanggal, filterSampaiTanggal, reimbursePage],
+    queryFn: () => reimburseApi.list(buildReimburseParams({
+      page: reimbursePage,
+      per_page: REIMBURSE_PAGE_SIZE,
+    })),
     retry: false,
   });
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
+  const reimburseTotal = Number(Array.isArray(data) ? items.length : data?.total ?? items.length);
+  const reimburseTotalPages = Math.max(1, Math.ceil(reimburseTotal / REIMBURSE_PAGE_SIZE));
+  const reimburseStart = reimburseTotal === 0 ? 0 : (reimbursePage - 1) * REIMBURSE_PAGE_SIZE + 1;
+  const reimburseEnd = Math.min(reimbursePage * REIMBURSE_PAGE_SIZE, reimburseTotal);
 
   // Mutations
   const createMut = useMutation({
@@ -580,9 +640,31 @@ export default function AdministrasiKantorPage() {
     setShowUserDrop(false);
   }
 
+  async function fetchAllReimburseForCurrentFilter() {
+    const perPage = 500;
+    let page = 1;
+    let allItems: any[] = [];
+    let total = 0;
+
+    do {
+      const res = await reimburseApi.list(buildReimburseParams({ page, per_page: perPage }));
+      const pageItems = Array.isArray(res) ? res : res?.items ?? [];
+      total = Number(Array.isArray(res) ? pageItems.length : res?.total ?? pageItems.length);
+      allItems = allItems.concat(pageItems);
+      if (pageItems.length === 0 || allItems.length >= total) break;
+      page += 1;
+    } while (page < 100);
+
+    return allItems;
+  }
+
   async function handleDownloadBulkPDF() {
-    if (items.length === 0) return;
     try {
+      const allItems = await fetchAllReimburseForCurrentFilter();
+      if (allItems.length === 0) {
+        toast.error("Tidak ada data reimburse untuk filter ini");
+        return;
+      }
       const logoUrl = await getLogoBase64();
       const parts: string[] = [];
       if (filterUserId) {
@@ -601,7 +683,7 @@ export default function AdministrasiKantorPage() {
 
       const blob = await pdf(
         <ReimburseBulkPDF
-          items={items}
+          items={allItems}
           filterLabel={filterLabel}
           logoUrl={logoUrl}
         />
@@ -713,9 +795,9 @@ export default function AdministrasiKantorPage() {
             )}
           </div>
           {/* Bulk PDF download */}
-          <Button variant="outline" disabled={items.length === 0 || isLoading}
+          <Button variant="outline" disabled={reimburseTotal === 0 || isLoading}
             onClick={handleDownloadBulkPDF}>
-            <FileDown className="h-4 w-4 mr-2" /> Download PDF ({items.length})
+            <FileDown className="h-4 w-4 mr-2" /> Download PDF ({reimburseTotal})
           </Button>
           <Button onClick={() => { resetForm(); setOpen(true); }}>
             <Plus className="h-4 w-4 mr-2" /> Ajukan Reimburse
@@ -728,14 +810,14 @@ export default function AdministrasiKantorPage() {
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground mb-1">Menunggu Persetujuan</p>
             <p className="text-lg font-bold text-amber-600">{formatRp(totalPending)}</p>
-            <p className="text-xs text-muted-foreground">{items.filter(i => i.status === "Pending").length} pengajuan</p>
+            <p className="text-xs text-muted-foreground">{items.filter(i => i.status === "Pending").length} pengajuan di halaman ini</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-4">
             <p className="text-xs text-muted-foreground mb-1">Total Disetujui</p>
             <p className="text-lg font-bold text-green-600">{formatRp(totalDisetujui)}</p>
-            <p className="text-xs text-muted-foreground">{items.filter(i => i.status === "Disetujui").length} pengajuan</p>
+            <p className="text-xs text-muted-foreground">{items.filter(i => i.status === "Disetujui").length} pengajuan di halaman ini</p>
           </CardContent>
         </Card>
       </div>
@@ -896,6 +978,32 @@ export default function AdministrasiKantorPage() {
               )}
             </TableBody>
           </Table>
+          <div className="flex items-center justify-between gap-3 border-t px-4 py-3 text-sm">
+            <div className="text-muted-foreground">
+              Menampilkan {reimburseStart}-{reimburseEnd} dari {reimburseTotal} pengajuan
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={reimbursePage <= 1 || isLoading}
+                onClick={() => setReimbursePage((p) => Math.max(1, p - 1))}
+              >
+                Sebelumnya
+              </Button>
+              <span className="text-xs text-muted-foreground">
+                Halaman {reimbursePage} / {reimburseTotalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={reimbursePage >= reimburseTotalPages || isLoading}
+                onClick={() => setReimbursePage((p) => Math.min(reimburseTotalPages, p + 1))}
+              >
+                Berikutnya
+              </Button>
+            </div>
+          </div>
         </CardContent>
       </Card>
 
