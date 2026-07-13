@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
-import { requireRole, requirePermission } from "../middleware/requireRole";
+import { requireRole, requirePermission, requireModuleAccess } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
 import { sendFonntToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/fontee";
 import fs from "fs";
@@ -850,7 +850,7 @@ router.delete("/tukang/kwitansi/:id", async (req: Request, res: Response) => {
 router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const search = (req.query.search as string) || "";
   const kategori = req.query.kategori as string | undefined;
-  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 50);
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 100, 1), 200);
   const searchFilter = exactForSingleCharSearch(search);
   // Lead dipisah per-modul sesuai brand — Payment Projek/Desain/Survey dari
   // Follow Up Leads Admin Sales (sales-admin), RKR/Golden/Filter Air dari modulnya masing-masing.
@@ -875,7 +875,7 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const leads = await prisma.lead.findMany({
     where,
     select: { id: true, salutation: true, nama: true, jenis: true, nomor_telepon: true, alamat: true, modul: true, sumber_leads: true },
-    orderBy: { nama: "asc" },
+    orderBy: { created_at: "desc" },
     take: limit,
   });
   return res.json({ items: leads.map((lead) => ({ ...lead, display_name: leadDisplayLabel(lead) })) });
@@ -1131,7 +1131,7 @@ router.post("/invoices/:id/sign-head", requirePermission("finance", "sign_head")
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id }, include: { admin_finance: true } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
-  if (inv.status === "Lunas" || inv.status === "Batal") return res.status(400).json({ detail: "Invoice Lunas/Batal tidak bisa diubah" });
+  if (inv.status === "Lunas" || inv.status === "Batal" || inv.status === "Rejected") return res.status(400).json({ detail: "Invoice Lunas/Batal tidak bisa diubah" });
   const { signature_data } = req.body;
   if (!signature_data) return res.status(400).json({ detail: "Signature data wajib diisi" });
   // Head Finance signature langsung membuat invoice Terbit
@@ -1158,71 +1158,91 @@ router.post("/invoices/:id/sign-admin", requirePermission("finance", "sign_admin
 });
 
 // ── Mark Paid ─────────────────────────────────────────────────────────────────
-router.post("/invoices/:id/mark-paid", async (req: Request, res: Response) => {
+router.post("/invoices/:id/mark-paid", requireModuleAccess("finance"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id }, include: { kwitansi: true, lead: { select: { nama: true, salutation: true } } } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
   if (inv.status === "Lunas") return res.status(400).json({ detail: "Invoice sudah Lunas" });
   if (inv.status !== "Terbit") return res.status(400).json({ detail: "Invoice harus berstatus Terbit (sudah ditandatangani) sebelum ditandai lunas" });
   const { metode_bayar, detail_bayar, bukti_bayar } = req.body;
+  // Validasi detail_bayar untuk metode non-tunai (samakan dengan aturan frontend)
+  const metode = metode_bayar || "Transfer Bank";
+  if ((metode === "Transfer Bank" || metode === "QRIS") && !detail_bayar) {
+    return res.status(400).json({ detail: "Detail pembayaran wajib diisi untuk metode Transfer Bank / QRIS" });
+  }
   // Suffix berbasis timestamp (ms, base36) + random — jauh lebih kecil peluang tabrakan dari 4 digit random
   const nomorKwitansi = `KWT-${new Date().toISOString().slice(0, 7).replace("-", "")}-${Date.now().toString(36).slice(-5).toUpperCase()}${Math.floor(Math.random() * 90 + 10)}`;
+  const keterangan = [metode, detail_bayar].filter(Boolean).join(" - ");
   let kwitansi = inv.kwitansi;
   if (!kwitansi) {
-    // Atomik: tandai Lunas + buat kwitansi dalam satu transaksi
-    const [, createdKwitansi] = await prisma.$transaction([
-      prisma.invoice.update({ where: { id }, data: { status: "Lunas" } }),
-      prisma.kwitansi.create({
+    // Atomik + optimistic lock: hanya lanjut bila status masih "Terbit" (cegah klik ganda / race)
+    kwitansi = await prisma.$transaction(async (tx) => {
+      const locked = await tx.invoice.updateMany({ where: { id, status: "Terbit" }, data: { status: "Lunas" } });
+      if (locked.count === 0) return null;
+      return tx.kwitansi.create({
         data: {
           invoice_id: inv.id,
           nomor_kwitansi: nomorKwitansi,
           tanggal: new Date(),
           jumlah_diterima: inv.grand_total,
-          metode_bayar: metode_bayar || "Transfer Bank",
+          metode_bayar: metode,
           detail_bayar: detail_bayar || null,
           bukti_bayar: bukti_bayar || null,
-          keterangan: [metode_bayar, detail_bayar].filter(Boolean).join(" - "),
+          keterangan,
         },
-      }),
-    ]);
-    kwitansi = createdKwitansi;
+      });
+    });
+    if (!kwitansi) return res.status(409).json({ detail: "Invoice sudah diproses. Muat ulang halaman." });
   } else {
     await prisma.invoice.update({ where: { id }, data: { status: "Lunas" } });
-    if (bukti_bayar) await prisma.kwitansi.update({ where: { id: kwitansi.id }, data: { bukti_bayar } });
+    await prisma.kwitansi.update({
+      where: { id: kwitansi.id },
+      data: {
+        metode_bayar: metode,
+        detail_bayar: detail_bayar || null,
+        keterangan,
+        ...(bukti_bayar ? { bukti_bayar } : {}),
+      },
+    });
   }
 
-  // Auto-track ke Kanban Sales Golden jika kategori = "Payment Golden"
+  // Auto-track ke Kanban Sales Golden jika kategori = "Payment Golden".
+  // Dibungkus try/catch agar kegagalan sinkronisasi kanban tidak menggagalkan payment yang sudah sukses.
   if (inv.kategori === "Payment Golden" && inv.lead_id) {
-    // Pastikan kolom Closing ada
-    let closingCol = await prisma.goldenKanbanSalesColumn.findFirst({ where: { title: "Closing" } });
-    if (!closingCol) {
-      const maxCol = await prisma.goldenKanbanSalesColumn.findFirst({ orderBy: { urutan: "desc" } });
-      closingCol = await prisma.goldenKanbanSalesColumn.create({
-        data: { title: "Closing", urutan: (maxCol?.urutan ?? 0) + 1, color: "#d1fae5" },
-      });
-    }
-    // Cek apakah card dengan lead ini sudah ada di kanban
-    const existingCard = await prisma.goldenKanbanSalesCard.findFirst({ where: { lead_id: inv.lead_id } });
-    if (existingCard) {
-      // Pindahkan ke Closing
-      await prisma.goldenKanbanSalesCard.update({
-        where: { id: existingCard.id },
-        data: { column_id: closingCol.id },
-      });
-    } else {
-      // Buat card baru di Closing
-      const maxCard = await prisma.goldenKanbanSalesCard.findFirst({ where: { column_id: closingCol.id }, orderBy: { urutan: "desc" } });
-      const clientName = inv.lead
-        ? [inv.lead.salutation, inv.lead.nama].filter(Boolean).join(" ")
-        : inv.invoice_number ?? "Client Golden";
-      await prisma.goldenKanbanSalesCard.create({
-        data: {
-          column_id: closingCol.id,
-          title: clientName,
-          lead_id: inv.lead_id,
-          urutan: (maxCard?.urutan ?? 0) + 1,
-        },
-      });
+    try {
+      // Pastikan kolom Closing ada
+      let closingCol = await prisma.goldenKanbanSalesColumn.findFirst({ where: { title: "Closing" } });
+      if (!closingCol) {
+        const maxCol = await prisma.goldenKanbanSalesColumn.findFirst({ orderBy: { urutan: "desc" } });
+        closingCol = await prisma.goldenKanbanSalesColumn.create({
+          data: { title: "Closing", urutan: (maxCol?.urutan ?? 0) + 1, color: "#d1fae5" },
+        });
+      }
+      // Cek apakah card dengan lead ini sudah ada di kanban
+      const existingCard = await prisma.goldenKanbanSalesCard.findFirst({ where: { lead_id: inv.lead_id } });
+      if (existingCard) {
+        // Pindahkan ke Closing
+        await prisma.goldenKanbanSalesCard.update({
+          where: { id: existingCard.id },
+          data: { column_id: closingCol.id },
+        });
+      } else {
+        // Buat card baru di Closing
+        const maxCard = await prisma.goldenKanbanSalesCard.findFirst({ where: { column_id: closingCol.id }, orderBy: { urutan: "desc" } });
+        const clientName = inv.lead
+          ? [inv.lead.salutation, inv.lead.nama].filter(Boolean).join(" ")
+          : inv.invoice_number ?? "Client Golden";
+        await prisma.goldenKanbanSalesCard.create({
+          data: {
+            column_id: closingCol.id,
+            title: clientName,
+            lead_id: inv.lead_id,
+            urutan: (maxCard?.urutan ?? 0) + 1,
+          },
+        });
+      }
+    } catch (err) {
+      console.error("[mark-paid] Gagal sinkronisasi Golden Kanban:", err);
     }
   }
 

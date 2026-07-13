@@ -30,3 +30,21 @@ export const requirePermission = (module: string, action: string) =>
 
     res.status(403).json({ detail: "Tidak memiliki akses" });
   };
+
+// Lolos bila user memiliki minimal SATU permission apa pun di dalam module tertentu
+// (mis. finance.view / finance.edit / finance.sign_head). Super Admin selalu lolos.
+export const requireModuleAccess = (module: string) =>
+  (req: Request, res: Response, next: NextFunction): void => {
+    const user = req.user;
+    if (!user) {
+      res.status(401).json({ detail: "Not authenticated" });
+      return;
+    }
+    if (user.roles.some((r) => r.role.name === "Super Admin")) { next(); return; }
+
+    const prefix = `${module}.`;
+    for (const key of req.userPermissions ?? []) {
+      if (key.startsWith(prefix)) { next(); return; }
+    }
+    res.status(403).json({ detail: "Tidak memiliki akses" });
+  };
