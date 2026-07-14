@@ -1,8 +1,20 @@
 import { prisma } from "./prisma";
 import axios from "axios";
 import { config } from "../config";
+import { sendWhatsApp } from "./whatsapp";
+
+// Provider pengiriman WhatsApp: "baileys" (self-host, default) atau "fonnte" (gateway lama).
+const WA_PROVIDER = (process.env.WA_PROVIDER ?? "baileys").toLowerCase();
 
 export async function sendFonnte(target: string, message: string) {
+  // Jalur utama: Baileys (self-host). Melempar error bila gagal agar pemanggil
+  // (mis. sendOnce) mencatat status "failed" dan mencoba ulang di jadwal berikutnya.
+  if (WA_PROVIDER === "baileys") {
+    await sendWhatsApp(target, message);
+    return;
+  }
+
+  // Fallback: gateway Fonnte lama (aktif bila WA_PROVIDER=fonnte).
   const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
   const cfg = (setting?.value as Record<string, string> | null) ?? {};
   if (!cfg.api_key || !cfg.base_url) {

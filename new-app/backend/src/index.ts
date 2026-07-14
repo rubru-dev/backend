@@ -11,6 +11,7 @@ import { syncCamerasToMediaMTX } from "./lib/mediamtx";
 import { startMetaAutoRefresh } from "./lib/metaAutoRefresh";
 import { startReminderScheduler } from "./lib/fonteeReminderScheduler";
 import { startHardcodedReminderScheduler } from "./lib/hardcodedReminderScheduler";
+import { initWhatsApp } from "./lib/whatsapp";
 
 const prismaSync = new PrismaClient();
 
@@ -165,6 +166,14 @@ app.listen(config.port, async () => {
   console.log(`✓ StockOpname API running on http://localhost:${config.port}`);
   console.log(`  • Health: http://localhost:${config.port}/health`);
   console.log(`  • API:    http://localhost:${config.port}/api/v1`);
+
+  // WhatsApp self-host (Baileys). Fire-and-forget: koneksi async + tampilkan QR di log
+  // saat pertama kali / setelah logout. Tidak boleh mengganggu startup lain bila gagal.
+  try {
+    initWhatsApp().catch((err) => console.error("✗ initWhatsApp gagal:", err));
+  } catch (err) {
+    console.error("✗ initWhatsApp gagal:", err);
+  }
 
   // Auto-refresh Meta token setiap 45 hari.
   // Tiap starter dibungkus try/catch terpisah: kegagalan satu tidak boleh membatalkan

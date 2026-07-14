@@ -40,6 +40,9 @@ new-app/backend/storage/laporan-docs/*
 new-app/backend/storage/sipil-docs/*
 !new-app/backend/storage/**/.gitkeep
 
+# ─── WhatsApp (Baileys) session credentials — JANGAN commit (sensitif) ────────
+new-app/backend/storage/baileys_auth/
+
 # ─── Cypress / E2E Tests ─────────────────────────────────────────────────────
 new-app/e2e-tests/node_modules/
 new-app/frontend/cypress/screenshots/
