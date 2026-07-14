@@ -1,6 +1,6 @@
 import { Router } from "express";
 import prisma from "../prisma";
-import { authenticate, requireRole, type AuthRequest } from "../middleware/auth";
+import { authenticate, requireRole, requirePermission, type AuthRequest } from "../middleware/auth";
 import { createUploader, publicUploadPath, deleteFileIfExists } from "../lib/upload";
 
 const router = Router();
@@ -37,7 +37,7 @@ router.get("/:surveyId", async (req, res, next) => {
   }
 });
 
-router.post("/:surveyId", async (req, res, next) => {
+router.post("/:surveyId", requirePermission("surveys.b2b_report"), async (req, res, next) => {
   try {
     const { surveyId } = req.params;
     const ciCoError = await ensureCheckedInOut(surveyId);
@@ -95,7 +95,7 @@ router.post("/:surveyId", async (req, res, next) => {
   }
 });
 
-router.post("/:surveyId/approve", requireRole("ADMIN", "MANAGER"), async (req: AuthRequest, res, next) => {
+router.post("/:surveyId/approve", requireRole("ADMIN"), async (req: AuthRequest, res, next) => {
   try {
     const { surveyId } = req.params;
     const ciCoError = await ensureCheckedInOut(surveyId);
@@ -112,7 +112,7 @@ router.post("/:surveyId/approve", requireRole("ADMIN", "MANAGER"), async (req: A
   }
 });
 
-router.post("/:surveyId/upload", imgUpload.single("file"), async (req, res, next) => {
+router.post("/:surveyId/upload", requirePermission("surveys.b2b_report"), imgUpload.single("file"), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: "No file uploaded" });
     const filePath = publicUploadPath(req.file.path);

@@ -138,6 +138,99 @@ async function list(res: any, model: any, options: any, query: any) {
 
 router.use(authenticate);
 
+// ── Otorisasi write terpusat ────────────────────────────────────────────────
+// Semua endpoint yang mengubah data (POST/PATCH/PUT/DELETE) wajib punya permission
+// modul yang sesuai. GET (view) dibiarkan ke gating sidebar + guard inline yang ada.
+// Aturan diurutkan dari path paling spesifik → generik (dievaluasi first-match).
+const WRITE_PERMISSION_RULES: { method: string; test: RegExp; perm: string }[] = [
+  // customers
+  { method: "POST",   test: /^\/customers\/[^/]+\/files$/,          perm: "customers.edit" },
+  { method: "DELETE", test: /^\/customers\/[^/]+\/files\/[^/]+$/,   perm: "customers.edit" },
+  { method: "POST",   test: /^\/customers$/,                        perm: "customers.create" },
+  { method: "PATCH",  test: /^\/customers\/[^/]+$/,                 perm: "customers.edit" },
+  { method: "DELETE", test: /^\/customers\/[^/]+$/,                 perm: "customers.delete" },
+  // inquiries
+  { method: "POST",   test: /^\/inquiries\/[^/]+\/survey-request$/, perm: "surveys.create" },
+  { method: "POST",   test: /^\/inquiries$/,                        perm: "inquiries.create" },
+  { method: "PATCH",  test: /^\/inquiries\/[^/]+$/,                 perm: "inquiries.edit" },
+  { method: "DELETE", test: /^\/inquiries\/[^/]+$/,                 perm: "inquiries.delete" },
+  // surveys
+  { method: "PATCH",  test: /^\/surveys\/[^/]+\/reschedule$/,       perm: "surveys.edit" },
+  { method: "POST",   test: /^\/surveys\/[^/]+\/cancel$/,           perm: "surveys.change_status" },
+  { method: "POST",   test: /^\/surveys\/[^/]+\/b2c$/,              perm: "surveys.b2c_report" },
+  { method: "POST",   test: /^\/surveys\/[^/]+\/attendance$/,       perm: "surveys.edit" },
+  { method: "POST",   test: /^\/surveys$/,                          perm: "surveys.create" },
+  { method: "PATCH",  test: /^\/surveys\/[^/]+$/,                   perm: "surveys.edit" },
+  // quotations (approve punya guard inline requireRole ADMIN)
+  { method: "POST",   test: /^\/quotations\/[^/]+\/upload$/,        perm: "quotations.edit" },
+  { method: "POST",   test: /^\/quotations\/[^/]+\/push-to-order-sheet$/, perm: "order_sheets.create" },
+  { method: "POST",   test: /^\/quotations$/,                       perm: "quotations.create" },
+  { method: "PATCH",  test: /^\/quotations\/[^/]+$/,                perm: "quotations.edit" },
+  { method: "DELETE", test: /^\/quotations\/[^/]+$/,                perm: "quotations.delete" },
+  // renewals
+  { method: "POST",   test: /^\/renewals\/from-agreement\/[^/]+$/,  perm: "renewals.create" },
+  { method: "POST",   test: /^\/renewals\/[^/]+\/approve$/,         perm: "renewals.approve" },
+  { method: "POST",   test: /^\/renewals\/[^/]+\/reject$/,          perm: "renewals.reject" },
+  { method: "PATCH",  test: /^\/renewals\/[^/]+\/workflow$/,        perm: "renewals.create" },
+  { method: "POST",   test: /^\/renewals$/,                         perm: "renewals.create" },
+  { method: "PATCH",  test: /^\/renewals\/[^/]+$/,                  perm: "renewals.create" },
+  // service visits + service contracts
+  { method: "POST",   test: /^\/service-visits\/[^/]+\/attendance$/, perm: "service_contracts.view" },
+  { method: "POST",   test: /^\/service-visits$/,                   perm: "service_contracts.view" },
+  { method: "PATCH",  test: /^\/service-visits\/[^/]+$/,            perm: "service_contracts.view" },
+  { method: "POST",   test: /^\/service-contracts\/monthly-reports$/,        perm: "monthly_reports.create" },
+  { method: "PATCH",  test: /^\/service-contracts\/monthly-reports\/[^/]+$/, perm: "monthly_reports.edit" },
+  { method: "POST",   test: /^\/service-contracts\/qc-visits$/,             perm: "service_contracts.view" },
+  { method: "PATCH",  test: /^\/service-contracts\/qc-visits\/[^/]+$/,      perm: "service_contracts.view" },
+  { method: "POST",   test: /^\/service-contracts\/vendor-treatments$/,     perm: "service_contracts.view" },
+  { method: "PATCH",  test: /^\/service-contracts\/vendor-treatments\/[^/]+$/, perm: "service_contracts.view" },
+  { method: "POST",   test: /^\/service-contracts$/,               perm: "service_contracts.view" },
+  // vendors
+  { method: "POST",   test: /^\/vendors$/,                          perm: "vendors.create" },
+  { method: "PATCH",  test: /^\/vendors\/[^/]+$/,                   perm: "vendors.edit" },
+  { method: "DELETE", test: /^\/vendors\/[^/]+$/,                   perm: "vendors.delete" },
+  // order sheets
+  { method: "POST",   test: /^\/order-sheets$/,                     perm: "order_sheets.create" },
+  { method: "PATCH",  test: /^\/order-sheets\/[^/]+$/,              perm: "order_sheets.edit" },
+  { method: "DELETE", test: /^\/order-sheets\/[^/]+$/,              perm: "order_sheets.delete" },
+  // complaints
+  { method: "POST",   test: /^\/complaints\/[^/]+\/follow-ups$/,    perm: "complaints.edit" },
+  { method: "POST",   test: /^\/complaints$/,                       perm: "complaints.create" },
+  { method: "PATCH",  test: /^\/complaints\/[^/]+$/,                perm: "complaints.edit" },
+  { method: "DELETE", test: /^\/complaints\/[^/]+$/,                perm: "complaints.delete" },
+  // work plans
+  { method: "POST",   test: /^\/work-plans\/[^/]+\/checkpoints$/,   perm: "work_plans.edit" },
+  { method: "POST",   test: /^\/work-plans$/,                       perm: "work_plans.create" },
+  { method: "PATCH",  test: /^\/work-plans\/[^/]+$/,                perm: "work_plans.edit" },
+  { method: "DELETE", test: /^\/work-plans\/[^/]+$/,                perm: "work_plans.delete" },
+  // after surveys
+  { method: "POST",   test: /^\/after-surveys\/[^/]+\/report$/,     perm: "after_surveys.submit" },
+  { method: "POST",   test: /^\/after-surveys\/[^/]+\/approve$/,    perm: "after_surveys.approve" },
+  // pest / simple / agreement reports
+  { method: "POST",   test: /^\/pest-reports\/upload-photo$/,       perm: "monthly_reports.create" },
+  { method: "POST",   test: /^\/pest-reports$/,                     perm: "monthly_reports.create" },
+  { method: "PATCH",  test: /^\/pest-reports\/[^/]+$/,              perm: "monthly_reports.edit" },
+  { method: "DELETE", test: /^\/pest-reports\/[^/]+$/,              perm: "monthly_reports.edit" },
+  { method: "POST",   test: /^\/simple-reports\/upload-photo$/,     perm: "monthly_reports.create" },
+  { method: "POST",   test: /^\/simple-reports$/,                   perm: "monthly_reports.create" },
+  { method: "PATCH",  test: /^\/simple-reports\/[^/]+$/,            perm: "monthly_reports.edit" },
+  { method: "DELETE", test: /^\/simple-reports\/[^/]+$/,            perm: "monthly_reports.edit" },
+  { method: "POST",   test: /^\/agreement-reports\/upload-photo$/,  perm: "monthly_reports.create" },
+  { method: "POST",   test: /^\/agreement-reports$/,                perm: "monthly_reports.create" },
+  { method: "PATCH",  test: /^\/agreement-reports\/[^/]+$/,         perm: "monthly_reports.edit" },
+  { method: "DELETE", test: /^\/agreement-reports\/[^/]+$/,         perm: "monthly_reports.edit" },
+];
+
+router.use((req: AuthRequest, res, next) => {
+  if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
+  const rule = WRITE_PERMISSION_RULES.find((r) => r.method === req.method && r.test.test(req.path));
+  if (!rule) return next(); // route write tak terpetakan → diteruskan ke guard inline (mis. /admin/*)
+  if (!req.user?.permissions.has(rule.perm)) {
+    return res.status(403).json({ error: "Akses ditolak: tidak ada izin" });
+  }
+  return next();
+});
+
 router.get("/reverse-geocode", async (req, res, next) => {
   try {
     const lat = Number(req.query.lat);
@@ -525,68 +618,74 @@ router.get("/quotations", async (req, res, next) => { try { const where: any = {
 router.get("/quotations/:id", async (req, res, next) => { try { const item = await prisma.quotation.findUnique({ where: { id: req.params.id }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); if (!item) return res.status(404).json({ error: "Quotation tidak ditemukan" }); return res.json(item); } catch (error) { return next(error); } });
 router.post("/quotations", async (req: AuthRequest, res, next) => { try { const { customerId, inquiryId, title, amount, status, validUntil, hasilSurvey, priceData, quotationDate, segmentType } = req.body; if (!customerId || !title) return res.status(400).json({ error: "Customer dan judul wajib diisi" }); const qDate = quotationDate ? new Date(quotationDate) : new Date(); const num = await quotationNumber(qDate); const item = await prisma.quotation.create({ data: { number: num, customerId, inquiryId: inquiryId || null, title: String(title).trim(), amount: Number(amount) || 0, status: status || "DRAFT", validUntil: validUntil ? new Date(validUntil) : null, segmentType: segmentType === "B2C" ? "B2C" : "B2B", hasilSurvey: hasilSurvey || [], priceData: priceData || {}, quotationDate: qDate, ownerId: req.user!.id }, include: { customer: true, inquiry: true } }); res.status(201).json(item); } catch (error) { next(error); } });
 router.patch("/quotations/:id", async (req, res, next) => { try { const { title, amount, status, validUntil, notes, hasilSurvey, priceData, quotationDate, number } = req.body; const data: any = {}; if (title !== undefined) data.title = String(title).trim(); if (amount !== undefined) data.amount = Number(amount); if (status !== undefined) data.status = status; if (validUntil !== undefined) data.validUntil = validUntil ? new Date(validUntil) : null; if (notes !== undefined) data.notes = notes ? String(notes).trim() : null; if (hasilSurvey !== undefined) data.hasilSurvey = hasilSurvey; if (priceData !== undefined) data.priceData = priceData; if (quotationDate !== undefined) data.quotationDate = quotationDate ? new Date(quotationDate) : null; if (number !== undefined) data.number = String(number).trim(); if (title !== undefined || amount !== undefined || hasilSurvey !== undefined || priceData !== undefined || quotationDate !== undefined || number !== undefined) { data.approvedAt = null; data.approvedByName = null; data.approvedSignature = null; } res.json(await prisma.quotation.update({ where: { id: req.params.id }, data })); } catch (error) { next(error); } });
-router.post("/quotations/:id/approve", requireRole("ADMIN", "MANAGER"), async (req: AuthRequest, res, next) => { try { const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : ""; if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." }); const existing = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!existing) return res.status(404).json({ error: "Quotation tidak ditemukan" }); const item = await prisma.quotation.update({ where: { id: req.params.id }, data: { approvedByName: req.user!.name, approvedAt: new Date(), approvedSignature: signature }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); res.json(item); } catch (error) { next(error); } });
+router.post("/quotations/:id/approve", requireRole("ADMIN"), async (req: AuthRequest, res, next) => { try { const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : ""; if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." }); const existing = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!existing) return res.status(404).json({ error: "Quotation tidak ditemukan" }); const item = await prisma.quotation.update({ where: { id: req.params.id }, data: { approvedByName: req.user!.name, approvedAt: new Date(), approvedSignature: signature }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); res.json(item); } catch (error) { next(error); } });
 router.post("/quotations/:id/upload", quotationUpload.single("file"), async (req, res, next) => { try { if (!req.file) return res.status(400).json({ error: "File wajib dipilih" }); res.status(201).json({ data: { path: publicUploadPath(req.file.path), fileName: req.file.originalname, mimeType: req.file.mimetype, size: req.file.size } }); } catch (error) { next(error); } });
 router.delete("/quotations/:id", async (req, res, next) => { try { const q = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!q) return res.status(404).json({ error: "Quotation tidak ditemukan" }); await prisma.quotation.delete({ where: { id: req.params.id } }); res.json({ success: true }); } catch (error) { next(error); } });
 router.post("/quotations/:id/push-to-order-sheet", async (req: AuthRequest, res, next) => { try {
   const q = await prisma.quotation.findUnique({ where: { id: req.params.id }, include: { customer: true } });
   if (!q) return res.status(404).json({ error: "Quotation tidak ditemukan" });
+  // Idempotency: cegah duplikat bila quotation sudah pernah dipush ke Order Sheet + Agreement
+  const existingAgr = await prisma.agreement.findFirst({ where: { quotationId: q.id }, select: { number: true } });
+  if (existingAgr) return res.status(409).json({ error: `Quotation ini sudah pernah dipush (Agreement ${existingAgr.number}).` });
   const pd = (q.priceData || {}) as any;
   const amount = Number(q.amount);
   const costItems = [{ description: pd.serviceType || q.title, qty: "1", unitPrice: String(amount), total: String(amount) }];
   const customer = q.customer;
   const customerSnap = { name: customer.name || "", picName: customer.picServiceName || customer.picScheduleName || customer.ownerName || customer.name || "", address: customer.treatmentAddress || customer.address || customer.billingAddress || "", phone: customer.phone || customer.picServicePhone || "", email: customer.email || customer.picServiceEmail || "", customerType: customer.customerType || "", serviceArea: customer.serviceArea || "", locationNotes: customer.notes || "" };
 
-  // Create Order Sheet
-  const os = await prisma.orderSheet.create({ data: {
-    number: code("OS"),
-    orderDate: new Date(),
-    status: "DRAFT",
-    createdByName: req.user!.name,
-    customerId: q.customerId,
-    customerSnapshot: customerSnap,
-    quotationRef: q.number,
-    jobTitle: q.title,
-    serviceType: pd.serviceType || "",
-    workMethod: pd.treatmentMethod || "",
-    jobDescription: [pd.visitSchedule, pd.contractDuration, pd.pestCover].filter(Boolean).join(" | ") || "",
-    specialInstruction: pd.notes || q.notes || "",
-    costItems,
-    subtotal: decimalOrNull(amount),
-    ppnPercent: decimalOrNull(0),
-    ppnAmount: decimalOrNull(0),
-    grandTotal: decimalOrNull(amount),
-    terms: defaultTerms,
-    supportingDocuments: [{ name: "Hasil Survey", status: "Ada" }, { name: "Quotation", status: "Ada" }, { name: "Agreement Customer", status: "Ada" }],
-    treatmentLocations: [], materials: [], vendorTechnicians: [],
-  }, include: orderSheetInclude() });
-
-  // Create Agreement
-  const agrYear = new Date().getFullYear();
-  const agrPrefix = `AGR/FMK/${agrYear}/`;
-  const lastAgr = await prisma.agreement.findFirst({ where: { number: { startsWith: agrPrefix } }, orderBy: { number: "desc" } });
-  const agrSeq = lastAgr ? (parseInt(lastAgr.number.slice(-3)) || 0) + 1 : 1;
-  const agrNumber = `${agrPrefix}${String(agrSeq).padStart(3, "0")}`;
+  // Create Order Sheet + Agreement dalam satu transaksi (atomik — tidak ada orphan bila salah satu gagal)
   const now = new Date();
   const oneYearLater = new Date(now); oneYearLater.setFullYear(oneYearLater.getFullYear() + 1);
-  const agr = await prisma.agreement.create({ data: {
-    number: agrNumber,
-    tanggal: now,
-    customerId: q.customerId,
-    quotationId: q.id,
-    jenisLayanan: pd.serviceType || "Pest Control",
-    lokasiPekerjaan: customer.treatmentAddress || customer.address || "",
-    areaPekerjaan: pd.coverArea || null,
-    tanggalMulai: now,
-    tanggalBerakhir: oneYearLater,
-    durasiKontrak: 12,
-    nilaiKontrak: decimalOrNull(amount) ?? 0,
-    ppn: decimalOrNull(0),
-    grandTotal: decimalOrNull(amount) ?? 0,
-    picKlienNama: customer.picServiceName || customer.ownerName || customer.name || null,
-    picKlienKontak: customer.picServicePhone || customer.phone || null,
-    status: "DRAFT",
-  } });
+  const agrYear = now.getFullYear();
+  const agrPrefix = `AGR/FMK/${agrYear}/`;
+  const { os, agr } = await prisma.$transaction(async (tx) => {
+    const os = await tx.orderSheet.create({ data: {
+      number: code("OS"),
+      orderDate: new Date(),
+      status: "DRAFT",
+      createdByName: req.user!.name,
+      customerId: q.customerId,
+      customerSnapshot: customerSnap,
+      quotationRef: q.number,
+      jobTitle: q.title,
+      serviceType: pd.serviceType || "",
+      workMethod: pd.treatmentMethod || "",
+      jobDescription: [pd.visitSchedule, pd.contractDuration, pd.pestCover].filter(Boolean).join(" | ") || "",
+      specialInstruction: pd.notes || q.notes || "",
+      costItems,
+      subtotal: decimalOrNull(amount),
+      ppnPercent: decimalOrNull(0),
+      ppnAmount: decimalOrNull(0),
+      grandTotal: decimalOrNull(amount),
+      terms: defaultTerms,
+      supportingDocuments: [{ name: "Hasil Survey", status: "Ada" }, { name: "Quotation", status: "Ada" }, { name: "Agreement Customer", status: "Ada" }],
+      treatmentLocations: [], materials: [], vendorTechnicians: [],
+    }, include: orderSheetInclude() });
+
+    // Nomor Agreement: parse seluruh angka setelah prefix (tahan sequence > 999, tidak seperti slice(-3))
+    const lastAgr = await tx.agreement.findFirst({ where: { number: { startsWith: agrPrefix } }, orderBy: { number: "desc" } });
+    const agrSeq = lastAgr ? (parseInt(lastAgr.number.slice(agrPrefix.length), 10) || 0) + 1 : 1;
+    const agrNumber = `${agrPrefix}${String(agrSeq).padStart(3, "0")}`;
+    const agr = await tx.agreement.create({ data: {
+      number: agrNumber,
+      tanggal: now,
+      customerId: q.customerId,
+      quotationId: q.id,
+      jenisLayanan: pd.serviceType || "Pest Control",
+      lokasiPekerjaan: customer.treatmentAddress || customer.address || "",
+      areaPekerjaan: pd.coverArea || null,
+      tanggalMulai: now,
+      tanggalBerakhir: oneYearLater,
+      durasiKontrak: 12,
+      nilaiKontrak: decimalOrNull(amount) ?? 0,
+      ppn: decimalOrNull(0),
+      grandTotal: decimalOrNull(amount) ?? 0,
+      picKlienNama: customer.picServiceName || customer.ownerName || customer.name || null,
+      picKlienKontak: customer.picServicePhone || customer.phone || null,
+      status: "DRAFT",
+    } });
+    return { os, agr };
+  });
 
   res.status(201).json({ orderSheet: os, agreement: agr });
 } catch (error) { next(error); } });
@@ -1209,8 +1308,10 @@ router.delete("/admin/users/:id", requirePermission("admin.users"), async (req: 
 
 router.post("/admin/users/:id/reset-password", requirePermission("admin.users"), async (req, res, next) => {
   try {
-    await prisma.user.update({ where: { id: req.params.id }, data: { password: await bcrypt.hash("password", 12) } });
-    res.json({ ok: true });
+    // Generate password sementara acak (bukan literal "password") — dikembalikan sekali ke admin
+    const tempPassword = `Fmk-${Math.random().toString(36).slice(2, 8)}${Math.floor(Math.random() * 90 + 10)}`;
+    await prisma.user.update({ where: { id: req.params.id }, data: { password: await bcrypt.hash(tempPassword, 12) } });
+    res.json({ ok: true, tempPassword });
   } catch (error) { next(error); }
 });
 

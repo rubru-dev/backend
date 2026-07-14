@@ -166,13 +166,27 @@ app.listen(config.port, async () => {
   console.log(`  • Health: http://localhost:${config.port}/health`);
   console.log(`  • API:    http://localhost:${config.port}/api/v1`);
 
-  // Auto-refresh Meta token setiap 45 hari
-  startMetaAutoRefresh();
+  // Auto-refresh Meta token setiap 45 hari.
+  // Tiap starter dibungkus try/catch terpisah: kegagalan satu tidak boleh membatalkan
+  // pendaftaran scheduler lain (dulu error di sini membuat semua reminder daily mati diam-diam).
+  try {
+    startMetaAutoRefresh();
+  } catch (err) {
+    console.error("✗ startMetaAutoRefresh gagal:", err);
+  }
 
   // Reminder WhatsApp otomatis berdasarkan FonteeReminderRule (cek setiap jam + 16:50 + absen)
   // Termasuk kalender_visit_reminder (menggantikan hardcoded kalenderVisitReminder)
-  startReminderScheduler();
-  startHardcodedReminderScheduler();
+  try {
+    startReminderScheduler();
+  } catch (err) {
+    console.error("✗ startReminderScheduler gagal:", err);
+  }
+  try {
+    startHardcodedReminderScheduler();
+  } catch (err) {
+    console.error("✗ startHardcodedReminderScheduler gagal:", err);
+  }
 
   // Sync RTSP cameras to MediaMTX (graceful — won't crash if MediaMTX isn't running)
   try {

@@ -12,6 +12,12 @@ import { errorHandler } from "./middleware/errorHandler";
 import { authenticateFile } from "./middleware/auth";
 import { ensureDir, uploadRoot } from "./lib/upload";
 
+// Fail-fast: tolak boot kalau JWT_SECRET kosong (mencegah verifikasi token dengan secret "")
+if (!process.env.JWT_SECRET) {
+  console.error("FATAL: environment variable JWT_SECRET wajib diset dan tidak boleh kosong.");
+  process.exit(1);
+}
+
 const app = express();
 const PORT = Number(process.env.PORT || 4003);
 

@@ -1,6 +1,6 @@
 import { Router } from "express";
 import prisma from "../prisma";
-import { authenticate } from "../middleware/auth";
+import { authenticate, requirePermission } from "../middleware/auth";
 
 const router = Router();
 router.use(authenticate);
@@ -284,7 +284,7 @@ router.get("/:id", async (req, res, next) => {
 });
 
 // Create
-router.post("/", async (req, res, next) => {
+router.post("/", requirePermission("agreements.create"), async (req, res, next) => {
   try {
     const number = await nextNumber();
     const b = req.body;
@@ -374,7 +374,7 @@ router.post("/", async (req, res, next) => {
 });
 
 // Update
-router.patch("/:id", async (req, res, next) => {
+router.patch("/:id", requirePermission("agreements.edit"), async (req, res, next) => {
   try {
     const b = req.body;
     const data: any = {};
@@ -432,7 +432,7 @@ router.patch("/:id", async (req, res, next) => {
   } catch (e) { next(e); }
 });
 
-router.post("/:id/approve", async (req: any, res, next) => {
+router.post("/:id/approve", requirePermission("agreements.change_status"), async (req: any, res, next) => {
   try {
     const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : "";
     if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." });
@@ -463,7 +463,7 @@ router.post("/:id/approve", async (req: any, res, next) => {
 });
 
 // Activate agreement → create ServiceContract
-router.post("/:id/activate", async (req, res, next) => {
+router.post("/:id/activate", requirePermission("agreements.activate"), async (req, res, next) => {
   try {
     const ag = await prisma.agreement.findUnique({
       where: { id: req.params.id },
@@ -554,7 +554,7 @@ router.post("/:id/activate", async (req, res, next) => {
 });
 
 // Delete
-router.delete("/:id", async (req, res, next) => {
+router.delete("/:id", requirePermission("agreements.delete"), async (req, res, next) => {
   try {
     await prisma.agreement.delete({ where: { id: req.params.id } });
     res.json({ ok: true });
