@@ -1,4 +1,9 @@
 import "express-async-errors";
+import dns from "dns";
+// VPS sering punya IPv6 yang tidak terroute → koneksi keluar ke host dual-stack
+// (WhatsApp WebSocket, Meta Graph API) menunggu IPv6 mati lalu timeout (ETIMEDOUT / 408).
+// Paksa Node mendahulukan IPv4 agar koneksi langsung pakai jalur yang hidup.
+dns.setDefaultResultOrder("ipv4first");
 import express from "express";
 import cors from "cors";
 import path from "path";
