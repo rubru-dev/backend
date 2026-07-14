@@ -1052,9 +1052,25 @@ model LaporanPicProjek {
   created_at   DateTime @default(now()) @db.Timestamptz(6)
   updated_at   DateTime @default(now()) @db.Timestamptz(6)
   user         User?    @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  image_files  LaporanPicProjekImage[]
 
   @@index([project_type, project_id], map: "idx_laporan_pic_projeks_project")
   @@map("laporan_pic_projeks")
+}
+
+// Tabel gambar laporan PIC — dikelola via raw SQL di routes/picProject.ts.
+// Didaftarkan di sini agar `prisma db push` tidak menganggapnya tabel liar & menghapusnya.
+// Struktur harus sama persis dengan CREATE TABLE di ensureLaporanPicImagesTable().
+model LaporanPicProjekImage {
+  id            BigInt           @id @default(autoincrement())
+  laporan_id    BigInt
+  file_path     String
+  original_name String?
+  created_at    DateTime         @default(now()) @db.Timestamptz(6)
+  laporan       LaporanPicProjek @relation(fields: [laporan_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([laporan_id], map: "idx_laporan_pic_projek_images_laporan")
+  @@map("laporan_pic_projek_images")
 }
 
 model PicProjectReport {
