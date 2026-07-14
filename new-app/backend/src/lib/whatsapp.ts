@@ -21,6 +21,7 @@ let sock: any = null;
 let connected = false;
 let starting = false;
 let currentQR: string | null = null;
+let reconnectAttempts = 0;
 
 function pickDefault(mod: any): any {
   return mod?.default ?? mod;
@@ -72,8 +73,9 @@ export async function initWhatsApp(): Promise<void> {
     let version: any;
     try {
       ({ version } = await fetchLatestBaileysVersion());
+      console.log(`[WhatsApp] Versi WA Web: ${Array.isArray(version) ? version.join(".") : "?"}`);
     } catch {
-      /* pakai versi bawaan Baileys bila gagal ambil versi terbaru */
+      console.warn("[WhatsApp] Gagal ambil versi WA terbaru — pakai versi bawaan Baileys");
     }
 
     sock = makeSocket({
@@ -82,6 +84,11 @@ export async function initWhatsApp(): Promise<void> {
       logger,
       browser: Browsers?.appropriate ? Browsers.appropriate("RubahRumah") : ["RubahRumah", "Chrome", "1.0.0"],
       markOnlineOnConnect: false,
+      connectTimeoutMs: 60_000,
+      defaultQueryTimeoutMs: 60_000,
+      keepAliveIntervalMs: 25_000,
+      qrTimeout: 60_000,
+      retryRequestDelayMs: 1_000,
     });
 
     sock.ev.on("creds.update", saveCreds);
@@ -102,6 +109,7 @@ export async function initWhatsApp(): Promise<void> {
       if (connection === "open") {
         connected = true;
         currentQR = null;
+        reconnectAttempts = 0;
         console.log("✓ [WhatsApp] Baileys tersambung — siap kirim pesan");
       } else if (connection === "close") {
         connected = false;
@@ -114,10 +122,13 @@ export async function initWhatsApp(): Promise<void> {
             `[WhatsApp] Sesi LOGGED OUT. Hapus folder auth lalu scan ulang:\n  rm -rf "${AUTH_DIR}"\n  (restart backend untuk memunculkan QR baru)`,
           );
         } else {
-          console.warn(`[WhatsApp] Terputus (code ${statusCode ?? "?"}). Mencoba reconnect dalam 3 detik...`);
+          // Backoff bertingkat (3s, 6s, ... maks 30s) supaya tidak spam log saat handshake gagal beruntun.
+          reconnectAttempts += 1;
+          const delay = Math.min(30_000, 3_000 * reconnectAttempts);
+          console.warn(`[WhatsApp] Terputus (code ${statusCode ?? "?"}). Reconnect #${reconnectAttempts} dalam ${delay / 1000}s...`);
           setTimeout(() => {
             initWhatsApp().catch((e) => console.error("[WhatsApp] Reconnect gagal:", e));
-          }, 3000);
+          }, delay);
         }
       }
     });
