@@ -59,8 +59,39 @@ function exactForSingleCharSearch(search: string | undefined) {
     : { contains: q, mode: "insensitive" as const };
 }
 
+// Nama klien tampil di UI sebagai "Mr Budi" (salutation + nama) padahal tersimpan di kolom
+// terpisah. Tanpa ini, mengetik persis seperti yang tampil ("Mr Budi") tidak ketemu.
+// Memecah prefix Mr/Mrs dari query → sisanya dicocokkan ke nama/telepon/alamat.
+function splitSalutationQuery(search: string | undefined) {
+  const q = search?.trim();
+  if (!q) return undefined;
+  const withName = q.match(/^(mr|mrs)\.?\s+(.+)$/i);
+  if (withName) {
+    return {
+      salutation: (withName[1].toLowerCase() === "mrs" ? "Mrs" : "Mr") as "Mr" | "Mrs",
+      rest: withName[2].trim(),
+    };
+  }
+  if (/^(mr|mrs)\.?$/i.test(q)) {
+    return { salutation: (q.toLowerCase().startsWith("mrs") ? "Mrs" : "Mr") as "Mr" | "Mrs", rest: "" };
+  }
+  return { salutation: undefined, rest: q };
+}
+
 function invoiceSearchFilter(search: string | undefined) {
-  const filter = exactForSingleCharSearch(search);
+  const parsed = splitSalutationQuery(search);
+  if (!parsed) return undefined;
+  const filter = exactForSingleCharSearch(parsed.rest);
+
+  // Query diawali salutation ("Mr Budi") → cari lead ber-salutation itu + nama cocok.
+  if (parsed.salutation) {
+    const leadWhere: Record<string, unknown> = {
+      salutation: { equals: parsed.salutation, mode: "insensitive" as const },
+    };
+    if (filter) leadWhere.nama = filter;
+    return [{ lead: { is: leadWhere } }];
+  }
+
   if (!filter) return undefined;
   return [
     { invoice_number: filter },
@@ -851,7 +882,7 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
   const search = (req.query.search as string) || "";
   const kategori = req.query.kategori as string | undefined;
   const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 100, 1), 200);
-  const searchFilter = exactForSingleCharSearch(search);
+  const parsedSearch = splitSalutationQuery(search);
   // Lead dipisah per-modul sesuai brand — Payment Projek/Desain/Survey dari
   // Follow Up Leads Admin Sales (sales-admin), RKR/Golden/Filter Air dari modulnya masing-masing.
   const where: Record<string, unknown> = {};
@@ -865,12 +896,19 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
   } else if (kategori === "Payment Filter Air") {
     where.modul = "filter-air";
   }
-  if (searchFilter) {
-    where.OR = [
-      { nama: searchFilter },
-      { nomor_telepon: searchFilter },
-      { alamat: searchFilter },
-    ];
+  if (parsedSearch) {
+    // "Mr Budi" → salutation harus Mr, sisanya ("Budi") dicocokkan ke nama/telepon/alamat.
+    if (parsedSearch.salutation) {
+      where.salutation = { equals: parsedSearch.salutation, mode: "insensitive" as const };
+    }
+    const searchFilter = exactForSingleCharSearch(parsedSearch.rest);
+    if (searchFilter) {
+      where.OR = [
+        { nama: searchFilter },
+        { nomor_telepon: searchFilter },
+        { alamat: searchFilter },
+      ];
+    }
   }
   const leads = await prisma.lead.findMany({
     where,
