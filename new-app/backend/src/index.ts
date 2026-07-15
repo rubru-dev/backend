@@ -55,6 +55,13 @@ import penawaranRouter from "./routes/penawaran";
 
 const app = express();
 
+// Di produksi backend ada di belakang proxy berlapis: Client → Cloudflare → nginx → Node.
+// Tanpa ini `req.ip` = IP proxy untuk SEMUA user, sehingga rate limiter menghitung seluruh
+// tim sebagai satu klien — jatah request dipakai bersama dan user acak kena 429.
+// Nilainya = jumlah hop proxy (Cloudflare + nginx = 2). Jangan pakai `true` (rawan spoof
+// header X-Forwarded-For). Ubah lewat env bila lapisan proxy berubah.
+app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? 2));
+
 // CORS
 const corsOrigins = config.corsAllowAll ? "*" : config.corsOrigins;
 app.use(
@@ -67,9 +74,12 @@ app.use(
 );
 
 // Rate limiting
+// max 100/15mnt terlalu ketat untuk dashboard entri data (satu halaman saja sudah
+// belasan request: list, filter, dropdown, invalidate). Dulu ini membuat input lead
+// gagal acak dengan 429. Bisa disetel via env bila perlu.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: parseInt(process.env.RATE_LIMIT_MAX ?? "1000", 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: { detail: "Terlalu banyak request, coba lagi dalam 15 menit" },
@@ -95,11 +105,14 @@ app.use("/storage", express.static(path.resolve(config.storagePath)));
 app.use("/api/v1/storage", express.static(path.resolve(config.storagePath)));
 
 // Health check
-app.get("/health", (_req, res) => {
+app.get("/health", (req, res) => {
   res.json({
     status: "ok",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
+    // Untuk verifikasi `trust proxy`: harus berisi IP publik user, bukan IP nginx/Cloudflare.
+    // Kalau salah, rate limit akan dihitung bersama untuk semua user.
+    client_ip: req.ip,
   });
 });
 

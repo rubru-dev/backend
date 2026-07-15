@@ -378,11 +378,13 @@ router.get("/database-client/leads", async (req: Request, res: Response) => {
 
 router.post("/leads", async (req: Request, res: Response) => {
   const b = req.body;
+  const nama = typeof b.nama === "string" ? b.nama.trim() : "";
+  if (!nama) return res.status(400).json({ detail: "Nama wajib diisi" });
   const lead = await prisma.lead.create({
     data: {
       user_id: req.user!.id,
       salutation: normalizeSalutation(b.salutation),
-      nama: b.nama,
+      nama,
       nomor_telepon: b.nomor_telepon ?? null,
       alamat: b.alamat ?? null,
       sumber_leads: b.sumber_leads ?? null,
@@ -429,7 +431,11 @@ router.patch("/leads/:id", async (req: Request, res: Response) => {
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
   const b = req.body;
   const updates: Record<string, unknown> = {};
-  if (b.nama !== undefined) updates.nama = b.nama;
+  if (b.nama !== undefined) {
+    const nama = typeof b.nama === "string" ? b.nama.trim() : "";
+    if (!nama) return res.status(400).json({ detail: "Nama wajib diisi" });
+    updates.nama = nama;
+  }
   if (b.salutation !== undefined) updates.salutation = normalizeSalutation(b.salutation);
   if (b.nomor_telepon !== undefined) updates.nomor_telepon = b.nomor_telepon;
   if (b.alamat !== undefined) updates.alamat = b.alamat;
@@ -2241,12 +2247,14 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const b = req.body;
+  const nama = typeof b.nama === "string" ? b.nama.trim() : "";
+  if (!nama) return res.status(400).json({ detail: "Nama wajib diisi" });
   const lead = await prisma.lead.create({
     data: {
       user_id: req.user!.id,
       modul,
       salutation: normalizeSalutation(b.salutation),
-      nama: b.nama,
+      nama,
       nomor_telepon: b.nomor_telepon ?? null,
       alamat: b.alamat ?? null,
       sumber_leads: b.sumber_leads ?? null,
@@ -2282,7 +2290,7 @@ router.post("/:modul/leads", async (req: Request, res: Response) => {
     await prisma.lead.create({
       data: {
         user_id: req.user!.id, modul: "database-client",
-        salutation: normalizeSalutation(b.salutation), nama: b.nama,
+        salutation: normalizeSalutation(b.salutation), nama,
         nomor_telepon: b.nomor_telepon ?? null, alamat: b.alamat ?? null,
         sumber_leads: b.sumber_leads ?? null, keterangan: b.keterangan ?? null,
         jenis: b.jenis ?? null, status: b.status ?? "Low",
@@ -2303,7 +2311,11 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
   const b = req.body;
   const updates: Record<string, unknown> = {};
-  if (b.nama !== undefined) updates.nama = b.nama;
+  if (b.nama !== undefined) {
+    const nama = typeof b.nama === "string" ? b.nama.trim() : "";
+    if (!nama) return res.status(400).json({ detail: "Nama wajib diisi" });
+    updates.nama = nama;
+  }
   if (b.salutation !== undefined) updates.salutation = normalizeSalutation(b.salutation);
   if (b.nomor_telepon !== undefined) updates.nomor_telepon = b.nomor_telepon;
   if (b.alamat !== undefined) updates.alamat = b.alamat;
@@ -2786,9 +2798,13 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
   const uniqueLeads: any[] = [];
   const seen = new Set<string>();
   let skippedDuplicates = Math.max(0, leads.length - leadsInput.length);
+  let skippedInvalid = 0; // baris tanpa nama — dilaporkan agar tidak hilang diam-diam
   for (const lead of leadsInput) {
     const nameKey = normalizeLeadIdentity(lead.nama);
-    if (!nameKey) continue;
+    if (!nameKey) {
+      skippedInvalid += 1;
+      continue;
+    }
     const duplicateKeys = leadDuplicateKeys(lead);
     if (duplicateKeys.some((key) => seen.has(key))) {
       skippedDuplicates += 1;
@@ -2815,7 +2831,7 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
     return true;
   });
   if (insertLeads.length === 0)
-    return res.json({ inserted: 0, skipped_duplicates: skippedDuplicates });
+    return res.json({ inserted: 0, skipped_duplicates: skippedDuplicates, skipped_invalid: skippedInvalid });
   // Siapkan tiap lead: W (minggu-ke dalam bulan) dari tanggal_masuk → projection + kolom Kanban.
   const prepared = insertLeads.map((l) => {
     const tanggalMasuk = l.tanggal_masuk ? new Date(l.tanggal_masuk) : now;
@@ -2830,7 +2846,7 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
     prepared.map(({ l, tanggalMasuk, bulan, tahun, proj }) =>
       prisma.lead.create({
         data: {
-          nama: l.nama, nomor_telepon: l.nomor_telepon || null,
+          nama: String(l.nama).trim(), nomor_telepon: l.nomor_telepon || null,
           salutation: normalizeSalutation(l.salutation),
           alamat: l.alamat || null, sumber_leads: l.sumber_leads || null,
           jenis: l.jenis || null, status: l.status || "Low",
@@ -2846,7 +2862,7 @@ router.post("/:modul/leads/bulk", async (req: Request, res: Response) => {
   for (let i = 0; i < created.length; i++) {
     await addLeadToAdminKanban(modul, created[i], prepared[i].proj, prepared[i].bulan, prepared[i].tahun);
   }
-  return res.json({ inserted: created.length, skipped_duplicates: skippedDuplicates });
+  return res.json({ inserted: created.length, skipped_duplicates: skippedDuplicates, skipped_invalid: skippedInvalid });
 });
 
 export default router;

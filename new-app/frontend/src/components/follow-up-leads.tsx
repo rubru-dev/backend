@@ -402,7 +402,12 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     mutationFn: (leads: any[]) => followUpApi.bulkCreate(leads),
     onSuccess: (res: any) => {
       const skipped = Number(res.skipped_duplicates ?? 0);
-      toast.success(`${res.inserted ?? "?"} leads berhasil diimport${skipped > 0 ? `, ${skipped} duplikat dilewati` : ""}`);
+      const invalid = Number(res.skipped_invalid ?? 0);
+      toast.success(
+        `${res.inserted ?? "?"} leads berhasil diimport` +
+          (skipped > 0 ? `, ${skipped} duplikat dilewati` : "") +
+          (invalid > 0 ? `, ${invalid} tanpa nama dilewati` : ""),
+      );
       qc.invalidateQueries({ queryKey: ["follow-up-leads", modul] });
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal import"),
@@ -492,6 +497,12 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
   }
 
   function handleSubmit() {
+    const nama = form.nama.trim();
+    if (!nama) {
+      toast.error("Nama wajib diisi");
+      return;
+    }
+
     // Resolve campaign selection back to sumber_leads string + meta_ads_campaign_id
     let sumber_leads = form.sumber_leads;
     let meta_ads_campaign_id: number | null = form.meta_ads_campaign_id;
@@ -502,6 +513,7 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
     }
     const payload = {
       ...form,
+      nama,
       sumber_leads,
       meta_ads_campaign_id,
       tanggal_survey: form.tanggal_survey || null,
