@@ -76,6 +76,26 @@ const TAHUN_OPTIONS = Array.from({ length: 5 }, (_, i) => String(_cy - i));
 
 const PROJECTION_OPTIONS = ["", "W1", "W2", "W3", "W4"];
 
+// ── Import Excel ──────────────────────────────────────────────────────────────
+// Header dicocokkan longgar: abaikan huruf besar/kecil, spasi berlebih, underscore, titik.
+// Jadi "Nama", "nama", "NAMA ", "Nomor_Telepon", "no. telepon" semuanya dikenali.
+function normalizeHeaderKey(key: string) {
+  return String(key).trim().toLowerCase().replace(/[._]+/g, " ").replace(/\s+/g, " ");
+}
+
+/** Buat pembaca baris Excel yang toleran terhadap variasi penulisan header. */
+function makeRowReader(row: Record<string, any>) {
+  const map = new Map<string, any>();
+  for (const [k, v] of Object.entries(row)) map.set(normalizeHeaderKey(k), v);
+  return (...aliases: string[]) => {
+    for (const alias of aliases) {
+      const v = map.get(normalizeHeaderKey(alias));
+      if (v !== undefined && String(v).trim() !== "") return v;
+    }
+    return "";
+  };
+}
+
 const EMPTY = {
   salutation: "Mr", nama: "", nomor_telepon: "", alamat: "", sumber_leads: "Instagram",
   jenis: "Interior", status: "Low", keterangan: "",
@@ -422,7 +442,8 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
       const ws = wb.Sheets[wb.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(ws, { defval: "" });
       const rawLeads = rows.map((r) => {
-        const rawTgl = String(r["Tanggal Masuk"] || r["tanggal_masuk"] || "").trim();
+        const get = makeRowReader(r);
+        const rawTgl = String(get("Tanggal Masuk", "tanggal_masuk", "tanggal", "tgl masuk") || "").trim();
         // Handle Excel numeric date serial (e.g. 45678)
         let tanggal_masuk: string | null = null;
         if (rawTgl) {
@@ -435,17 +456,22 @@ export function FollowUpLeads({ modul, campaignSelectUrl }: FollowUpLeadsProps) 
             tanggal_masuk = rawTgl;
           }
         }
+        const rawSalutation = String(get("Salutation", "salutation", "sapaan") || "").trim();
+        // Terima "mr"/"MRS" dsb → dinormalkan ke "Mr"/"Mrs"
+        const salutation = SALUTATION_OPTIONS.find(
+          (s) => s.toLowerCase() === rawSalutation.toLowerCase(),
+        ) ?? "Mr";
         return {
-          salutation: SALUTATION_OPTIONS.includes(String(r["Salutation"] || r["salutation"] || "").trim() as any)
-            ? String(r["Salutation"] || r["salutation"]).trim()
-            : "Mr",
-          nama: String(r["Nama"] || r["nama"] || "").trim(),
-          nomor_telepon: String(r["Nomor Telepon"] || r["nomor_telepon"] || "").trim(),
-          alamat: String(r["Alamat"] || r["alamat"] || "").trim(),
-          sumber_leads: String(r["Sumber"] || r["sumber_leads"] || "Lainnya").trim(),
-          jenis: String(r["Jenis"] || r["jenis"] || "").trim(),
-          status: String(r["Status"] || r["status"] || "Low").trim(),
-          keterangan: String(r["Keterangan"] || r["keterangan"] || "").trim(),
+          salutation,
+          nama: String(get("Nama", "nama", "nama klien", "nama lead", "client") || "").trim(),
+          nomor_telepon: String(
+            get("Nomor Telepon", "nomor_telepon", "no telepon", "telepon", "no hp", "hp", "whatsapp", "wa") || "",
+          ).trim(),
+          alamat: String(get("Alamat", "alamat", "address") || "").trim(),
+          sumber_leads: String(get("Sumber", "sumber_leads", "sumber leads", "source") || "Lainnya").trim(),
+          jenis: String(get("Jenis", "jenis", "tipe") || "").trim(),
+          status: String(get("Status", "status") || "Low").trim(),
+          keterangan: String(get("Keterangan", "keterangan", "catatan", "note", "notes") || "").trim(),
           tanggal_masuk,
         };
       }).filter((l) => l.nama.length > 0);

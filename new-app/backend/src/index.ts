@@ -55,11 +55,12 @@ import penawaranRouter from "./routes/penawaran";
 
 const app = express();
 
-// Di produksi backend ada di belakang proxy berlapis: Client → Cloudflare → nginx → Node.
+// Di produksi backend ada di belakang proxy berlapis: Client → nginx → Next.js → Node.
+// (Next.js ikut jadi proxy karena next.config.js me-rewrite /api/v1/* ke backend.)
 // Tanpa ini `req.ip` = IP proxy untuk SEMUA user, sehingga rate limiter menghitung seluruh
 // tim sebagai satu klien — jatah request dipakai bersama dan user acak kena 429.
-// Nilainya = jumlah hop proxy (Cloudflare + nginx = 2). Jangan pakai `true` (rawan spoof
-// header X-Forwarded-For). Ubah lewat env bila lapisan proxy berubah.
+// Nilainya = jumlah hop proxy (nginx + Next.js = 2). Jangan pakai `true` (rawan spoof
+// header X-Forwarded-For). Verifikasi lewat GET /api/v1/health → field client_ip.
 app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? 2));
 
 // CORS
@@ -105,16 +106,26 @@ app.use("/storage", express.static(path.resolve(config.storagePath)));
 app.use("/api/v1/storage", express.static(path.resolve(config.storagePath)));
 
 // Health check
-app.get("/health", (req, res) => {
-  res.json({
+function healthPayload(req: express.Request) {
+  return {
     status: "ok",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
-    // Untuk verifikasi `trust proxy`: harus berisi IP publik user, bukan IP nginx/Cloudflare.
-    // Kalau salah, rate limit akan dihitung bersama untuk semua user.
+    // Diagnostik `trust proxy`: harus berisi IP publik user, bukan IP nginx/Cloudflare/Next.
+    // Kalau salah, rate limit dihitung bersama untuk semua user.
     client_ip: req.ip,
-  });
-});
+    // Rantai proxy apa adanya — untuk menentukan TRUST_PROXY_HOPS yang benar.
+    x_forwarded_for: req.headers["x-forwarded-for"] ?? null,
+    cf_connecting_ip: req.headers["cf-connecting-ip"] ?? null,
+    trust_proxy_hops: app.get("trust proxy"),
+  };
+}
+
+app.get("/health", (req, res) => res.json(healthPayload(req)));
+
+// Alias di bawah /api/v1: Next.js hanya mem-proxy /api/v1/* dan /storage/*, jadi /health
+// polos tidak tembus dari domain publik. Alias ini yang dipakai untuk cek IP dari browser.
+app.get("/api/v1/health", (req, res) => res.json(healthPayload(req)));
 
 // Apply rate limiters
 app.use("/api/v1", apiLimiter);

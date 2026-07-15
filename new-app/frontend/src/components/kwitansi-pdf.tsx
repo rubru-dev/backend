@@ -129,6 +129,10 @@ const styles = StyleSheet.create({
   signTitleText: { fontSize: 8, color: GRAY, fontWeight: "bold" },
   signImage: { width: 120, height: 55, objectFit: "contain", marginBottom: 4 },
   signImageEmpty: { width: 120, height: 55, borderBottomWidth: 1, borderBottomColor: "#d4d4d4", marginBottom: 4 },
+  // Area TTD: watermark logo + tinta TTD ditumpuk pada posisi yang sama.
+  signArea: { width: 120, height: 55, position: "relative", marginBottom: 4 },
+  signWatermark: { position: "absolute", top: 0, left: 0, width: 120, height: 55, objectFit: "contain", opacity: 0.55 },
+  signInk: { position: "absolute", top: 0, left: 0, width: 120, height: 55, objectFit: "contain" },
   signName: { fontSize: 8.5, fontWeight: "bold", color: DARK },
   signDate: { fontSize: 7.5, color: GRAY, marginTop: 2 },
 
@@ -297,9 +301,17 @@ export function KwitansiPDF({
         <View style={styles.signRow}>
           <View style={styles.signBlock}>
             <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Head Finance</Text></View>
-            {head_finance?.signature
-              ? <Image style={styles.signImage} src={head_finance.signature} />
-              : <View style={styles.signImageEmpty} />}
+            {head_finance?.signature ? (
+              <View style={styles.signArea}>
+                {/* Logo sebagai watermark di belakang TTD — samar agar tinta TTD tetap dominan */}
+                {logoUrl && <Image style={styles.signWatermark} src={logoUrl} />}
+                {/* TTD ditumpuk dua kali agar goresannya lebih pekat di atas watermark */}
+                <Image style={styles.signInk} src={head_finance.signature} />
+                <Image style={styles.signInk} src={head_finance.signature} />
+              </View>
+            ) : (
+              <View style={styles.signImageEmpty} />
+            )}
             <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
             {head_finance?.at && <Text style={styles.signDate}>{formatDate(head_finance.at)}</Text>}
           </View>

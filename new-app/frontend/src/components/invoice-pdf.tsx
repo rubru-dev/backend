@@ -133,6 +133,10 @@ const styles = StyleSheet.create({
   signTitleText: { fontSize: 8, color: GRAY, fontWeight: "bold" },
   signImage: { width: 140, height: 60, objectFit: "contain", marginBottom: 6 },
   signImageEmpty: { width: 140, height: 60, borderBottomWidth: 1, borderBottomColor: "#d4d4d4", marginBottom: 6 },
+  // Area TTD: watermark logo + tinta TTD ditumpuk pada posisi yang sama.
+  signArea: { width: 140, height: 60, position: "relative", marginBottom: 6 },
+  signWatermark: { position: "absolute", top: 0, left: 0, width: 140, height: 60, objectFit: "contain", opacity: 0.55 },
+  signInk: { position: "absolute", top: 0, left: 0, width: 140, height: 60, objectFit: "contain" },
   signName: { fontSize: 9, fontWeight: "bold", color: DARK },
   signDate: { fontSize: 7.5, color: GRAY, marginTop: 2 },
 
@@ -310,9 +314,18 @@ export function InvoicePDF({
         <View style={styles.signRow}>
           <View style={styles.signBlock}>
             <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Head Finance</Text></View>
-            {head_finance?.signature
-              ? <Image style={styles.signImage} src={head_finance.signature} />
-              : <View style={styles.signImageEmpty} />}
+            {head_finance?.signature ? (
+              <View style={styles.signArea}>
+                {/* Logo sebagai watermark di belakang TTD — dibuat samar agar tidak menyaingi tinta TTD */}
+                {logoUrl && <Image style={styles.signWatermark} src={logoUrl} />}
+                {/* TTD digambar dua kali (bertumpuk persis) agar goresannya lebih pekat/tebal
+                    sehingga tetap terbaca di atas watermark. */}
+                <Image style={styles.signInk} src={head_finance.signature} />
+                <Image style={styles.signInk} src={head_finance.signature} />
+              </View>
+            ) : (
+              <View style={styles.signImageEmpty} />
+            )}
             <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
             {head_finance?.at && <Text style={styles.signDate}>{formatDate(head_finance.at)}</Text>}
           </View>
