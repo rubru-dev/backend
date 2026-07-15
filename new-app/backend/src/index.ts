@@ -7,6 +7,7 @@ dns.setDefaultResultOrder("ipv4first");
 import express from "express";
 import cors from "cors";
 import path from "path";
+import jwt from "jsonwebtoken";
 import rateLimit from "express-rate-limit";
 import { config } from "./config";
 import { authenticate } from "./middleware/auth";
@@ -60,7 +61,10 @@ const app = express();
 // Tanpa ini `req.ip` = IP proxy untuk SEMUA user, sehingga rate limiter menghitung seluruh
 // tim sebagai satu klien — jatah request dipakai bersama dan user acak kena 429.
 // Nilainya = jumlah hop proxy (nginx + Next.js = 2). Jangan pakai `true` (rawan spoof
-// header X-Forwarded-For). Verifikasi lewat GET /api/v1/health → field client_ip.
+// header X-Forwarded-For).
+// CATATAN: saat ini praktis tidak berpengaruh karena Next.js tidak meneruskan
+// X-Forwarded-For (lihat catatan pada rate limiter di bawah). Dibiarkan agar langsung
+// berfungsi bila kelak nginx/Next dikonfigurasi meneruskan IP asli.
 app.set("trust proxy", Number(process.env.TRUST_PROXY_HOPS ?? 2));
 
 // CORS
@@ -75,15 +79,42 @@ app.use(
 );
 
 // Rate limiting
+//
+// PENTING: request dari browser masuk lewat proxy rewrite Next.js (next.config.js),
+// dan header X-Forwarded-For TIDAK diteruskan ke backend — sudah diverifikasi di
+// produksi: req.headers["x-forwarded-for"] = null dan req.ip = ::ffff:127.0.0.1
+// untuk semua user. Akibatnya SEMUA user terlihat
+// beralamat sama, sehingga rate limit berbasis IP menjadi satu jatah bersama untuk
+// seluruh tim → user acak kena 429 (dulu bikin input lead gagal random).
+//
+// Karena itu kuncinya memakai identitas user dari JWT, bukan IP. Token hanya di-decode
+// (tanpa verify) — ini sekadar pengelompokan kuota, bukan kontrol keamanan; verifikasi
+// token yang sebenarnya tetap dilakukan middleware `authenticate` di tiap router.
+function rateLimitKey(req: express.Request): string {
+  const auth = req.headers.authorization;
+  if (auth?.startsWith("Bearer ")) {
+    try {
+      const decoded = jwt.decode(auth.slice(7)) as { sub?: string } | null;
+      if (decoded?.sub) return `user:${decoded.sub}`;
+    } catch {
+      /* token tidak terbaca → jatuh ke IP */
+    }
+  }
+  return `ip:${req.ip ?? "unknown"}`;
+}
+
 // max 100/15mnt terlalu ketat untuk dashboard entri data (satu halaman saja sudah
-// belasan request: list, filter, dropdown, invalidate). Dulu ini membuat input lead
-// gagal acak dengan 429. Bisa disetel via env bila perlu.
+// belasan request: list, filter, dropdown, invalidate). Bisa disetel via env bila perlu.
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: parseInt(process.env.RATE_LIMIT_MAX ?? "1000", 10),
   standardHeaders: true,
   legacyHeaders: false,
   message: { detail: "Terlalu banyak request, coba lagi dalam 15 menit" },
+  keyGenerator: rateLimitKey,
+  // Peringatan bawaan soal normalisasi IPv6 tidak relevan: kunci utama kita user JWT,
+  // dan IP di sini selalu 127.0.0.1 (proxy Next.js).
+  validate: { keyGeneratorIpFallback: false },
   skip: () => config.corsAllowAll, // skip rate limit di development
 });
 const loginLimiter = rateLimit({
@@ -106,26 +137,13 @@ app.use("/storage", express.static(path.resolve(config.storagePath)));
 app.use("/api/v1/storage", express.static(path.resolve(config.storagePath)));
 
 // Health check
-function healthPayload(req: express.Request) {
-  return {
+app.get("/health", (_req, res) => {
+  res.json({
     status: "ok",
     version: "1.0.0",
     timestamp: new Date().toISOString(),
-    // Diagnostik `trust proxy`: harus berisi IP publik user, bukan IP nginx/Cloudflare/Next.
-    // Kalau salah, rate limit dihitung bersama untuk semua user.
-    client_ip: req.ip,
-    // Rantai proxy apa adanya — untuk menentukan TRUST_PROXY_HOPS yang benar.
-    x_forwarded_for: req.headers["x-forwarded-for"] ?? null,
-    cf_connecting_ip: req.headers["cf-connecting-ip"] ?? null,
-    trust_proxy_hops: app.get("trust proxy"),
-  };
-}
-
-app.get("/health", (req, res) => res.json(healthPayload(req)));
-
-// Alias di bawah /api/v1: Next.js hanya mem-proxy /api/v1/* dan /storage/*, jadi /health
-// polos tidak tembus dari domain publik. Alias ini yang dipakai untuk cek IP dari browser.
-app.get("/api/v1/health", (req, res) => res.json(healthPayload(req)));
+  });
+});
 
 // Apply rate limiters
 app.use("/api/v1", apiLimiter);
