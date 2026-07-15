@@ -209,11 +209,20 @@ function formatRp(val: number | string) {
   return "Rp " + (Number(val) || 0).toLocaleString("id-ID");
 }
 
+// Alamat kadang berisi placeholder ("-", ".", "n/a") — kalau ditempel, label jadi "Mrs Sari - -".
+function meaningfulAlamat(alamat: unknown) {
+  const a = typeof alamat === "string" ? alamat.trim() : "";
+  if (!a) return "";
+  if (/^[-–—._\s]*$/.test(a)) return "";
+  if (/^(n\/a|na|none|null|kosong)$/i.test(a)) return "";
+  return a;
+}
+
 function leadDisplayName(lead: any) {
   if (!lead) return "";
   if (lead.display_name) return lead.display_name;
   const name = rawLeadName(lead);
-  const alamat = typeof lead.alamat === "string" ? lead.alamat.trim() : "";
+  const alamat = meaningfulAlamat(lead.alamat);
   return alamat ? `${name} - ${alamat}` : name;
 }
 

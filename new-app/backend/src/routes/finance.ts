@@ -22,10 +22,30 @@ function leadDisplayName(lead?: { salutation?: string | null; nama?: string | nu
   return lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama;
 }
 
+// Alamat sering diisi placeholder ("-", ".", "n/a"). Kalau ikut ditempel, label jadi
+// "Mrs Sari - -". Anggap nilai semacam itu sebagai kosong.
+function meaningfulAlamat(alamat?: string | null) {
+  const a = alamat?.trim();
+  if (!a) return "";
+  if (/^[-–—._\s]*$/.test(a)) return "";
+  if (/^(n\/a|na|none|null|kosong)$/i.test(a)) return "";
+  return a;
+}
+
 function leadDisplayLabel(lead?: { salutation?: string | null; nama?: string | null; alamat?: string | null } | null) {
   const name = leadDisplayName(lead);
-  const alamat = lead?.alamat?.trim();
+  const alamat = meaningfulAlamat(lead?.alamat);
   return alamat ? `${name} - ${alamat}` : name;
+}
+
+// Peringkat relevansi hasil search: nama persis → diawali query → sisanya (contains).
+// Tanpa ini, "Mrs. Sari" bisa tenggelam di bawah "Mrs. Dian Sari" yang lebih baru.
+function nameRelevanceRank(nama: string | null | undefined, q: string) {
+  const n = (nama ?? "").trim().toLowerCase();
+  if (!q) return 0;
+  if (n === q) return 0;
+  if (n.startsWith(q)) return 1;
+  return 2;
 }
 
 function canFullyEditInvoice(req: Request) {
@@ -916,7 +936,15 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
     orderBy: { created_at: "desc" },
     take: limit,
   });
-  return res.json({ items: leads.map((lead) => ({ ...lead, display_name: leadDisplayLabel(lead) })) });
+
+  // Nama persis dulu, lalu yang diawali query, baru sisanya. Di dalam tiap kelompok
+  // urutan DB (terbaru dulu) dipertahankan karena Array.sort stabil.
+  const q = parsedSearch?.rest.trim().toLowerCase() ?? "";
+  const items = q
+    ? [...leads].sort((a, b) => nameRelevanceRank(a.nama, q) - nameRelevanceRank(b.nama, q))
+    : leads;
+
+  return res.json({ items: items.map((lead) => ({ ...lead, display_name: leadDisplayLabel(lead) })) });
 });
 
 // ── Bank Accounts ─────────────────────────────────────────────────────────────
