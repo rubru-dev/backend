@@ -106,10 +106,30 @@ export function requireRole(...roleNames: string[]) {
   };
 }
 
+// ── Super Admin ───────────────────────────────────────────────────────────────
+// Role berakses penuh yang MELEWATI seluruh pengecekan permission. Tujuannya: permission
+// baru yang ditambahkan di kode langsung bisa dipakai tanpa perlu menjalankan seeder di
+// server (seeder rawan bentrok / tidak ikut ter-deploy). Role lain cukup diatur lewat
+// menu Role & Access saat runtime.
+//
+// Ini satu-satunya tempat nama role masih dipakai sebagai syarat akses — disengaja, dan
+// mengikuti pola yang sudah dipakai di new-app. Bisa disetel lewat env bila namanya beda.
+const SUPER_ADMIN_ROLES = (process.env.SUPER_ADMIN_ROLES ?? "Super Admin,ADMIN")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+export function isSuperAdmin(user: AuthUser | undefined): boolean {
+  if (!user) return false;
+  const roles = user.roles?.length ? user.roles : [user.role];
+  return roles.some((r) => SUPER_ADMIN_ROLES.includes(r));
+}
+
 // Check by specific permission string e.g. "agreements.activate"
 export function requirePermission(...perms: string[]) {
   return (req: AuthRequest, res: Response, next: NextFunction) => {
     if (!req.user) return res.status(403).json({ error: "Akses ditolak" });
+    if (isSuperAdmin(req.user)) return next(); // akses penuh, tanpa perlu data permission
     if (!perms.every((p) => req.user!.permissions.has(p))) {
       return res.status(403).json({ error: "Akses ditolak: tidak ada izin" });
     }
@@ -118,5 +138,7 @@ export function requirePermission(...perms: string[]) {
 }
 
 export function hasPermission(user: AuthUser | undefined, perm: string): boolean {
-  return user?.permissions.has(perm) ?? false;
+  if (!user) return false;
+  if (isSuperAdmin(user)) return true;
+  return user.permissions.has(perm);
 }

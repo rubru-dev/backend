@@ -1,6 +1,6 @@
 import { Router } from "express";
 import prisma from "../prisma";
-import { authenticate, requireRole, requirePermission, type AuthRequest } from "../middleware/auth";
+import { authenticate, requirePermission, type AuthRequest } from "../middleware/auth";
 import { createUploader, publicUploadPath, deleteFileIfExists } from "../lib/upload";
 
 const router = Router();
@@ -95,7 +95,7 @@ router.post("/:surveyId", requirePermission("surveys.b2b_report"), async (req, r
   }
 });
 
-router.post("/:surveyId/approve", requireRole("ADMIN"), async (req: AuthRequest, res, next) => {
+router.post("/:surveyId/approve", requirePermission("after_surveys.approve"), async (req: AuthRequest, res, next) => {
   try {
     const { surveyId } = req.params;
     const ciCoError = await ensureCheckedInOut(surveyId);

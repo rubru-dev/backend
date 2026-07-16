@@ -475,6 +475,48 @@ Design:
 - Follow Up Leads table dengan riwayat follow up dan attachment preview.
 - Kalender Survey: calendar view + list samping.
 
+#### Laporan Survey (template per modul)
+
+Komponen `frontend/src/components/kalender-survey.tsx` dipakai semua kalender survey, dengan
+dua template laporan yang dipilih otomatis dari prop `modul` / `useGoldenSurveyReportTemplate`:
+
+| Template | Dipakai modul | Isi |
+|---|---|---|
+| **After Survey Report — Survey Client** | `sales-admin`, `telemarketing`, `filter-air` | Data Klien (auto dari lead), Data Rumah/Lokasi Proyek, Kondisi Lokasi (foto), Kebutuhan Klien, Catatan Tambahan. **Tanpa blok tanda tangan.** |
+| **Laporan Survey Golden (pest)** | `golden` + `useGoldenSurveyReportTemplate` | Area disurvey, jenis hama, temuan, treatment, material, foto, TTD |
+
+- Referensi template konstruksi: `new-app/refrence/Template_After_Survey_Konstruksi.docx`.
+- **Field "Terisi otomatis"** (ditandai di template) diambil dari lead yang dijadwalkan survey,
+  read-only di form, dan dibaca ulang tiap generate PDF (jadi selalu ikut data lead terbaru):
+
+  | Field | Sumber (`leadDict` di `backend/src/routes/bd.ts`) |
+  |---|---|
+  | Nama Klien | `display_name` (salutation + nama), fallback `nama` — sama seperti invoice & BAST |
+  | Nomor Telepon | `nomor_telepon` |
+  | Alamat Klien | `alamat` |
+  | Tanggal Survei | `tanggal_survey` + `jam_survey` (dari jadwal survey) |
+
+  PIC Survey ikut ditampilkan/tercetak walau tidak ditandai di template.
+- Jenis Bangunan & Status Bangunan = dropdown (`KONSTRUKSI_JENIS_BANGUNAN` / `KONSTRUKSI_STATUS_BANGUNAN`).
+  Opsi lebih lengkap dari contoh di docx; `withCurrentValue()` menjaga nilai lama yang di luar daftar
+  tetap muncul kalau daftar opsi diubah.
+- Isian laporan disimpan sebagai JSON di kolom `Lead.catatan_survey`:
+  `{ type: "konstruksi_survey_report", data: {...} }` atau `{ type: "golden_survey_report", data: {...} }`.
+  `catatan_survey` lama yang masih teks biasa otomatis masuk ke field "Catatan Tambahan".
+- `luas_rumah` disimpan juga ke kolom `Lead.luasan_tanah`; foto Kondisi Lokasi disimpan ke `Lead.foto_survey`
+  (foto lama di `foto_survey` otomatis ditarik ke baris Kondisi Lokasi pertama).
+- Foto kondisi lokasi otomatis diberi cap timestamp + nama lokasi GPS via canvas.
+- Tiap section (kecuali Data Klien) bisa disembunyikan dan dikembalikan lagi — hidden section
+  tidak ikut tercetak di PDF.
+- PDF: komponen `frontend/src/components/after-survey-pdf.tsx` (`@react-pdf/renderer`, `<Page size="A4">`),
+  pola sama dengan `invoice-pdf.tsx` — `pdf(<AfterSurveyPDF/>).toBlob()` + `saveAs()`, jadi hasilnya
+  **file .pdf yang langsung terdownload**, bukan window print HTML. Kop surat identik invoice:
+  logo via `getLogoBase64()` (`@/lib/get-logo`) + nama, tagline, alamat kantor, telp, email.
+- Dua entry download: tombol di header kalender (filter tanggal/PIC/client, 1 laporan per client)
+  dan tombol per-client di modal detail untuk survey yang sudah disetujui (buat lampiran laporan).
+- `SectionTitle` pakai `minPresenceAhead` supaya judul/header tabel tidak tertinggal sendirian
+  di dasar halaman saat konten pecah ke halaman berikutnya.
+
 ### 9.5 Sales Admin Product dan Mitra
 
 Produk:

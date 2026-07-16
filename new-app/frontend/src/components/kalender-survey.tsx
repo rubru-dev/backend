@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { getLogoBase64 } from "@/lib/get-logo";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -209,14 +210,149 @@ function serializeGoldenSurveyReportForm(form: GoldenSurveyReportForm) {
   return JSON.stringify({ type: "golden_survey_report", data: form });
 }
 
+// ── Laporan After Survey Konstruksi ───────────────────────────────────────────
+
+// Template docx hanya mencontohkan "Rumah tinggal / ruko / kantor / lainnya" dan
+// "Dihuni / kosong / dalam renovasi" — dilengkapi dengan tipe yang lazim ditemui di lapangan.
+const KONSTRUKSI_JENIS_BANGUNAN = [
+  "Rumah tinggal",
+  "Ruko",
+  "Apartemen",
+  "Kantor",
+  "Toko / Retail",
+  "Restoran / Cafe",
+  "Kost / Kontrakan",
+  "Villa",
+  "Gudang",
+  "Pabrik",
+  "Lainnya",
+];
+const KONSTRUKSI_STATUS_BANGUNAN = [
+  "Dihuni",
+  "Kosong",
+  "Dalam renovasi",
+  "Masih tahap pembangunan",
+  "Baru selesai dibangun",
+  "Disewakan",
+  "Tanah kosong (belum ada bangunan)",
+];
+const KONSTRUKSI_SECTION_LABELS: Record<string, string> = {
+  data_rumah: "2. Data Rumah / Lokasi Proyek",
+  kondisi_lokasi: "3. Kondisi Lokasi",
+  kebutuhan: "4. Kebutuhan Klien",
+  catatan_tambahan: "Catatan Tambahan",
+};
+
+type KonstruksiSurveyReportForm = {
+  alamat_rumah: string;
+  jenis_bangunan: string;
+  jumlah_lantai: string;
+  luas_rumah: string;
+  status_bangunan: string;
+  hidden_sections: string[];
+  kondisi_lokasi: { dokumentasi: string[]; keterangan: string }[];
+  kebutuhan: { area: string; kebutuhan: string }[];
+  catatan_tambahan: string;
+};
+
+/**
+ * Nama klien untuk dokumen resmi: pakai display_name (salutation + nama) dari leadDict,
+ * konsisten dengan invoice & BAST. Fallback ke nama mentah kalau tidak ada.
+ */
+function leadDisplayName(item: any) {
+  if (item?.display_name) return String(item.display_name);
+  return item?.salutation ? `${item.salutation} ${item.nama ?? ""}`.trim() : String(item?.nama ?? "");
+}
+
+/** Tanggal survei terformat — sumbernya jadwal survey di lead ("Terisi otomatis" di template) */
+function formatTanggalSurveiLabel(tanggal?: string | null, jam?: string | null) {
+  if (!tanggal) return "";
+  const key = String(tanggal).split("T")[0];
+  const d = new Date(`${key}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return "";
+  const label = d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
+  return jam ? `${label} · ${jam}` : label;
+}
+
+/**
+ * Jaga-jaga kalau laporan tersimpan punya nilai di luar daftar opsi (mis. daftarnya
+ * berubah setelah laporan dibuat) — nilai lama tetap muncul, tidak hilang diam-diam.
+ */
+function withCurrentValue(options: string[], current?: string) {
+  return current && !options.includes(current) ? [...options, current] : options;
+}
+
+/** foto_survey di DB: JSON array, atau string tunggal (format lama) */
+function parseFotoList(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [raw];
+  } catch {
+    return [raw];
+  }
+}
+
+function defaultKonstruksiSurveyReportForm(item?: any): KonstruksiSurveyReportForm {
+  // Survey lama menyimpan foto di kolom foto_survey — tarik ke baris kondisi lokasi
+  const legacyFotos = parseFotoList(item?.foto_survey);
+  return {
+    alamat_rumah: item?.alamat ?? "",
+    jenis_bangunan: "",
+    jumlah_lantai: "",
+    luas_rumah: item?.luasan_tanah != null ? String(item.luasan_tanah) : "",
+    status_bangunan: "",
+    hidden_sections: [],
+    kondisi_lokasi: [{ dokumentasi: legacyFotos, keterangan: "" }],
+    kebutuhan: [{ area: "", kebutuhan: "" }],
+    catatan_tambahan: "",
+  };
+}
+
+function parseKonstruksiSurveyReportForm(raw: string | null | undefined, item?: any): KonstruksiSurveyReportForm {
+  const fallback = defaultKonstruksiSurveyReportForm(item);
+  if (!raw) return fallback;
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed?.type !== "konstruksi_survey_report") return fallback;
+    const data = parsed.data ?? {};
+    return {
+      ...fallback,
+      ...data,
+      hidden_sections: Array.isArray(data.hidden_sections) ? data.hidden_sections.map(String) : fallback.hidden_sections,
+      kondisi_lokasi: normalizeGoldenPhotoRows(data.kondisi_lokasi, fallback.kondisi_lokasi),
+      kebutuhan: Array.isArray(data.kebutuhan) && data.kebutuhan.length
+        ? data.kebutuhan.map((row: any) => ({ area: row?.area ?? "", kebutuhan: row?.kebutuhan ?? "" }))
+        : fallback.kebutuhan,
+      catatan_tambahan: typeof data.catatan_tambahan === "string" ? data.catatan_tambahan : fallback.catatan_tambahan,
+    };
+  } catch {
+    // catatan_survey lama = teks biasa, bukan JSON
+    return { ...fallback, catatan_tambahan: String(raw) };
+  }
+}
+
+function serializeKonstruksiSurveyReportForm(form: KonstruksiSurveyReportForm) {
+  return JSON.stringify({ type: "konstruksi_survey_report", data: form });
+}
+
 export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }: KalenderSurveyProps) {
   const qc = useQueryClient();
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [filterUserId, setFilterUserId] = useState<string>("_all");
-  const pdfLabel = useGoldenSurveyReportTemplate ? "Laporan Survey Golden" : "Kalender Survey";
+  // Modul konstruksi (sales-admin / telemarketing / filter-air) pakai template After Survey Konstruksi;
+  // modul golden tetap pakai laporan pest.
+  const konstruksiTemplate = !useGoldenSurveyReportTemplate && modul !== "golden";
+  const reportTemplate = useGoldenSurveyReportTemplate || konstruksiTemplate;
+  const pdfLabel = useGoldenSurveyReportTemplate
+    ? "Laporan Survey Golden"
+    : konstruksiTemplate
+      ? "Laporan After Survey"
+      : "Kalender Survey";
 
   // PDF options dialog
   const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfDari, setPdfDari] = useState("");
   const [pdfSampai, setPdfSampai] = useState("");
   const [pdfPics, setPdfPics] = useState<string[]>([]);
@@ -251,6 +387,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   const [listDetailLuasan, setListDetailLuasan] = useState("");
   const [listDetailCatatan, setListDetailCatatan] = useState("");
   const [goldenReportForm, setGoldenReportForm] = useState<GoldenSurveyReportForm>(() => defaultGoldenSurveyReportForm());
+  const [konstruksiReportForm, setKonstruksiReportForm] = useState<KonstruksiSurveyReportForm>(() => defaultKonstruksiSurveyReportForm());
   const listFotoRef = useRef<HTMLInputElement>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
@@ -429,6 +566,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     setListDetailLuasan("");
     setListDetailCatatan("");
     setGoldenReportForm(defaultGoldenSurveyReportForm());
+    setKonstruksiReportForm(defaultKonstruksiSurveyReportForm());
   }
 
   function openListDetail(item: any) {
@@ -437,6 +575,51 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     setListDetailLuasan(item.luasan_tanah != null ? String(item.luasan_tanah) : "");
     setListDetailCatatan(item.catatan_survey ?? "");
     setGoldenReportForm(parseGoldenSurveyReportForm(item.catatan_survey, item));
+    setKonstruksiReportForm(parseKonstruksiSurveyReportForm(item.catatan_survey, item));
+  }
+
+  function updateKonstruksiReport<K extends keyof KonstruksiSurveyReportForm>(key: K, value: KonstruksiSurveyReportForm[K]) {
+    setKonstruksiReportForm((prev) => ({ ...prev, [key]: value }));
+  }
+
+  function updateKonstruksiReportRow<K extends keyof KonstruksiSurveyReportForm>(
+    key: K,
+    index: number,
+    patch: Record<string, any>
+  ) {
+    setKonstruksiReportForm((prev) => {
+      const rows = Array.isArray(prev[key]) ? ([...(prev[key] as any[])] as any[]) : [];
+      rows[index] = { ...(rows[index] ?? {}), ...patch };
+      return { ...prev, [key]: rows };
+    });
+  }
+
+  function addKonstruksiReportRow<K extends keyof KonstruksiSurveyReportForm>(key: K, row: any) {
+    setKonstruksiReportForm((prev) => {
+      const rows = Array.isArray(prev[key]) ? ([...(prev[key] as any[])] as any[]) : [];
+      return { ...prev, [key]: [...rows, row] };
+    });
+  }
+
+  function removeKonstruksiReportRow<K extends keyof KonstruksiSurveyReportForm>(key: K, index: number) {
+    setKonstruksiReportForm((prev) => {
+      const rows = Array.isArray(prev[key]) ? ([...(prev[key] as any[])] as any[]) : [];
+      if (rows.length <= 1) return prev;
+      return { ...prev, [key]: rows.filter((_, i) => i !== index) };
+    });
+  }
+
+  function konstruksiReportPhotos() {
+    return konstruksiReportForm.kondisi_lokasi
+      .flatMap((row) => Array.isArray(row.dokumentasi) ? row.dokumentasi : [])
+      .filter(Boolean);
+  }
+
+  /** Foto yang akan disimpan ke foto_survey — sumbernya beda per template */
+  function activeReportPhotos() {
+    if (useGoldenSurveyReportTemplate) return goldenReportPhotos();
+    if (konstruksiTemplate) return konstruksiReportPhotos();
+    return listDetailFotos;
   }
 
   function updateGoldenReport<K extends keyof GoldenSurveyReportForm>(key: K, value: GoldenSurveyReportForm[K]) {
@@ -477,15 +660,21 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   }
 
   function listDetailPayload() {
-    if (!useGoldenSurveyReportTemplate) {
+    if (useGoldenSurveyReportTemplate) {
       return {
-        luasan_tanah: listDetailLuasan || undefined,
-        catatan_survey: listDetailCatatan || undefined,
+        luasan_tanah: goldenReportForm.luas_area || undefined,
+        catatan_survey: serializeGoldenSurveyReportForm(goldenReportForm),
+      };
+    }
+    if (konstruksiTemplate) {
+      return {
+        luasan_tanah: konstruksiReportForm.luas_rumah || undefined,
+        catatan_survey: serializeKonstruksiSurveyReportForm(konstruksiReportForm),
       };
     }
     return {
-      luasan_tanah: goldenReportForm.luas_area || undefined,
-      catatan_survey: serializeGoldenSurveyReportForm(goldenReportForm),
+      luasan_tanah: listDetailLuasan || undefined,
+      catatan_survey: listDetailCatatan || undefined,
     };
   }
 
@@ -535,6 +724,27 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       const current = rows[index] ?? { dokumentasi: [], keterangan: "" };
       rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...raws] };
       return { ...prev, [key]: rows };
+    });
+    setListFotoProcessing(false);
+    e.target.value = "";
+  }
+
+  async function handleKonstruksiReportPhotoChange(
+    e: React.ChangeEvent<HTMLInputElement>,
+    index: number
+  ) {
+    const files = Array.from(e.target.files ?? []);
+    if (!files.length) return;
+    setListFotoProcessing(true);
+    // Foto kondisi lokasi tetap dicap timestamp + GPS seperti bukti survey sebelumnya
+    const coords = await getLocation();
+    const raws = await Promise.all(files.map(readFileAsDataUrl));
+    const stamped = await Promise.all(raws.map((r) => addTimestamp(r, coords)));
+    setKonstruksiReportForm((prev) => {
+      const rows = [...prev.kondisi_lokasi];
+      const current = rows[index] ?? { dokumentasi: [], keterangan: "" };
+      rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...stamped] };
+      return { ...prev, kondisi_lokasi: rows };
     });
     setListFotoProcessing(false);
     e.target.value = "";
@@ -779,6 +989,48 @@ ${sections}
     w.document.close();
   }
 
+  /** Generate PDF laporan After Survey (file .pdf, bukan window print) */
+  async function handleDownloadKonstruksiSurveyPdf(filtered: any[], dari?: string, sampai?: string) {
+    if (!filtered.length) {
+      toast.error("Tidak ada data survey pada filter ini");
+      return;
+    }
+    setPdfBusy(true);
+    try {
+      const today = new Date();
+      const reports = filtered.map((item: any, idx: number) => {
+        const report = parseKonstruksiSurveyReportForm(item.catatan_survey, item);
+        const nomor = `RB-KS-SVR/${String(idx + 1).padStart(3, "0")}/${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+        // Field "Terisi otomatis" di template — semuanya diambil dari data lead yang dijadwalkan survey
+        return {
+          nomor,
+          nama: leadDisplayName(item),
+          nomor_telepon: item.nomor_telepon,
+          alamat: item.alamat,
+          tanggal_survey: item.tanggal_survey,
+          jam_survey: item.jam_survey,
+          pic_survey: item.pic_survey,
+          ...report,
+        };
+      });
+
+      const logoUrl = await getLogoBase64();
+      const { AfterSurveyPDF } = await import("@/components/after-survey-pdf");
+      const { pdf } = await import("@react-pdf/renderer");
+      const { saveAs } = await import("file-saver");
+      const blob = await pdf(<AfterSurveyPDF reports={reports} logoUrl={logoUrl} />).toBlob();
+
+      const namaFile = filtered.length === 1
+        ? `after-survey-${String(filtered[0].nama ?? "client").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`
+        : `after-survey-${dari && sampai ? `${dari}_${sampai}` : `${MONTH_NAMES_ID[bulan - 1]}-${tahun}`}`;
+      saveAs(blob, `${namaFile}.pdf`);
+    } catch {
+      toast.error("Gagal generate PDF laporan survey");
+    } finally {
+      setPdfBusy(false);
+    }
+  }
+
   function letterheadHtml() {
     return `
       <div class="letterhead">
@@ -806,6 +1058,11 @@ ${sections}
 
     if (useGoldenSurveyReportTemplate) {
       handleDownloadGoldenSurveyPdf(filtered, dari, sampai, pics);
+      return;
+    }
+
+    if (konstruksiTemplate) {
+      void handleDownloadKonstruksiSurveyPdf(filtered, dari, sampai);
       return;
     }
 
@@ -1039,7 +1296,7 @@ ${sections}
             </button>
           </div>
           <Button variant="outline" size="sm" onClick={openPdfDialog} disabled={isLoading || items.length === 0}>
-            <FileDown className="h-4 w-4 mr-1.5" /> Download PDF {useGoldenSurveyReportTemplate ? "Laporan" : ""}
+            <FileDown className="h-4 w-4 mr-1.5" /> Download PDF {reportTemplate ? "Laporan" : ""}
           </Button>
         </div>
       </div>
@@ -1663,7 +1920,7 @@ ${sections}
 
       {/* ── List Detail Modal ── */}
       <Dialog open={!!listDetailItem} onOpenChange={(v) => { if (!v) closeListDetail(); }}>
-        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogContent className={`${konstruksiTemplate ? "max-w-3xl" : "max-w-lg"} max-h-[90vh] overflow-y-auto`}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-amber-500" />
@@ -1737,7 +1994,36 @@ ${sections}
                 />
               )}
 
-              {!useGoldenSurveyReportTemplate && (
+              {konstruksiTemplate && (
+                <KonstruksiSurveyReportFields
+                  form={konstruksiReportForm}
+                  item={listDetailItem}
+                  disabled={listDetailItem.survey_approval_status === "approved"}
+                  updateField={updateKonstruksiReport}
+                  updateRow={updateKonstruksiReportRow}
+                  addRow={addKonstruksiReportRow}
+                  removeRow={removeKonstruksiReportRow}
+                  onPhotoChange={handleKonstruksiReportPhotoChange}
+                  onPreviewPhoto={setLightboxSrc}
+                  photoProcessing={listFotoProcessing}
+                  canUpload={canApprove || currentUserName === listDetailItem.pic_survey}
+                />
+              )}
+
+              {konstruksiTemplate && listDetailItem.survey_approval_status === "approved" && (
+                <Button
+                  variant="outline"
+                  className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
+                  disabled={pdfBusy}
+                  onClick={() => void handleDownloadKonstruksiSurveyPdf([listDetailItem])}
+                >
+                  {pdfBusy
+                    ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Menyiapkan PDF...</>
+                    : <><FileDown className="h-4 w-4 mr-1.5" /> Download PDF Laporan</>}
+                </Button>
+              )}
+
+              {!reportTemplate && (
                 <>
               {/* Luasan Tanah */}
               <div className="space-y-1.5">
@@ -1767,7 +2053,7 @@ ${sections}
               )}
 
               {/* Foto Bukti Survey */}
-              {!useGoldenSurveyReportTemplate && (
+              {!reportTemplate && (
               <div className="space-y-1.5">
                 <Label>Foto Bukti Survey {!canApprove && listDetailItem.survey_approval_status !== "approved" && <span className="text-destructive">*</span>}</Label>
 
@@ -1822,7 +2108,7 @@ ${sections}
               {listDetailItem.survey_approval_status !== "approved" && (
                 <div className="flex gap-2 pt-1">
                   {canApprove ? (
-                    (useGoldenSurveyReportTemplate ? goldenReportPhotos().length > 0 : listDetailFotos.length > 0) ? (
+                    activeReportPhotos().length > 0 ? (
                       <>
                         <Button
                           variant="outline"
@@ -1837,7 +2123,7 @@ ${sections}
                           disabled={approveMut.isPending}
                           onClick={() => approveMut.mutate({
                             id: listDetailItem.id,
-                            foto_survey: useGoldenSurveyReportTemplate ? goldenReportPhotos() : listDetailFotos,
+                            foto_survey: activeReportPhotos(),
                             ...listDetailPayload(),
                           })}
                         >
@@ -1848,16 +2134,20 @@ ${sections}
                     ) : (
                       <div className="w-full text-center py-3 text-sm text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
                         <Clock className="h-5 w-5 mx-auto mb-1.5 text-amber-500" />
-                        {useGoldenSurveyReportTemplate ? "Menunggu PIC upload dokumentasi foto area survey atau temuan hama" : "Menunggu PIC upload bukti foto survey"}
+                        {useGoldenSurveyReportTemplate
+                          ? "Menunggu PIC upload dokumentasi foto area survey atau temuan hama"
+                          : konstruksiTemplate
+                            ? "Menunggu PIC upload foto kondisi lokasi"
+                            : "Menunggu PIC upload bukti foto survey"}
                       </div>
                     )
                   ) : currentUserName === listDetailItem.pic_survey ? (
                     <Button
                       className="w-full"
-                      disabled={(useGoldenSurveyReportTemplate ? goldenReportPhotos().length === 0 : listDetailFotos.length === 0) || buktimut.isPending || listFotoProcessing}
+                      disabled={activeReportPhotos().length === 0 || buktimut.isPending || listFotoProcessing}
                       onClick={() => buktimut.mutate({
                         id: listDetailItem.id,
-                        foto_survey: useGoldenSurveyReportTemplate ? goldenReportPhotos() : listDetailFotos,
+                        foto_survey: activeReportPhotos(),
                         ...listDetailPayload(),
                       })}
                     >
@@ -1982,7 +2272,7 @@ ${sections}
                 <Input type="date" value={pdfSampai} onChange={(e) => setPdfSampai(e.target.value)} className="h-8 text-sm" />
               </div>
             </div>
-            {useGoldenSurveyReportTemplate && (
+            {reportTemplate && (
               <div className="space-y-1">
                 <Label className="text-xs">Filter Client Survey <span className="text-muted-foreground font-normal">(opsional, bisa lebih dari satu)</span></Label>
                 <Popover>
@@ -2070,7 +2360,7 @@ ${sections}
                 className="bg-amber-500 hover:bg-amber-600 text-white"
                 onClick={() => { setPdfOpen(false); handleDownloadPdf(pdfDari || undefined, pdfSampai || undefined, pdfPics.length ? pdfPics : undefined, pdfClientIds.length ? pdfClientIds : undefined); }}
               >
-                <FileDown className="h-4 w-4 mr-1.5" /> Download PDF {useGoldenSurveyReportTemplate ? "Laporan" : ""}
+                <FileDown className="h-4 w-4 mr-1.5" /> Download PDF {reportTemplate ? "Laporan" : ""}
               </Button>
             </div>
           </div>
@@ -2099,6 +2389,330 @@ ${sections}
         </div>
       )}
 
+    </div>
+  );
+}
+
+function KonstruksiSurveyReportFields({
+  form,
+  item,
+  disabled,
+  updateField,
+  updateRow,
+  addRow,
+  removeRow,
+  onPhotoChange,
+  onPreviewPhoto,
+  photoProcessing,
+  canUpload,
+}: {
+  form: KonstruksiSurveyReportForm;
+  item: any;
+  disabled: boolean;
+  updateField: <K extends keyof KonstruksiSurveyReportForm>(key: K, value: KonstruksiSurveyReportForm[K]) => void;
+  updateRow: <K extends keyof KonstruksiSurveyReportForm>(key: K, index: number, patch: Record<string, any>) => void;
+  addRow: <K extends keyof KonstruksiSurveyReportForm>(key: K, row: any) => void;
+  removeRow: <K extends keyof KonstruksiSurveyReportForm>(key: K, index: number) => void;
+  onPhotoChange: (e: React.ChangeEvent<HTMLInputElement>, index: number) => void;
+  onPreviewPhoto: (src: string) => void;
+  photoProcessing: boolean;
+  canUpload: boolean;
+}) {
+  const hiddenSections = form.hidden_sections ?? [];
+  const isHidden = (section: string) => hiddenSections.includes(section);
+  const hideSection = (section: string) =>
+    updateField("hidden_sections", Array.from(new Set([...hiddenSections, section])));
+  const restoreSection = (section: string) =>
+    updateField("hidden_sections", hiddenSections.filter((s) => s !== section));
+  const removePhoto = (rowIndex: number, photoIndex: number) => {
+    const row = form.kondisi_lokasi[rowIndex];
+    updateRow("kondisi_lokasi", rowIndex, { dokumentasi: row.dokumentasi.filter((_, i) => i !== photoIndex) });
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-orange-200 bg-orange-50/40 p-3">
+      <div className="border-l-4 border-orange-500 pl-3">
+        <h3 className="text-sm font-bold uppercase text-orange-600">After Survey Report</h3>
+        <p className="text-xs text-muted-foreground">Survey Client — isian mengikuti template laporan resmi.</p>
+      </div>
+
+      {hiddenSections.length > 0 && (
+        <div className="space-y-2 rounded-md border border-dashed border-orange-200 bg-white p-3">
+          <p className="text-xs font-semibold text-muted-foreground">Section disembunyikan</p>
+          <div className="flex flex-wrap gap-2">
+            {hiddenSections.map((section) => (
+              <Button
+                key={section}
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs"
+                disabled={disabled}
+                onClick={() => restoreSection(section)}
+              >
+                <RotateCcw className="mr-1 h-3.5 w-3.5" /> Kembalikan {KONSTRUKSI_SECTION_LABELS[section] ?? section}
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 1. Data Klien — "Terisi otomatis dari leads" sesuai template */}
+      <div className="space-y-2">
+        <p className="text-sm font-semibold">1. Data Klien</p>
+        <div className="rounded-md border bg-white p-3 space-y-1.5 text-sm">
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Nama Klien</span>
+            <span className="font-medium text-right">{leadDisplayName(item) || "—"}</span>
+          </div>
+          <div className="flex justify-between gap-4">
+            <span className="text-muted-foreground">Nomor Telepon</span>
+            <span className="font-medium text-right">{item?.nomor_telepon || "—"}</span>
+          </div>
+          <div className="flex items-start justify-between gap-4">
+            <span className="text-muted-foreground shrink-0">Alamat Klien</span>
+            <span className="font-medium text-right">{item?.alamat || "—"}</span>
+          </div>
+          <p className="pt-1 text-[11px] text-muted-foreground italic">
+            Terisi otomatis dari data lead yang dijadwalkan survey — ubah lewat data lead, bukan di sini.
+          </p>
+        </div>
+      </div>
+
+      {/* 2. Data Rumah / Lokasi Proyek */}
+      {!isHidden("data_rumah") && (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-semibold">2. Data Rumah / Lokasi Proyek</p>
+            {!disabled && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => hideSection("data_rumah")}>
+                <EyeOff className="mr-1 h-3.5 w-3.5" /> Sembunyikan
+              </Button>
+            )}
+          </div>
+          <div className="space-y-3 rounded-md border bg-white p-3">
+            <div className="space-y-1.5">
+              <Label>Alamat Rumah</Label>
+              <Input
+                value={form.alamat_rumah}
+                onChange={(e) => updateField("alamat_rumah", e.target.value)}
+                placeholder="Alamat lengkap lokasi proyek"
+                disabled={disabled}
+              />
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>Jenis Bangunan</Label>
+                <Select
+                  value={form.jenis_bangunan || "__none__"}
+                  onValueChange={(v) => updateField("jenis_bangunan", v === "__none__" ? "" : v)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger><SelectValue placeholder="Pilih jenis bangunan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Pilih salah satu</SelectItem>
+                    {withCurrentValue(KONSTRUKSI_JENIS_BANGUNAN, form.jenis_bangunan).map((v) => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Status Bangunan</Label>
+                <Select
+                  value={form.status_bangunan || "__none__"}
+                  onValueChange={(v) => updateField("status_bangunan", v === "__none__" ? "" : v)}
+                  disabled={disabled}
+                >
+                  <SelectTrigger><SelectValue placeholder="Pilih status bangunan" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Pilih salah satu</SelectItem>
+                    {withCurrentValue(KONSTRUKSI_STATUS_BANGUNAN, form.status_bangunan).map((v) => (
+                      <SelectItem key={v} value={v}>{v}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Jumlah Lantai</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  value={form.jumlah_lantai}
+                  onChange={(e) => updateField("jumlah_lantai", e.target.value)}
+                  placeholder="Contoh: 2"
+                  disabled={disabled}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Luas Rumah (m²)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step="0.01"
+                  value={form.luas_rumah}
+                  onChange={(e) => updateField("luas_rumah", e.target.value)}
+                  placeholder="Contoh: 120.5"
+                  disabled={disabled}
+                />
+              </div>
+            </div>
+            {/* "Terisi otomatis" di template — nilainya ditampilkan biar jelas apa yang tercetak */}
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground">Tanggal Survei</Label>
+                <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">
+                  {formatTanggalSurveiLabel(item?.tanggal_survey, item?.jam_survey) || "—"}
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-muted-foreground">PIC Survey</Label>
+                <div className="flex h-9 items-center rounded-md border bg-muted/40 px-3 text-sm">
+                  {item?.pic_survey || "—"}
+                </div>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground italic">
+              Tanggal survei &amp; PIC terisi otomatis dari jadwal survey — ubah lewat &quot;Edit jadwal&quot;.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Kondisi Lokasi */}
+      {!isHidden("kondisi_lokasi") && (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">
+                3. Kondisi Lokasi {canUpload && !disabled && <span className="text-destructive">*</span>}
+              </p>
+              <p className="text-[11px] text-muted-foreground">Foto lokasi (timestamp + GPS otomatis) | Keterangan</p>
+            </div>
+            {!disabled && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => hideSection("kondisi_lokasi")}>
+                <EyeOff className="mr-1 h-3.5 w-3.5" /> Sembunyikan
+              </Button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {form.kondisi_lokasi.map((row, i) => (
+              <div key={i} className="grid grid-cols-[28px_1.4fr_1fr_34px] gap-2 items-start rounded-md border bg-white p-2">
+                <span className="pt-2 text-center text-xs text-muted-foreground">{i + 1}</span>
+                <div className="space-y-2">
+                  {row.dokumentasi.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {row.dokumentasi.map((src, photoIndex) => (
+                        <div key={photoIndex} className="relative group cursor-pointer" onClick={() => onPreviewPhoto(src)}>
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img src={src} alt={`kondisi lokasi ${i + 1}-${photoIndex + 1}`} className="h-16 w-20 rounded border object-cover" />
+                          {!disabled && canUpload && (
+                            <button
+                              type="button"
+                              className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-xs text-white opacity-0 transition-opacity group-hover:opacity-100"
+                              onClick={(e) => { e.stopPropagation(); removePhoto(i, photoIndex); }}
+                            >×</button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {!disabled && canUpload && (
+                    <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed px-3 py-2 text-xs text-muted-foreground hover:border-primary/60">
+                      <Upload className="h-3.5 w-3.5" /> Upload foto lokasi
+                      <input type="file" accept="image/*" multiple capture="environment" className="hidden" onChange={(e) => onPhotoChange(e, i)} />
+                    </label>
+                  )}
+                </div>
+                <Input
+                  value={row.keterangan}
+                  onChange={(e) => updateRow("kondisi_lokasi", i, { keterangan: e.target.value })}
+                  placeholder="Jelaskan kondisi atau temuan pada foto"
+                  disabled={disabled}
+                />
+                <Button type="button" variant="ghost" size="icon" disabled={disabled || form.kondisi_lokasi.length <= 1} onClick={() => removeRow("kondisi_lokasi", i)}>
+                  <X className="h-4 w-4 text-red-500" />
+                </Button>
+              </div>
+            ))}
+            {photoProcessing && (
+              <p className="text-xs text-muted-foreground">
+                <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Menambahkan timestamp...
+              </p>
+            )}
+            {!disabled && (
+              <Button type="button" variant="outline" size="sm" onClick={() => addRow("kondisi_lokasi", { dokumentasi: [], keterangan: "" })}>
+                Tambah Baris Foto Lokasi
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 4. Kebutuhan Klien */}
+      {!isHidden("kebutuhan") && (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold">4. Kebutuhan Klien</p>
+              <p className="text-[11px] text-muted-foreground">Area / Ruangan | Kebutuhan / Permintaan Klien</p>
+            </div>
+            {!disabled && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => hideSection("kebutuhan")}>
+                <EyeOff className="mr-1 h-3.5 w-3.5" /> Sembunyikan
+              </Button>
+            )}
+          </div>
+          <div className="space-y-2">
+            {form.kebutuhan.map((row, i) => (
+              <div key={i} className="grid grid-cols-[28px_1fr_1.6fr_34px] gap-2 items-center">
+                <span className="text-center text-xs text-muted-foreground">{i + 1}</span>
+                <Input
+                  value={row.area}
+                  onChange={(e) => updateRow("kebutuhan", i, { area: e.target.value })}
+                  placeholder="Contoh: Dapur"
+                  disabled={disabled}
+                />
+                <Input
+                  value={row.kebutuhan}
+                  onChange={(e) => updateRow("kebutuhan", i, { kebutuhan: e.target.value })}
+                  placeholder="Uraikan kebutuhan klien"
+                  disabled={disabled}
+                />
+                <Button type="button" variant="ghost" size="icon" disabled={disabled || form.kebutuhan.length <= 1} onClick={() => removeRow("kebutuhan", i)}>
+                  <X className="h-4 w-4 text-red-500" />
+                </Button>
+              </div>
+            ))}
+            {!disabled && (
+              <Button type="button" variant="outline" size="sm" onClick={() => addRow("kebutuhan", { area: "", kebutuhan: "" })}>
+                Tambah Kebutuhan
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Catatan Tambahan */}
+      {!isHidden("catatan_tambahan") && (
+        <div className="space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-semibold">Catatan Tambahan</p>
+            {!disabled && (
+              <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => hideSection("catatan_tambahan")}>
+                <EyeOff className="mr-1 h-3.5 w-3.5" /> Sembunyikan
+              </Button>
+            )}
+          </div>
+          <textarea
+            className="min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+            value={form.catatan_tambahan}
+            onChange={(e) => updateField("catatan_tambahan", e.target.value)}
+            placeholder="Isi catatan tambahan hasil survei atau diskusi dengan klien"
+            disabled={disabled}
+          />
+        </div>
+      )}
     </div>
   );
 }

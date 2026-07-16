@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import prisma from "../prisma";
-import { authenticate, AuthRequest, requireRole, requirePermission } from "../middleware/auth";
+import { authenticate, AuthRequest, requirePermission, hasPermission } from "../middleware/auth";
 import { createUploader, publicUploadPath } from "../lib/upload";
 import { encryptSecret, decryptSecret } from "../lib/secret";
 
@@ -40,10 +40,39 @@ function dayRange(value: string) {
   return { start, end };
 }
 
+// ── Akses berbasis permission ─────────────────────────────────────────────────
+// Aturan: permission adalah sumber kebenaran. Nama role TIDAK boleh dipakai sebagai
+// syarat akses — dulu kode merujuk role "MANAGER"/"SURVEYOR" yang tidak pernah ada di
+// seed, sehingga cabangnya mati diam-diam dan PIC survey asli (role SALES) tak bisa
+// ditugaskan.
+//
+// Untuk MEMFILTER USER lain (bukan pemilik request) kita tetap perlu nama role — tapi
+// hanya sebagai kunci join yang DITURUNKAN dari permission, bukan di-hardcode.
+// Pencocokan dilakukan lewat dua jalur karena tabel UserRole belum tentu terisi
+// (seed hanya mengisi kolom string User.role; middleware authenticate pun memakai
+// fallback yang sama).
+async function userWhereWithPermission(permission: string) {
+  const roles = await prisma.appRole.findMany({
+    where: { permissions: { has: permission } },
+    select: { name: true },
+  });
+  const names = roles.map((r) => r.name);
+  return {
+    OR: [
+      { role: { in: names } }, // jalur lama: kolom string User.role
+      { userRoles: { some: { role: { name: { in: names } } } } }, // jalur baru: relasi AppRole
+    ],
+  };
+}
+
+/** Penanda administrator secara permission (hanya role ber-permission admin.* yang punya). */
+function isAdministrator(user: AuthRequest["user"]) {
+  return hasPermission(user, "admin.users");
+}
+
 function canViewAllWorkPlans(user: AuthRequest["user"]) {
   if (!user) return false;
-  if (user.permissions.has("work_plans.view_all")) return true;
-  return (user.roles ?? [user.role]).some(r => ["ADMIN", "MANAGER"].includes(r));
+  return user.permissions.has("work_plans.view_all") || isAdministrator(user);
 }
 
 function workPlanInclude() {
@@ -161,7 +190,7 @@ const WRITE_PERMISSION_RULES: { method: string; test: RegExp; perm: string }[] =
   { method: "POST",   test: /^\/surveys\/[^/]+\/attendance$/,       perm: "surveys.edit" },
   { method: "POST",   test: /^\/surveys$/,                          perm: "surveys.create" },
   { method: "PATCH",  test: /^\/surveys\/[^/]+$/,                   perm: "surveys.edit" },
-  // quotations (approve punya guard inline requireRole ADMIN)
+  // quotations (approve punya guard inline requirePermission quotations.change_status)
   { method: "POST",   test: /^\/quotations\/[^/]+\/upload$/,        perm: "quotations.edit" },
   { method: "POST",   test: /^\/quotations\/[^/]+\/push-to-order-sheet$/, perm: "order_sheets.create" },
   { method: "POST",   test: /^\/quotations$/,                       perm: "quotations.create" },
@@ -225,7 +254,7 @@ router.use((req: AuthRequest, res, next) => {
   if (req.method === "GET" || req.method === "HEAD" || req.method === "OPTIONS") return next();
   const rule = WRITE_PERMISSION_RULES.find((r) => r.method === req.method && r.test.test(req.path));
   if (!rule) return next(); // route write tak terpetakan → diteruskan ke guard inline (mis. /admin/*)
-  if (!req.user?.permissions.has(rule.perm)) {
+  if (!hasPermission(req.user, rule.perm)) { // hasPermission sudah meloloskan Super Admin
     return res.status(403).json({ error: "Akses ditolak: tidak ada izin" });
   }
   return next();
@@ -390,7 +419,7 @@ router.get("/customers", async (req, res, next) => {
 router.get("/customers/:id", async (req, res, next) => { try { const item = await prisma.customer.findUnique({ where: { id: req.params.id }, include: { inquiries: { orderBy: { createdAt: "desc" } }, quotations: { orderBy: { createdAt: "desc" } }, renewals: { orderBy: { expiryDate: "asc" } }, surveys: { orderBy: { scheduledAt: "desc" } }, files: { orderBy: { createdAt: "desc" } } } }); if (!item) return res.status(404).json({ error: "Customer tidak ditemukan" }); return res.json(item); } catch (error) { return next(error); } });
 router.post("/customers", async (req, res, next) => { try { const body = req.body; const item = await prisma.customer.create({ data: { ...body, code: body.code || code("CUS"), agreementStart: body.agreementStart ? new Date(body.agreementStart) : null, agreementEnd: body.agreementEnd ? new Date(body.agreementEnd) : null, agreementValue: body.agreementValue ? Number(body.agreementValue) : null, paymentTerms: body.paymentTerms ? Number(body.paymentTerms) : null, agreementDurationMonths: body.agreementDurationMonths ? Number(body.agreementDurationMonths) : null, invoiceAcceptanceLimitDays: body.invoiceAcceptanceLimitDays ? Number(body.invoiceAcceptanceLimitDays) : null } }); res.status(201).json(item); } catch (error) { next(error); } });
 router.patch("/customers/:id", async (req, res, next) => { try { const body = req.body; const item = await prisma.customer.update({ where: { id: req.params.id }, data: { ...body, agreementStart: body.agreementStart ? new Date(body.agreementStart) : undefined, agreementEnd: body.agreementEnd ? new Date(body.agreementEnd) : undefined, agreementValue: body.agreementValue ? Number(body.agreementValue) : undefined, paymentTerms: body.paymentTerms ? Number(body.paymentTerms) : undefined, agreementDurationMonths: body.agreementDurationMonths ? Number(body.agreementDurationMonths) : undefined, invoiceAcceptanceLimitDays: body.invoiceAcceptanceLimitDays ? Number(body.invoiceAcceptanceLimitDays) : undefined } }); res.json(item); } catch (error) { next(error); } });
-router.delete("/customers/:id", requireRole("ADMIN"), async (req: AuthRequest, res, next) => {
+router.delete("/customers/:id", async (req: AuthRequest, res, next) => {
   try {
     const customer = await prisma.customer.findUnique({ where: { id: req.params.id }, select: { id: true, name: true } });
     if (!customer) return res.status(404).json({ error: "Customer tidak ditemukan" });
@@ -553,7 +582,7 @@ router.patch("/inquiries/:id", async (req, res, next) => { try {
   } });
   res.json(item);
 } catch (error) { next(error); } });
-router.delete("/inquiries/:id", requireRole("ADMIN"), async (req: AuthRequest, res, next) => { try { const inquiry = await prisma.inquiry.findUnique({ where: { id: req.params.id }, select: { id: true, number: true } }); if (!inquiry) return res.status(404).json({ error: "Inquiry tidak ditemukan" }); await prisma.inquiry.delete({ where: { id: inquiry.id } }); await prisma.activityLog.create({ data: { message: `${req.user!.name} menghapus inquiry ${inquiry.number}`, type: "INQUIRY", userId: req.user!.id } }); return res.status(204).end(); } catch (error) { return next(error); } });
+router.delete("/inquiries/:id", async (req: AuthRequest, res, next) => { try { const inquiry = await prisma.inquiry.findUnique({ where: { id: req.params.id }, select: { id: true, number: true } }); if (!inquiry) return res.status(404).json({ error: "Inquiry tidak ditemukan" }); await prisma.inquiry.delete({ where: { id: inquiry.id } }); await prisma.activityLog.create({ data: { message: `${req.user!.name} menghapus inquiry ${inquiry.number}`, type: "INQUIRY", userId: req.user!.id } }); return res.status(204).end(); } catch (error) { return next(error); } });
 router.post("/inquiries/:id/survey-request", async (req: AuthRequest, res, next) => { try {
   const { picIds, scheduledAt, location, shareLocationUrl } = req.body;
   const surveyorIds: string[] = Array.isArray(picIds) ? picIds.map(String).filter(Boolean) : [];
@@ -564,7 +593,7 @@ router.post("/inquiries/:id/survey-request", async (req: AuthRequest, res, next)
   // tolak pembuatan survey baru. Untuk ubah jadwal, pakai PATCH /surveys/:id/reschedule.
   const activeSurvey = await prisma.survey.findFirst({ where: { inquiryId: inquiry.id, status: { not: "CANCELLED" } }, select: { id: true } });
   if (activeSurvey) return res.status(400).json({ error: "Survey aktif sudah dijadwalkan. Batalkan survey yang ada dulu untuk menjadwalkan ulang." });
-  const validPics = await prisma.user.findMany({ where: { id: { in: surveyorIds }, isActive: true, role: { in: ["SURVEYOR", "MANAGER", "ADMIN"] } }, select: { id: true } });
+  const validPics = await prisma.user.findMany({ where: { id: { in: surveyorIds }, isActive: true, ...(await userWhereWithPermission("after_surveys.submit")) }, select: { id: true } });
   if (validPics.length !== surveyorIds.length) return res.status(400).json({ error: "Satu atau lebih surveyor tidak valid" });
   const date = new Date(scheduledAt);
   if (Number.isNaN(date.getTime())) return res.status(400).json({ error: "Tanggal dan jam survey tidak valid" });
@@ -584,7 +613,7 @@ router.patch("/surveys/:id/reschedule", async (req: AuthRequest, res, next) => {
   const survey = await prisma.survey.findUnique({ where: { id: req.params.id }, include: { picAssignments: { include: { pic: { select: { name: true } } } } } });
   if (!survey) return res.status(404).json({ error: "Survey tidak ditemukan" });
   if (!["SCHEDULED", "POSTPONED"].includes(survey.status)) return res.status(400).json({ error: "Hanya survey berstatus Scheduled atau Postponed yang bisa dijadwalkan ulang" });
-  const validPics = await prisma.user.findMany({ where: { id: { in: surveyorIds }, isActive: true, role: { in: ["SURVEYOR", "MANAGER", "ADMIN"] } }, select: { id: true } });
+  const validPics = await prisma.user.findMany({ where: { id: { in: surveyorIds }, isActive: true, ...(await userWhereWithPermission("after_surveys.submit")) }, select: { id: true } });
   if (validPics.length !== surveyorIds.length) return res.status(400).json({ error: "Satu atau lebih surveyor tidak valid" });
   const date = new Date(scheduledAt);
   if (Number.isNaN(date.getTime())) return res.status(400).json({ error: "Tanggal dan jam survey tidak valid" });
@@ -618,7 +647,7 @@ router.get("/quotations", async (req, res, next) => { try { const where: any = {
 router.get("/quotations/:id", async (req, res, next) => { try { const item = await prisma.quotation.findUnique({ where: { id: req.params.id }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); if (!item) return res.status(404).json({ error: "Quotation tidak ditemukan" }); return res.json(item); } catch (error) { return next(error); } });
 router.post("/quotations", async (req: AuthRequest, res, next) => { try { const { customerId, inquiryId, title, amount, status, validUntil, hasilSurvey, priceData, quotationDate, segmentType } = req.body; if (!customerId || !title) return res.status(400).json({ error: "Customer dan judul wajib diisi" }); const qDate = quotationDate ? new Date(quotationDate) : new Date(); const num = await quotationNumber(qDate); const item = await prisma.quotation.create({ data: { number: num, customerId, inquiryId: inquiryId || null, title: String(title).trim(), amount: Number(amount) || 0, status: status || "DRAFT", validUntil: validUntil ? new Date(validUntil) : null, segmentType: segmentType === "B2C" ? "B2C" : "B2B", hasilSurvey: hasilSurvey || [], priceData: priceData || {}, quotationDate: qDate, ownerId: req.user!.id }, include: { customer: true, inquiry: true } }); res.status(201).json(item); } catch (error) { next(error); } });
 router.patch("/quotations/:id", async (req, res, next) => { try { const { title, amount, status, validUntil, notes, hasilSurvey, priceData, quotationDate, number } = req.body; const data: any = {}; if (title !== undefined) data.title = String(title).trim(); if (amount !== undefined) data.amount = Number(amount); if (status !== undefined) data.status = status; if (validUntil !== undefined) data.validUntil = validUntil ? new Date(validUntil) : null; if (notes !== undefined) data.notes = notes ? String(notes).trim() : null; if (hasilSurvey !== undefined) data.hasilSurvey = hasilSurvey; if (priceData !== undefined) data.priceData = priceData; if (quotationDate !== undefined) data.quotationDate = quotationDate ? new Date(quotationDate) : null; if (number !== undefined) data.number = String(number).trim(); if (title !== undefined || amount !== undefined || hasilSurvey !== undefined || priceData !== undefined || quotationDate !== undefined || number !== undefined) { data.approvedAt = null; data.approvedByName = null; data.approvedSignature = null; } res.json(await prisma.quotation.update({ where: { id: req.params.id }, data })); } catch (error) { next(error); } });
-router.post("/quotations/:id/approve", requireRole("ADMIN"), async (req: AuthRequest, res, next) => { try { const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : ""; if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." }); const existing = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!existing) return res.status(404).json({ error: "Quotation tidak ditemukan" }); const item = await prisma.quotation.update({ where: { id: req.params.id }, data: { approvedByName: req.user!.name, approvedAt: new Date(), approvedSignature: signature }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); res.json(item); } catch (error) { next(error); } });
+router.post("/quotations/:id/approve", requirePermission("quotations.change_status"), async (req: AuthRequest, res, next) => { try { const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : ""; if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." }); const existing = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!existing) return res.status(404).json({ error: "Quotation tidak ditemukan" }); const item = await prisma.quotation.update({ where: { id: req.params.id }, data: { approvedByName: req.user!.name, approvedAt: new Date(), approvedSignature: signature }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); res.json(item); } catch (error) { next(error); } });
 router.post("/quotations/:id/upload", quotationUpload.single("file"), async (req, res, next) => { try { if (!req.file) return res.status(400).json({ error: "File wajib dipilih" }); res.status(201).json({ data: { path: publicUploadPath(req.file.path), fileName: req.file.originalname, mimeType: req.file.mimetype, size: req.file.size } }); } catch (error) { next(error); } });
 router.delete("/quotations/:id", async (req, res, next) => { try { const q = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!q) return res.status(404).json({ error: "Quotation tidak ditemukan" }); await prisma.quotation.delete({ where: { id: req.params.id } }); res.json({ success: true }); } catch (error) { next(error); } });
 router.post("/quotations/:id/push-to-order-sheet", async (req: AuthRequest, res, next) => { try {
@@ -897,7 +926,7 @@ router.post("/service-visits/:id/attendance", serviceVisitUpload.single("photo")
   if (!["checkin", "checkout"].includes(type)) return res.status(400).json({ error: "Tipe attendance tidak valid" });
   const visit = await prisma.serviceVisit.findUnique({ where: { id: req.params.id }, select: { id: true, picId: true, checkInImagePath: true, checkOutImagePath: true, status: true } });
   if (!visit) return res.status(404).json({ error: "Jadwal visit tidak ditemukan" });
-  if (visit.picId !== req.user!.id && !["ADMIN", "MANAGER"].includes(req.user!.role)) return res.status(403).json({ error: "Hanya PIC visit yang dapat mengirim bukti" });
+  if (visit.picId !== req.user!.id && !isAdministrator(req.user)) return res.status(403).json({ error: "Hanya PIC visit yang dapat mengirim bukti" });
   if (type === "checkin" && visit.checkInImagePath) return res.status(400).json({ error: "Check in sudah pernah dikirim" });
   if (type === "checkout" && visit.checkOutImagePath) return res.status(400).json({ error: "Check out sudah pernah dikirim" });
   if (type === "checkout" && !visit.checkInImagePath) return res.status(400).json({ error: "Check in wajib dikirim sebelum check out" });
@@ -979,7 +1008,7 @@ router.patch("/vendors/:id", async (req: AuthRequest, res, next) => { try {
   await prisma.activityLog.create({ data: { message: `${req.user!.name} mengubah vendor ${item.name}`, type: "VENDOR", userId: req.user!.id } });
   res.json(item);
 } catch (error) { next(error); } });
-router.delete("/vendors/:id", requireRole("ADMIN"), async (req: AuthRequest, res, next) => { try {
+router.delete("/vendors/:id", async (req: AuthRequest, res, next) => { try {
   const item = await prisma.vendor.findUnique({ where: { id: req.params.id }, select: { id: true, name: true } });
   if (!item) return res.status(404).json({ error: "Vendor tidak ditemukan" });
   await prisma.vendor.delete({ where: { id: item.id } });
@@ -1094,7 +1123,7 @@ router.patch("/order-sheets/:id", async (req: AuthRequest, res, next) => { try {
   await prisma.activityLog.create({ data: { message: `${req.user!.name} mengubah order sheet ${item.number}`, type: "ORDER_SHEET", userId: req.user!.id } });
   res.json(item);
 } catch (error) { next(error); } });
-router.delete("/order-sheets/:id", requireRole("ADMIN"), async (req: AuthRequest, res, next) => { try {
+router.delete("/order-sheets/:id", async (req: AuthRequest, res, next) => { try {
   const item = await prisma.orderSheet.findUnique({ where: { id: req.params.id }, select: { id: true, number: true } });
   if (!item) return res.status(404).json({ error: "Order sheet tidak ditemukan" });
   await prisma.$transaction(async (tx) => {
@@ -1232,7 +1261,7 @@ router.post("/complaints/:id/follow-ups", async (req: AuthRequest, res, next) =>
   res.status(201).json(item);
 } catch (error) { next(error); } });
 
-router.delete("/complaints/:id", requireRole("ADMIN"), async (req: AuthRequest, res, next) => { try {
+router.delete("/complaints/:id", async (req: AuthRequest, res, next) => { try {
   const item = await prisma.complaint.findUnique({ where: { id: req.params.id }, select: { id: true, number: true } });
   if (!item) return res.status(404).json({ error: "Complaint tidak ditemukan" });
   await prisma.complaint.delete({ where: { id: item.id } });
@@ -1459,7 +1488,7 @@ router.post("/work-plans", async (req: AuthRequest, res, next) => { try {
   res.status(201).json(item);
 } catch (error) { next(error); } });
 
-router.get("/work-plans/logs", requireRole("ADMIN"), async (req, res, next) => { try {
+router.get("/work-plans/logs", requirePermission("work_plans.view_all"), async (req, res, next) => { try {
   const where: any = {};
   if (req.query.workPlanId) where.workPlanId = String(req.query.workPlanId);
   if (req.query.action) where.action = String(req.query.action);
@@ -1543,7 +1572,9 @@ router.post("/work-plans/:id/checkpoints", workPlanUpload.single("file"), async 
 
 router.get("/qa-users", async (_req, res, next) => { try { const data = await prisma.user.findMany({ where: { isActive: true, role: "QA" }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }); res.json({ data }); } catch (error) { next(error); } });
 router.get("/vendor-options", async (_req, res, next) => { try { const [customerVendors, treatmentVendors] = await Promise.all([prisma.customer.findMany({ where: { vendorName: { not: null } }, select: { vendorName: true }, distinct: ["vendorName"] }), prisma.vendorTreatment.findMany({ select: { vendorName: true }, distinct: ["vendorName"] })]); const names = Array.from(new Set([...vendorOptions, ...customerVendors.map((item) => item.vendorName).filter(Boolean), ...treatmentVendors.map((item) => item.vendorName).filter(Boolean)].map(String))).sort((a, b) => a.localeCompare(b)); res.json({ data: names }); } catch (error) { next(error); } });
-router.get("/survey-pics", async (_req, res, next) => { try { const data = await prisma.user.findMany({ where: { isActive: true, role: { in: ["SURVEYOR", "MANAGER", "ADMIN"] } }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }); res.json({ data }); } catch (error) { next(error); } });
+// Kandidat PIC survey = siapa pun yang boleh mengerjakan & melaporkan survey
+// (permission after_surveys.submit), bukan berdasarkan nama role.
+router.get("/survey-pics", async (_req, res, next) => { try { const data = await prisma.user.findMany({ where: { isActive: true, ...(await userWhereWithPermission("after_surveys.submit")) }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }); res.json({ data }); } catch (error) { next(error); } });
 router.get("/surveys", async (req, res, next) => { try { const from = req.query.from ? new Date(String(req.query.from)) : undefined; const to = req.query.to ? new Date(String(req.query.to)) : undefined; const data = await prisma.survey.findMany({ where: from || to ? { scheduledAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}, include: { customer: true, inquiry: true, pic: { select: { name: true, role: true } }, picAssignments: { include: { pic: { select: { name: true, role: true } } } }, afterSurvey: true, b2bReport: true }, orderBy: { scheduledAt: "asc" } }); res.json({ data }); } catch (error) { next(error); } });
 router.post("/surveys", async (req: AuthRequest, res, next) => { try { const { customerId, picId, scheduledAt, location, shareLocationUrl, notes } = req.body; if (!customerId || !picId || !scheduledAt || !location || !shareLocationUrl) return res.status(400).json({ error: "Customer, PIC, tanggal dan jam, alamat, serta tautan Google Maps wajib diisi" }); const item = await prisma.survey.create({ data: { customerId, number: code("SRV"), scheduledAt: new Date(scheduledAt), picId, location, shareLocationUrl, notes: notes || null }, include: { customer: true, pic: { select: { name: true, role: true } } } }); res.status(201).json(item); } catch (error) { next(error); } });
 router.patch("/surveys/:id", async (req, res, next) => { try { const { scheduledAt, location, shareLocationUrl, status, notes, picId } = req.body; const data: any = {}; if (scheduledAt !== undefined) data.scheduledAt = new Date(scheduledAt); if (location !== undefined) data.location = String(location).trim(); if (shareLocationUrl !== undefined) data.shareLocationUrl = shareLocationUrl ? String(shareLocationUrl).trim() : null; if (status !== undefined) data.status = status; if (notes !== undefined) data.notes = notes ? String(notes).trim() : null; if (picId !== undefined) data.picId = String(picId); res.json(await prisma.survey.update({ where: { id: req.params.id }, data })); } catch (error) { next(error); } });
@@ -1610,7 +1641,7 @@ router.post("/surveys/:id/attendance", surveyEvidenceUpload.single("photo"), asy
   if (!["checkin", "checkout"].includes(type)) return res.status(400).json({ error: "Tipe attendance tidak valid" });
   const survey = await prisma.survey.findUnique({ where: { id: req.params.id }, select: { id: true, number: true, picId: true, evidenceImagePath: true, checkoutImagePath: true } });
   if (!survey) return res.status(404).json({ error: "Survey tidak ditemukan" });
-  if (survey.picId !== req.user!.id && !["ADMIN", "MANAGER"].includes(req.user!.role)) return res.status(403).json({ error: "Hanya PIC survey yang dapat mengirim bukti" });
+  if (survey.picId !== req.user!.id && !isAdministrator(req.user)) return res.status(403).json({ error: "Hanya PIC survey yang dapat mengirim bukti" });
   if (type === "checkin" && survey.evidenceImagePath) return res.status(400).json({ error: "Check in sudah pernah dikirim" });
   if (type === "checkout" && survey.checkoutImagePath) return res.status(400).json({ error: "Check out sudah pernah dikirim" });
   if (type === "checkout" && !survey.evidenceImagePath) return res.status(400).json({ error: "Check in wajib dikirim sebelum check out" });
@@ -1628,8 +1659,8 @@ router.post("/surveys/:id/attendance", surveyEvidenceUpload.single("photo"), asy
 
 router.get("/after-surveys", async (_req, res, next) => { try { const data = await prisma.afterSurvey.findMany({ include: { survey: { include: { customer: true, pic: { select: { name: true } } } } }, orderBy: { updatedAt: "desc" } }); res.json({ data }); } catch (error) { next(error); } });
 router.get("/after-surveys/:id", async (req, res, next) => { try { const item = await prisma.afterSurvey.findUnique({ where: { id: req.params.id }, include: { survey: { include: { customer: true, pic: { select: { id: true, name: true, role: true } }, inquiry: true } } } }); if (!item) return res.status(404).json({ error: "Laporan after survey tidak ditemukan" }); return res.json(item); } catch (error) { return next(error); } });
-router.post("/after-surveys/:id/report", async (req: AuthRequest, res, next) => { try { const { fieldFindings, pestFindings, treatmentRecommendations, materials, surveyedAreas, notes } = req.body; if (!Array.isArray(fieldFindings) || !fieldFindings.length || !Array.isArray(pestFindings) || !Array.isArray(treatmentRecommendations) || !treatmentRecommendations.filter(Boolean).length || !Array.isArray(materials) || !materials.filter(Boolean).length || !Array.isArray(surveyedAreas) || !surveyedAreas.length) return res.status(400).json({ error: "Lengkapi temuan lapangan, jenis hama, rekomendasi, alat/material, dan area yang disurvey" }); const item = await prisma.afterSurvey.findUnique({ where: { id: req.params.id }, include: { survey: true } }); if (!item) return res.status(404).json({ error: "Laporan after survey tidak ditemukan" }); if (item.survey.picId !== req.user!.id && !["ADMIN", "MANAGER"].includes(req.user!.role)) return res.status(403).json({ error: "Hanya PIC survey yang dapat mengirim laporan" }); const updated = await prisma.afterSurvey.update({ where: { id: item.id }, data: { fieldFindings, pestFindings, treatmentRecommendations: treatmentRecommendations.map(String).filter(Boolean), materials: materials.map(String).filter(Boolean), surveyedAreas, findings: fieldFindings.map((row: any) => `${row.area || "Area"}: ${row.condition || "-"}`).join("\n"), recommendation: treatmentRecommendations.map(String).filter(Boolean).join("\n"), nextAction: surveyedAreas.map((row: any) => `${row.area || "Area"}: ${row.status || "-"}`).join("\n"), notes: notes ? String(notes).trim() : null, authorizedByName: req.user!.name, submittedAt: new Date(), status: "REVIEW" }, include: { survey: { include: { customer: true, pic: { select: { name: true } } } } } }); return res.json(updated); } catch (error) { return next(error); } });
-router.post("/after-surveys/:id/approve", requireRole("ADMIN", "MANAGER"), async (req: AuthRequest, res, next) => { try { const item = await prisma.afterSurvey.update({ where: { id: req.params.id }, data: { status: "DONE", reviewedAt: new Date(), reviewedByName: req.user!.name, qcNotes: req.body.qcNotes ? String(req.body.qcNotes).trim() : null }, include: { survey: { include: { customer: true, pic: { select: { name: true } } } } } }); await prisma.activityLog.create({ data: { message: `${req.user!.name} menyetujui laporan survey ${item.survey.number}`, type: "AFTER_SURVEY", userId: req.user!.id } }); return res.json(item); } catch (error) { return next(error); } });
+router.post("/after-surveys/:id/report", async (req: AuthRequest, res, next) => { try { const { fieldFindings, pestFindings, treatmentRecommendations, materials, surveyedAreas, notes } = req.body; if (!Array.isArray(fieldFindings) || !fieldFindings.length || !Array.isArray(pestFindings) || !Array.isArray(treatmentRecommendations) || !treatmentRecommendations.filter(Boolean).length || !Array.isArray(materials) || !materials.filter(Boolean).length || !Array.isArray(surveyedAreas) || !surveyedAreas.length) return res.status(400).json({ error: "Lengkapi temuan lapangan, jenis hama, rekomendasi, alat/material, dan area yang disurvey" }); const item = await prisma.afterSurvey.findUnique({ where: { id: req.params.id }, include: { survey: true } }); if (!item) return res.status(404).json({ error: "Laporan after survey tidak ditemukan" }); if (item.survey.picId !== req.user!.id && !isAdministrator(req.user)) return res.status(403).json({ error: "Hanya PIC survey yang dapat mengirim laporan" }); const updated = await prisma.afterSurvey.update({ where: { id: item.id }, data: { fieldFindings, pestFindings, treatmentRecommendations: treatmentRecommendations.map(String).filter(Boolean), materials: materials.map(String).filter(Boolean), surveyedAreas, findings: fieldFindings.map((row: any) => `${row.area || "Area"}: ${row.condition || "-"}`).join("\n"), recommendation: treatmentRecommendations.map(String).filter(Boolean).join("\n"), nextAction: surveyedAreas.map((row: any) => `${row.area || "Area"}: ${row.status || "-"}`).join("\n"), notes: notes ? String(notes).trim() : null, authorizedByName: req.user!.name, submittedAt: new Date(), status: "REVIEW" }, include: { survey: { include: { customer: true, pic: { select: { name: true } } } } } }); return res.json(updated); } catch (error) { return next(error); } });
+router.post("/after-surveys/:id/approve", requirePermission("after_surveys.approve"), async (req: AuthRequest, res, next) => { try { const item = await prisma.afterSurvey.update({ where: { id: req.params.id }, data: { status: "DONE", reviewedAt: new Date(), reviewedByName: req.user!.name, qcNotes: req.body.qcNotes ? String(req.body.qcNotes).trim() : null }, include: { survey: { include: { customer: true, pic: { select: { name: true } } } } } }); await prisma.activityLog.create({ data: { message: `${req.user!.name} menyetujui laporan survey ${item.survey.number}`, type: "AFTER_SURVEY", userId: req.user!.id } }); return res.json(item); } catch (error) { return next(error); } });
 
 /* ── Pest Monthly Reports ──────────────────────────────────── */
 const pestReportPhotoUpload = createUploader("pest-report", ["image/jpeg", "image/png", "image/webp"], 10);
@@ -1796,6 +1827,6 @@ router.get("/agreement-reports-customers", authenticate, async (req, res, next) 
 } catch (e) { return next(e); } });
 
 router.get("/reports/daily", async (_req, res, next) => { try { const reports = await prisma.dailyReport.findMany({ take: 7, orderBy: { reportDate: "desc" }, include: { author: { select: { name: true } } } }); const activities = await prisma.activityLog.findMany({ take: 8, orderBy: { createdAt: "desc" }, include: { user: { select: { name: true } } } }); res.json({ reports, activities }); } catch (error) { next(error); } });
-router.post("/reports/daily", requireRole("ADMIN", "MANAGER"), async (req: AuthRequest, res, next) => { try { const item = await prisma.dailyReport.upsert({ where: { reportDate: new Date(req.body.reportDate) }, update: req.body, create: { ...req.body, reportDate: new Date(req.body.reportDate), authorId: req.user!.id } }); res.status(201).json(item); } catch (error) { next(error); } });
+router.post("/reports/daily", requirePermission("monthly_reports.create"), async (req: AuthRequest, res, next) => { try { const item = await prisma.dailyReport.upsert({ where: { reportDate: new Date(req.body.reportDate) }, update: req.body, create: { ...req.body, reportDate: new Date(req.body.reportDate), authorId: req.user!.id } }); res.status(201).json(item); } catch (error) { next(error); } });
 
 export default router;

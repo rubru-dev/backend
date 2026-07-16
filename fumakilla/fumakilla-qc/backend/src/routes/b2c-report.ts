@@ -1,6 +1,6 @@
 import { Router } from "express";
 import prisma from "../prisma";
-import { authenticate, requireRole, requirePermission, type AuthRequest } from "../middleware/auth";
+import { authenticate, requirePermission, type AuthRequest } from "../middleware/auth";
 import { createUploader, publicUploadPath } from "../lib/upload";
 
 const router = Router();
@@ -48,7 +48,7 @@ router.post("/:surveyId", requirePermission("surveys.b2c_report"), async (req, r
   }
 });
 
-router.post("/:surveyId/approve", requireRole("ADMIN"), async (req: AuthRequest, res, next) => {
+router.post("/:surveyId/approve", requirePermission("after_surveys.approve"), async (req: AuthRequest, res, next) => {
   try {
     const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : "";
     if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." });
