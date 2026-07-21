@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import path from "path";
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, "../.env") });
 
 export const config = {
   appName: process.env.APP_NAME ?? "StockOpname API",

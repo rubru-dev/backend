@@ -4,6 +4,16 @@
 import axios from "axios";
 import { config } from "../config";
 
+export function describeEvolutionError(err: any): string {
+  if (err?.response) {
+    const status = err.response.status;
+    const data = err.response.data;
+    return `HTTP ${status}: ${typeof data === "string" ? data : JSON.stringify(data)}`;
+  }
+  if (err?.code) return `${err.code}: ${err.message ?? "error"}`;
+  return err?.message ?? "error";
+}
+
 export function evolutionConfigured(): { ok: boolean; detail?: string } {
   if (!config.evolutionBaseUrl) return { ok: false, detail: "EVOLUTION_BASE_URL belum diset" };
   if (!config.evolutionApiKey) return { ok: false, detail: "EVOLUTION_API_KEY belum diset" };
@@ -80,6 +90,8 @@ export async function deleteInstance(): Promise<void> {
   await client(8000).delete(`/instance/logout/${INSTANCE()}`).catch(() => undefined);
   const res = await client(8000).delete(`/instance/delete/${INSTANCE()}`);
   if (res.status >= 400 && res.status !== 404) {
+    const message = JSON.stringify(res.data ?? {});
+    if (res.status === 400 && /does not exist|not exist|not found/i.test(message)) return;
     throw new Error(`Evolution delete gagal (${res.status}): ${JSON.stringify(res.data)}`);
   }
 }

@@ -5,6 +5,7 @@ import { hashPassword } from "../lib/security";
 import { sendFonnte } from "../lib/fontee";
 import {
   evolutionConfigured,
+  describeEvolutionError,
   getConnectionState,
   createInstance,
   connectInstance,
@@ -501,7 +502,7 @@ router.get("/settings/whatsapp/status", requireRole("Super Admin"), async (_req:
     const number = state === "open" ? await getConnectedNumber() : null;
     return res.json({ configured: true, state, number, instance: process.env.EVOLUTION_INSTANCE ?? null });
   } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${err?.message ?? "error"}` });
+    return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${describeEvolutionError(err)}` });
   }
 });
 
@@ -545,8 +546,8 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
     ensureWebhook().catch(() => {}); // best-effort, tidak ditunggu
 
     const { pairing_code, qr_base64 } = await connectInstance(numberForMode);
-    const gotWhatWeAsked = mode === "code" ? !!pairing_code : !!qr_base64;
-    if (!gotWhatWeAsked) {
+    const hasConnectArtifact = !!pairing_code || !!qr_base64;
+    if (!hasConnectArtifact) {
       return res.json({
         state: "preparing",
         pairing_code,
@@ -554,9 +555,13 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
         message: "Belum siap. Tunggu beberapa detik lalu klik lagi.",
       });
     }
-    return res.json({ state: "connecting", pairing_code, qr_base64, number: number ?? null, mode });
+    const fallbackMessage =
+      mode === "code" && !pairing_code && qr_base64
+        ? "Evolution API tidak mengirim kode pairing untuk versi ini. QR tersedia, silakan scan QR."
+        : undefined;
+    return res.json({ state: "connecting", pairing_code, qr_base64, number: number ?? null, mode, message: fallbackMessage });
   } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${err?.message ?? "error"}` });
+    return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${describeEvolutionError(err)}` });
   }
 });
 
@@ -569,7 +574,7 @@ router.post("/settings/whatsapp/reset", requireRole("Super Admin"), async (_req:
     await deleteInstance();
     return res.json({ message: "Koneksi direset. Silakan buat QR / kode pairing baru." });
   } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal reset: ${err?.message ?? "error"}` });
+    return res.status(502).json({ detail: `Gagal reset: ${describeEvolutionError(err)}` });
   }
 });
 
@@ -581,7 +586,7 @@ router.post("/settings/whatsapp/logout", requireRole("Super Admin"), async (_req
     await logoutInstance();
     return res.json({ message: "Sesi WhatsApp diputuskan" });
   } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal logout: ${err?.message ?? "error"}` });
+    return res.status(502).json({ detail: `Gagal logout: ${describeEvolutionError(err)}` });
   }
 });
 

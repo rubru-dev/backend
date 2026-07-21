@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -269,11 +269,12 @@ function WhatsAppQrTab() {
 
   const connected = status?.state === "open";
 
-  // Begitu tersambung, artefak penautan tidak relevan lagi.
-  if (connected && (pairingCode || qr)) {
+  useEffect(() => {
+    if (!connected) return;
     setPairingCode(null);
     setQr(null);
-  }
+    setPrepMessage(null);
+  }, [connected]);
 
   const connectMut = useMutation({
     mutationFn: (mode: "qr" | "code") => adminApi.waConnect(number, mode),
@@ -286,12 +287,12 @@ function WhatsAppQrTab() {
         qc.invalidateQueries({ queryKey: ["wa-status"] });
         return;
       }
-      // Tampilkan hanya artefak sesuai metode yang dipilih, biar tidak membingungkan.
-      const code = mode === "code" ? data.pairing_code : null;
-      const image = mode === "qr" ? data.qr_base64 : null;
+      const code = data.pairing_code ?? null;
+      const image = data.qr_base64 ?? null;
       setPairingCode(code);
       setQr(image);
       setPrepMessage(code || image ? null : data.message ?? "Belum siap. Tunggu sebentar lalu klik lagi.");
+      if (data.message && (code || image)) toast.info(data.message);
       qc.invalidateQueries({ queryKey: ["wa-status"] });
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyiapkan koneksi"),
