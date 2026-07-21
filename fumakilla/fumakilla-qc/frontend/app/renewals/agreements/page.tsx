@@ -1,4 +1,0 @@
-"use client";
-import { Loading, PageTitle, Status, useGet } from "@/components/erp/shared";
-const date = (value?: string) => value ? new Date(value).toLocaleDateString("id-ID") : "-";
-export default function AgreementsPage(){const {data,loading}=useGet<any>("/erp/renewals/agreements");return <div className="p-9"><PageTitle title="Agreement" subtitle="Daftar perjanjian kerja customer aktif."/><div className="card mt-7 overflow-hidden">{loading?<Loading/>:<table><thead><tr><th>No. Agreement</th><th>Customer</th><th>Jenis</th><th>Periode</th><th>Status</th></tr></thead><tbody>{data?.data?.map((x:any)=><tr key={x.id}><td className="font-semibold text-accent">{x.agreementNumber}</td><td>{x.name}</td><td>{x.agreementType||"-"}</td><td>{date(x.agreementStart)} — {date(x.agreementEnd)}</td><td><Status value={x.status}/></td></tr>)}</tbody></table>}</div></div>}
