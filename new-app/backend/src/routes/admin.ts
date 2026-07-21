@@ -530,41 +530,61 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
     // Instance belum ada → buat. Ini bagian paling lambat (inisialisasi socket
     // WhatsApp), jadi kegagalan/timeout-nya TIDAK dianggap fatal: instance tetap
     // terbentuk di latar belakang dan artefaknya bisa diambil pada klik berikutnya.
+    let resetWarning: string | undefined;
     if (mode === "code" && state !== null) {
-      await deleteInstance();
-      state = null;
+      try {
+        await deleteInstance();
+        state = null;
+      } catch (err: any) {
+        resetWarning = describeEvolutionError(err);
+      }
     }
 
     if (state === null) {
       try {
         await createInstance(numberForMode);
-      } catch {
+      } catch (err: any) {
         return res.json({
           state: "preparing",
           pairing_code: null,
           qr_base64: null,
-          message: "Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi.",
+          message: `Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi. (${describeEvolutionError(err)})`,
         });
       }
     }
 
     ensureWebhook().catch(() => {}); // best-effort, tidak ditunggu
 
-    const { pairing_code, qr_base64 } = await connectInstance(numberForMode);
+    let pairing_code: string | null = null;
+    let qr_base64: string | null = null;
+    try {
+      const connectedArtifact = await connectInstance(numberForMode);
+      pairing_code = connectedArtifact.pairing_code;
+      qr_base64 = connectedArtifact.qr_base64;
+    } catch (err: any) {
+      return res.json({
+        state: "preparing",
+        pairing_code: null,
+        qr_base64: null,
+        message: `Evolution belum siap membuat koneksi. Tunggu beberapa detik lalu klik lagi. (${describeEvolutionError(err)})`,
+      });
+    }
     const hasConnectArtifact = !!pairing_code || !!qr_base64;
     if (!hasConnectArtifact) {
       return res.json({
         state: "preparing",
         pairing_code,
         qr_base64,
-        message: "Belum siap. Tunggu beberapa detik lalu klik lagi.",
+        message: resetWarning
+          ? `Belum siap. Reset instance gagal, tapi koneksi tetap dicoba. (${resetWarning})`
+          : "Belum siap. Tunggu beberapa detik lalu klik lagi.",
       });
     }
     const fallbackMessage =
       mode === "code" && !pairing_code && qr_base64
         ? "Evolution API tidak mengirim kode pairing untuk versi ini. QR tersedia, silakan scan QR."
         : undefined;
-    return res.json({ state: "connecting", pairing_code, qr_base64, number: number ?? null, mode, message: fallbackMessage });
+    return res.json({ state: "connecting", pairing_code, qr_base64, number: number ?? null, mode, message: fallbackMessage ?? resetWarning });
   } catch (err: any) {
     return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${describeEvolutionError(err)}` });
   }
