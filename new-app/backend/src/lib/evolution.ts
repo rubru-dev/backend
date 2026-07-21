@@ -31,14 +31,20 @@ export async function getConnectionState(): Promise<{ state: string | null; raw:
   return { state, raw: res.data };
 }
 
-/** Buat instance baru (idempotent-ish: pemanggil harus cek dulu belum ada). */
-export async function createInstance(number?: string): Promise<any> {
+/**
+ * Buat instance baru (idempotent-ish: pemanggil harus cek dulu belum ada).
+ *
+ * CATATAN: `number` sengaja TIDAK dikirim ke Evolution. Bila field `number` diisi,
+ * Evolution/Baileys beralih ke mode "pairing code" (kode 8 karakter) dan TIDAK
+ * mengembalikan QR — padahal alur yang diinginkan di UI adalah scan QR.
+ * Nomor yang diketik admin hanya dipakai sebagai label/verifikasi di sisi kita.
+ */
+export async function createInstance(_number?: string): Promise<any> {
   const body: Record<string, unknown> = {
     instanceName: INSTANCE(),
     qrcode: true,
     integration: "WHATSAPP-BAILEYS",
   };
-  if (number) body.number = number; // memungkinkan Evolution menyediakan pairing code
   const res = await client().post(`/instance/create`, body);
   if (res.status >= 400) throw new Error(`Evolution create gagal (${res.status}): ${JSON.stringify(res.data)}`);
   return res.data;

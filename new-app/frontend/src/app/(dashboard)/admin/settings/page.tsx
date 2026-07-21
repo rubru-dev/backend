@@ -373,9 +373,17 @@ function WhatsAppQrTab() {
               <p className="text-xs text-muted-foreground text-center max-w-xs">
                 Scan QR ini dari WhatsApp di nomor pengirim. QR akan kedaluwarsa dalam ~1 menit — klik <b>Refresh QR</b> bila sudah lewat.
               </p>
-              {pairingCode && (
-                <p className="text-sm">Atau pakai kode pairing: <span className="font-mono font-bold">{pairingCode}</span></p>
-              )}
+            </div>
+          )}
+
+          {/* Kode pairing — tampil mandiri (Evolution kadang hanya mengirim kode, tanpa QR) */}
+          {pairingCode && !connected && (
+            <div className="rounded-lg border bg-white p-4 text-center">
+              <p className="text-sm text-muted-foreground">Kode pairing (kalau HP meminta &quot;masukkan kode&quot;):</p>
+              <p className="mt-2 font-mono text-2xl font-bold tracking-widest">{pairingCode}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Di HP: WhatsApp → Perangkat Tertaut → Tautkan dengan nomor telepon → masukkan kode ini.
+              </p>
             </div>
           )}
 
