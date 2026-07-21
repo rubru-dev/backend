@@ -139,7 +139,7 @@ export default function PenawaranRkrPage() {
 
   const { data } = useQuery({
     queryKey: ["penawaran-rkr-clients"],
-    queryFn: () => apiClient.get("/bd/telemarketing/leads", { params: { limit: 10000 } }).then((r) => r.data),
+    queryFn: () => apiClient.get("/bd/telemarketing/leads-dropdown").then((r) => r.data),
   });
   const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
     queryKey: ["penawaran-rkr-employees"],

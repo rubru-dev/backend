@@ -95,7 +95,7 @@ export default function PenawaranFilterAirPage() {
 
   const { data } = useQuery({
     queryKey: ["penawaran-filter-air-clients"],
-    queryFn: () => apiClient.get("/bd/filter-air/leads", { params: { limit: 10000 } }).then((r) => r.data),
+    queryFn: () => apiClient.get("/bd/filter-air/leads-dropdown").then((r) => r.data),
   });
   const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
     queryKey: ["penawaran-filter-air-employees"],

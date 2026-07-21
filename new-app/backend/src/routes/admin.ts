@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole } from "../middleware/requireRole";
 import { hashPassword } from "../lib/security";
+import { sendFonnte } from "../lib/fontee";
 
 const router = Router();
 
@@ -449,12 +450,6 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
   const rule = await prisma.fonteeReminderRule.findUnique({ where: { id } });
   if (!rule) return res.status(404).json({ detail: "Rule tidak ditemukan" });
 
-  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
-  const cfg = (setting?.value as Record<string, string> | null) ?? {};
-  if (!cfg.api_key || !cfg.base_url) {
-    return res.status(400).json({ detail: "Fontee belum dikonfigurasi" });
-  }
-
   // Find users with matching roles
   const roleIds = (rule.role_ids as bigint[]) ?? [];
   if (roleIds.length === 0) return res.status(400).json({ detail: "Rule ini belum memiliki role tujuan" });
@@ -483,13 +478,8 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
 
   for (const u of usersWithRole) {
     try {
-      const response = await fetch(cfg.base_url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "Authorization": cfg.api_key },
-        body: JSON.stringify({ target: u.whatsapp_number, message, countryCode: "62" }),
-      });
-      if (response.ok) sent++;
-      else errors.push(`${u.name}: API error`);
+      await sendFonnte(u.whatsapp_number!, message);
+      sent++;
     } catch (err: any) {
       errors.push(`${u.name}: ${err?.message ?? "error"}`);
     }

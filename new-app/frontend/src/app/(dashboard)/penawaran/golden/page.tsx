@@ -137,7 +137,7 @@ export default function PenawaranGoldenPage() {
 
   const { data } = useQuery({
     queryKey: ["penawaran-golden-clients"],
-    queryFn: () => apiClient.get("/bd/golden/leads", { params: { limit: 10000 } }).then((r) => r.data),
+    queryFn: () => apiClient.get("/bd/golden/leads-dropdown").then((r) => r.data),
   });
   const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
     queryKey: ["penawaran-golden-employees"],

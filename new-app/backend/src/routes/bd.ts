@@ -2086,6 +2086,35 @@ function validateModul(modul: string, res: Response): boolean {
   return true;
 }
 
+// GET /:modul/leads-dropdown — daftar lead ringkas untuk picker (mis. form Penawaran).
+// Tanpa cap pagination & tanpa join berat: form penawaran perlu SEMUA lead modul tsb,
+// beda dengan /:modul/leads yang dibatasi 500 untuk tabel follow-up.
+router.get("/:modul/leads-dropdown", async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+
+  const search = (req.query.search as string | undefined)?.trim();
+  const where: Record<string, unknown> = { modul };
+  const searchFilter = leadSearchFilter(search);
+  if (searchFilter) where.OR = searchFilter;
+
+  const leads = await prisma.lead.findMany({
+    where,
+    select: { id: true, salutation: true, nama: true, nomor_telepon: true, alamat: true },
+    orderBy: { id: "desc" },
+  });
+  return res.json({
+    items: leads.map((l) => ({
+      id: l.id,
+      salutation: l.salutation ?? null,
+      nama: l.nama,
+      display_name: leadDisplayName(l),
+      nomor_telepon: l.nomor_telepon,
+      alamat: l.alamat,
+    })),
+  });
+});
+
 router.get("/:modul/leads", async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
