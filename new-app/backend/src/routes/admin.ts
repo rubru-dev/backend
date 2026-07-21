@@ -504,30 +504,51 @@ router.get("/settings/whatsapp/status", requireRole("Super Admin"), async (_req:
   }
 });
 
-// POST /settings/whatsapp/connect — buat instance (kalau belum) + kembalikan QR untuk di-scan
+// POST /settings/whatsapp/connect — siapkan instance + kembalikan KODE PAIRING
+// untuk diketik di HP (WhatsApp → Perangkat Tertaut → Tautkan dengan nomor telepon).
 router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const cfg = evolutionConfigured();
   if (!cfg.ok) return res.status(400).json({ detail: cfg.detail });
   const number = typeof req.body?.number === "string" ? req.body.number.replace(/\D/g, "") : undefined;
+  if (!number) return res.status(400).json({ detail: "Nomor pengirim wajib diisi" });
 
   try {
-    // Buat instance bila belum ada
     const { state } = await getConnectionState();
-    if (state === null) {
-      await createInstance(number);
-    } else if (state === "open") {
-      // Sudah tersambung — tidak perlu QR
+
+    if (state === "open") {
       const connected = await getConnectedNumber();
-      await ensureWebhook().catch(() => {});
-      return res.json({ state: "open", number: connected, qr_base64: null, pairing_code: null, message: "WhatsApp sudah tersambung" });
+      ensureWebhook().catch(() => {}); // tidak ditunggu — jangan menahan respons
+      return res.json({ state: "open", number: connected, pairing_code: null, qr_base64: null, message: "WhatsApp sudah tersambung" });
     }
 
-    // Daftarkan webhook inbound otomatis (best-effort) supaya siap pakai
-    await ensureWebhook().catch(() => {});
+    // Instance belum ada → buat. Ini bagian paling lambat (inisialisasi socket
+    // WhatsApp), jadi kegagalan/timeout-nya TIDAK dianggap fatal: instance tetap
+    // terbentuk di latar belakang dan kode pairing bisa diambil pada klik berikutnya.
+    if (state === null) {
+      try {
+        await createInstance(number);
+      } catch {
+        return res.json({
+          state: "preparing",
+          pairing_code: null,
+          qr_base64: null,
+          message: "Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi untuk mendapat kode.",
+        });
+      }
+    }
 
-    // Ambil QR
-    const { qr_base64, pairing_code } = await connectInstance();
-    return res.json({ state: "connecting", qr_base64, pairing_code, number: number ?? null });
+    ensureWebhook().catch(() => {}); // best-effort, tidak ditunggu
+
+    const { pairing_code, qr_base64 } = await connectInstance(number);
+    if (!pairing_code) {
+      return res.json({
+        state: "preparing",
+        pairing_code: null,
+        qr_base64,
+        message: "Kode belum siap. Tunggu beberapa detik lalu klik lagi.",
+      });
+    }
+    return res.json({ state: "connecting", pairing_code, qr_base64, number });
   } catch (err: any) {
     return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${err?.message ?? "error"}` });
   }

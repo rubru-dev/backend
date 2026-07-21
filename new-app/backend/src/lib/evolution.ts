@@ -11,11 +11,14 @@ export function evolutionConfigured(): { ok: boolean; detail?: string } {
   return { ok: true };
 }
 
-function client() {
+// Timeout dijaga jauh di bawah batas proxy (nginx default 60s) supaya endpoint
+// selalu sempat membalas sendiri — kalau tidak, klien menerima 502 dari nginx
+// dan tidak pernah melihat pesan error kita.
+function client(timeout = 12000) {
   return axios.create({
     baseURL: config.evolutionBaseUrl.replace(/\/$/, ""),
     headers: { apikey: config.evolutionApiKey, "Content-Type": "application/json" },
-    timeout: 15000,
+    timeout,
     // Jangan lempar untuk 4xx — kita tangani manual (mis. 404 = instance belum ada).
     validateStatus: () => true,
   });
@@ -34,25 +37,33 @@ export async function getConnectionState(): Promise<{ state: string | null; raw:
 /**
  * Buat instance baru (idempotent-ish: pemanggil harus cek dulu belum ada).
  *
- * CATATAN: `number` sengaja TIDAK dikirim ke Evolution. Bila field `number` diisi,
- * Evolution/Baileys beralih ke mode "pairing code" (kode 8 karakter) dan TIDAK
- * mengembalikan QR — padahal alur yang diinginkan di UI adalah scan QR.
- * Nomor yang diketik admin hanya dipakai sebagai label/verifikasi di sisi kita.
+ * `number` dikirim agar Evolution/Baileys memakai mode PAIRING CODE (kode 8
+ * karakter yang diketik di HP), bukan QR — QR terlalu merepotkan karena
+ * kedaluwarsa tiap ~30 detik dan harus di-scan tepat waktu.
  */
-export async function createInstance(_number?: string): Promise<any> {
+export async function createInstance(number?: string): Promise<any> {
   const body: Record<string, unknown> = {
     instanceName: INSTANCE(),
     qrcode: true,
     integration: "WHATSAPP-BAILEYS",
   };
+  if (number) body.number = number;
   const res = await client().post(`/instance/create`, body);
   if (res.status >= 400) throw new Error(`Evolution create gagal (${res.status}): ${JSON.stringify(res.data)}`);
   return res.data;
 }
 
-/** Ambil QR (base64) untuk instance yang sedang connecting. */
-export async function connectInstance(): Promise<{ qr_base64: string | null; pairing_code: string | null; raw: any }> {
-  const res = await client().get(`/instance/connect/${INSTANCE()}`);
+/**
+ * Ambil kode pairing (dan QR sebagai cadangan) untuk instance yang sedang connecting.
+ * Bila `number` diisi, Evolution mengembalikan pairingCode untuk nomor tersebut.
+ */
+export async function connectInstance(
+  number?: string
+): Promise<{ qr_base64: string | null; pairing_code: string | null; raw: any }> {
+  const path = number
+    ? `/instance/connect/${INSTANCE()}?number=${encodeURIComponent(number)}`
+    : `/instance/connect/${INSTANCE()}`;
+  const res = await client().get(path);
   if (res.status >= 400) throw new Error(`Evolution connect gagal (${res.status}): ${JSON.stringify(res.data)}`);
   const d = res.data ?? {};
   return {

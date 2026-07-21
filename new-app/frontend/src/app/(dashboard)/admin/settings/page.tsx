@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
-import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, QrCode, Smartphone, Power, RefreshCw } from "lucide-react";
+import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, QrCode, Smartphone, Power } from "lucide-react";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string; active: string; inactive: string }> = {
   rendah: { label: "Rendah", emoji: "🟢", active: "bg-green-600 text-white border-green-600",  inactive: "bg-green-50 text-green-700 border-green-300 hover:bg-green-100" },
@@ -254,45 +254,48 @@ function ReminderRulesTab({
 function WhatsAppQrTab() {
   const qc = useQueryClient();
   const [number, setNumber] = useState("");
-  const [qr, setQr] = useState<string | null>(null);
   const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [prepMessage, setPrepMessage] = useState<string | null>(null);
 
   const { data: status, isLoading: statusLoading } = useQuery({
     queryKey: ["wa-status"],
     queryFn: () => adminApi.waStatus(),
     retry: false,
     // Polling saat menunggu scan (connecting) supaya UI otomatis berubah jadi "Tersambung"
-    refetchInterval: (q) => (q.state.data?.state === "open" ? false : qr ? 3000 : false),
+    // Polling saat menunggu kode dimasukkan di HP, supaya status otomatis jadi "Tersambung"
+    refetchInterval: (q) => (q.state.data?.state === "open" ? false : pairingCode ? 3000 : false),
   });
 
   const connected = status?.state === "open";
 
-  // Begitu terdeteksi tersambung, buang QR.
-  if (connected && qr) setQr(null);
+  // Begitu tersambung, kode tidak relevan lagi.
+  if (connected && pairingCode) setPairingCode(null);
 
   const connectMut = useMutation({
     mutationFn: () => adminApi.waConnect(number),
     onSuccess: (data) => {
       if (data.state === "open") {
         toast.success(data.message ?? "WhatsApp sudah tersambung");
-        setQr(null);
         setPairingCode(null);
-      } else {
-        setQr(data.qr_base64);
+        setPrepMessage(null);
+      } else if (data.pairing_code) {
         setPairingCode(data.pairing_code);
-        if (!data.qr_base64) toast.message("QR belum tersedia, coba klik lagi sebentar.");
+        setPrepMessage(null);
+      } else {
+        setPairingCode(null);
+        setPrepMessage(data.message ?? "Kode belum siap. Tunggu sebentar lalu klik lagi.");
       }
       qc.invalidateQueries({ queryKey: ["wa-status"] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memuat QR"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal membuat kode"),
   });
 
   const logoutMut = useMutation({
     mutationFn: () => adminApi.waLogout(),
     onSuccess: () => {
       toast.success("Sesi WhatsApp diputuskan");
-      setQr(null);
       setPairingCode(null);
+      setPrepMessage(null);
       qc.invalidateQueries({ queryKey: ["wa-status"] });
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal logout"),
@@ -307,8 +310,8 @@ function WhatsAppQrTab() {
             GET QR WhatsApp
           </CardTitle>
           <CardDescription>
-            Sambungkan nomor WhatsApp pengirim lewat Evolution API. Ketik nomor, klik <b>Munculkan QR</b>, lalu scan
-            di HP: WhatsApp → Perangkat Tertaut → Tautkan Perangkat. Semua reminder otomatis dikirim dari nomor ini.
+            Sambungkan nomor WhatsApp pengirim lewat Evolution API. Ketik nomor, klik <b>Buat Kode Pairing</b>,
+            lalu masukkan kodenya di HP. Semua reminder otomatis dikirim dari nomor ini.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -329,8 +332,8 @@ function WhatsAppQrTab() {
               <Badge className="bg-green-100 text-green-700 border-green-300 flex items-center gap-1">
                 <Smartphone className="h-3 w-3" /> Tersambung{status?.number ? ` — ${status.number}` : ""}
               </Badge>
-            ) : status?.state === "connecting" || qr ? (
-              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300">Menunggu scan…</Badge>
+            ) : status?.state === "connecting" || pairingCode ? (
+              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300">Menunggu kode dimasukkan di HP…</Badge>
             ) : (
               <Badge variant="outline" className="text-slate-500">Belum tersambung</Badge>
             )}
@@ -354,36 +357,38 @@ function WhatsAppQrTab() {
                   onClick={() => connectMut.mutate()}
                   disabled={!number || connectMut.isPending || status?.configured === false}
                 >
-                  {connectMut.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Memuat...</> : <><QrCode className="h-4 w-4 mr-1.5" />Munculkan QR</>}
+                  {connectMut.isPending
+                    ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Membuat kode...</>
+                    : <><QrCode className="h-4 w-4 mr-1.5" />{pairingCode || prepMessage ? "Buat Kode Baru" : "Buat Kode Pairing"}</>}
                 </Button>
-                {qr && (
-                  <Button variant="outline" onClick={() => connectMut.mutate()} disabled={connectMut.isPending}>
-                    <RefreshCw className="h-4 w-4 mr-1.5" />Refresh QR
-                  </Button>
-                )}
               </div>
             </>
           )}
 
-          {/* QR */}
-          {qr && !connected && (
-            <div className="flex flex-col items-center gap-3 rounded-lg border bg-white p-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qr} alt="QR WhatsApp" className="h-64 w-64 object-contain" />
-              <p className="text-xs text-muted-foreground text-center max-w-xs">
-                Scan QR ini dari WhatsApp di nomor pengirim. QR akan kedaluwarsa dalam ~1 menit — klik <b>Refresh QR</b> bila sudah lewat.
+          {/* Kode pairing */}
+          {pairingCode && !connected && (
+            <div className="rounded-lg border-2 border-green-300 bg-green-50 p-5 text-center">
+              <p className="text-sm font-medium text-green-800">Masukkan kode ini di HP:</p>
+              <p className="my-3 font-mono text-4xl font-bold tracking-[0.3em] text-green-900">{pairingCode}</p>
+              <div className="mx-auto max-w-sm text-left text-xs text-green-900/80">
+                <p className="font-semibold">Langkah di HP:</p>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                  <li>Buka WhatsApp → <b>Perangkat Tertaut</b></li>
+                  <li>Ketuk <b>Tautkan Perangkat</b></li>
+                  <li>Pilih <b>Tautkan dengan nomor telepon</b> (bukan scan QR)</li>
+                  <li>Ketik kode di atas</li>
+                </ol>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Kode berlaku beberapa menit. Kalau kedaluwarsa, klik <b>Buat Kode Baru</b>.
               </p>
             </div>
           )}
 
-          {/* Kode pairing — tampil mandiri (Evolution kadang hanya mengirim kode, tanpa QR) */}
-          {pairingCode && !connected && (
-            <div className="rounded-lg border bg-white p-4 text-center">
-              <p className="text-sm text-muted-foreground">Kode pairing (kalau HP meminta &quot;masukkan kode&quot;):</p>
-              <p className="mt-2 font-mono text-2xl font-bold tracking-widest">{pairingCode}</p>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Di HP: WhatsApp → Perangkat Tertaut → Tautkan dengan nomor telepon → masukkan kode ini.
-              </p>
+          {/* Sedang disiapkan */}
+          {prepMessage && !pairingCode && !connected && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+              {prepMessage}
             </div>
           )}
 
