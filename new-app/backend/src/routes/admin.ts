@@ -549,12 +549,19 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
       try {
         await createInstance(numberForMode);
       } catch (err: any) {
-        return res.json({
-          state: "preparing",
-          pairing_code: null,
-          qr_base64: null,
-          message: `Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi. (${describeEvolutionError(err)})`,
-        });
+        // Setelah delete, Evolution kadang sudah lupa instance-nya di
+        // connectionState (404 → state null) tapi masih menahan namanya, sehingga
+        // create ditolak 403 "already in use". Instance-nya sebenarnya masih ada:
+        // jangan menyerah, lanjut saja ambil artefak koneksinya di bawah.
+        const detail = describeEvolutionError(err);
+        if (!/already in use|already exists/i.test(detail)) {
+          return res.json({
+            state: "preparing",
+            pairing_code: null,
+            qr_base64: null,
+            message: `Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi. (${detail})`,
+          });
+        }
       }
     }
 
