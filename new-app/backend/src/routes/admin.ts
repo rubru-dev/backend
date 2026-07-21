@@ -519,7 +519,7 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
   const numberForMode = mode === "code" ? number : undefined;
 
   try {
-    const { state } = await getConnectionState();
+    let { state } = await getConnectionState();
 
     if (state === "open") {
       const connected = await getConnectedNumber();
@@ -530,6 +530,11 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
     // Instance belum ada → buat. Ini bagian paling lambat (inisialisasi socket
     // WhatsApp), jadi kegagalan/timeout-nya TIDAK dianggap fatal: instance tetap
     // terbentuk di latar belakang dan artefaknya bisa diambil pada klik berikutnya.
+    if (mode === "code" && state !== null) {
+      await deleteInstance();
+      state = null;
+    }
+
     if (state === null) {
       try {
         await createInstance(numberForMode);
