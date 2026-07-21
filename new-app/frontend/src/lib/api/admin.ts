@@ -71,6 +71,22 @@ export const adminApi = {
     apiClient.put(`/admin/settings/reminder-rules/${id}`, data).then((r) => r.data),
   testReminderRule: (id: number) =>
     apiClient.post(`/admin/settings/reminder-rules/${id}/test`).then((r) => r.data),
+
+  // WhatsApp (Evolution API) — tab "GET QR Whatsapp"
+  waStatus: () =>
+    apiClient
+      .get<{ configured: boolean; detail?: string; state: string | null; number: string | null; instance?: string | null }>(
+        "/admin/settings/whatsapp/status"
+      )
+      .then((r) => r.data),
+  waConnect: (number: string) =>
+    apiClient
+      .post<{ state: string; qr_base64: string | null; pairing_code: string | null; number: string | null; message?: string }>(
+        "/admin/settings/whatsapp/connect",
+        { number }
+      )
+      .then((r) => r.data),
+  waLogout: () => apiClient.post("/admin/settings/whatsapp/logout").then((r) => r.data),
 };
 
 export interface ReminderRule {

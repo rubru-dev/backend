@@ -3,6 +3,15 @@ import { prisma } from "../lib/prisma";
 import { requireRole } from "../middleware/requireRole";
 import { hashPassword } from "../lib/security";
 import { sendFonnte } from "../lib/fontee";
+import {
+  evolutionConfigured,
+  getConnectionState,
+  createInstance,
+  connectInstance,
+  logoutInstance,
+  getConnectedNumber,
+  ensureWebhook,
+} from "../lib/evolution";
 
 const router = Router();
 
@@ -363,31 +372,17 @@ router.put("/settings/fontee", requireRole("Super Admin"), async (req: Request, 
   return res.json({ message: "Fontee config disimpan" });
 });
 
-// POST /fontee/send-test
+// POST /fontee/send-test — kirim pesan test lewat provider WA aktif (Evolution)
 router.post("/fontee/send-test", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const { target_number, message } = req.body;
   if (!target_number || !message) {
     return res.status(400).json({ detail: "target_number dan message wajib diisi" });
   }
-  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
-  const cfg = (setting?.value as Record<string, string> | null) ?? {};
-  if (!cfg.api_key || !cfg.base_url || !cfg.sender_number) {
-    return res.status(400).json({ detail: "Fontee belum dikonfigurasi. Isi API key, base URL, dan sender number terlebih dahulu." });
-  }
   try {
-    // Fonnte API format: POST to base_url, Authorization: token (no Bearer), body: { target, message }
-    const response = await fetch(cfg.base_url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "Authorization": cfg.api_key },
-      body: JSON.stringify({ target: target_number, message, countryCode: "62" }),
-    });
-    const data = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      return res.status(502).json({ detail: "Fonnte API error", fonnte_response: data });
-    }
-    return res.json({ message: "Pesan terkirim", fonnte_response: data });
+    await sendFonnte(String(target_number), String(message));
+    return res.json({ message: "Pesan terkirim" });
   } catch (err: any) {
-    return res.status(502).json({ detail: "Gagal menghubungi Fonnte API: " + (err?.message ?? "Unknown error") });
+    return res.status(502).json({ detail: "Gagal kirim pesan: " + (err?.message ?? "Unknown error") });
   }
 });
 
@@ -492,6 +487,62 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
     errors: errors.length > 0 ? errors : undefined,
     message: `Test terkirim ke ${sent} dari ${usersWithRole.length} user`,
   });
+});
+
+// ── WhatsApp (Evolution API) — tab "GET QR Whatsapp" di Pengaturan ─────────────
+
+// GET /settings/whatsapp/status — status koneksi instance + nomor tersambung
+router.get("/settings/whatsapp/status", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  const cfg = evolutionConfigured();
+  if (!cfg.ok) return res.json({ configured: false, detail: cfg.detail, state: null, number: null });
+  try {
+    const { state } = await getConnectionState();
+    const number = state === "open" ? await getConnectedNumber() : null;
+    return res.json({ configured: true, state, number, instance: process.env.EVOLUTION_INSTANCE ?? null });
+  } catch (err: any) {
+    return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${err?.message ?? "error"}` });
+  }
+});
+
+// POST /settings/whatsapp/connect — buat instance (kalau belum) + kembalikan QR untuk di-scan
+router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req: Request, res: Response) => {
+  const cfg = evolutionConfigured();
+  if (!cfg.ok) return res.status(400).json({ detail: cfg.detail });
+  const number = typeof req.body?.number === "string" ? req.body.number.replace(/\D/g, "") : undefined;
+
+  try {
+    // Buat instance bila belum ada
+    const { state } = await getConnectionState();
+    if (state === null) {
+      await createInstance(number);
+    } else if (state === "open") {
+      // Sudah tersambung — tidak perlu QR
+      const connected = await getConnectedNumber();
+      await ensureWebhook().catch(() => {});
+      return res.json({ state: "open", number: connected, qr_base64: null, pairing_code: null, message: "WhatsApp sudah tersambung" });
+    }
+
+    // Daftarkan webhook inbound otomatis (best-effort) supaya siap pakai
+    await ensureWebhook().catch(() => {});
+
+    // Ambil QR
+    const { qr_base64, pairing_code } = await connectInstance();
+    return res.json({ state: "connecting", qr_base64, pairing_code, number: number ?? null });
+  } catch (err: any) {
+    return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${err?.message ?? "error"}` });
+  }
+});
+
+// POST /settings/whatsapp/logout — putuskan sesi agar bisa scan ulang nomor lain
+router.post("/settings/whatsapp/logout", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  const cfg = evolutionConfigured();
+  if (!cfg.ok) return res.status(400).json({ detail: cfg.detail });
+  try {
+    await logoutInstance();
+    return res.json({ message: "Sesi WhatsApp diputuskan" });
+  } catch (err: any) {
+    return res.status(502).json({ detail: `Gagal logout: ${err?.message ?? "error"}` });
+  }
 });
 
 export default router;

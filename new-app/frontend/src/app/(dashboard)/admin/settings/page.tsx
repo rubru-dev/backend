@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
-import { Settings, MessageCircle, Bell, Send, Eye, EyeOff, Loader2, Check, FlaskConical, CalendarClock, Zap } from "lucide-react";
+import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, QrCode, Smartphone, Power, RefreshCw } from "lucide-react";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string; active: string; inactive: string }> = {
   rendah: { label: "Rendah", emoji: "🟢", active: "bg-green-600 text-white border-green-600",  inactive: "bg-green-50 text-green-700 border-green-300 hover:bg-green-100" },
@@ -251,6 +251,154 @@ function ReminderRulesTab({
   );
 }
 
+function WhatsAppQrTab() {
+  const qc = useQueryClient();
+  const [number, setNumber] = useState("");
+  const [qr, setQr] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
+
+  const { data: status, isLoading: statusLoading } = useQuery({
+    queryKey: ["wa-status"],
+    queryFn: () => adminApi.waStatus(),
+    retry: false,
+    // Polling saat menunggu scan (connecting) supaya UI otomatis berubah jadi "Tersambung"
+    refetchInterval: (q) => (q.state.data?.state === "open" ? false : qr ? 3000 : false),
+  });
+
+  const connected = status?.state === "open";
+
+  // Begitu terdeteksi tersambung, buang QR.
+  if (connected && qr) setQr(null);
+
+  const connectMut = useMutation({
+    mutationFn: () => adminApi.waConnect(number),
+    onSuccess: (data) => {
+      if (data.state === "open") {
+        toast.success(data.message ?? "WhatsApp sudah tersambung");
+        setQr(null);
+        setPairingCode(null);
+      } else {
+        setQr(data.qr_base64);
+        setPairingCode(data.pairing_code);
+        if (!data.qr_base64) toast.message("QR belum tersedia, coba klik lagi sebentar.");
+      }
+      qc.invalidateQueries({ queryKey: ["wa-status"] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memuat QR"),
+  });
+
+  const logoutMut = useMutation({
+    mutationFn: () => adminApi.waLogout(),
+    onSuccess: () => {
+      toast.success("Sesi WhatsApp diputuskan");
+      setQr(null);
+      setPairingCode(null);
+      qc.invalidateQueries({ queryKey: ["wa-status"] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal logout"),
+  });
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <QrCode className="h-5 w-5 text-green-600" />
+            GET QR WhatsApp
+          </CardTitle>
+          <CardDescription>
+            Sambungkan nomor WhatsApp pengirim lewat Evolution API. Ketik nomor, klik <b>Munculkan QR</b>, lalu scan
+            di HP: WhatsApp → Perangkat Tertaut → Tautkan Perangkat. Semua reminder otomatis dikirim dari nomor ini.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Belum dikonfigurasi */}
+          {status && status.configured === false && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
+              Evolution API belum dikonfigurasi di server: <span className="font-mono">{status.detail}</span>. Isi variabel
+              <span className="font-mono"> EVOLUTION_BASE_URL / EVOLUTION_API_KEY / EVOLUTION_INSTANCE</span> di <span className="font-mono">.env</span> backend.
+            </div>
+          )}
+
+          {/* Status koneksi */}
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-muted-foreground">Status:</span>
+            {statusLoading ? (
+              <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />memuat...</span>
+            ) : connected ? (
+              <Badge className="bg-green-100 text-green-700 border-green-300 flex items-center gap-1">
+                <Smartphone className="h-3 w-3" /> Tersambung{status?.number ? ` — ${status.number}` : ""}
+              </Badge>
+            ) : status?.state === "connecting" || qr ? (
+              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300">Menunggu scan…</Badge>
+            ) : (
+              <Badge variant="outline" className="text-slate-500">Belum tersambung</Badge>
+            )}
+          </div>
+
+          {/* Form nomor + tombol */}
+          {!connected && (
+            <>
+              <div>
+                <Label>Nomor Pengirim (WhatsApp)</Label>
+                <Input
+                  placeholder="628xxxxxxxxxx"
+                  value={number}
+                  onChange={(e) => setNumber(e.target.value)}
+                  disabled={status?.configured === false}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Format internasional tanpa + (misal: 6281994031608). Nomor ini yang akan meng-scan QR.</p>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => connectMut.mutate()}
+                  disabled={!number || connectMut.isPending || status?.configured === false}
+                >
+                  {connectMut.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Memuat...</> : <><QrCode className="h-4 w-4 mr-1.5" />Munculkan QR</>}
+                </Button>
+                {qr && (
+                  <Button variant="outline" onClick={() => connectMut.mutate()} disabled={connectMut.isPending}>
+                    <RefreshCw className="h-4 w-4 mr-1.5" />Refresh QR
+                  </Button>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* QR */}
+          {qr && !connected && (
+            <div className="flex flex-col items-center gap-3 rounded-lg border bg-white p-4">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qr} alt="QR WhatsApp" className="h-64 w-64 object-contain" />
+              <p className="text-xs text-muted-foreground text-center max-w-xs">
+                Scan QR ini dari WhatsApp di nomor pengirim. QR akan kedaluwarsa dalam ~1 menit — klik <b>Refresh QR</b> bila sudah lewat.
+              </p>
+              {pairingCode && (
+                <p className="text-sm">Atau pakai kode pairing: <span className="font-mono font-bold">{pairingCode}</span></p>
+              )}
+            </div>
+          )}
+
+          {/* Sudah tersambung → tombol putuskan */}
+          {connected && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="text-red-600 border-red-200 hover:bg-red-50"
+                onClick={() => logoutMut.mutate()}
+                disabled={logoutMut.isPending}
+              >
+                {logoutMut.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Memutuskan...</> : <><Power className="h-4 w-4 mr-1.5" />Putuskan / Ganti Nomor</>}
+              </Button>
+              <span className="text-xs text-muted-foreground">Putuskan untuk menyambungkan nomor lain.</span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { user, isSuperAdmin } = useAuthStore();
   const superAdmin = isSuperAdmin();
@@ -260,9 +408,7 @@ export default function SettingsPage() {
   const [pwForm, setPwForm] = useState({ old_password: "", new_password: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
 
-  // Fontee config form
-  const [fonteeForm, setFonteeForm] = useState({ api_key: "", base_url: "", sender_number: "" });
-  const [fonteeSynced, setFonteeSynced] = useState(false);
+  // Test kirim pesan WhatsApp (via Evolution)
   const [testNum, setTestNum] = useState("");
   const [testMsg, setTestMsg] = useState("Halo! Ini pesan test dari sistem RubahRumah.");
 
@@ -270,25 +416,6 @@ export default function SettingsPage() {
     mutationFn: (d: any) => apiClient.post("/auth/change-password", d).then((r) => r.data),
     onSuccess: () => { toast.success("Password berhasil diubah"); setPwForm({ old_password: "", new_password: "", confirm: "" }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal ubah password"),
-  });
-
-  const { isLoading: fonteeLoading } = useQuery({
-    queryKey: ["fontee-config"],
-    queryFn: async () => {
-      const data = await adminApi.getFonteeConfig();
-      setFonteeForm({ api_key: data.api_key, base_url: data.base_url, sender_number: data.sender_number });
-      setFonteeSynced(true);
-      return data;
-    },
-    staleTime: Infinity,
-    retry: false,
-    enabled: superAdmin,
-  });
-
-  const saveFonteeMut = useMutation({
-    mutationFn: (d: any) => adminApi.saveFonteeConfig(d),
-    onSuccess: () => { toast.success("Konfigurasi Fontee disimpan"); qc.invalidateQueries({ queryKey: ["fontee-config"] }); },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan"),
   });
 
   const sendTestMut = useMutation({
@@ -331,7 +458,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="akun">
         <TabsList>
           <TabsTrigger value="akun"><Settings className="h-3.5 w-3.5 mr-1.5" />Akun</TabsTrigger>
-          {superAdmin && <TabsTrigger value="fontee"><MessageCircle className="h-3.5 w-3.5 mr-1.5" />Fonnte WhatsApp</TabsTrigger>}
+          {superAdmin && <TabsTrigger value="whatsapp"><QrCode className="h-3.5 w-3.5 mr-1.5" />GET QR Whatsapp</TabsTrigger>}
           {superAdmin && <TabsTrigger value="reminder"><Bell className="h-3.5 w-3.5 mr-1.5" />Reminder Rules</TabsTrigger>}
         </TabsList>
 
@@ -367,61 +494,14 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Fontee tab */}
-        <TabsContent value="fontee" className="mt-4 space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><MessageCircle className="h-5 w-5 text-green-600" />Konfigurasi Fonnte API</CardTitle>
-              <CardDescription>Isi kredensial Fonnte WhatsApp API. Konfigurasi ini digunakan untuk pengiriman reminder otomatis.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {fonteeLoading ? (
-                <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Memuat konfigurasi...</div>
-              ) : (
-                <>
-                  <div>
-                    <Label>Base URL</Label>
-                    <Input
-                      placeholder="https://api.fonnte.com/send"
-                      value={fonteeForm.base_url}
-                      onChange={(e) => { setFonteeForm({ ...fonteeForm, base_url: e.target.value }); setFonteeSynced(false); }}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Endpoint Fonnte API — isi: https://api.fonnte.com/send</p>
-                  </div>
-                  <div>
-                    <Label>Token Fonnte</Label>
-                    <Input
-                      type="password"
-                      placeholder="Masukkan token dari dashboard Fonnte"
-                      value={fonteeForm.api_key}
-                      onChange={(e) => { setFonteeForm({ ...fonteeForm, api_key: e.target.value }); setFonteeSynced(false); }}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Token dari app.fonnte.com → perangkat → token</p>
-                  </div>
-                  <div>
-                    <Label>Sender Number</Label>
-                    <Input
-                      placeholder="628xxxxxxxxxx"
-                      value={fonteeForm.sender_number}
-                      onChange={(e) => { setFonteeForm({ ...fonteeForm, sender_number: e.target.value }); setFonteeSynced(false); }}
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">Nomor WhatsApp yang terhubung ke Fonnte (format internasional tanpa +)</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button onClick={() => saveFonteeMut.mutate(fonteeForm)} disabled={saveFonteeMut.isPending}>
-                      {saveFonteeMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : "Simpan Konfigurasi"}
-                    </Button>
-                    {fonteeSynced && <span className="text-sm text-green-600 flex items-center gap-1"><Check className="h-3.5 w-3.5" />Tersinkronisasi</span>}
-                  </div>
-                </>
-              )}
-            </CardContent>
-          </Card>
+        {/* GET QR Whatsapp tab */}
+        <TabsContent value="whatsapp" className="mt-4 space-y-4">
+          <WhatsAppQrTab />
 
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2"><Send className="h-4 w-4" />Test Kirim Pesan</CardTitle>
-              <CardDescription>Kirim pesan percobaan untuk memverifikasi konfigurasi Fontee.</CardDescription>
+              <CardDescription>Kirim pesan percobaan lewat WhatsApp (Evolution API) untuk memverifikasi koneksi.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
