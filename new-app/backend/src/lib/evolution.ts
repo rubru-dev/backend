@@ -21,10 +21,15 @@ export function evolutionConfigured(): { ok: boolean; detail?: string } {
   return { ok: true };
 }
 
-// Timeout dijaga jauh di bawah batas proxy (nginx default 60s) supaya endpoint
-// selalu sempat membalas sendiri — kalau tidak, klien menerima 502 dari nginx
-// dan tidak pernah melihat pesan error kita.
-function client(timeout = 12000) {
+// Timeout dijaga di bawah batas proxy (nginx default 60s) supaya endpoint selalu
+// sempat membalas sendiri — kalau tidak, klien menerima 502 dari nginx dan tidak
+// pernah melihat pesan error kita.
+//
+// 30s (bukan 12s): di VPS, inisialisasi socket Baileys jauh lebih lambat daripada
+// di lokal — 12s membuat axios menyerah duluan padahal Evolution sebenarnya sehat,
+// dan hasilnya jadi 502 "ECONNABORTED" yang menyesatkan. Panggilan murah memakai
+// timeout pendek secara eksplisit agar rantai terburuk tetap di bawah 60s.
+function client(timeout = 30000) {
   return axios.create({
     baseURL: config.evolutionBaseUrl.replace(/\/$/, ""),
     headers: { apikey: config.evolutionApiKey, "Content-Type": "application/json" },
@@ -38,7 +43,7 @@ const INSTANCE = () => config.evolutionInstance;
 
 /** State koneksi instance: "open" (tersambung), "connecting", "close", atau null bila belum ada. */
 export async function getConnectionState(): Promise<{ state: string | null; raw: any }> {
-  const res = await client().get(`/instance/connectionState/${INSTANCE()}`);
+  const res = await client(8000).get(`/instance/connectionState/${INSTANCE()}`);
   if (res.status === 404) return { state: null, raw: res.data };
   const state = res.data?.instance?.state ?? res.data?.state ?? null;
   return { state, raw: res.data };
@@ -106,7 +111,7 @@ export async function logoutInstance(): Promise<void> {
 
 /** Nomor WhatsApp yang sedang tersambung (owner instance), bila ada. */
 export async function getConnectedNumber(): Promise<string | null> {
-  const res = await client().get(`/instance/fetchInstances?instanceName=${encodeURIComponent(INSTANCE())}`);
+  const res = await client(8000).get(`/instance/fetchInstances?instanceName=${encodeURIComponent(INSTANCE())}`);
   if (res.status >= 400) return null;
   const arr = Array.isArray(res.data) ? res.data : [res.data];
   const inst = arr.find((i: any) => (i?.name ?? i?.instance?.instanceName) === INSTANCE()) ?? arr[0];
@@ -125,7 +130,7 @@ export async function ensureWebhook(): Promise<void> {
   if (!config.evolutionWebhookToken) return;
   const base = config.appUrl.replace(/\/$/, "");
   const url = `${base}/v1/webhooks/evolution/${config.evolutionWebhookToken}`;
-  await client().post(`/webhook/set/${INSTANCE()}`, {
+  await client(8000).post(`/webhook/set/${INSTANCE()}`, {
     webhook: { enabled: true, url, events: ["MESSAGES_UPSERT"] },
   });
 }
