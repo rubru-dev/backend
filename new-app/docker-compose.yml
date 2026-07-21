@@ -45,6 +45,15 @@ services:
       STORAGE_PATH: storage
       FONNTE_TOKEN: ${FONNTE_TOKEN:-}
       FONNTE_API_URL: https://api.fonnte.com/send
+      # WhatsApp via Evolution API (isi di new-app/.env, di sebelah docker-compose.yml)
+      # PENTING: karena backend jalan di dalam container, JANGAN pakai localhost untuk
+      # Evolution yang jalan di host — pakai http://host.docker.internal:8080 (atau nama
+      # service bila Evolution dijadikan service compose juga).
+      WA_PROVIDER: ${WA_PROVIDER:-evolution}
+      EVOLUTION_BASE_URL: ${EVOLUTION_BASE_URL:-}
+      EVOLUTION_API_KEY: ${EVOLUTION_API_KEY:-}
+      EVOLUTION_INSTANCE: ${EVOLUTION_INSTANCE:-rubahrumah}
+      EVOLUTION_WEBHOOK_TOKEN: ${EVOLUTION_WEBHOOK_TOKEN:-}
       META_ADS_ACCESS_TOKEN: ${META_ADS_ACCESS_TOKEN:-}
       META_ADS_AD_ACCOUNT_ID: ${META_ADS_AD_ACCOUNT_ID:-}
       META_ADS_API_VERSION: v21.0
@@ -52,6 +61,10 @@ services:
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
     ports:
       - "127.0.0.1:8000:8000"
+    # Agar container backend bisa menjangkau Evolution API yang jalan di HOST
+    # via http://host.docker.internal:8080 (di Linux tidak otomatis tanpa ini).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./backend/storage:/app/storage
 
