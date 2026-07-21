@@ -63,6 +63,12 @@ export const adminApi = {
     apiClient.get<{ api_key: string; base_url: string; sender_number: string }>("/admin/settings/fontee").then((r) => r.data),
   saveFonteeConfig: (data: { api_key: string; base_url: string; sender_number: string }) =>
     apiClient.put("/admin/settings/fontee", data).then((r) => r.data),
+  getFonteeStatus: () =>
+    apiClient
+      .get<{ connected: boolean; device: string | null; quota: string | number | null; raw: unknown }>(
+        "/admin/settings/fontee/status"
+      )
+      .then((r) => r.data),
   sendFonteeTest: (data: { target_number: string; message: string }) =>
     apiClient.post("/admin/fontee/send-test", data).then((r) => r.data),
   getReminderRules: () =>

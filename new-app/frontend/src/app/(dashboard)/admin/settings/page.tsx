@@ -474,6 +474,145 @@ function WhatsAppQrTab() {
   );
 }
 
+// Tab konfigurasi Fonnte (gateway WA lama). Kredensialnya disimpan di database,
+// bukan .env, jadi tanpa tab ini tidak ada cara mengisinya lewat aplikasi.
+function FonnteTab() {
+  const [form, setForm] = useState({ api_key: "", base_url: "", sender_number: "" });
+  const [showKey, setShowKey] = useState(false);
+
+  const { data: cfg, isLoading } = useQuery({
+    queryKey: ["fontee-config"],
+    queryFn: () => adminApi.getFonteeConfig(),
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!cfg) return;
+    setForm({
+      api_key: cfg.api_key ?? "",
+      base_url: cfg.base_url ?? "",
+      sender_number: cfg.sender_number ?? "",
+    });
+  }, [cfg]);
+
+  const saveMut = useMutation({
+    mutationFn: () => adminApi.saveFonteeConfig(form),
+    onSuccess: () => toast.success("Konfigurasi Fonnte disimpan"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan konfigurasi"),
+  });
+
+  const statusMut = useMutation({
+    mutationFn: () => adminApi.getFonteeStatus(),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal cek status Fonnte"),
+  });
+  const status = statusMut.data;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Konfigurasi Fonnte</CardTitle>
+          <CardDescription>Gateway WhatsApp. Kredensial diambil dari sini oleh semua pengiriman reminder.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />Memuat...
+            </p>
+          ) : (
+            <>
+              <div>
+                <Label>API Key / Token</Label>
+                <div className="relative">
+                  <Input
+                    type={showKey ? "text" : "password"}
+                    placeholder="Token dari dashboard Fonnte"
+                    value={form.api_key}
+                    onChange={(e) => setForm({ ...form, api_key: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    onClick={() => setShowKey((v) => !v)}
+                  >
+                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <Label>Base URL</Label>
+                <Input
+                  placeholder="https://api.fonnte.com/send"
+                  value={form.base_url}
+                  onChange={(e) => setForm({ ...form, base_url: e.target.value })}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Biasanya https://api.fonnte.com/send</p>
+              </div>
+              <div>
+                <Label>Nomor Pengirim</Label>
+                <Input
+                  placeholder="628xxxxxxxxxx"
+                  value={form.sender_number}
+                  onChange={(e) => setForm({ ...form, sender_number: e.target.value })}
+                />
+              </div>
+              <Button onClick={() => saveMut.mutate()} disabled={!form.api_key || !form.base_url || saveMut.isPending}>
+                {saveMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : "Simpan"}
+              </Button>
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Status Perangkat</CardTitle>
+          <CardDescription>Cek apakah nomor Fonnte sedang tersambung ke WhatsApp.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex items-center gap-3">
+            <Button variant="outline" onClick={() => statusMut.mutate()} disabled={statusMut.isPending}>
+              {statusMut.isPending
+                ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengecek...</>
+                : <><Zap className="h-3.5 w-3.5 mr-1.5" />Cek Status</>}
+            </Button>
+            {status && (
+              <Badge className={status.connected ? "bg-green-600 text-white" : "bg-red-600 text-white"}>
+                {status.connected ? "Tersambung" : "Terputus"}
+              </Badge>
+            )}
+          </div>
+
+          {status && (
+            <div className="text-sm space-y-1">
+              {status.device && (
+                <div className="flex gap-4">
+                  <span className="text-muted-foreground w-24">Perangkat:</span>
+                  <span className="font-medium">{status.device}</span>
+                </div>
+              )}
+              {status.quota !== null && status.quota !== undefined && (
+                <div className="flex gap-4">
+                  <span className="text-muted-foreground w-24">Kuota:</span>
+                  <span>{String(status.quota)}</span>
+                </div>
+              )}
+              {/* Fonnte tidak konsisten menamai field statusnya antar versi — tampilkan
+                  respons mentahnya supaya tetap bisa dibaca kalau badge salah tebak. */}
+              <details className="pt-1">
+                <summary className="text-xs text-muted-foreground cursor-pointer">Respons mentah Fonnte</summary>
+                <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-x-auto">
+                  {JSON.stringify(status.raw, null, 2)}
+                </pre>
+              </details>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { user, isSuperAdmin } = useAuthStore();
   const superAdmin = isSuperAdmin();
@@ -534,6 +673,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="akun"><Settings className="h-3.5 w-3.5 mr-1.5" />Akun</TabsTrigger>
           {superAdmin && <TabsTrigger value="whatsapp"><QrCode className="h-3.5 w-3.5 mr-1.5" />GET QR Whatsapp</TabsTrigger>}
+          {superAdmin && <TabsTrigger value="fonnte"><Zap className="h-3.5 w-3.5 mr-1.5" />Fonnte</TabsTrigger>}
           {superAdmin && <TabsTrigger value="reminder"><Bell className="h-3.5 w-3.5 mr-1.5" />Reminder Rules</TabsTrigger>}
         </TabsList>
 
@@ -597,6 +737,11 @@ export default function SettingsPage() {
               </Button>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Fonnte tab */}
+        <TabsContent value="fonnte" className="mt-4 space-y-4">
+          {superAdmin && <FonnteTab />}
         </TabsContent>
 
         {/* Reminder Rules tab */}

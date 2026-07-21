@@ -1,4 +1,5 @@
 import { Router, Request, Response } from "express";
+import axios from "axios";
 import { prisma } from "../lib/prisma";
 import { requireRole } from "../middleware/requireRole";
 import { hashPassword } from "../lib/security";
@@ -373,6 +374,42 @@ router.put("/settings/fontee", requireRole("Super Admin"), async (req: Request, 
     create: { key: "fontee_config", value },
   });
   return res.json({ message: "Fontee config disimpan" });
+});
+
+// GET /settings/fontee/status — perangkat Fonnte tersambung atau tidak.
+// Fonnte menyediakan endpoint /device yang mengembalikan status device milik token.
+router.get("/settings/fontee/status", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
+  const cfg = (setting?.value as Record<string, string> | null) ?? {};
+  if (!cfg.api_key) return res.status(400).json({ detail: "API key Fonnte belum diisi" });
+
+  // Endpoint device satu host dengan endpoint kirim: ".../send" → ".../device".
+  const base = (cfg.base_url || "https://api.fonnte.com/send").replace(/\/[^/]*$/, "");
+  try {
+    const r = await axios.post(`${base}/device`, {}, {
+      headers: { Authorization: cfg.api_key },
+      timeout: 10000,
+      validateStatus: () => true,
+    });
+    if (r.status >= 400) {
+      return res.status(502).json({ detail: `Fonnte membalas HTTP ${r.status}`, raw: r.data });
+    }
+    const d = r.data ?? {};
+    // Penamaan field Fonnte tidak konsisten antar versi — periksa beberapa kemungkinan
+    // dan sertakan `raw` supaya UI tetap informatif kalau semuanya meleset.
+    const flag = String(
+      d.device_status ?? d.status_device ?? d.connected ?? d.status ?? ""
+    ).toLowerCase();
+    const connected = flag === "connect" || flag === "connected" || flag === "true";
+    return res.json({
+      connected,
+      device: d.device ?? d.name ?? cfg.sender_number ?? null,
+      quota: d.quota ?? null,
+      raw: d,
+    });
+  } catch (err: any) {
+    return res.status(502).json({ detail: `Gagal hubungi Fonnte: ${err?.message ?? "error"}` });
+  }
 });
 
 // POST /fontee/send-test — kirim pesan test lewat provider WA aktif (Evolution)
