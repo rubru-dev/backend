@@ -11,6 +11,7 @@ import {
   connectInstance,
   logoutInstance,
   deleteInstance,
+  restartInstance,
   getConnectedNumber,
   ensureWebhook,
 } from "../lib/evolution";
@@ -551,8 +552,9 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
       } catch (err: any) {
         // Setelah delete, Evolution kadang sudah lupa instance-nya di
         // connectionState (404 → state null) tapi masih menahan namanya, sehingga
-        // create ditolak 403 "already in use". Instance-nya sebenarnya masih ada:
-        // jangan menyerah, lanjut saja ambil artefak koneksinya di bawah.
+        // create ditolak 403 "already in use". Instance-nya sebenarnya masih ada.
+        // Pulihkan sendiri lewat restart instance, lalu lanjut ambil artefaknya —
+        // supaya admin tidak perlu SSH ke VPS untuk `pm2 restart evolution-api`.
         const detail = describeEvolutionError(err);
         if (!/already in use|already exists/i.test(detail)) {
           return res.json({
@@ -562,6 +564,8 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
             message: `Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi. (${detail})`,
           });
         }
+        await restartInstance();
+        await new Promise((r) => setTimeout(r, 2500)); // beri waktu socket naik
       }
     }
 

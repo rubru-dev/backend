@@ -88,6 +88,24 @@ export async function connectInstance(
   };
 }
 
+/**
+ * Restart socket instance TANPA menghapusnya.
+ *
+ * Dipakai untuk memulihkan keadaan aneh setelah delete, di mana Evolution sudah
+ * lupa instance-nya di `connectionState` (404) tapi masih menahan namanya sehingga
+ * `create` ditolak 403. Sebelum ini, satu-satunya jalan keluar adalah SSH ke VPS
+ * lalu `pm2 restart evolution-api` — sekarang aplikasi mengurusnya sendiri.
+ *
+ * Sengaja tidak melempar: ini upaya pemulihan, kegagalannya bukan akhir dunia.
+ */
+export async function restartInstance(): Promise<boolean> {
+  // Versi Evolution berbeda-beda memakai PUT atau POST untuk endpoint ini.
+  const put = await client(15000).put(`/instance/restart/${INSTANCE()}`).catch(() => null);
+  if (put && put.status < 400) return true;
+  const post = await client(15000).post(`/instance/restart/${INSTANCE()}`).catch(() => null);
+  return !!post && post.status < 400;
+}
+
 /** Hapus instance sepenuhnya — dipakai untuk mulai dari nol saat sesi nyangkut. */
 export async function deleteInstance(): Promise<void> {
   // Logout dulu (diabaikan bila gagal), baru hapus — Evolution kadang menolak
