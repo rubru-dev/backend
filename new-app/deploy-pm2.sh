@@ -68,16 +68,6 @@ echo "Backend  : $PM2_BACKEND    Frontend: $PM2_FRONTEND"
 
 [ -d "$APP_DIR" ] || fail "APP_DIR tidak ditemukan: $APP_DIR"
 
-# ── 0. Backup database ────────────────────────────────────────────────────────
-if [ "$SKIP_BACKUP" = false ]; then
-  step "0. Backup database ($DB_NAME)"
-  BACKUP_FILE="$BACKUP_DIR/backup_$(date +%Y%m%d_%H%M%S).sql"
-  pg_dump -U "$DB_USER" -h "$DB_HOST" -d "$DB_NAME" > "$BACKUP_FILE"
-  ok "Backup: $BACKUP_FILE ($(du -h "$BACKUP_FILE" | cut -f1))"
-else
-  warn "Backup dilewati (--skip-backup)"
-fi
-
 # ── 1. Git pull ───────────────────────────────────────────────────────────────
 step "1. Git pull"
 cd "$APP_DIR"
