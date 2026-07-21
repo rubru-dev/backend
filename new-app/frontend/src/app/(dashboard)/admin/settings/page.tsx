@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useAuthStore } from "@/store/authStore";
-import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, QrCode, Smartphone, Power } from "lucide-react";
+import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap } from "lucide-react";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string; active: string; inactive: string }> = {
   rendah: { label: "Rendah", emoji: "🟢", active: "bg-green-600 text-white border-green-600",  inactive: "bg-green-50 text-green-700 border-green-300 hover:bg-green-100" },
@@ -251,234 +251,12 @@ function ReminderRulesTab({
   );
 }
 
-function WhatsAppQrTab() {
-  const qc = useQueryClient();
-  const [number, setNumber] = useState("");
-  const [pairingCode, setPairingCode] = useState<string | null>(null);
-  const [qr, setQr] = useState<string | null>(null);
-  const [prepMessage, setPrepMessage] = useState<string | null>(null);
-
-  const { data: status, isLoading: statusLoading } = useQuery({
-    queryKey: ["wa-status"],
-    queryFn: () => adminApi.waStatus(),
-    retry: false,
-    // Polling saat menunggu scan (connecting) supaya UI otomatis berubah jadi "Tersambung"
-    // Polling saat menunggu kode dimasukkan di HP, supaya status otomatis jadi "Tersambung"
-    refetchInterval: (q) => (q.state.data?.state === "open" ? false : pairingCode || qr ? 3000 : false),
-  });
-
-  const connected = status?.state === "open";
-
-  useEffect(() => {
-    if (!connected) return;
-    setPairingCode(null);
-    setQr(null);
-    setPrepMessage(null);
-  }, [connected]);
-
-  const connectMut = useMutation({
-    mutationFn: (mode: "qr" | "code") => adminApi.waConnect(number, mode),
-    onSuccess: (data, mode) => {
-      if (data.state === "open") {
-        toast.success(data.message ?? "WhatsApp sudah tersambung");
-        setPairingCode(null);
-        setQr(null);
-        setPrepMessage(null);
-        qc.invalidateQueries({ queryKey: ["wa-status"] });
-        return;
-      }
-      const code = data.pairing_code ?? null;
-      const image = data.qr_base64 ?? null;
-      setPairingCode(code);
-      setQr(image);
-      setPrepMessage(code || image ? null : data.message ?? "Belum siap. Tunggu sebentar lalu klik lagi.");
-      if (data.message && (code || image)) toast.info(data.message);
-      qc.invalidateQueries({ queryKey: ["wa-status"] });
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyiapkan koneksi"),
-  });
-
-  const resetMut = useMutation({
-    mutationFn: () => adminApi.waReset(),
-    onSuccess: () => {
-      toast.success("Koneksi direset — silakan coba lagi");
-      setPairingCode(null);
-      setQr(null);
-      setPrepMessage(null);
-      qc.invalidateQueries({ queryKey: ["wa-status"] });
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal reset"),
-  });
-
-  const logoutMut = useMutation({
-    mutationFn: () => adminApi.waLogout(),
-    onSuccess: () => {
-      toast.success("Sesi WhatsApp diputuskan");
-      setPairingCode(null);
-      setPrepMessage(null);
-      qc.invalidateQueries({ queryKey: ["wa-status"] });
-    },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal logout"),
-  });
-
-  return (
-    <div className="space-y-4">
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <QrCode className="h-5 w-5 text-green-600" />
-            GET QR WhatsApp
-          </CardTitle>
-          <CardDescription>
-            Sambungkan nomor WhatsApp pengirim lewat Evolution API. Ketik nomor, klik <b>Buat Kode Pairing</b>,
-            lalu masukkan kodenya di HP. Semua reminder otomatis dikirim dari nomor ini.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Belum dikonfigurasi */}
-          {status && status.configured === false && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-700">
-              Evolution API belum dikonfigurasi di server: <span className="font-mono">{status.detail}</span>. Isi variabel
-              <span className="font-mono"> EVOLUTION_BASE_URL / EVOLUTION_API_KEY / EVOLUTION_INSTANCE</span> di <span className="font-mono">.env</span> backend.
-            </div>
-          )}
-
-          {/* Status koneksi */}
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-muted-foreground">Status:</span>
-            {statusLoading ? (
-              <span className="flex items-center gap-1 text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" />memuat...</span>
-            ) : connected ? (
-              <Badge className="bg-green-100 text-green-700 border-green-300 flex items-center gap-1">
-                <Smartphone className="h-3 w-3" /> Tersambung{status?.number ? ` — ${status.number}` : ""}
-              </Badge>
-            ) : status?.state === "connecting" || pairingCode ? (
-              <Badge className="bg-yellow-100 text-yellow-700 border-yellow-300">Menunggu kode dimasukkan di HP…</Badge>
-            ) : (
-              <Badge variant="outline" className="text-slate-500">Belum tersambung</Badge>
-            )}
-          </div>
-
-          {/* Form nomor + tombol */}
-          {!connected && (
-            <>
-              <div>
-                <Label>Nomor Pengirim (WhatsApp)</Label>
-                <Input
-                  placeholder="628xxxxxxxxxx"
-                  value={number}
-                  onChange={(e) => setNumber(e.target.value)}
-                  disabled={status?.configured === false}
-                />
-                <p className="text-xs text-muted-foreground mt-1">Format internasional tanpa + (misal: 6281994031608). Nomor ini yang akan meng-scan QR.</p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Button
-                  onClick={() => connectMut.mutate("qr")}
-                  disabled={connectMut.isPending || status?.configured === false}
-                >
-                  {connectMut.isPending
-                    ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Menyiapkan...</>
-                    : <><QrCode className="h-4 w-4 mr-1.5" />Tampilkan QR</>}
-                </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => connectMut.mutate("code")}
-                  disabled={!number || connectMut.isPending || status?.configured === false}
-                  title={!number ? "Isi nomor pengirim dulu" : undefined}
-                >
-                  <Smartphone className="h-4 w-4 mr-1.5" />Kode Pairing
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="text-muted-foreground"
-                  onClick={() => resetMut.mutate()}
-                  disabled={resetMut.isPending}
-                  title="Hapus sesi dan mulai dari nol"
-                >
-                  {resetMut.isPending
-                    ? <Loader2 className="h-4 w-4 animate-spin" />
-                    : <><Power className="h-4 w-4 mr-1.5" />Reset</>}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                <b>QR</b>: nomor tidak wajib diisi, scan lewat <i>Tautkan Perangkat</i>. <b>Kode Pairing</b>: isi nomor dulu, lalu ketik kode di HP.
-                Kalau gagal terus, klik <b>Reset</b> lalu coba metode satunya.
-              </p>
-            </>
-          )}
-
-          {/* QR */}
-          {qr && !connected && (
-            <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-blue-300 bg-blue-50 p-5">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={qr} alt="QR WhatsApp" className="h-60 w-60 rounded bg-white object-contain p-2" />
-              <div className="max-w-sm text-left text-xs text-blue-900/80">
-                <p className="font-semibold">Langkah di HP:</p>
-                <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-                  <li>WhatsApp → <b>Perangkat Tertaut</b></li>
-                  <li>Ketuk <b>Tautkan Perangkat</b> (kamera terbuka)</li>
-                  <li>Arahkan ke QR ini</li>
-                </ol>
-                <p className="mt-2">
-                  QR kedaluwarsa ~30 detik. Siapkan kamera <b>dulu</b>, baru klik <b>Tampilkan QR</b>.
-                </p>
-              </div>
-            </div>
-          )}
-
-          {/* Kode pairing */}
-          {pairingCode && !connected && (
-            <div className="rounded-lg border-2 border-green-300 bg-green-50 p-5 text-center">
-              <p className="text-sm font-medium text-green-800">Masukkan kode ini di HP:</p>
-              <p className="my-3 font-mono text-4xl font-bold tracking-[0.3em] text-green-900">{pairingCode}</p>
-              <div className="mx-auto max-w-sm text-left text-xs text-green-900/80">
-                <p className="font-semibold">Langkah di HP:</p>
-                <ol className="mt-1 list-decimal space-y-0.5 pl-4">
-                  <li>Buka WhatsApp → <b>Perangkat Tertaut</b></li>
-                  <li>Ketuk <b>Tautkan Perangkat</b></li>
-                  <li>Pilih <b>Tautkan dengan nomor telepon</b> (bukan scan QR)</li>
-                  <li>Ketik kode di atas</li>
-                </ol>
-              </div>
-              <p className="mt-3 text-xs text-muted-foreground">
-                Kode berlaku beberapa menit. Kalau kedaluwarsa, klik <b>Buat Kode Baru</b>.
-              </p>
-            </div>
-          )}
-
-          {/* Sedang disiapkan */}
-          {prepMessage && !pairingCode && !connected && (
-            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-              {prepMessage}
-            </div>
-          )}
-
-          {/* Sudah tersambung → tombol putuskan */}
-          {connected && (
-            <div className="flex items-center gap-2">
-              <Button
-                variant="outline"
-                className="text-red-600 border-red-200 hover:bg-red-50"
-                onClick={() => logoutMut.mutate()}
-                disabled={logoutMut.isPending}
-              >
-                {logoutMut.isPending ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Memutuskan...</> : <><Power className="h-4 w-4 mr-1.5" />Putuskan / Ganti Nomor</>}
-              </Button>
-              <span className="text-xs text-muted-foreground">Putuskan untuk menyambungkan nomor lain.</span>
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </div>
-  );
-}
-
-// Tab konfigurasi Fonnte (gateway WA lama). Kredensialnya disimpan di database,
 // bukan .env, jadi tanpa tab ini tidak ada cara mengisinya lewat aplikasi.
 function FonnteTab() {
   const [form, setForm] = useState({ api_key: "", base_url: "", sender_number: "" });
   const [showKey, setShowKey] = useState(false);
+  const [testNum, setTestNum] = useState("");
+  const [testMsg, setTestMsg] = useState("Halo! Ini pesan test dari sistem RubahRumah.");
 
   const { data: cfg, isLoading } = useQuery({
     queryKey: ["fontee-config"],
@@ -506,6 +284,12 @@ function FonnteTab() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal cek status Fonnte"),
   });
   const status = statusMut.data;
+
+  const sendTestMut = useMutation({
+    mutationFn: (d: { target_number: string; message: string }) => adminApi.sendFonteeTest(d),
+    onSuccess: () => toast.success("Pesan test berhasil dikirim!"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal kirim pesan test"),
+  });
 
   return (
     <div className="space-y-4">
@@ -609,6 +393,33 @@ function FonnteTab() {
           )}
         </CardContent>
       </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Send className="h-4 w-4" />Test Kirim Pesan</CardTitle>
+          <CardDescription>Kirim pesan percobaan lewat Fonnte untuk memverifikasi koneksi.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Nomor Tujuan</Label>
+            <Input placeholder="628xxxxxxxxxx" value={testNum} onChange={(e) => setTestNum(e.target.value)} />
+            <p className="text-xs text-muted-foreground mt-1">Format internasional tanpa + (misal: 6281234567890)</p>
+          </div>
+          <div>
+            <Label>Pesan</Label>
+            <Input value={testMsg} onChange={(e) => setTestMsg(e.target.value)} />
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => sendTestMut.mutate({ target_number: testNum, message: testMsg })}
+            disabled={!testNum || !testMsg || sendTestMut.isPending}
+          >
+            {sendTestMut.isPending
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengirim...</>
+              : <><Send className="h-3.5 w-3.5 mr-1.5" />Kirim Test</>}
+          </Button>
+        </CardContent>
+      </Card>
     </div>
   );
 }
@@ -622,20 +433,10 @@ export default function SettingsPage() {
   const [pwForm, setPwForm] = useState({ old_password: "", new_password: "", confirm: "" });
   const [showPw, setShowPw] = useState(false);
 
-  // Test kirim pesan WhatsApp (via Evolution)
-  const [testNum, setTestNum] = useState("");
-  const [testMsg, setTestMsg] = useState("Halo! Ini pesan test dari sistem RubahRumah.");
-
   const changePwMut = useMutation({
     mutationFn: (d: any) => apiClient.post("/auth/change-password", d).then((r) => r.data),
     onSuccess: () => { toast.success("Password berhasil diubah"); setPwForm({ old_password: "", new_password: "", confirm: "" }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal ubah password"),
-  });
-
-  const sendTestMut = useMutation({
-    mutationFn: (d: any) => adminApi.sendFonteeTest(d),
-    onSuccess: () => toast.success("Pesan test berhasil dikirim!"),
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal kirim pesan test"),
   });
 
   const { data: rulesData, isLoading: rulesLoading } = useQuery({
@@ -672,7 +473,6 @@ export default function SettingsPage() {
       <Tabs defaultValue="akun">
         <TabsList>
           <TabsTrigger value="akun"><Settings className="h-3.5 w-3.5 mr-1.5" />Akun</TabsTrigger>
-          {superAdmin && <TabsTrigger value="whatsapp"><QrCode className="h-3.5 w-3.5 mr-1.5" />GET QR Whatsapp</TabsTrigger>}
           {superAdmin && <TabsTrigger value="fonnte"><Zap className="h-3.5 w-3.5 mr-1.5" />Fonnte</TabsTrigger>}
           {superAdmin && <TabsTrigger value="reminder"><Bell className="h-3.5 w-3.5 mr-1.5" />Reminder Rules</TabsTrigger>}
         </TabsList>
@@ -709,35 +509,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* GET QR Whatsapp tab */}
-        <TabsContent value="whatsapp" className="mt-4 space-y-4">
-          <WhatsAppQrTab />
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2"><Send className="h-4 w-4" />Test Kirim Pesan</CardTitle>
-              <CardDescription>Kirim pesan percobaan lewat WhatsApp (Evolution API) untuk memverifikasi koneksi.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div>
-                <Label>Nomor Tujuan</Label>
-                <Input placeholder="628xxxxxxxxxx" value={testNum} onChange={(e) => setTestNum(e.target.value)} />
-                <p className="text-xs text-muted-foreground mt-1">Format internasional tanpa + (misal: 6281234567890)</p>
-              </div>
-              <div>
-                <Label>Pesan</Label>
-                <Input value={testMsg} onChange={(e) => setTestMsg(e.target.value)} />
-              </div>
-              <Button
-                variant="outline"
-                onClick={() => sendTestMut.mutate({ target_number: testNum, message: testMsg })}
-                disabled={!testNum || !testMsg || sendTestMut.isPending}
-              >
-                {sendTestMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengirim...</> : <><Send className="h-3.5 w-3.5 mr-1.5" />Kirim Test</>}
-              </Button>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
         {/* Fonnte tab */}
         <TabsContent value="fonnte" className="mt-4 space-y-4">
