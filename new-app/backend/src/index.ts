@@ -17,7 +17,6 @@ import { syncCamerasToMediaMTX } from "./lib/mediamtx";
 import { startMetaAutoRefresh } from "./lib/metaAutoRefresh";
 import { startReminderScheduler } from "./lib/fonteeReminderScheduler";
 import { startHardcodedReminderScheduler } from "./lib/hardcodedReminderScheduler";
-import { initWhatsApp } from "./lib/whatsapp";
 
 const prismaSync = new PrismaClient();
 
@@ -48,6 +47,7 @@ import goldenKanbanAdminRouter from "./routes/goldenKanbanAdmin";
 import goldenKanbanSalesRouter from "./routes/goldenKanbanSales";
 import tutorialRouter from "./routes/tutorial";
 import penawaranRouter from "./routes/penawaran";
+import webhooksRouter from "./routes/webhooks";
 
 // BigInt serialization fix
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -178,6 +178,9 @@ app.use("/api/v1/notifications", authenticate, notificationsRouter); // auth dih
 // Public website routes (no auth — for website-rubahrumah frontend)
 app.use("/v1/public/rb", publicRbRouter);
 
+// Webhook pesan WA masuk (Evolution API) — publik, proteksi via token rahasia di path.
+app.use("/v1/webhooks", webhooksRouter);
+
 // Website admin routes (auth required — for internal dashboard)
 app.use("/api/v1/website", authenticate, websiteAdminRouter);
 
@@ -213,14 +216,6 @@ app.listen(config.port, async () => {
   console.log(`✓ StockOpname API running on http://localhost:${config.port}`);
   console.log(`  • Health: http://localhost:${config.port}/health`);
   console.log(`  • API:    http://localhost:${config.port}/api/v1`);
-
-  // WhatsApp self-host (Baileys). Fire-and-forget: koneksi async + tampilkan QR di log
-  // saat pertama kali / setelah logout. Tidak boleh mengganggu startup lain bila gagal.
-  try {
-    initWhatsApp().catch((err) => console.error("✗ initWhatsApp gagal:", err));
-  } catch (err) {
-    console.error("✗ initWhatsApp gagal:", err);
-  }
 
   // Auto-refresh Meta token setiap 45 hari.
   // Tiap starter dibungkus try/catch terpisah: kegagalan satu tidak boleh membatalkan

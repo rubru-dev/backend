@@ -60,9 +60,9 @@ const groups = [
   {
     label: "Modul F",
     icon: "F",
-    paths: ["/work-plan"],
+    paths: ["/work-plan", "/activity-log"],
     permission: null,
-    items: [{ href: "/work-plan", label: "Work Plan" }],
+    items: [{ href: "/work-plan", label: "Work Plan" }, { href: "/activity-log", label: "Log Aktivitas User" }],
   },
   {
     label: "Modul G",

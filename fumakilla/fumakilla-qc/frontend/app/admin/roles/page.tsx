@@ -57,7 +57,16 @@ const MODULES: ModuleDef[] = [
       { id: "inquiries.create", label: "Tambah" },
       { id: "inquiries.edit", label: "Edit" },
       { id: "inquiries.delete", label: "Hapus" },
-      { id: "inquiries.change_status", label: "Ubah Status" },
+      { id: "inquiries.set_new_inquiry", label: "Status → New Inquiry" },
+      { id: "inquiries.set_non_sales_inquiry", label: "Status → Non Sales Inquiry" },
+      { id: "inquiries.set_pricelist_sent", label: "Status → Pricelist Sent" },
+      { id: "inquiries.set_contacted", label: "Status → Contacted" },
+      { id: "inquiries.set_survey_scheduled", label: "Status → Survey Scheduled" },
+      { id: "inquiries.set_survey_completed", label: "Status → Survey Completed" },
+      { id: "inquiries.set_quotation_sent", label: "Status → Quotation Sent" },
+      { id: "inquiries.set_waiting_agreement", label: "Status → Waiting Agreement" },
+      { id: "inquiries.set_won_closing", label: "Status → Won/Closing" },
+      { id: "inquiries.set_lost", label: "Status → Lost/Not Interest" },
     ],
   },
   {
@@ -67,7 +76,9 @@ const MODULES: ModuleDef[] = [
       { id: "quotations.create", label: "Tambah" },
       { id: "quotations.edit", label: "Edit" },
       { id: "quotations.delete", label: "Hapus" },
-      { id: "quotations.change_status", label: "Ubah Status" },
+      { id: "quotations.set_sent", label: "Status → Sent" },
+      { id: "quotations.set_approved", label: "Status → Approved (TTD)" },
+      { id: "quotations.set_rejected", label: "Status → Rejected" },
     ],
   },
   {
@@ -77,7 +88,9 @@ const MODULES: ModuleDef[] = [
       { id: "surveys.create", label: "Tambah" },
       { id: "surveys.edit", label: "Edit" },
       { id: "surveys.delete", label: "Hapus" },
-      { id: "surveys.change_status", label: "Ubah Status" },
+      { id: "surveys.set_completed", label: "Status → Completed" },
+      { id: "surveys.set_postponed", label: "Status → Postponed" },
+      { id: "surveys.set_cancelled", label: "Status → Cancelled" },
       { id: "surveys.b2b_report", label: "Laporan B2B" },
       { id: "surveys.b2c_report", label: "Laporan B2C" },
     ],
@@ -98,8 +111,11 @@ const MODULES: ModuleDef[] = [
       { id: "agreements.create", label: "Tambah" },
       { id: "agreements.edit", label: "Edit" },
       { id: "agreements.delete", label: "Hapus" },
-      { id: "agreements.change_status", label: "Ubah Status" },
-      { id: "agreements.activate", label: "Aktivasi (→ ACTIVE)" },
+      { id: "agreements.set_sent", label: "Status → Sent" },
+      { id: "agreements.set_signed", label: "Status → Signed (approve TTD)" },
+      { id: "agreements.set_active", label: "Status → Active (aktivasi)" },
+      { id: "agreements.set_expired", label: "Status → Expired" },
+      { id: "agreements.set_cancelled", label: "Status → Cancelled" },
     ],
   },
   {
@@ -109,7 +125,10 @@ const MODULES: ModuleDef[] = [
       { id: "order_sheets.create", label: "Tambah" },
       { id: "order_sheets.edit", label: "Edit" },
       { id: "order_sheets.delete", label: "Hapus" },
-      { id: "order_sheets.change_status", label: "Ubah Status" },
+      { id: "order_sheets.set_final", label: "Status → Final" },
+      { id: "order_sheets.set_sent", label: "Status → Sent" },
+      { id: "order_sheets.set_completed", label: "Status → Completed" },
+      { id: "order_sheets.set_cancelled", label: "Status → Cancelled" },
     ],
   },
   {
@@ -134,9 +153,11 @@ const MODULES: ModuleDef[] = [
       { id: "complaints.create", label: "Tambah" },
       { id: "complaints.edit", label: "Edit" },
       { id: "complaints.delete", label: "Hapus" },
-      { id: "complaints.change_status", label: "Ubah Status" },
-      { id: "complaints.resolve", label: "Selesaikan" },
-      { id: "complaints.close", label: "Tutup" },
+      { id: "complaints.set_in_progress", label: "Status → In Progress" },
+      { id: "complaints.set_waiting_vendor", label: "Status → Waiting Vendor" },
+      { id: "complaints.set_waiting_customer", label: "Status → Waiting Customer" },
+      { id: "complaints.set_resolved", label: "Status → Resolved (selesai)" },
+      { id: "complaints.set_closed", label: "Status → Closed (tutup)" },
     ],
   },
   {
@@ -147,7 +168,9 @@ const MODULES: ModuleDef[] = [
       { id: "work_plans.create", label: "Tambah" },
       { id: "work_plans.edit", label: "Edit" },
       { id: "work_plans.delete", label: "Hapus" },
-      { id: "work_plans.change_status", label: "Ubah Status" },
+      { id: "work_plans.set_in_progress", label: "Status → In Progress" },
+      { id: "work_plans.set_completed", label: "Status → Completed" },
+      { id: "work_plans.set_cancelled", label: "Status → Cancelled" },
     ],
   },
   {
@@ -427,7 +450,7 @@ export default function RolesPage() {
                   )}
                   {!isRenaming && <p style={{ fontSize: 10, color: "#9ca3af", marginTop: 1 }}>{r.userCount} user · {r.permissions.length} perm</p>}
                 </div>
-                {!isRenaming && (
+                {!isRenaming && r.name !== "Super Admin" && (
                   <div style={{ display: "flex", gap: 3, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
                     <button
                       onClick={() => startRename(r)}

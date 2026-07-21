@@ -164,19 +164,6 @@ export default function ServiceContractActivePage() {
 
       {loading ? <Loading /> : (
         <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 12, marginBottom: 20 }}>
-            {[
-              { label: "Kontrak Aktif", value: allRows.length },
-              { label: `Akan Habis ≤${thresholdDays} Hari`, value: allRows.filter((r: any) => { const d = daysLeft(r.tanggalBerakhir); return d !== null && d <= thresholdDays && d > 0; }).length },
-              { label: "Sudah Berakhir", value: allRows.filter((r: any) => { const d = daysLeft(r.tanggalBerakhir); return d !== null && d <= 0; }).length },
-            ].map(s => (
-              <div key={s.label} className="card" style={{ padding: "14px 18px" }}>
-                <p style={{ fontSize: 11, fontWeight: 700, color: "#6b7280", textTransform: "uppercase", letterSpacing: "0.06em" }}>{s.label}</p>
-                <p style={{ fontSize: 28, fontWeight: 800, color: NAVY, lineHeight: 1.2 }}>{s.value}</p>
-              </div>
-            ))}
-          </div>
-
           <div className="card overflow-hidden">
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>

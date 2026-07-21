@@ -1,6 +1,6 @@
 import { Router } from "express";
 import prisma from "../prisma";
-import { authenticate, requirePermission } from "../middleware/auth";
+import { authenticate, requirePermission, hasPermission } from "../middleware/auth";
 
 const router = Router();
 router.use(authenticate);
@@ -374,15 +374,17 @@ router.post("/", requirePermission("agreements.create"), async (req, res, next) 
 });
 
 // Update
-router.patch("/:id", requirePermission("agreements.edit"), async (req, res, next) => {
+router.patch("/:id", requirePermission("agreements.edit"), async (req: any, res, next) => {
   try {
     const b = req.body;
     const data: any = {};
     if ("status" in b) {
       const current = await prisma.agreement.findUnique({ where: { id: req.params.id }, select: { status: true, approvedAt: true } });
       if (!current) return res.status(404).json({ error: "Agreement tidak ditemukan" });
-      if (b.status !== current.status && !current.approvedAt) {
-        return res.status(400).json({ error: "Agreement harus di-approve dengan tanda tangan sebelum status bisa diganti." });
+      if (b.status !== current.status) {
+        if (!current.approvedAt) return res.status(400).json({ error: "Agreement harus di-approve dengan tanda tangan sebelum status bisa diganti." });
+        const perm = `agreements.set_${String(b.status).toLowerCase()}`;
+        if (!hasPermission(req.user, perm)) return res.status(403).json({ error: `Tidak ada izin mengubah status agreement ke ${b.status} (${perm}).` });
       }
     }
 
@@ -432,7 +434,7 @@ router.patch("/:id", requirePermission("agreements.edit"), async (req, res, next
   } catch (e) { next(e); }
 });
 
-router.post("/:id/approve", requirePermission("agreements.change_status"), async (req: any, res, next) => {
+router.post("/:id/approve", requirePermission("agreements.set_signed"), async (req: any, res, next) => {
   try {
     const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : "";
     if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." });
@@ -463,7 +465,7 @@ router.post("/:id/approve", requirePermission("agreements.change_status"), async
 });
 
 // Activate agreement → create ServiceContract
-router.post("/:id/activate", requirePermission("agreements.activate"), async (req, res, next) => {
+router.post("/:id/activate", requirePermission("agreements.set_active"), async (req, res, next) => {
   try {
     const ag = await prisma.agreement.findUnique({
       where: { id: req.params.id },
@@ -554,6 +556,23 @@ router.post("/:id/activate", requirePermission("agreements.activate"), async (re
 });
 
 // Delete
+router.post("/bulk-delete", requirePermission("agreements.delete"), async (req: any, res, next) => {
+  try {
+    const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.map((x: any) => String(x)).filter(Boolean) : [];
+    if (!ids.length) return res.status(400).json({ error: "Tidak ada item dipilih." });
+    let deleted = 0; const failed: { id: string; reason: string }[] = [];
+    for (const id of ids) {
+      try {
+        const item = await prisma.agreement.findUnique({ where: { id }, select: { id: true } });
+        if (!item) { failed.push({ id, reason: "Tidak ditemukan" }); continue; }
+        await prisma.agreement.delete({ where: { id } });
+        deleted++;
+      } catch (e: any) { failed.push({ id, reason: e?.message || "Gagal dihapus" }); }
+    }
+    res.json({ deleted, failed, total: ids.length });
+  } catch (e) { next(e); }
+});
+
 router.delete("/:id", requirePermission("agreements.delete"), async (req, res, next) => {
   try {
     await prisma.agreement.delete({ where: { id: req.params.id } });

@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from "react";
 import api from "@/lib/api";
-import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
+import { BulkDeleteBar, Loading, Modal, PageTitle, Pagination, RowBox, SelectAllBox, Status, useBulkSelect, useGet, usePagination } from "@/components/erp/shared";
 import { SERVICE_TYPES } from "@/lib/service-options";
 
 const statusOptions = ["ACTIVE", "INACTIVE", "BLACKLISTED"];
@@ -225,6 +225,8 @@ export default function VendorsPage() {
     const matchStatus = !statusFilter || item.status === statusFilter;
     return matchSearch && matchStatus;
   });
+  const sel = useBulkSelect();
+  const pg = usePagination(rows);
   return (
     <div className="p-9">
       <PageTitle title="Data Vendor" subtitle="Master vendor untuk order sheet: kontak, layanan, area, legal, rekening, rating, dan status vendor." actions={<div className="flex gap-2"><button className="btn" onClick={() => setShowFilters(v => !v)}>Filter{activeFilters > 0 ? ` (${activeFilters})` : ""}</button><button className="btn btn-primary" onClick={() => setFormItem(null)}>+ Tambah Vendor</button></div>} />
@@ -246,12 +248,13 @@ export default function VendorsPage() {
       <div className="card mt-5 overflow-x-auto">
         {loading ? <Loading /> : (
           <table>
-            <thead><tr><th className="w-10"></th><th>Kode</th><th>Vendor</th><th>Layanan</th><th>PIC</th><th>Coverage</th><th>Rating</th><th>Status</th><th>Aksi</th></tr></thead>
-            <tbody>{rows.map((item: any) => {
+            <thead><tr><th className="w-8"><SelectAllBox all={pg.pageRows.map((r: any) => r.id)} sel={sel} /></th><th className="w-10"></th><th>Kode</th><th>Vendor</th><th>Layanan</th><th>PIC</th><th>Coverage</th><th>Rating</th><th>Status</th><th>Aksi</th></tr></thead>
+            <tbody>{pg.pageRows.map((item: any) => {
               const expanded = expandedId === item.id;
               return (
                 <Fragment key={item.id}>
                   <tr className="table-row cursor-pointer" onClick={() => setExpandedId(expanded ? null : item.id)}>
+                    <td className="text-center" onClick={(e) => e.stopPropagation()}><RowBox id={item.id} sel={sel} /></td>
                     <td className="text-center text-lg font-bold text-accent select-none">{expanded ? "-" : "+"}</td>
                     <td><b className="text-accent">{item.code}</b></td>
                     <td><b>{item.name}</b><p className="mt-0.5 text-xs text-ts">{item.vendorType}</p></td>
@@ -266,7 +269,7 @@ export default function VendorsPage() {
                   </tr>
                   {expanded && (
                     <tr>
-                      <td colSpan={9} className="p-0">
+                      <td colSpan={10} className="p-0">
                         <VendorDetail item={item} onEdit={setFormItem} />
                       </td>
                     </tr>
@@ -277,7 +280,9 @@ export default function VendorsPage() {
           </table>
         )}
         {!loading && !rows.length && <p className="p-10 text-center text-sm text-ts">Belum ada data vendor.</p>}
+        {!loading && <Pagination pg={pg} />}
       </div>
+      <BulkDeleteBar ids={sel.list} endpoint="/erp/vendors/bulk-delete" label="vendor" onDone={() => { sel.clear(); reload(); }} />
       <Modal open={formItem !== undefined} title={formItem?.id ? "Edit Vendor" : "Tambah Vendor"} onClose={() => setFormItem(undefined)}>
         <VendorForm item={formItem} onClose={() => setFormItem(undefined)} onSaved={reload} />
       </Modal>

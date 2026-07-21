@@ -1,12 +1,13 @@
 "use client";
 
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useMemo, useRef, useState } from "react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import api from "@/lib/api";
-import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
+import { BulkDeleteBar, Loading, Modal, PageTitle, Pagination, RowBox, SelectAllBox, Status, useBulkSelect, useGet, usePagination } from "@/components/erp/shared";
 import { useAuth } from "@/hooks/useAuth";
-import { showConfirm } from "@/lib/app-modal";
+import { showAlert, showConfirm } from "@/lib/app-modal";
+import { downloadName } from "@/lib/download-name";
 import { SERVICE_TYPES, SERVICE_TYPE_DESCRIPTIONS } from "@/lib/service-options";
 
 const progressOptions = ["New Inquiry", "Non Sales Inquiry", "Pricelist Sent", "Contacted", "Survey Scheduled", "Survey Completed", "Quotation Sent", "Waiting Agreement", "Won/Closing", "Lost/Not Interest"];
@@ -49,6 +50,24 @@ function formatDate(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleDateString("id-ID");
+}
+
+// Konversi nilai sel Excel (Date / serial number / string DD-MM-YYYY / ISO) → "YYYY-MM-DD" untuk import.
+function toISODate(v: any): string {
+  if (v == null || v === "") return "";
+  const fmt = (y: number, m: number, d: number) => `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return fmt(v.getFullYear(), v.getMonth() + 1, v.getDate());
+  if (typeof v === "number" && Number.isFinite(v)) {
+    const dt = new Date(Math.round((v - 25569) * 86400000));
+    return Number.isNaN(dt.getTime()) ? "" : fmt(dt.getUTCFullYear(), dt.getUTCMonth() + 1, dt.getUTCDate());
+  }
+  const s = String(v).trim();
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);          // ISO / YYYY-MM-DD
+  if (m) return fmt(+m[1], +m[2], +m[3]);
+  m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/);   // DD/MM/YYYY (format id-ID)
+  if (m) return fmt(+m[3], +m[2], +m[1]);
+  const dt = new Date(s);
+  return Number.isNaN(dt.getTime()) ? "" : fmt(dt.getFullYear(), dt.getMonth() + 1, dt.getDate());
 }
 
 function Field({ label, required, error, children }: { label: string; required?: boolean; error?: string; children: React.ReactNode }) {
@@ -407,11 +426,14 @@ export default function Inquiries() {
   const [filters, setFilters] = useState<any>(emptyFilters);
   const [showFilters, setShowFilters] = useState(false);
   const [open, setOpen] = useState(false);
+  const [dlOpen, setDlOpen] = useState(false);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const query = useMemo(() => new URLSearchParams(Object.entries(filters).filter(([, value]) => value).map(([key, value]) => [key, String(value)])).toString(), [filters]);
   const { data, loading, reload } = useGet<any>(`/erp/inquiries?limit=100${query ? `&${query}` : ""}`);
   const rows = data?.data || [];
-  const admin = user?.role === "ADMIN";
+  const sel = useBulkSelect();
+  const pg = usePagination(rows);
+  const admin = ["ADMIN", "Super Admin"].includes(user?.role || "");
   const updateFilter = (key: string, value: string) => setFilters((current: any) => ({ ...current, [key]: value }));
   const clearFilters = () => setFilters(emptyFilters);
   const downloadPdf = () => {
@@ -422,22 +444,139 @@ export default function Inquiries() {
     doc.text(`Export: ${new Date().toLocaleString("id-ID")} | Data: ${rows.length}`, 14, 21);
     autoTable(doc, {
       startY: 27,
-      head: [["No", "Progress", "Result", "Tanggal", "Bulan", "PIC FI", "Customer", "Perusahaan", "Segment", "No Customer", "Source", "Area", "Service", "Kota", "Closing", "Keterangan"]],
-      body: rows.map((item: any) => [item.number, item.progress || "", item.result || "", formatDate(item.inquiryDate), item.contactMonth || "", item.picFiName || "", item.customerName || "", item.companyName || "", item.segmentType || "", item.phone || "", item.source || "", item.areaSizeM2 || "", item.serviceType || item.service || "", item.customerCity || "", `${formatDate(item.closingDate)} ${item.closingMonth || ""}`.trim(), item.notes || ""]),
+      head: [EXPORT_HEAD],
+      body: rows.map(exportRow),
       styles: { fontSize: 7, cellPadding: 1.5 },
       headStyles: { fillColor: [40, 95, 144] },
     });
-    doc.save(`inquiry-filtered-${new Date().toISOString().slice(0, 10)}.pdf`);
+    doc.save(downloadName({ doc: "Daftar Inquiry", info: "terfilter", ext: "pdf" }));
+  };
+
+  const EXPORT_HEAD = ["No", "Progress", "Result", "Tanggal", "Bulan", "PIC FI", "Customer", "Perusahaan", "Segment", "No Customer", "Source", "Area", "Service", "Kota", "Closing", "Keterangan"];
+  const exportRow = (item: any) => [item.number, item.progress || "", item.result || "", formatDate(item.inquiryDate), item.contactMonth || "", item.picFiName || "", item.customerName || "", item.companyName || "", item.segmentType || "", item.phone || "", item.source || "", item.areaSizeM2 || "", item.serviceType || item.service || "", item.customerCity || "", `${formatDate(item.closingDate)} ${item.closingMonth || ""}`.trim(), item.notes || ""];
+
+  const downloadExcel = async () => {
+    const XLSX = await import("xlsx");
+    const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEAD, ...rows.map(exportRow)]);
+    ws["!cols"] = EXPORT_HEAD.map((h) => ({ wch: Math.max(h.length + 2, 12) }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inquiry");
+    XLSX.writeFile(wb, downloadName({ doc: "Daftar Inquiry", info: "terfilter", ext: "xlsx" }));
+  };
+
+  // ─── Import Excel ───────────────────────────────────────────────────────────
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ created: number; total: number; skipped: { row: number; reason: string }[] } | null>(null);
+
+  const downloadTemplate = async () => {
+    const XLSX = await import("xlsx");
+    const example = ["(otomatis)", "New Inquiry", "On Going", "2026-07-16", "Juli", qaUsers?.data?.[0]?.name || "Nama User QA", "Budi Santoso", "PT Contoh Jaya", "B2B", "08123456789", "Whatsapp", "120", "PC", "Jakarta", "", "Baris contoh — hapus sebelum upload"];
+    const ws = XLSX.utils.aoa_to_sheet([EXPORT_HEAD, example]);
+    ws["!cols"] = EXPORT_HEAD.map((h) => ({ wch: Math.max(h.length + 2, 14) }));
+    const guide = [
+      ["PANDUAN PENGISIAN — isi persis salah satu pilihan valid di bawah. Kolom 'No' diabaikan (nomor dibuat otomatis)."],
+      [],
+      ["Progress", ...progressOptions],
+      ["Result", ...resultOptions],
+      ["Segment", ...segmentOptions],
+      ["Source", ...sourceOptions],
+      ["Service", ...serviceTypeOptions],
+      ["Kota", ...cityOptions],
+      ["PIC FI (user QA aktif)", ...((qaUsers?.data || []).map((u: any) => u.name))],
+      [],
+      ["Tanggal & Closing: format YYYY-MM-DD (mis. 2026-07-16). Closing boleh dikosongkan."],
+      ["Bulan: kosongkan untuk diisi otomatis dari Tanggal."],
+      ["No Customer: ketik sebagai TEKS agar angka 0 di depan tidak hilang."],
+      ["Perusahaan: wajib diisi jika Segment = B2B."],
+    ];
+    const wg = XLSX.utils.aoa_to_sheet(guide);
+    wg["!cols"] = [{ wch: 28 }, ...Array(10).fill({ wch: 18 })];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Inquiry");
+    XLSX.utils.book_append_sheet(wb, wg, "Panduan");
+    XLSX.writeFile(wb, downloadName({ doc: "Template Import Inquiry", ext: "xlsx" }));
+  };
+
+  const handleImportFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // reset agar file sama bisa dipilih ulang
+    if (!file) return;
+    setImporting(true);
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+      const ws = wb.Sheets[wb.SheetNames[0]];
+      const json: any[] = XLSX.utils.sheet_to_json(ws, { defval: "", raw: true });
+
+      const norm = (s: string) => s.toLowerCase().replace(/\s+/g, "");
+      const pick = (row: any, name: string) => { const k = Object.keys(row).find((key) => norm(key) === norm(name)); return k === undefined ? "" : row[k]; };
+
+      const parsed = json.map((r, idx) => {
+        const iso = toISODate(pick(r, "Tanggal"));
+        let bulan = String(pick(r, "Bulan") || "").trim();
+        if (!bulan && iso) { const dt = new Date(`${iso}T00:00:00`); if (!Number.isNaN(dt.getTime())) bulan = monthOptions[dt.getMonth()]; }
+        return {
+          __row: idx + 2,
+          inquiryDate: iso,
+          contactMonth: bulan,
+          progress: String(pick(r, "Progress") || "").trim(),
+          result: String(pick(r, "Result") || "").trim(),
+          picFiName: String(pick(r, "PIC FI") || "").trim(),
+          customerName: String(pick(r, "Customer") || "").trim(),
+          companyName: String(pick(r, "Perusahaan") || "").trim(),
+          segmentType: String(pick(r, "Segment") || "").trim(),
+          phone: String(pick(r, "No Customer") || "").trim(),
+          source: String(pick(r, "Source") || "").trim(),
+          areaSizeM2: String(pick(r, "Area") || "").trim(),
+          serviceType: String(pick(r, "Service") || "").trim(),
+          customerCity: String(pick(r, "Kota") || "").trim(),
+          closingDate: toISODate(pick(r, "Closing")),
+          notes: String(pick(r, "Keterangan") || "").trim(),
+        };
+      }).filter((r) => r.customerName || r.phone || r.inquiryDate || r.companyName);
+
+      if (!parsed.length) { showAlert({ title: "Tidak ada data", message: "File tidak berisi baris data yang bisa dibaca. Pastikan header kolom sesuai template." }); return; }
+      const ok = await showConfirm({ title: "Import inquiry?", message: `Terbaca ${parsed.length} baris dari file. Baris yang tidak valid akan dilewati.`, confirmLabel: "Import" });
+      if (!ok) return;
+      const res = await api.post("/erp/inquiries/import", { rows: parsed });
+      setImportResult(res.data);
+      reload();
+    } catch (err: any) {
+      showAlert({ title: "Gagal import", message: err?.response?.data?.error || err?.message || "File tidak dapat diproses.", tone: "danger" });
+    } finally {
+      setImporting(false);
+    }
   };
 
   return (
     <div className="p-9">
-      <PageTitle title="Inquiry" subtitle="Data kontak masuk dan progress calon customer." actions={<div className="flex flex-wrap gap-2"><button className="btn" onClick={() => setShowFilters((value) => !value)}>Filter</button><button className="btn" disabled={!rows.length} onClick={downloadPdf}>Download PDF</button><button className="btn btn-primary" onClick={() => setOpen(true)}>+ Inquiry Baru</button></div>} />
+      <PageTitle title="Inquiry" subtitle="Data kontak masuk dan progress calon customer." actions={<div className="flex flex-wrap gap-2"><button className="btn" onClick={() => setShowFilters((value) => !value)}>Filter</button><input ref={fileRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImportFile} /><button className="btn" disabled={importing} onClick={() => fileRef.current?.click()}>{importing ? "Mengimport…" : "⬆ Upload Excel"}</button><div className="relative"><button className="btn" onClick={() => setDlOpen((v) => !v)}>⬇ Download ▾</button>{dlOpen && (<><div className="fixed inset-0 z-40" onClick={() => setDlOpen(false)} /><div className="card absolute right-0 z-50 mt-1 w-48 overflow-hidden p-1 shadow-2xl"><button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-[#f2f7ff] disabled:opacity-40" disabled={!rows.length} onClick={() => { setDlOpen(false); downloadPdf(); }}>📄 Download PDF</button><button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-[#f2f7ff] disabled:opacity-40" disabled={!rows.length} onClick={() => { setDlOpen(false); downloadExcel(); }}>📊 Download Excel</button><button className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm hover:bg-[#f2f7ff]" onClick={() => { setDlOpen(false); downloadTemplate(); }}>📥 Template Import</button></div></>)}</div><button className="btn btn-primary" onClick={() => setOpen(true)}>+ Inquiry Baru</button></div>} />
       {showFilters && <section className="card mt-6 p-4"><div className="grid gap-3 md:grid-cols-4"><input placeholder="Cari no, customer, perusahaan, nomor..." value={filters.search} onChange={(event) => updateFilter("search", event.target.value)} />{optionSelect(progressOptions, filters.progress, (value) => updateFilter("progress", value), "", "Semua progress")}{optionSelect(resultOptions, filters.result, (value) => updateFilter("result", value), "", "Semua result")}{optionSelect(monthOptions, filters.contactMonth, (value) => updateFilter("contactMonth", value), "", "Semua bulan kontak")}<select value={filters.picFiId} onChange={(event) => updateFilter("picFiId", event.target.value)}><option value="">Semua PIC FI</option>{qaUsers?.data?.map((qa: any) => <option key={qa.id} value={qa.id}>{qa.name}</option>)}</select>{optionSelect(segmentOptions, filters.segmentType, (value) => updateFilter("segmentType", value), "", "Semua segmentasi")}{optionSelect(sourceOptions, filters.source, (value) => updateFilter("source", value), "", "Semua source")}{optionSelect(serviceTypeOptions, filters.serviceType, (value) => updateFilter("serviceType", value), "", "Semua service")}{optionSelect(cityOptions, filters.customerCity, (value) => updateFilter("customerCity", value), "", "Semua kota")}<input type="date" value={filters.from} onChange={(event) => updateFilter("from", event.target.value)} /><input type="date" value={filters.to} onChange={(event) => updateFilter("to", event.target.value)} /><button className="btn" onClick={clearFilters}>Reset Filter</button></div></section>}
       <div className="card mt-7 overflow-x-auto">
-        {loading ? <Loading /> : <table><thead><tr><th></th><th>No. Inquiry</th><th>Progress</th><th>Result</th><th>Kontak Masuk</th><th>PIC FI</th><th>Customer</th><th>Segmentasi</th><th>Source</th><th>Service</th><th>Kota</th></tr></thead><tbody>{rows.map((item: any) => <Fragment key={item.id}><tr className="table-row" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}><td className="w-10 text-center text-lg font-bold text-accent">{expandedId === item.id ? "-" : "+"}</td><td className="font-semibold text-accent">{item.number}</td><td><Status value={item.progress || "New Inquiry"} /></td><td>{item.result || "On Going"}</td><td>{formatDate(item.inquiryDate)}<p className="text-xs text-ts">{item.contactMonth || "-"}</p></td><td>{item.picFiName || "-"}</td><td><b>{item.customerName || item.customer?.name || "-"}</b><p className="text-xs text-ts">{item.companyName || "-"}</p></td><td>{item.segmentType || "-"}</td><td>{item.source || "-"}</td><td>{item.serviceType || item.service || "-"}</td><td>{item.customerCity || "-"}</td></tr>{expandedId === item.id && <tr><td colSpan={11} className="p-0"><InquiryDetailPanel item={item} qaUsers={qaUsers?.data || []} admin={admin} onSaved={reload} onDeleted={() => { setExpandedId(null); reload(); }} /></td></tr>}</Fragment>)}</tbody></table>}
+        {loading ? <Loading /> : <table><thead><tr><th style={{ width: 36 }}><SelectAllBox all={pg.pageRows.map((r: any) => r.id)} sel={sel} /></th><th></th><th>No. Inquiry</th><th>Progress</th><th>Result</th><th>Kontak Masuk</th><th>PIC FI</th><th>Customer</th><th>Segmentasi</th><th>Source</th><th>Service</th><th>Kota</th></tr></thead><tbody>{pg.pageRows.map((item: any) => <Fragment key={item.id}><tr className="table-row" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}><td className="text-center" onClick={(e) => e.stopPropagation()}><RowBox id={item.id} sel={sel} /></td><td className="w-10 text-center text-lg font-bold text-accent">{expandedId === item.id ? "-" : "+"}</td><td className="font-semibold text-accent">{item.number}</td><td><Status value={item.progress || "New Inquiry"} /></td><td>{item.result || "On Going"}</td><td>{formatDate(item.inquiryDate)}<p className="text-xs text-ts">{item.contactMonth || "-"}</p></td><td>{item.picFiName || "-"}</td><td><b>{item.customerName || item.customer?.name || "-"}</b><p className="text-xs text-ts">{item.companyName || "-"}</p></td><td>{item.segmentType || "-"}</td><td>{item.source || "-"}</td><td>{item.serviceType || item.service || "-"}</td><td>{item.customerCity || "-"}</td></tr>{expandedId === item.id && <tr><td colSpan={12} className="p-0"><InquiryDetailPanel item={item} qaUsers={qaUsers?.data || []} admin={admin} onSaved={reload} onDeleted={() => { setExpandedId(null); reload(); }} /></td></tr>}</Fragment>)}</tbody></table>}
+        {!loading && <Pagination pg={pg} />}
       </div>
+      <BulkDeleteBar ids={sel.list} endpoint="/erp/inquiries/bulk-delete" label="inquiry" onDone={() => { sel.clear(); reload(); }} />
       <Modal open={open} title="Inquiry Baru" onClose={() => setOpen(false)}><InquiryForm onSaved={() => { setOpen(false); reload(); }} /></Modal>
+      <Modal open={!!importResult} title="Hasil Import Excel" onClose={() => setImportResult(null)}>
+        <div className="space-y-3 text-sm">
+          <p><b className="text-lg text-[#16713b]">{importResult?.created ?? 0}</b> baris berhasil diimport{typeof importResult?.total === "number" ? ` dari ${importResult.total}` : ""}.</p>
+          {importResult?.skipped?.length ? (
+            <>
+              <p className="font-semibold text-[#9a4f00]">{importResult.skipped.length} baris dilewati:</p>
+              <div className="max-h-72 overflow-y-auto rounded-lg border border-[#e4e7f0]">
+                <table className="w-full text-xs">
+                  <thead><tr><th className="px-3 py-2 text-left">Baris</th><th className="px-3 py-2 text-left">Alasan</th></tr></thead>
+                  <tbody>{importResult.skipped.map((s, i) => <tr key={i}><td className="px-3 py-1.5 align-top font-semibold">{s.row}</td><td className="px-3 py-1.5">{s.reason}</td></tr>)}</tbody>
+                </table>
+              </div>
+              <p className="text-xs text-ts">Tip: nomor baris mengikuti baris di file Excel (baris 1 = header). Perbaiki lalu upload lagi — yang sudah masuk tidak akan dobel selama tidak diupload ulang.</p>
+            </>
+          ) : <p className="text-ts">Semua baris valid 🎉</p>}
+          <div className="flex justify-end"><button className="btn btn-primary" onClick={() => setImportResult(null)}>Tutup</button></div>
+        </div>
+      </Modal>
     </div>
   );
 }

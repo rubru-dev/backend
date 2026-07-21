@@ -4,10 +4,12 @@ import { useState, useEffect, useRef, useCallback, createContext, useContext } f
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import api from "@/lib/api";
+import { downloadName } from "@/lib/download-name";
 import { useGet, Loading } from "@/components/erp/shared";
 import { ROUTES } from "@/lib/routes";
 import { showAlert, showConfirm } from "@/lib/app-modal";
 import { fileUrl } from "@/lib/utils";
+import PestPhotoAnalyze from "@/components/ai/PestPhotoAnalyze";
 
 const EditModeCtx = createContext(false);
 
@@ -411,6 +413,8 @@ function LetterPage({ report, data: rd, update }: DocContext) {
 }
 
 function GeneralPage({ report, data: rd, update }: DocContext) {
+  const editMode = useContext(EditModeCtx);
+  const [aiPhoto, setAiPhoto] = useState("");
   const inq = report.inquiry;
   const clientName = inq?.companyName || inq?.customerName || "-";
   const addr = inq?.address || "";
@@ -445,6 +449,15 @@ function GeneralPage({ report, data: rd, update }: DocContext) {
 
       <SectionTitle>General Notes</SectionTitle>
       <EditableText value={rd.generalNotes} onChange={v => update({ generalNotes: v })} multiline placeholder="Tuliskan general notes, hasil tangkapan, action, dan catatan pekerjaan..." style={{ minHeight: 250, fontSize: 12.5 }} />
+      {editMode && (
+        <div className="no-print mt-3 max-w-md">
+          <PestPhotoAnalyze
+            photoPath={aiPhoto}
+            onPhotoChange={setAiPhoto}
+            onResult={d => update({ generalNotes: [rd.generalNotes?.trim(), d.findingsDraft].filter(Boolean).join("\n") })}
+          />
+        </div>
+      )}
     </Page>
   );
 }
@@ -686,8 +699,7 @@ export default function SimpleReportDetailPage() {
       }
 
       container.style.display = "";
-      const fname = `${inq?.companyName || inq?.customerName || "Report"} - Simple Monthly Report ${period}`;
-      await (pptx as any).writeFile({ fileName: `${fname}.pptx` });
+      await (pptx as any).writeFile({ fileName: downloadName({ doc: "Simple Monthly Report", client: inq?.companyName || inq?.customerName, info: period, ext: "pptx" }) });
     } catch (e) {
       showAlert({ title: "Export gagal", message: "Gagal export PowerPoint.", tone: "danger" });
     } finally {

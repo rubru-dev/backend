@@ -2,8 +2,9 @@
 import { useState } from "react";
 import Link from "next/link";
 import api from "@/lib/api";
-import { PageTitle, useGet, Loading } from "@/components/erp/shared";
+import { BulkDeleteBar, PageTitle, RowBox, SelectAllBox, useBulkSelect, useGet, Loading } from "@/components/erp/shared";
 import { showConfirm } from "@/lib/app-modal";
+import { downloadName } from "@/lib/download-name";
 import { SERVICE_TYPES } from "@/lib/service-options";
 import { SignatureModal } from "@/components/erp/SignatureModal";
 
@@ -395,7 +396,7 @@ async function downloadAgreementPdf(ag: any) {
   write(safeText(ag.ttdKlienJabatan), margin + boxW + 14, y + 30, 7, false, "#6b7280");
 
   footer();
-  doc.save(`agreement-${ag.number.replaceAll("/", "-")}.pdf`);
+  doc.save(downloadName({ doc: "Agreement", client: ag.customer?.company || ag.customer?.name, info: ag.number, ext: "pdf" }));
 }
 
 
@@ -416,8 +417,9 @@ export default function AgreementsPage() {
   const clearFilters = () => { setSearch(""); setStatusFilter(""); setPage(1); };
 
   const { data, loading, reload } = useGet<{ data: any[]; total: number; totalPages: number }>(
-    `/agreements?search=${encodeURIComponent(search)}&status=${statusFilter}&page=${page}&limit=20`
+    `/agreements?search=${encodeURIComponent(search)}&status=${statusFilter}&page=${page}&limit=25`
   );
+  const sel = useBulkSelect();
 
   const handleDelete = async (id: string, label: string) => {
     const ok = await showConfirm({
@@ -523,6 +525,7 @@ export default function AgreementsPage() {
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
             <thead>
               <tr style={{ background: NAVY, color: "#fff" }}>
+                <th style={{ padding: "10px 14px", width: 36 }}><SelectAllBox all={(data?.data ?? []).map((r: any) => r.id)} sel={sel} /></th>
                 {["No. Agreement", "Customer", "Jenis Layanan", "Periode Kontrak", "Nilai Kontrak", "Status", "Approval", "Aksi"].map(h => (
                   <th key={h} style={{ padding: "10px 14px", textAlign: "left", fontWeight: 700 }}>{h}</th>
                 ))}
@@ -530,13 +533,14 @@ export default function AgreementsPage() {
             </thead>
             <tbody>
               {!data?.data?.length && (
-                <tr><td colSpan={8} style={{ padding: 32, textAlign: "center", color: "#9CA3AF" }}>Belum ada agreement.</td></tr>
+                <tr><td colSpan={9} style={{ padding: 32, textAlign: "center", color: "#9CA3AF" }}>Belum ada agreement.</td></tr>
               )}
               {data?.data?.map((ag, i) => {
                 const sc = STATUS_COLORS[ag.status] ?? STATUS_COLORS.DRAFT;
                 const isChanging = changingStatus === ag.id;
                 return (
                   <tr key={ag.id} style={{ borderBottom: "1px solid #e5e7eb", background: i % 2 === 0 ? "#f9fafb" : "#fff" }}>
+                    <td style={{ padding: "10px 14px", textAlign: "center" }} onClick={e => e.stopPropagation()}><RowBox id={ag.id} sel={sel} /></td>
                     <td style={{ padding: "10px 14px" }}>
                       <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                         <p style={{ fontWeight: 700, color: NAVY, fontFamily: "monospace", fontSize: 12 }}>{ag.number}</p>
@@ -614,6 +618,7 @@ export default function AgreementsPage() {
 
       {showModal && <CreateModal onClose={() => setShowModal(false)} />}
 
+      <BulkDeleteBar ids={sel.list} endpoint="/agreements/bulk-delete" label="agreement" onDone={() => { sel.clear(); reload(); }} />
       <SignatureModal open={Boolean(approveTarget)} onClose={() => setApproveTarget(null)} onSubmit={approveAgreement} saving={approving} title="Approval Tanda Tangan Agreement" />
       {msg && <MsgModal msg={msg} onClose={() => setMsg(null)} />}
     </div>

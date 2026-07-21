@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
 import { fileUrl } from "@/lib/utils";
+import { downloadName } from "@/lib/download-name";
 import { Loading, useGet } from "@/components/erp/shared";
 import { showAlert } from "@/lib/app-modal";
 import { SignatureModal } from "@/components/erp/SignatureModal";
@@ -917,7 +918,7 @@ export default function QuotationDetailPage() {
   const autoExportRef = useRef(false);
   const { data: q, loading, reload } = useGet<any>(`/erp/quotations/${id}`);
   const { user } = useAuth();
-  const canApprove = ["ADMIN", "MANAGER"].includes((user as any)?.role);
+  const canApprove = ["ADMIN", "MANAGER", "Super Admin"].includes((user as any)?.role);
   const approved = Boolean(q?.approvedAt);
 
   const slideWrapRef = useRef<HTMLDivElement>(null);
@@ -1031,7 +1032,7 @@ export default function QuotationDetailPage() {
         pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, pdfW, pdfH);
       }
 
-      pdf.save(`quotation-${id}.pdf`);
+      pdf.save(downloadName({ doc: "Quotation", client: clientName !== "—" ? clientName : null, info: quotationNumber || q.number, ext: "pdf" }));
     } finally {
       setCurrentPage(prevPage);
       if (wasEditing) setEditMode(true);
@@ -1064,7 +1065,7 @@ export default function QuotationDetailPage() {
         slide.background = { color: "FFFFFF" };
         await renderPageToSlide(pptx, slide, pageEl, { pageWIn: 10, pageHIn: 7.5 });
       }
-      await pptx.writeFile({ fileName: `quotation-${id}.pptx` });
+      await pptx.writeFile({ fileName: downloadName({ doc: "Quotation", client: clientName !== "—" ? clientName : null, info: quotationNumber || q.number, ext: "pptx" }) });
     } finally {
       setCurrentPage(prevPage);
       if (wasEditing) setEditMode(true);

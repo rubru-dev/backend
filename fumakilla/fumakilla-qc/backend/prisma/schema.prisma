@@ -252,6 +252,10 @@ model Customer {
   agreementReports AgreementReport[]
   agreements       Agreement[]
   serviceVisits    ServiceVisit[]
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([segmentType])
 }
 
 model CustomerFile {
@@ -306,6 +310,10 @@ model Inquiry {
   surveys       Survey[]
   pestReports   PestMonthlyReport[]
   simpleReports SimpleMonthlyReport[]
+
+  @@index([inquiryDate])
+  @@index([segmentType])
+  @@index([customerId])
 }
 
 model Quotation {
@@ -333,6 +341,11 @@ model Quotation {
   inquiry    Inquiry?    @relation(fields: [inquiryId], references: [id], onDelete: SetNull)
   owner      User        @relation("QuotationOwner", fields: [ownerId], references: [id])
   agreements Agreement[]
+
+  @@index([quotationDate])
+  @@index([status])
+  @@index([segmentType])
+  @@index([customerId])
 }
 
 model Renewal {
@@ -409,6 +422,9 @@ model Survey {
   picAssignments SurveyPicAssignment[]
   afterSurvey    AfterSurvey?
   b2bReport      B2BSurveyReport?
+
+  @@index([scheduledAt])
+  @@index([customerId])
 }
 
 model SurveyPicAssignment {
@@ -516,6 +532,9 @@ model ActivityLog {
   createdAt DateTime @default(now())
   userId    String?
   user      User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([createdAt])
+  @@index([userId])
 }
 
 model WorkPlan {
@@ -692,6 +711,9 @@ model Vendor {
 
   orderSheets OrderSheet[]
   complaints  Complaint[]
+
+  @@index([createdAt])
+  @@index([status])
 }
 
 model OrderSheet {

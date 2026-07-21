@@ -1,7 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import prisma from "../prisma";
-import { authenticate, AuthRequest, requirePermission, hasPermission } from "../middleware/auth";
+import { authenticate, AuthRequest, requirePermission, hasPermission, isSuperAdmin } from "../middleware/auth";
 import { createUploader, publicUploadPath } from "../lib/upload";
 import { encryptSecret, decryptSecret } from "../lib/secret";
 
@@ -22,6 +22,17 @@ const segmentOptions = ["B2C", "B2B"];
 const sourceOptions = ["Whatsapp", "Instagram", "Tiktok", "Referal"];
 const serviceTypeOptions = ["PC", "RC", "PCRC", "Termite Control", "Other Pests"];
 const cityOptions = ["Jakarta", "Bogor", "Depok", "Tangerang", "Bekasi", "Bandung", "Purwakarta", "Semarang", "Surabaya"];
+
+// ── Permission per tahapan status (granular): {module}.set_{status} ──
+const INQUIRY_PROGRESS_PERM: Record<string, string> = {
+  "New Inquiry": "inquiries.set_new_inquiry", "Non Sales Inquiry": "inquiries.set_non_sales_inquiry",
+  "Pricelist Sent": "inquiries.set_pricelist_sent", "Contacted": "inquiries.set_contacted",
+  "Survey Scheduled": "inquiries.set_survey_scheduled", "Survey Completed": "inquiries.set_survey_completed",
+  "Quotation Sent": "inquiries.set_quotation_sent", "Waiting Agreement": "inquiries.set_waiting_agreement",
+  "Won/Closing": "inquiries.set_won_closing", "Lost/Not Interest": "inquiries.set_lost",
+};
+const INQUIRY_RESULT_PERM: Record<string, string> = { "Won/Closing": "inquiries.set_won_closing", "Lost": "inquiries.set_lost" };
+const statusPerm = (moduleKey: string, enumValue: string) => `${moduleKey}.set_${String(enumValue).toLowerCase()}`;
 const pestIssueOptions = ["Lalat", "Nyamuk", "Semut", "Kecoa", "Serangga lain", "Tikus", "Rayap", "Burung", "Kelelawar", "Tipe Hama lain"];
 const vendorOptions = ["Pestigo", "Istapest", "Pascal", "PCO", "SPC", "Riztra"];
 const defaultTerms = ["Vendor wajib melaksanakan pekerjaan sesuai jadwal yang telah ditentukan.", "Vendor wajib menggunakan APD dan mengikuti prosedur keselamatan kerja di lokasi customer.", "Vendor wajib mengirimkan dokumentasi pekerjaan berupa foto before-after.", "Vendor wajib menyerahkan laporan pekerjaan maksimal H+1 setelah pekerjaan selesai.", "Pembayaran dilakukan setelah pekerjaan selesai, laporan diterima, dan dokumen invoice lengkap.", "Setiap perubahan jadwal, area, atau metode kerja harus mendapatkan persetujuan PIC internal."];
@@ -172,6 +183,13 @@ router.use(authenticate);
 // modul yang sesuai. GET (view) dibiarkan ke gating sidebar + guard inline yang ada.
 // Aturan diurutkan dari path paling spesifik → generik (dievaluasi first-match).
 const WRITE_PERMISSION_RULES: { method: string; test: RegExp; perm: string }[] = [
+  // bulk delete (gate dgn permission .delete masing-masing resource)
+  { method: "POST",   test: /^\/inquiries\/bulk-delete$/,           perm: "inquiries.delete" },
+  { method: "POST",   test: /^\/customers\/bulk-delete$/,           perm: "customers.delete" },
+  { method: "POST",   test: /^\/quotations\/bulk-delete$/,          perm: "quotations.delete" },
+  { method: "POST",   test: /^\/vendors\/bulk-delete$/,             perm: "vendors.delete" },
+  { method: "POST",   test: /^\/order-sheets\/bulk-delete$/,        perm: "order_sheets.delete" },
+  { method: "POST",   test: /^\/complaints\/bulk-delete$/,          perm: "complaints.delete" },
   // customers
   { method: "POST",   test: /^\/customers\/[^/]+\/files$/,          perm: "customers.edit" },
   { method: "DELETE", test: /^\/customers\/[^/]+\/files\/[^/]+$/,   perm: "customers.edit" },
@@ -180,6 +198,7 @@ const WRITE_PERMISSION_RULES: { method: string; test: RegExp; perm: string }[] =
   { method: "DELETE", test: /^\/customers\/[^/]+$/,                 perm: "customers.delete" },
   // inquiries
   { method: "POST",   test: /^\/inquiries\/[^/]+\/survey-request$/, perm: "surveys.create" },
+  { method: "POST",   test: /^\/inquiries\/import$/,                perm: "inquiries.create" },
   { method: "POST",   test: /^\/inquiries$/,                        perm: "inquiries.create" },
   { method: "PATCH",  test: /^\/inquiries\/[^/]+$/,                 perm: "inquiries.edit" },
   { method: "DELETE", test: /^\/inquiries\/[^/]+$/,                 perm: "inquiries.delete" },
@@ -229,6 +248,8 @@ const WRITE_PERMISSION_RULES: { method: string; test: RegExp; perm: string }[] =
   { method: "DELETE", test: /^\/complaints\/[^/]+$/,                perm: "complaints.delete" },
   // work plans
   { method: "POST",   test: /^\/work-plans\/[^/]+\/checkpoints$/,   perm: "work_plans.edit" },
+  { method: "POST",   test: /^\/work-plans\/bulk-delete$/,          perm: "work_plans.delete" },
+  { method: "POST",   test: /^\/work-plans\/bulk$/,                 perm: "work_plans.create" },
   { method: "POST",   test: /^\/work-plans$/,                       perm: "work_plans.create" },
   { method: "PATCH",  test: /^\/work-plans\/[^/]+$/,                perm: "work_plans.edit" },
   { method: "DELETE", test: /^\/work-plans\/[^/]+$/,                perm: "work_plans.delete" },
@@ -259,6 +280,112 @@ router.use((req: AuthRequest, res, next) => {
   }
   return next();
 });
+
+// ── Bulk delete ─────────────────────────────────────────────────────────────
+// Hapus banyak id dalam 1 request; per item try/catch → { deleted, failed[], total }.
+const parseIds = (body: any): string[] => (Array.isArray(body?.ids) ? body.ids.map((x: any) => String(x)).filter(Boolean) : []);
+
+router.post("/inquiries/bulk-delete", async (req: AuthRequest, res, next) => { try {
+  const ids = parseIds(req.body);
+  if (!ids.length) return res.status(400).json({ error: "Tidak ada item dipilih." });
+  let deleted = 0; const failed: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      const item = await prisma.inquiry.findUnique({ where: { id }, select: { id: true, number: true } });
+      if (!item) { failed.push({ id, reason: "Tidak ditemukan" }); continue; }
+      await prisma.inquiry.delete({ where: { id } });
+      await prisma.activityLog.create({ data: { message: `${req.user!.name} menghapus inquiry ${item.number}`, type: "INQUIRY", userId: req.user!.id } });
+      deleted++;
+    } catch (e: any) { failed.push({ id, reason: e?.message || "Gagal dihapus" }); }
+  }
+  res.json({ deleted, failed, total: ids.length });
+} catch (error) { next(error); } });
+
+router.post("/customers/bulk-delete", async (req: AuthRequest, res, next) => { try {
+  const ids = parseIds(req.body);
+  if (!ids.length) return res.status(400).json({ error: "Tidak ada item dipilih." });
+  let deleted = 0; const failed: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      const item = await prisma.customer.findUnique({ where: { id }, select: { id: true, name: true } });
+      if (!item) { failed.push({ id, reason: "Tidak ditemukan" }); continue; }
+      await prisma.$transaction(async (tx) => {
+        await tx.complaint.updateMany({ where: { orderSheet: { customerId: item.id } }, data: { orderSheetId: null } });
+        await tx.orderSheet.deleteMany({ where: { customerId: item.id } });
+        await tx.customer.delete({ where: { id: item.id } });
+        await tx.activityLog.create({ data: { message: `${req.user!.name} menghapus customer ${item.name}`, type: "CUSTOMER", userId: req.user!.id } });
+      });
+      deleted++;
+    } catch (e: any) { failed.push({ id, reason: e?.message || "Gagal dihapus" }); }
+  }
+  res.json({ deleted, failed, total: ids.length });
+} catch (error) { next(error); } });
+
+router.post("/quotations/bulk-delete", async (req: AuthRequest, res, next) => { try {
+  const ids = parseIds(req.body);
+  if (!ids.length) return res.status(400).json({ error: "Tidak ada item dipilih." });
+  let deleted = 0; const failed: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      const item = await prisma.quotation.findUnique({ where: { id }, select: { id: true } });
+      if (!item) { failed.push({ id, reason: "Tidak ditemukan" }); continue; }
+      await prisma.quotation.delete({ where: { id } });
+      deleted++;
+    } catch (e: any) { failed.push({ id, reason: e?.message || "Gagal dihapus" }); }
+  }
+  res.json({ deleted, failed, total: ids.length });
+} catch (error) { next(error); } });
+
+router.post("/vendors/bulk-delete", async (req: AuthRequest, res, next) => { try {
+  const ids = parseIds(req.body);
+  if (!ids.length) return res.status(400).json({ error: "Tidak ada item dipilih." });
+  let deleted = 0; const failed: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      const item = await prisma.vendor.findUnique({ where: { id }, select: { id: true, name: true } });
+      if (!item) { failed.push({ id, reason: "Tidak ditemukan" }); continue; }
+      await prisma.vendor.delete({ where: { id } });
+      await prisma.activityLog.create({ data: { message: `${req.user!.name} menghapus vendor ${item.name}`, type: "VENDOR", userId: req.user!.id } });
+      deleted++;
+    } catch (e: any) { failed.push({ id, reason: e?.message || "Gagal dihapus" }); }
+  }
+  res.json({ deleted, failed, total: ids.length });
+} catch (error) { next(error); } });
+
+router.post("/order-sheets/bulk-delete", async (req: AuthRequest, res, next) => { try {
+  const ids = parseIds(req.body);
+  if (!ids.length) return res.status(400).json({ error: "Tidak ada item dipilih." });
+  let deleted = 0; const failed: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      const item = await prisma.orderSheet.findUnique({ where: { id }, select: { id: true, number: true } });
+      if (!item) { failed.push({ id, reason: "Tidak ditemukan" }); continue; }
+      await prisma.$transaction(async (tx) => {
+        await tx.complaint.updateMany({ where: { orderSheetId: item.id }, data: { orderSheetId: null } });
+        await tx.orderSheet.delete({ where: { id: item.id } });
+        await tx.activityLog.create({ data: { message: `${req.user!.name} menghapus order sheet ${item.number}`, type: "ORDER_SHEET", userId: req.user!.id } });
+      });
+      deleted++;
+    } catch (e: any) { failed.push({ id, reason: e?.message || "Gagal dihapus" }); }
+  }
+  res.json({ deleted, failed, total: ids.length });
+} catch (error) { next(error); } });
+
+router.post("/complaints/bulk-delete", async (req: AuthRequest, res, next) => { try {
+  const ids = parseIds(req.body);
+  if (!ids.length) return res.status(400).json({ error: "Tidak ada item dipilih." });
+  let deleted = 0; const failed: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      const item = await prisma.complaint.findUnique({ where: { id }, select: { id: true, number: true } });
+      if (!item) { failed.push({ id, reason: "Tidak ditemukan" }); continue; }
+      await prisma.complaint.delete({ where: { id } });
+      await prisma.activityLog.create({ data: { message: `${req.user!.name} menghapus complaint ${item.number}`, type: "COMPLAINT", userId: req.user!.id } });
+      deleted++;
+    } catch (e: any) { failed.push({ id, reason: e?.message || "Gagal dihapus" }); }
+  }
+  res.json({ deleted, failed, total: ids.length });
+} catch (error) { next(error); } });
 
 router.get("/reverse-geocode", async (req, res, next) => {
   try {
@@ -315,6 +442,37 @@ router.get("/dashboard", async (_req, res, next) => {
     ]);
     const productivity = Math.round(productivityAgg._avg.productivity || 0);
     res.json({ metrics: { inquiryNew, quotationSent, surveyDone, productivity }, activities, recentInquiries, upcomingRenewals });
+  } catch (error) { next(error); }
+});
+
+// Ringkasan periode (filter bulan/tahun) + tren 12 bulan untuk Dashboard C-Level.
+router.get("/admin-dashboard/period", requirePermission("dashboard.view"), async (req, res, next) => {
+  try {
+    const year = Number(req.query.year) || new Date().getFullYear();
+    const month = req.query.month ? Number(req.query.month) : null; // 1-12 atau null = setahun
+    const yStart = new Date(year, 0, 1), yEnd = new Date(year + 1, 0, 1);
+    const pStart = month ? new Date(year, month - 1, 1) : yStart;
+    const pEnd = month ? new Date(year, month, 1) : yEnd;
+
+    const [inq, quo, agr] = await Promise.all([
+      prisma.inquiry.findMany({ where: { inquiryDate: { gte: yStart, lt: yEnd } }, select: { inquiryDate: true } }),
+      prisma.quotation.findMany({ where: { quotationDate: { gte: yStart, lt: yEnd } }, select: { quotationDate: true } }),
+      prisma.agreement.findMany({ where: { createdAt: { gte: yStart, lt: yEnd } }, select: { createdAt: true, nilaiKontrak: true } }),
+    ]);
+    const trend = Array.from({ length: 12 }, (_, i) => ({ bulan: i + 1, inquiry: 0, quotation: 0, agreement: 0, nilai: 0 }));
+    inq.forEach((x) => { trend[new Date(x.inquiryDate).getMonth()].inquiry++; });
+    quo.forEach((x) => { trend[new Date(x.quotationDate).getMonth()].quotation++; });
+    agr.forEach((x) => { const m = new Date(x.createdAt).getMonth(); trend[m].agreement++; trend[m].nilai += Number(x.nilaiKontrak || 0); });
+
+    const [pInq, pQuo, pOs, pAgr, pSurvey, pNilai] = await Promise.all([
+      prisma.inquiry.count({ where: { inquiryDate: { gte: pStart, lt: pEnd } } }),
+      prisma.quotation.count({ where: { quotationDate: { gte: pStart, lt: pEnd } } }),
+      prisma.orderSheet.count({ where: { orderDate: { gte: pStart, lt: pEnd } } }),
+      prisma.agreement.count({ where: { createdAt: { gte: pStart, lt: pEnd } } }),
+      prisma.survey.count({ where: { scheduledAt: { gte: pStart, lt: pEnd } } }),
+      prisma.agreement.aggregate({ _sum: { nilaiKontrak: true }, where: { createdAt: { gte: pStart, lt: pEnd } } }),
+    ]);
+    res.json({ year, month, trend, period: { inquiry: pInq, quotation: pQuo, orderSheet: pOs, agreement: pAgr, survey: pSurvey, nilai: Number(pNilai._sum.nilaiKontrak || 0) } });
   } catch (error) { next(error); }
 });
 
@@ -552,8 +710,129 @@ router.post("/inquiries", async (req: AuthRequest, res, next) => { try {
   await prisma.activityLog.create({ data: { message: `${req.user!.name} membuat inquiry ${item.number}`, type: "INQUIRY", userId: req.user!.id } });
   res.status(201).json(item);
 } catch (error) { next(error); } });
-router.patch("/inquiries/:id", async (req, res, next) => { try {
+
+// Import massal dari Excel — nomor di-generate baru, baris invalid dilewati (lihat frontend inquiries page).
+router.post("/inquiries/import", async (req: AuthRequest, res, next) => { try {
+  const rows: any[] = Array.isArray(req.body?.rows) ? req.body.rows : [];
+  if (!rows.length) return res.status(400).json({ error: "Tidak ada baris untuk diimport." });
+  if (rows.length > 2000) return res.status(400).json({ error: "Maksimal 2000 baris per import." });
+
+  const qaUsers = await prisma.user.findMany({ where: { isActive: true, role: "QA" }, select: { id: true, name: true } });
+  const qaByName = new Map(qaUsers.map((u) => [u.name.trim().toLowerCase(), u]));
+
+  let created = 0;
+  const skipped: { row: number; reason: string }[] = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const body = rows[i] || {};
+    const rowNo = Number(body.__row) || i + 2; // baris di Excel (header = 1)
+    try {
+      const picFi = qaByName.get(String(body.picFiName || "").trim().toLowerCase()) || null;
+      const segmentType = String(body.segmentType || "").trim();
+      const source = String(body.source || "").trim();
+      const serviceType = String(body.serviceType || "").trim();
+      const customerCity = String(body.customerCity || "").trim();
+      const customerName = String(body.customerName || "").trim();
+      const phone = String(body.phone || "").trim();
+      const contactMonth = String(body.contactMonth || "").trim();
+
+      // Validasi (lewati baris kalau tidak valid)
+      const miss: string[] = [];
+      if (!body.inquiryDate) miss.push("Tanggal");
+      if (!contactMonth) miss.push("Bulan");
+      if (!picFi) miss.push("PIC FI (tidak cocok user QA aktif)");
+      if (!customerName) miss.push("Customer");
+      if (!segmentType) miss.push("Segment");
+      if (!phone) miss.push("No Customer");
+      if (!source) miss.push("Source");
+      if (!serviceType) miss.push("Service");
+      if (!customerCity) miss.push("Kota");
+      if (segmentType === "B2B" && !String(body.companyName || "").trim()) miss.push("Perusahaan (wajib B2B)");
+      if (miss.length) { skipped.push({ row: rowNo, reason: `Kosong/tak valid: ${miss.join(", ")}` }); continue; }
+
+      const bad: string[] = [];
+      if (segmentType && !segmentOptions.includes(segmentType)) bad.push(`Segment "${segmentType}"`);
+      if (source && !sourceOptions.includes(source)) bad.push(`Source "${source}"`);
+      if (serviceType && !serviceTypeOptions.includes(serviceType)) bad.push(`Service "${serviceType}"`);
+      if (customerCity && !cityOptions.includes(customerCity)) bad.push(`Kota "${customerCity}"`);
+      const progress = String(body.progress || "New Inquiry").trim();
+      const result = String(body.result || "On Going").trim();
+      if (progress && !progressOptions.includes(progress)) bad.push(`Progress "${progress}"`);
+      if (result && !resultOptions.includes(result)) bad.push(`Result "${result}"`);
+      if (bad.length) { skipped.push({ row: rowNo, reason: `Nilai tidak valid: ${bad.join(", ")}` }); continue; }
+
+      const inquiryDate = new Date(body.inquiryDate);
+      if (Number.isNaN(inquiryDate.getTime())) { skipped.push({ row: rowNo, reason: "Tanggal tidak valid" }); continue; }
+      const closingDate = body.closingDate ? new Date(body.closingDate) : null;
+      if (closingDate && Number.isNaN(closingDate.getTime())) { skipped.push({ row: rowNo, reason: "Tanggal Closing tidak valid" }); continue; }
+
+      await prisma.$transaction(async (tx) => {
+        const customer = await tx.customer.create({ data: {
+          code: code("CUS"),
+          name: customerName,
+          company: segmentType === "B2B" ? String(body.companyName || "").trim() : null,
+          phone,
+          city: customerCity,
+          address: customerCity,
+          treatmentAddress: customerCity,
+          segmentType,
+          leadSource: source,
+          treatment: serviceType,
+          status: "Non-Kontrak",
+        } });
+        await tx.inquiry.create({ data: {
+          number: await inquiryNumber(inquiryDate, tx as any),
+          inquiryDate,
+          contactMonth,
+          progress,
+          result,
+          picFiId: picFi!.id,
+          picFiName: picFi!.name,
+          segmentType,
+          areaSizeM2: body.areaSizeM2 ? Number(body.areaSizeM2) : null,
+          serviceType,
+          customerCity,
+          closingDate,
+          closingMonth: String(body.closingMonth || "").trim(),
+          customerId: customer.id,
+          customerName: customer.name,
+          companyName: customer.company || "",
+          picName: customer.name,
+          phone: customer.phone || "-",
+          email: null,
+          address: customer.treatmentAddress || customer.address || customer.city || "-",
+          service: serviceType,
+          buildingType: segmentType,
+          source,
+          salesPic: picFi!.name,
+          notes: body.notes ? String(body.notes).trim() : null,
+          status: result === "Won/Closing" ? "COMPLETED" : result === "Lost" ? "CANCELLED" : "NEW",
+          ownerId: req.user!.id,
+        } });
+      });
+      created++;
+    } catch (e: any) {
+      skipped.push({ row: rowNo, reason: e?.message || "Gagal disimpan" });
+    }
+  }
+
+  await prisma.activityLog.create({ data: { message: `${req.user!.name} import ${created} inquiry via Excel (${skipped.length} dilewati)`, type: "INQUIRY", userId: req.user!.id } });
+  res.json({ created, skipped, total: rows.length });
+} catch (error) { next(error); } });
+
+router.patch("/inquiries/:id", async (req: AuthRequest, res, next) => { try {
   const body = req.body;
+  if (body.progress !== undefined || body.result !== undefined) {
+    const cur = await prisma.inquiry.findUnique({ where: { id: req.params.id }, select: { progress: true, result: true } });
+    if (body.progress !== undefined && String(body.progress) !== String(cur?.progress ?? "")) {
+      const perm = INQUIRY_PROGRESS_PERM[String(body.progress)];
+      if (perm && !hasPermission(req.user, perm)) return res.status(403).json({ error: `Tidak ada izin mengubah progress ke "${body.progress}" (${perm}).` });
+    }
+    if (body.result !== undefined && String(body.result) !== String(cur?.result ?? "")) {
+      const perm = INQUIRY_RESULT_PERM[String(body.result)];
+      if (perm && !hasPermission(req.user, perm)) return res.status(403).json({ error: `Tidak ada izin mengubah result ke "${body.result}" (${perm}).` });
+    }
+  }
   const data: any = {};
   const stringFields = ["progress", "result", "contactMonth", "picFiId", "picFiName", "customerName", "companyName", "phone", "source", "segmentType", "serviceType", "customerCity", "closingMonth", "notes"];
   stringFields.forEach((field) => { if (body[field] !== undefined) data[field] = body[field] === null ? null : String(body[field]).trim(); });
@@ -646,8 +925,8 @@ async function quotationNumber(date: Date) {
 router.get("/quotations", async (req, res, next) => { try { const where: any = {}; if (req.query.status) where.status = req.query.status; if (req.query.segmentType) where.segmentType = req.query.segmentType; await list(res, prisma.quotation, { where, include: { customer: true, inquiry: { select: { id: true, number: true, companyName: true, customerName: true, address: true, segmentType: true } } }, orderBy: { quotationDate: "desc" } }, req.query); } catch (error) { next(error); } });
 router.get("/quotations/:id", async (req, res, next) => { try { const item = await prisma.quotation.findUnique({ where: { id: req.params.id }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); if (!item) return res.status(404).json({ error: "Quotation tidak ditemukan" }); return res.json(item); } catch (error) { return next(error); } });
 router.post("/quotations", async (req: AuthRequest, res, next) => { try { const { customerId, inquiryId, title, amount, status, validUntil, hasilSurvey, priceData, quotationDate, segmentType } = req.body; if (!customerId || !title) return res.status(400).json({ error: "Customer dan judul wajib diisi" }); const qDate = quotationDate ? new Date(quotationDate) : new Date(); const num = await quotationNumber(qDate); const item = await prisma.quotation.create({ data: { number: num, customerId, inquiryId: inquiryId || null, title: String(title).trim(), amount: Number(amount) || 0, status: status || "DRAFT", validUntil: validUntil ? new Date(validUntil) : null, segmentType: segmentType === "B2C" ? "B2C" : "B2B", hasilSurvey: hasilSurvey || [], priceData: priceData || {}, quotationDate: qDate, ownerId: req.user!.id }, include: { customer: true, inquiry: true } }); res.status(201).json(item); } catch (error) { next(error); } });
-router.patch("/quotations/:id", async (req, res, next) => { try { const { title, amount, status, validUntil, notes, hasilSurvey, priceData, quotationDate, number } = req.body; const data: any = {}; if (title !== undefined) data.title = String(title).trim(); if (amount !== undefined) data.amount = Number(amount); if (status !== undefined) data.status = status; if (validUntil !== undefined) data.validUntil = validUntil ? new Date(validUntil) : null; if (notes !== undefined) data.notes = notes ? String(notes).trim() : null; if (hasilSurvey !== undefined) data.hasilSurvey = hasilSurvey; if (priceData !== undefined) data.priceData = priceData; if (quotationDate !== undefined) data.quotationDate = quotationDate ? new Date(quotationDate) : null; if (number !== undefined) data.number = String(number).trim(); if (title !== undefined || amount !== undefined || hasilSurvey !== undefined || priceData !== undefined || quotationDate !== undefined || number !== undefined) { data.approvedAt = null; data.approvedByName = null; data.approvedSignature = null; } res.json(await prisma.quotation.update({ where: { id: req.params.id }, data })); } catch (error) { next(error); } });
-router.post("/quotations/:id/approve", requirePermission("quotations.change_status"), async (req: AuthRequest, res, next) => { try { const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : ""; if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." }); const existing = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!existing) return res.status(404).json({ error: "Quotation tidak ditemukan" }); const item = await prisma.quotation.update({ where: { id: req.params.id }, data: { approvedByName: req.user!.name, approvedAt: new Date(), approvedSignature: signature }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); res.json(item); } catch (error) { next(error); } });
+router.patch("/quotations/:id", async (req: AuthRequest, res, next) => { try { const { title, amount, status, validUntil, notes, hasilSurvey, priceData, quotationDate, number } = req.body; if (status !== undefined) { const cur = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { status: true } }); if (cur && String(status) !== String(cur.status) && !hasPermission(req.user, statusPerm("quotations", status))) return res.status(403).json({ error: `Tidak ada izin mengubah status quotation ke ${status} (${statusPerm("quotations", status)}).` }); } const data: any = {}; if (title !== undefined) data.title = String(title).trim(); if (amount !== undefined) data.amount = Number(amount); if (status !== undefined) data.status = status; if (validUntil !== undefined) data.validUntil = validUntil ? new Date(validUntil) : null; if (notes !== undefined) data.notes = notes ? String(notes).trim() : null; if (hasilSurvey !== undefined) data.hasilSurvey = hasilSurvey; if (priceData !== undefined) data.priceData = priceData; if (quotationDate !== undefined) data.quotationDate = quotationDate ? new Date(quotationDate) : null; if (number !== undefined) data.number = String(number).trim(); if (title !== undefined || amount !== undefined || hasilSurvey !== undefined || priceData !== undefined || quotationDate !== undefined || number !== undefined) { data.approvedAt = null; data.approvedByName = null; data.approvedSignature = null; } res.json(await prisma.quotation.update({ where: { id: req.params.id }, data })); } catch (error) { next(error); } });
+router.post("/quotations/:id/approve", requirePermission("quotations.set_approved"), async (req: AuthRequest, res, next) => { try { const signature = typeof req.body?.signature === "string" ? req.body.signature.trim() : ""; if (!signature) return res.status(400).json({ error: "Tanda tangan approval wajib diisi." }); const existing = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!existing) return res.status(404).json({ error: "Quotation tidak ditemukan" }); const item = await prisma.quotation.update({ where: { id: req.params.id }, data: { approvedByName: req.user!.name, approvedAt: new Date(), approvedSignature: signature }, include: { customer: true, inquiry: true, owner: { select: { name: true } } } }); res.json(item); } catch (error) { next(error); } });
 router.post("/quotations/:id/upload", quotationUpload.single("file"), async (req, res, next) => { try { if (!req.file) return res.status(400).json({ error: "File wajib dipilih" }); res.status(201).json({ data: { path: publicUploadPath(req.file.path), fileName: req.file.originalname, mimeType: req.file.mimetype, size: req.file.size } }); } catch (error) { next(error); } });
 router.delete("/quotations/:id", async (req, res, next) => { try { const q = await prisma.quotation.findUnique({ where: { id: req.params.id }, select: { id: true } }); if (!q) return res.status(404).json({ error: "Quotation tidak ditemukan" }); await prisma.quotation.delete({ where: { id: req.params.id } }); res.json({ success: true }); } catch (error) { next(error); } });
 router.post("/quotations/:id/push-to-order-sheet", async (req: AuthRequest, res, next) => { try {
@@ -1099,6 +1378,7 @@ router.post("/order-sheets", async (req: AuthRequest, res, next) => { try {
 router.patch("/order-sheets/:id", async (req: AuthRequest, res, next) => { try {
   const current = await prisma.orderSheet.findUnique({ where: { id: req.params.id } });
   if (!current) return res.status(404).json({ error: "Order sheet tidak ditemukan" });
+  if (req.body.status !== undefined && String(req.body.status) !== String(current.status) && !hasPermission(req.user, statusPerm("order_sheets", req.body.status))) return res.status(403).json({ error: `Tidak ada izin mengubah status order sheet ke ${req.body.status} (${statusPerm("order_sheets", req.body.status)}).` });
   const body = req.body;
   const data: any = {};
   const stringFields = ["number", "createdByName", "picInternal", "agreementRef", "quotationRef", "jobTitle", "serviceType", "workMethod", "priority", "workTime", "estimatedDuration", "technicianCount", "specialInstruction", "jobDescription", "preparedByName", "approvedByName", "receivedByName", "notes"];
@@ -1216,6 +1496,7 @@ router.post("/complaints", async (req: AuthRequest, res, next) => { try {
 router.patch("/complaints/:id", async (req: AuthRequest, res, next) => { try {
   const current = await prisma.complaint.findUnique({ where: { id: req.params.id } });
   if (!current) return res.status(404).json({ error: "Complaint tidak ditemukan" });
+  if (req.body.status !== undefined && String(req.body.status) !== String(current.status) && !hasPermission(req.user, statusPerm("complaints", req.body.status))) return res.status(403).json({ error: `Tidak ada izin mengubah status complaint ke ${req.body.status} (${statusPerm("complaints", req.body.status)}).` });
   const body = req.body;
   const data: any = {};
   const stringFields = ["number", "internalTeam", "complaintType", "subject", "description", "location", "reportedByName", "reportedByPhone", "picInternal", "rootCause", "correctiveAction", "resolutionNotes"];
@@ -1379,8 +1660,11 @@ router.patch("/admin/roles/:id", requirePermission("admin.roles"), async (req, r
   }
 });
 
+const PROTECTED_ROLES = ["Super Admin"];
 router.delete("/admin/roles/:id", requirePermission("admin.roles"), async (req, res, next) => {
   try {
+    const role = await prisma.appRole.findUnique({ where: { id: req.params.id }, select: { name: true } });
+    if (role && PROTECTED_ROLES.includes(role.name)) return res.status(400).json({ error: `Role "${role.name}" tidak dapat dihapus (role sistem).` });
     await prisma.appRole.delete({ where: { id: req.params.id } });
     res.status(204).end();
   } catch (error) { next(error); }
@@ -1439,6 +1723,21 @@ router.post("/admin/reminders/fontee/test", requirePermission("admin.settings"),
 
 router.get("/users", async (_req, res, next) => { try { const data = await prisma.user.findMany({ where: { isActive: true }, select: { id: true, name: true, role: true, email: true }, orderBy: { name: "asc" } }); res.json({ data }); } catch (error) { next(error); } });
 
+// Log aktivitas seluruh user di sistem — filter user + rentang tanggal, server-paginated.
+router.get("/activity-logs", requirePermission("work_plans.view_all"), async (req, res, next) => { try {
+  const where: any = {};
+  if (req.query.userId) where.userId = String(req.query.userId);
+  if (req.query.type) where.type = String(req.query.type);
+  const from = req.query.from ? new Date(String(req.query.from)) : undefined;
+  const to = req.query.to ? new Date(String(req.query.to)) : undefined;
+  if (to && !Number.isNaN(to.getTime())) to.setHours(23, 59, 59, 999);
+  const range: any = {};
+  if (from && !Number.isNaN(from.getTime())) range.gte = from;
+  if (to && !Number.isNaN(to.getTime())) range.lte = to;
+  if (Object.keys(range).length) where.createdAt = range;
+  await list(res, prisma.activityLog, { where, include: { user: { select: { name: true, role: true } } }, orderBy: { createdAt: "desc" } }, req.query);
+} catch (error) { next(error); } });
+
 router.get("/work-plans", async (req: AuthRequest, res, next) => { try {
   const search = String(req.query.search || "").trim();
   const where: any = {};
@@ -1460,6 +1759,33 @@ router.get("/work-plans", async (req: AuthRequest, res, next) => { try {
   res.json({ data });
 } catch (error) { next(error); } });
 
+// ── Deteksi bentrok jadwal work plan (hard block) ──────────────────────────────
+const wpToMin = (t: string) => { const [h, m] = String(t || "0:0").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+const wpInterval = (start: string, end?: string | null): readonly [number, number] => { const s = wpToMin(start); let e = end ? wpToMin(end) : s + 60; if (e <= s) e = s + 60; return [s, e]; };
+const wpOverlap = (s1: number, e1: number, s2: number, e2: number) => s1 < e2 && s2 < e1;
+type WpConflict = { planId?: string; entry?: number; title: string; startTime: string; endTime: string | null; users: string[] };
+async function findWorkPlanConflicts(opts: { workDate: Date; startTime: string; endTime?: string | null; userIds: string[]; excludeId?: string }): Promise<WpConflict[]> {
+  const [nS, nE] = wpInterval(opts.startTime, opts.endTime);
+  const existing = await prisma.workPlan.findMany({
+    where: {
+      workDate: opts.workDate,
+      status: { not: "CANCELLED" },
+      ...(opts.excludeId ? { NOT: { id: opts.excludeId } } : {}),
+      OR: [{ ownerId: { in: opts.userIds } }, { taggedUsers: { some: { userId: { in: opts.userIds } } } }],
+    },
+    select: { id: true, title: true, startTime: true, endTime: true, ownerId: true, owner: { select: { name: true } }, taggedUsers: { select: { userId: true, user: { select: { name: true } } } } },
+  });
+  const out: WpConflict[] = [];
+  for (const p of existing) {
+    const [eS, eE] = wpInterval(p.startTime, p.endTime);
+    if (!wpOverlap(nS, nE, eS, eE)) continue;
+    const nameById = new Map<string, string>([[p.ownerId, p.owner?.name || "Owner"], ...p.taggedUsers.map((t) => [t.userId, t.user?.name || "User"] as [string, string])]);
+    const users = opts.userIds.filter((id) => nameById.has(id)).map((id) => nameById.get(id)!);
+    out.push({ planId: p.id, title: p.title, startTime: p.startTime, endTime: p.endTime, users });
+  }
+  return out;
+}
+
 router.post("/work-plans", async (req: AuthRequest, res, next) => { try {
   const body = req.body;
   const title = String(body.title || "").trim();
@@ -1472,6 +1798,8 @@ router.post("/work-plans", async (req: AuthRequest, res, next) => { try {
   if (!owner) return res.status(400).json({ error: "Owner work plan tidak valid" });
   const users = taggedUserIds.length ? await prisma.user.findMany({ where: { id: { in: taggedUserIds }, isActive: true }, select: { id: true } }) : [];
   if (users.length !== taggedUserIds.length) return res.status(400).json({ error: "Ada user tag yang tidak valid atau tidak aktif" });
+  const conflicts = await findWorkPlanConflicts({ workDate, startTime, endTime: body.endTime ? String(body.endTime).trim() : null, userIds: [ownerId, ...taggedUserIds] });
+  if (conflicts.length) return res.status(409).json({ error: "Jadwal bentrok dengan work plan lain di tanggal & jam yang sama.", conflicts });
   const item = await prisma.workPlan.create({ data: {
     title,
     description: body.description ? String(body.description).trim() : null,
@@ -1488,6 +1816,70 @@ router.post("/work-plans", async (req: AuthRequest, res, next) => { try {
   res.status(201).json(item);
 } catch (error) { next(error); } });
 
+// Bulk: banyak aktivitas (mingguan / detail per hari) sekaligus. Owner + tag dipakai bersama.
+// Hard-block: kalau ada bentrok (dgn jadwal existing ATAU antar-baris) → tidak ada yang dibuat.
+router.post("/work-plans/bulk", async (req: AuthRequest, res, next) => { try {
+  const body = req.body;
+  const ownerId = body.ownerId && canViewAllWorkPlans(req.user) ? String(body.ownerId) : req.user!.id;
+  const taggedUserIds: string[] = Array.from(new Set<string>((Array.isArray(body.taggedUserIds) ? body.taggedUserIds : []).map(String).filter(Boolean).filter((id: string) => id !== ownerId)));
+  const rawEntries: any[] = Array.isArray(body.entries) ? body.entries : [];
+  if (!rawEntries.length) return res.status(400).json({ error: "Tidak ada aktivitas untuk disimpan." });
+  if (rawEntries.length > 100) return res.status(400).json({ error: "Maksimal 100 aktivitas per submit." });
+
+  const owner = await prisma.user.findFirst({ where: { id: ownerId, isActive: true }, select: { id: true, name: true } });
+  if (!owner) return res.status(400).json({ error: "Owner work plan tidak valid" });
+  if (taggedUserIds.length) {
+    const users = await prisma.user.findMany({ where: { id: { in: taggedUserIds }, isActive: true }, select: { id: true } });
+    if (users.length !== taggedUserIds.length) return res.status(400).json({ error: "Ada user tag yang tidak valid atau tidak aktif" });
+  }
+  const userIds = [ownerId, ...taggedUserIds];
+
+  const entries = rawEntries.map((e, i) => ({
+    n: i + 1,
+    title: String(e.title || "").trim(),
+    workDate: e.workDate ? new Date(String(e.workDate)) : null,
+    startTime: String(e.startTime || "").trim(),
+    endTime: e.endTime ? String(e.endTime).trim() : null,
+    location: e.location ? String(e.location).trim() : null,
+    description: e.description ? String(e.description).trim() : null,
+  }));
+  for (const e of entries) {
+    if (!e.title || !e.workDate || Number.isNaN(e.workDate.getTime()) || !e.startTime) return res.status(400).json({ error: `Baris ${e.n}: judul, tanggal, dan jam mulai wajib diisi.` });
+  }
+
+  const conflicts: WpConflict[] = [];
+  for (let a = 0; a < entries.length; a++) {
+    const ea = entries[a];
+    // vs jadwal existing di DB
+    const dbc = await findWorkPlanConflicts({ workDate: ea.workDate!, startTime: ea.startTime, endTime: ea.endTime, userIds });
+    dbc.forEach((c) => conflicts.push({ ...c, entry: ea.n }));
+    // vs baris lain dalam batch (owner/tag sama, tanggal & jam overlap)
+    const [aS, aE] = wpInterval(ea.startTime, ea.endTime);
+    for (let b = a + 1; b < entries.length; b++) {
+      const eb = entries[b];
+      if (+ea.workDate! !== +eb.workDate!) continue;
+      const [bS, bE] = wpInterval(eb.startTime, eb.endTime);
+      if (wpOverlap(aS, aE, bS, bE)) conflicts.push({ entry: eb.n, title: `${ea.title} (baris ${ea.n})`, startTime: ea.startTime, endTime: ea.endTime, users: [owner.name] });
+    }
+  }
+  if (conflicts.length) return res.status(409).json({ error: "Ada jadwal bentrok — perbaiki dulu sebelum simpan.", conflicts });
+
+  const created = await prisma.$transaction(entries.map((e) => prisma.workPlan.create({ data: {
+    title: e.title,
+    description: e.description,
+    workDate: e.workDate!,
+    startTime: e.startTime,
+    endTime: e.endTime,
+    location: e.location,
+    ownerId,
+    createdById: req.user!.id,
+    taggedUsers: { create: taggedUserIds.map((userId) => ({ user: { connect: { id: userId } } })) },
+  } })));
+  for (const c of created) await addWorkPlanLog(c.id, req.user!.id, "CREATE", `${req.user!.name} membuat work plan ${c.title}`, { taggedUserIds });
+  await prisma.activityLog.create({ data: { message: `${req.user!.name} membuat ${created.length} work plan sekaligus`, type: "WORK_PLAN", userId: req.user!.id } });
+  res.status(201).json({ created: created.length });
+} catch (error) { next(error); } });
+
 router.get("/work-plans/logs", requirePermission("work_plans.view_all"), async (req, res, next) => { try {
   const where: any = {};
   if (req.query.workPlanId) where.workPlanId = String(req.query.workPlanId);
@@ -1501,6 +1893,7 @@ router.patch("/work-plans/:id", async (req: AuthRequest, res, next) => { try {
   const current = await prisma.workPlan.findUnique({ where: { id: req.params.id }, include: { taggedUsers: { select: { userId: true } } } });
   if (!current) return res.status(404).json({ error: "Work plan tidak ditemukan" });
   if (current.ownerId !== req.user!.id && !canViewAllWorkPlans(req.user)) return res.status(403).json({ error: "Hanya owner, admin, atau manager yang dapat mengubah work plan" });
+  if (req.body.status !== undefined && String(req.body.status) !== String(current.status) && !hasPermission(req.user, statusPerm("work_plans", req.body.status))) return res.status(403).json({ error: `Tidak ada izin mengubah status work plan ke ${req.body.status} (${statusPerm("work_plans", req.body.status)}).` });
   const body = req.body;
   const data: any = {};
   if (body.title !== undefined) data.title = String(body.title).trim();
@@ -1516,6 +1909,11 @@ router.patch("/work-plans/:id", async (req: AuthRequest, res, next) => { try {
     const users = taggedUserIds.length ? await prisma.user.findMany({ where: { id: { in: taggedUserIds }, isActive: true }, select: { id: true } }) : [];
     if (users.length !== taggedUserIds.length) return res.status(400).json({ error: "Ada user tag yang tidak valid atau tidak aktif" });
   }
+  // Cek bentrok pakai nilai efektif (gabungan data lama + perubahan), kecualikan diri sendiri.
+  const effOwner = data.ownerId || current.ownerId;
+  const effTags = taggedUserIds ?? current.taggedUsers.map((t) => t.userId);
+  const patchConflicts = await findWorkPlanConflicts({ workDate: data.workDate || current.workDate, startTime: data.startTime || current.startTime, endTime: data.endTime !== undefined ? data.endTime : current.endTime, userIds: [effOwner, ...effTags], excludeId: current.id });
+  if (patchConflicts.length) return res.status(409).json({ error: "Jadwal bentrok dengan work plan lain di tanggal & jam yang sama.", conflicts: patchConflicts });
   const item = await prisma.$transaction(async (tx) => {
     if (taggedUserIds) {
       await tx.workPlanTaggedUser.deleteMany({ where: { workPlanId: current.id } });
@@ -1527,10 +1925,28 @@ router.patch("/work-plans/:id", async (req: AuthRequest, res, next) => { try {
   res.json(item);
 } catch (error) { next(error); } });
 
+router.post("/work-plans/bulk-delete", async (req: AuthRequest, res, next) => { try {
+  const ids = parseIds(req.body);
+  if (!ids.length) return res.status(400).json({ error: "Tidak ada item dipilih." });
+  const isAdmin = req.user!.role === "ADMIN" || isSuperAdmin(req.user);
+  let deleted = 0; const failed: { id: string; reason: string }[] = [];
+  for (const id of ids) {
+    try {
+      const wp = await prisma.workPlan.findUnique({ where: { id }, select: { id: true, title: true, ownerId: true } });
+      if (!wp) { failed.push({ id, reason: "Tidak ditemukan" }); continue; }
+      if (wp.ownerId !== req.user!.id && !isAdmin) { failed.push({ id, reason: "Bukan owner" }); continue; }
+      await prisma.workPlan.delete({ where: { id } });
+      await prisma.activityLog.create({ data: { message: `${req.user!.name} menghapus work plan ${wp.title}`, type: "WORK_PLAN", userId: req.user!.id } });
+      deleted++;
+    } catch (e: any) { failed.push({ id, reason: e?.message || "Gagal dihapus" }); }
+  }
+  res.json({ deleted, failed, total: ids.length });
+} catch (error) { next(error); } });
+
 router.delete("/work-plans/:id", async (req: AuthRequest, res, next) => { try {
   const current = await prisma.workPlan.findUnique({ where: { id: req.params.id }, select: { id: true, title: true, ownerId: true } });
   if (!current) return res.status(404).json({ error: "Work plan tidak ditemukan" });
-  if (current.ownerId !== req.user!.id && req.user!.role !== "ADMIN") return res.status(403).json({ error: "Hanya owner atau admin yang dapat menghapus work plan" });
+  if (current.ownerId !== req.user!.id && req.user!.role !== "ADMIN" && !isSuperAdmin(req.user)) return res.status(403).json({ error: "Hanya owner atau admin yang dapat menghapus work plan" });
   await prisma.workPlan.delete({ where: { id: current.id } });
   await prisma.activityLog.create({ data: { message: `${req.user!.name} menghapus work plan ${current.title}`, type: "WORK_PLAN", userId: req.user!.id } });
   res.status(204).end();
@@ -1577,7 +1993,7 @@ router.get("/vendor-options", async (_req, res, next) => { try { const [customer
 router.get("/survey-pics", async (_req, res, next) => { try { const data = await prisma.user.findMany({ where: { isActive: true, ...(await userWhereWithPermission("after_surveys.submit")) }, select: { id: true, name: true, role: true }, orderBy: { name: "asc" } }); res.json({ data }); } catch (error) { next(error); } });
 router.get("/surveys", async (req, res, next) => { try { const from = req.query.from ? new Date(String(req.query.from)) : undefined; const to = req.query.to ? new Date(String(req.query.to)) : undefined; const data = await prisma.survey.findMany({ where: from || to ? { scheduledAt: { ...(from ? { gte: from } : {}), ...(to ? { lte: to } : {}) } } : {}, include: { customer: true, inquiry: true, pic: { select: { name: true, role: true } }, picAssignments: { include: { pic: { select: { name: true, role: true } } } }, afterSurvey: true, b2bReport: true }, orderBy: { scheduledAt: "asc" } }); res.json({ data }); } catch (error) { next(error); } });
 router.post("/surveys", async (req: AuthRequest, res, next) => { try { const { customerId, picId, scheduledAt, location, shareLocationUrl, notes } = req.body; if (!customerId || !picId || !scheduledAt || !location || !shareLocationUrl) return res.status(400).json({ error: "Customer, PIC, tanggal dan jam, alamat, serta tautan Google Maps wajib diisi" }); const item = await prisma.survey.create({ data: { customerId, number: code("SRV"), scheduledAt: new Date(scheduledAt), picId, location, shareLocationUrl, notes: notes || null }, include: { customer: true, pic: { select: { name: true, role: true } } } }); res.status(201).json(item); } catch (error) { next(error); } });
-router.patch("/surveys/:id", async (req, res, next) => { try { const { scheduledAt, location, shareLocationUrl, status, notes, picId } = req.body; const data: any = {}; if (scheduledAt !== undefined) data.scheduledAt = new Date(scheduledAt); if (location !== undefined) data.location = String(location).trim(); if (shareLocationUrl !== undefined) data.shareLocationUrl = shareLocationUrl ? String(shareLocationUrl).trim() : null; if (status !== undefined) data.status = status; if (notes !== undefined) data.notes = notes ? String(notes).trim() : null; if (picId !== undefined) data.picId = String(picId); res.json(await prisma.survey.update({ where: { id: req.params.id }, data })); } catch (error) { next(error); } });
+router.patch("/surveys/:id", async (req: AuthRequest, res, next) => { try { const { scheduledAt, location, shareLocationUrl, status, notes, picId } = req.body; if (status !== undefined) { const cur = await prisma.survey.findUnique({ where: { id: req.params.id }, select: { status: true } }); if (cur && String(status) !== String(cur.status) && !hasPermission(req.user, statusPerm("surveys", status))) return res.status(403).json({ error: `Tidak ada izin mengubah status survey ke ${status} (${statusPerm("surveys", status)}).` }); } const data: any = {}; if (scheduledAt !== undefined) data.scheduledAt = new Date(scheduledAt); if (location !== undefined) data.location = String(location).trim(); if (shareLocationUrl !== undefined) data.shareLocationUrl = shareLocationUrl ? String(shareLocationUrl).trim() : null; if (status !== undefined) data.status = status; if (notes !== undefined) data.notes = notes ? String(notes).trim() : null; if (picId !== undefined) data.picId = String(picId); res.json(await prisma.survey.update({ where: { id: req.params.id }, data })); } catch (error) { next(error); } });
 router.post("/surveys/:id/cancel", async (req: AuthRequest, res, next) => { try {
   const survey = await prisma.survey.findUnique({ where: { id: req.params.id }, include: { inquiry: true } });
   if (!survey) return res.status(404).json({ error: "Survey tidak ditemukan" });

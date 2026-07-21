@@ -20,7 +20,8 @@
     "react-dom": "^18.3.1",
     "react-is": "^19.2.7",
     "react-konva": "^18.2.16",
-    "recharts": "^3.9.1"
+    "recharts": "^3.9.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20.17.10",

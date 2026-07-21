@@ -4,10 +4,12 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import api from "@/lib/api";
+import { downloadName } from "@/lib/download-name";
 import { useGet, Loading } from "@/components/erp/shared";
 import type { FloorPlanCanvasHandle, CanvasData } from "@/components/b2b-report/FloorPlanCanvas";
 import { showAlert, showConfirm } from "@/lib/app-modal";
 import { fileUrl } from "@/lib/utils";
+import PestPhotoAnalyze from "@/components/ai/PestPhotoAnalyze";
 
 const FloorPlanCanvas = dynamic(
   () => import("@/components/b2b-report/FloorPlanCanvas"),
@@ -33,6 +35,7 @@ type HamaSection = {
   id: string;
   name: string;
   layoutData: CanvasData;
+  photoPath?: string;
   chartData: ChartEntry[];
   analisa: string;
   preventiveAction: string;
@@ -247,15 +250,18 @@ function HamaSlide({ section, editMode, onChange }: {
       <SlideHeaderLine title={section.name} />
 
       <div style={{ display: "flex", gap: 10, padding: "0 16px 10px", alignItems: "stretch" }}>
-        {/* Left: Canvas memanjang ke bawah */}
-        <div style={{ flex: "0 0 50%", border: "1px solid #aaa", height: CANVAS_H }}>
-          <FloorPlanCanvas
-            key={`canvas-${section.id}`}
-            initialData={section.layoutData}
-            onChange={d => onChange({ ...section, layoutData: d })}
-            width={canvasWidth}
-            height={CANVAS_H}
-            readOnly={false}
+        {/* Left: Upload foto + Analisa AI (mengganti canvas) */}
+        <div style={{ flex: "0 0 50%", border: "1px solid #aaa", height: editMode ? "auto" : CANVAS_H, padding: editMode ? 8 : 0, overflow: "hidden" }}>
+          <PestPhotoAnalyze
+            editable={editMode}
+            photoPath={section.photoPath || ""}
+            onPhotoChange={p => onChange({ ...section, photoPath: p })}
+            defaultInstruction={section.name ? `Fokus: ${section.name}. ` : ""}
+            onResult={d => onChange({
+              ...section,
+              analisa: [section.analisa?.trim(), d.findingsDraft].filter(Boolean).join("\n"),
+              rekomendasi: section.rekomendasi?.trim() ? section.rekomendasi : d.recommendationDraft,
+            })}
           />
         </div>
 
@@ -638,7 +644,7 @@ export default function MonthlyReportDetailPage() {
         s.addImage({ data: imgData, x: 0, y: 0, w: "100%", h: "100%" });
       }
       container.style.display = "none";
-      await (pptx as any).writeFile({ fileName: `${clientName} - Complete Monthly Report ${periodeTxt}.pptx` });
+      await (pptx as any).writeFile({ fileName: downloadName({ doc: "Complete Monthly Report", client: clientName !== "—" ? clientName : null, info: periodeTxt, ext: "pptx" }) });
     } catch {
       showAlert({ title: "Export gagal", message: "Gagal export PowerPoint.", tone: "danger" });
     } finally {

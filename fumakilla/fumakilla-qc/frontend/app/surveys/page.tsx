@@ -8,6 +8,7 @@ import api from "@/lib/api";
 import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
 import { LiveSurveyEvidence } from "@/components/erp/live-survey-evidence";
 import { fileUrl } from "@/lib/utils";
+import { downloadName } from "@/lib/download-name";
 import { useAuth } from "@/hooks/useAuth";
 
 const issueOptions = ["Lalat", "Nyamuk", "Semut", "Kecoa", "Serangga lain", "Tikus", "Rayap", "Burung", "Kelelawar", "Tipe Hama lain"];
@@ -403,7 +404,7 @@ export default function Surveys() {
       styles: { fontSize: 7, cellPadding: 1.5 },
       headStyles: { fillColor: [40, 95, 144] },
     });
-    doc.save(`kalender-survey-${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}.pdf`);
+    doc.save(downloadName({ doc: "Kalender Survey", info: month.toLocaleDateString("id-ID", { month: "long", year: "numeric" }), ext: "pdf" }));
   };
 
   const tabLabel: Record<string, string> = { calendar: "Kalender Survey", b2c: "Report After Survey B2C", b2b: "Report After Survey B2B" };

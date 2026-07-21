@@ -17,6 +17,7 @@ import type Konva from "konva";
 import { useParams, useRouter } from "next/navigation";
 import api from "@/lib/api";
 import { showAlert, showConfirm } from "@/lib/app-modal";
+import { downloadName } from "@/lib/download-name";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -606,7 +607,7 @@ export default function DrawLayoutPage() {
     const url = stage.toDataURL({ pixelRatio: 2 });
     if (!withGrid) gridLayer.show();
     const a = document.createElement("a");
-    a.download = `layout-${Date.now()}.png`;
+    a.download = downloadName({ doc: "Layout Denah", client: layoutName, info: withGrid ? "with grid" : null, ext: "png" });
     a.href = url;
     a.click();
   };

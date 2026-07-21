@@ -242,19 +242,95 @@ router.get("/timeline/:id", async (req: Request, res: Response) => {
 // PATCH /timeline/:id
 router.patch("/timeline/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const t = await prisma.desainTimeline.findUnique({ where: { id } });
+  const t = await prisma.desainTimeline.findUnique({
+    where: { id },
+    include: { items: { orderBy: { id: "asc" } } },
+  });
   if (!t) return res.status(404).json({ detail: "Timeline tidak ditemukan" });
 
   const { lead_id, ro_id, jenis_desain, bulan, tahun, tanggal_mulai, tanggal_selesai } = req.body;
   const updates: Record<string, unknown> = {};
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
   if (ro_id !== undefined) updates.ro_id = ro_id ? BigInt(ro_id) : null;
-  if (jenis_desain !== undefined) updates.jenis_desain = normalizeJenisDesain(jenis_desain);
   if (bulan !== undefined) updates.bulan = bulan;
   if (tahun !== undefined) updates.tahun = tahun;
-  if (tanggal_mulai !== undefined) updates.tanggal_mulai = tanggal_mulai ? new Date(tanggal_mulai) : null;
-  if (tanggal_selesai !== undefined) updates.tanggal_selesai = tanggal_selesai ? new Date(tanggal_selesai) : null;
 
+  const normalizedJenisNew = jenis_desain !== undefined ? normalizeJenisDesain(jenis_desain) : t.jenis_desain;
+  const jenisChanged = jenis_desain !== undefined && normalizedJenisNew !== t.jenis_desain;
+  if (jenis_desain !== undefined) updates.jenis_desain = normalizedJenisNew;
+
+  const startOld = t.tanggal_mulai;
+  const startNew = tanggal_mulai !== undefined ? (tanggal_mulai ? new Date(tanggal_mulai) : null) : startOld;
+  const dateChanged = tanggal_mulai !== undefined && (startNew?.getTime() ?? null) !== (startOld?.getTime() ?? null);
+
+  // Paket desain berubah → daftar pekerjaan template beda, timeline dibuat ulang.
+  // Status/PIC/file bukti item lama hilang di sini karena paket lama memang tidak relevan lagi.
+  if (jenisChanged) {
+    const { items, end } = buildTimelineItems(normalizedJenisNew, startNew);
+    await prisma.$transaction([
+      prisma.desainTimelineItem.deleteMany({ where: { desain_timeline_id: id } }),
+      prisma.desainTimeline.update({
+        where: { id },
+        data: { ...updates, tanggal_mulai: startNew, tanggal_selesai: end, items: { createMany: { data: items } } },
+      }),
+    ]);
+    return res.json({ message: "Timeline diupdate (paket berubah, jadwal dibuat ulang)" });
+  }
+
+  // Hanya tanggal mulai yang berubah (paket sama) → geser tanggal item proporsional,
+  // status/PIC/file bukti yang sudah diisi tetap dipertahankan.
+  if (dateChanged) {
+    if (startOld && startNew) {
+      const deltaMs = startNew.getTime() - startOld.getTime();
+      const itemUpdates = t.items.map((item) =>
+        prisma.desainTimelineItem.update({
+          where: { id: item.id },
+          data: {
+            tanggal_mulai: item.tanggal_mulai ? new Date(item.tanggal_mulai.getTime() + deltaMs) : null,
+            target_selesai: item.target_selesai ? new Date(item.target_selesai.getTime() + deltaMs) : null,
+          },
+        })
+      );
+      updates.tanggal_mulai = startNew;
+      updates.tanggal_selesai = t.tanggal_selesai ? new Date(t.tanggal_selesai.getTime() + deltaMs) : null;
+      await prisma.$transaction([...itemUpdates, prisma.desainTimeline.update({ where: { id }, data: updates })]);
+      return res.json({ message: "Timeline diupdate (tanggal digeser)" });
+    }
+
+    if (!startOld && startNew) {
+      // Belum pernah dijadwalkan → isi tanggal item sesuai template, tanpa ubah status/PIC/file.
+      const { items: templateItems, end } = buildTimelineItems(normalizedJenisNew, startNew);
+      const itemUpdates = t.items
+        .map((item, idx) =>
+          templateItems[idx]
+            ? prisma.desainTimelineItem.update({
+                where: { id: item.id },
+                data: {
+                  tanggal_mulai: templateItems[idx].tanggal_mulai,
+                  target_selesai: templateItems[idx].target_selesai,
+                },
+              })
+            : null
+        )
+        .filter((p): p is NonNullable<typeof p> => p !== null);
+      updates.tanggal_mulai = startNew;
+      updates.tanggal_selesai = end;
+      await prisma.$transaction([...itemUpdates, prisma.desainTimeline.update({ where: { id }, data: updates })]);
+      return res.json({ message: "Timeline diupdate (jadwal dibuat)" });
+    }
+
+    // Tanggal mulai dihapus (dikosongkan) → kosongkan tanggal semua item juga.
+    const itemUpdates = t.items.map((item) =>
+      prisma.desainTimelineItem.update({ where: { id: item.id }, data: { tanggal_mulai: null, target_selesai: null } })
+    );
+    updates.tanggal_mulai = null;
+    updates.tanggal_selesai = null;
+    await prisma.$transaction([...itemUpdates, prisma.desainTimeline.update({ where: { id }, data: updates })]);
+    return res.json({ message: "Timeline diupdate (jadwal dikosongkan)" });
+  }
+
+  // Tidak ada perubahan paket/tanggal mulai — update field lain saja (termasuk override manual tanggal_selesai bila dikirim).
+  if (tanggal_selesai !== undefined) updates.tanggal_selesai = tanggal_selesai ? new Date(tanggal_selesai) : null;
   await prisma.desainTimeline.update({ where: { id }, data: updates });
   return res.json({ message: "Timeline diupdate" });
 });

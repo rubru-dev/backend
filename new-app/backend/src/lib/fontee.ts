@@ -1,16 +1,14 @@
 import { prisma } from "./prisma";
 import axios from "axios";
 import { config } from "../config";
-import { sendWhatsApp } from "./whatsapp";
+import { normalizeWaNumber } from "./waNumber";
 
-// Provider pengiriman WhatsApp: "baileys" (self-host, default) atau "fonnte" (gateway lama).
-const WA_PROVIDER = (process.env.WA_PROVIDER ?? "baileys").toLowerCase();
+// Provider pengiriman WhatsApp: "evolution" (Evolution API, default) atau "fonnte" (gateway lama).
+const WA_PROVIDER = config.waProvider;
 
 export async function sendFonnte(target: string, message: string) {
-  // Jalur utama: Baileys (self-host). Melempar error bila gagal agar pemanggil
-  // (mis. sendOnce) mencatat status "failed" dan mencoba ulang di jadwal berikutnya.
-  if (WA_PROVIDER === "baileys") {
-    await sendWhatsApp(target, message);
+  if (WA_PROVIDER === "evolution") {
+    await sendEvolution(target, message);
     return;
   }
 
@@ -31,6 +29,29 @@ export async function sendFonnte(target: string, message: string) {
     }
   } catch (err: any) {
     console.error(`[Fonnte] Error kirim ke ${target}:`, err?.response?.data ?? err?.message);
+  }
+}
+
+/**
+ * Kirim via Evolution API (self-host). Jalur utama pengiriman WA.
+ * Melempar error bila gagal agar pemanggil (mis. sendOnce) mencatat status
+ * "failed" dan mencoba ulang di jadwal berikutnya.
+ */
+async function sendEvolution(target: string, message: string) {
+  if (!config.evolutionBaseUrl || !config.evolutionApiKey || !config.evolutionInstance) {
+    throw new Error("EVOLUTION_BASE_URL / EVOLUTION_API_KEY / EVOLUTION_INSTANCE belum dikonfigurasi");
+  }
+  const number = normalizeWaNumber(target);
+  if (!number) throw new Error(`Nomor WA tidak valid: ${target}`);
+
+  const url = `${config.evolutionBaseUrl.replace(/\/$/, "")}/message/sendText/${config.evolutionInstance}`;
+  const res = await axios.post(
+    url,
+    { number, text: message },
+    { headers: { apikey: config.evolutionApiKey, "Content-Type": "application/json" }, timeout: 8000 }
+  );
+  if (res.data?.error || res.data?.status === "ERROR") {
+    throw new Error(`[Evolution] Gagal kirim ke ${target}: ${JSON.stringify(res.data)}`);
   }
 }
 

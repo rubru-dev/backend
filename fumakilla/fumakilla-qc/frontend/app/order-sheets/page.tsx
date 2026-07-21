@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
-import { Loading, PageTitle, Status, useGet } from "@/components/erp/shared";
+import { BulkDeleteBar, Loading, PageTitle, Pagination, RowBox, SelectAllBox, Status, useBulkSelect, useGet, usePagination } from "@/components/erp/shared";
 import { ROUTES } from "@/lib/routes";
 import { showConfirm } from "@/lib/app-modal";
 
@@ -240,6 +240,8 @@ export default function OrderSheetsPage() {
     const matchStatus = !statusFilter || item.status === statusFilter;
     return matchSearch && matchStatus;
   }), [allRows, search, statusFilter]);
+  const sel = useBulkSelect();
+  const pg = usePagination(rows);
 
   const deleteOrderSheet = async (item: any) => {
     const ok = await showConfirm({
@@ -303,9 +305,10 @@ export default function OrderSheetsPage() {
       <div className="card mt-7 overflow-x-auto">
         {loading ? <Loading /> : (
           <table>
-            <thead><tr><th>No OS/PO</th><th>Tanggal</th><th>Customer</th><th>Vendor</th><th>Pekerjaan</th><th>Status</th><th>Total</th><th>Aksi</th></tr></thead>
-            <tbody>{rows.map((item: any) => (
+            <thead><tr><th className="w-8"><SelectAllBox all={pg.pageRows.map((r: any) => r.id)} sel={sel} /></th><th>No OS/PO</th><th>Tanggal</th><th>Customer</th><th>Vendor</th><th>Pekerjaan</th><th>Status</th><th>Total</th><th>Aksi</th></tr></thead>
+            <tbody>{pg.pageRows.map((item: any) => (
               <tr key={item.id} className="table-row cursor-pointer" onClick={() => router.push(ROUTES.orderSheet(item.id))}>
+                <td className="text-center" onClick={(e) => e.stopPropagation()}><RowBox id={item.id} sel={sel} /></td>
                 <td>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     <b className="text-accent">{item.number}</b>
@@ -329,7 +332,9 @@ export default function OrderSheetsPage() {
           </table>
         )}
         {!loading && !rows.length && <p className="p-10 text-center text-sm text-ts">Belum ada order sheet{activeFilters > 0 ? " yang cocok dengan filter." : "."}</p>}
+        {!loading && <Pagination pg={pg} />}
       </div>
+      <BulkDeleteBar ids={sel.list} endpoint="/erp/order-sheets/bulk-delete" label="order sheet" onDone={() => { sel.clear(); reload(); }} />
 
       {msg && <MsgModal msg={msg} onClose={() => setMsg(null)} />}
     </div>

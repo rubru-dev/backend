@@ -3,7 +3,7 @@ import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Loading, PageTitle, Status, useGet } from "./shared";
+import { BulkDeleteBar, Loading, PageTitle, Pagination, RowBox, SelectAllBox, Status, useBulkSelect, useGet, usePagination } from "./shared";
 import { showAlert } from "@/lib/app-modal";
 
 const formatDate=(v:string)=>new Date(v).toLocaleDateString("id-ID",{day:"2-digit",month:"short",year:"numeric"});
@@ -127,6 +127,8 @@ function QuotationTab({seg}:{seg:"B2B"|"B2C"}){
   const router=useRouter();
   const {data,loading,reload}=useGet<any>(`/erp/quotations?segmentType=${seg}&limit=100`);
   const rows=data?.data||[];
+  const sel=useBulkSelect();
+  const pg=usePagination(rows);
   const [deleteTarget,setDeleteTarget]=useState<any>(null);
   const [deleting,setDeleting]=useState(false);
   const [changingStatus,setChangingStatus]=useState<Record<string,boolean>>({});
@@ -170,19 +172,13 @@ function QuotationTab({seg}:{seg:"B2B"|"B2C"}){
 
   return <>
     <div className="mb-6 flex justify-end"><button onClick={()=>setShowCreate(true)} className="btn btn-primary">+ Buat Quotation {seg}</button></div>
-    <section className="mb-6 grid gap-5 md:grid-cols-4">
-      <Summary label="TOTAL" value={data?.total||0}/>
-      <Summary label="APPROVED" value={rows.filter((x:any)=>x.status==="APPROVED").length}/>
-      <Summary label="SENT" value={rows.filter((x:any)=>x.status==="SENT").length}/>
-      <Summary label="DRAFT" value={rows.filter((x:any)=>x.status==="DRAFT").length}/>
-    </section>
-
     {pushMsg&&<div className="mb-4 flex items-start justify-between gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800"><span style={{whiteSpace:"pre-line"}}>{pushMsg}</span><button onClick={()=>setPushMsg(null)} className="shrink-0 font-bold">✕</button></div>}
 
     <div className="card overflow-hidden">
       {loading?<Loading/>:
       <table>
         <thead><tr>
+          <th className="w-8"><SelectAllBox all={pg.pageRows.map((r:any)=>r.id)} sel={sel}/></th>
           <th className="w-10"></th>
           <th>No. Quotation</th>
           <th>{seg==="B2B"?"Perusahaan / Klien":"Nama Klien"}</th>
@@ -191,11 +187,12 @@ function QuotationTab({seg}:{seg:"B2B"|"B2C"}){
           <th>Tanggal</th>
         </tr></thead>
         <tbody>
-          {rows.map((x:any)=>{
+          {pg.pageRows.map((x:any)=>{
             const clientName=seg==="B2B"?(x.inquiry?.companyName||x.customer?.company||"-"):(x.inquiry?.customerName||x.customer?.name||"-");
             const approved=Boolean(x.approvedAt);
             return <Fragment key={x.id}>
               <tr className="table-row cursor-pointer" onClick={()=>setExpandedId(expandedId===x.id?null:x.id)}>
+                <td className="text-center" onClick={e=>e.stopPropagation()}><RowBox id={x.id} sel={sel}/></td>
                 <td className="text-center text-lg font-bold text-accent select-none">{expandedId===x.id?"−":"+"}</td>
                 <td className="font-semibold text-accent">{x.number}</td>
                 <td><p className="font-semibold">{clientName}</p><p className="text-xs text-ts mt-0.5">{x.title}</p></td>
@@ -209,7 +206,7 @@ function QuotationTab({seg}:{seg:"B2B"|"B2C"}){
                 <td>{formatDate(x.quotationDate||x.createdAt)}</td>
               </tr>
               {expandedId===x.id&&<tr>
-                <td colSpan={6} className="p-0">
+                <td colSpan={7} className="p-0">
                   <div className="border-t border-[#d9ddeb] bg-[#f8fbff] p-5">
                     <div className="grid gap-4 md:grid-cols-4">
                       <div><p className="text-[11px] font-bold uppercase tracking-wide text-ts">Klien</p><p className="mt-1 text-sm font-semibold">{clientName}</p></div>
@@ -229,10 +226,12 @@ function QuotationTab({seg}:{seg:"B2B"|"B2C"}){
               </tr>}
             </Fragment>;
           })}
-          {!rows.length&&!loading&&<tr><td colSpan={6} className="py-10 text-center text-ts">Belum ada quotation {seg}.</td></tr>}
+          {!rows.length&&!loading&&<tr><td colSpan={7} className="py-10 text-center text-ts">Belum ada quotation {seg}.</td></tr>}
         </tbody>
       </table>}
+      {!loading&&<Pagination pg={pg}/>}
     </div>
+    <BulkDeleteBar ids={sel.list} endpoint="/erp/quotations/bulk-delete" label="quotation" onDone={()=>{sel.clear();reload();}}/>
 
     {showCreate&&<CreateQuotationModal seg={seg} onClose={()=>setShowCreate(false)} onCreated={id=>router.push(`/quotations/${id}`)}/>}
 

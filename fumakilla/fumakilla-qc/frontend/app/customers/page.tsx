@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import api from "@/lib/api";
-import { Loading, Modal, PageTitle, useGet } from "@/components/erp/shared";
+import { BulkDeleteBar, Loading, Modal, PageTitle, Pagination, RowBox, SelectAllBox, useBulkSelect, useGet, usePagination } from "@/components/erp/shared";
 import { useAuth } from "@/hooks/useAuth";
 
 const NAVY = "#2c3e5c";
@@ -122,7 +122,7 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [segFilter, setSegFilter] = useState("");
-  const admin = user?.role === "ADMIN";
+  const admin = ["ADMIN", "Super Admin"].includes(user?.role || "");
   const activeFilters = [search, statusFilter, segFilter].filter(Boolean).length;
   const clearFilters = () => { setSearch(""); setStatusFilter(""); setSegFilter(""); };
 
@@ -144,6 +144,8 @@ export default function CustomersPage() {
     if (segFilter) list = list.filter(c => c.segmentType === segFilter);
     return list;
   }, [customers, search, statusFilter, segFilter]);
+  const sel = useBulkSelect();
+  const pg = usePagination(filtered);
 
   const stats = useMemo(() => ({
     total: customers.length,
@@ -210,6 +212,7 @@ export default function CustomersPage() {
             <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
               <thead>
                 <tr style={{ background: NAVY, color: "#fff" }}>
+                  {admin && <th style={{ padding: "10px 12px", width: 36 }}><SelectAllBox all={pg.pageRows.map((r: any) => r.id)} sel={sel} /></th>}
                   {["No", "Kode", "Nama / Perusahaan", "Segment", "Status", "Kontak", "Kota / Alamat", "Agreement", "Aksi"].map(h => (
                     <th key={h} style={{ padding: "10px 12px", textAlign: "left", fontWeight: 700, whiteSpace: "nowrap" }}>{h}</th>
                   ))}
@@ -218,14 +221,14 @@ export default function CustomersPage() {
               <tbody>
                 {!filtered.length && (
                   <tr>
-                    <td colSpan={9} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
+                    <td colSpan={admin ? 10 : 9} style={{ padding: 40, textAlign: "center", color: "#9ca3af" }}>
                       {customers.length === 0
                         ? "Belum ada data customer. Klik \"+ Customer Baru\" untuk menambahkan."
                         : "Tidak ada customer yang cocok dengan filter saat ini."}
                     </td>
                   </tr>
                 )}
-                {filtered.map((item, i) => (
+                {pg.pageRows.map((item, i) => (
                   <tr
                     key={item.id}
                     onClick={() => router.push(`/customers/${item.id}`)}
@@ -233,7 +236,8 @@ export default function CustomersPage() {
                     onMouseEnter={e => (e.currentTarget.style.background = "#eff6ff")}
                     onMouseLeave={e => (e.currentTarget.style.background = i % 2 === 0 ? "#f9fafb" : "#fff")}
                   >
-                    <td style={{ padding: "10px 12px", color: "#9ca3af", fontSize: 11 }}>{i + 1}</td>
+                    {admin && <td style={{ padding: "10px 12px", textAlign: "center" }} onClick={e => e.stopPropagation()}><RowBox id={item.id} sel={sel} /></td>}
+                    <td style={{ padding: "10px 12px", color: "#9ca3af", fontSize: 11 }}>{pg.from + i}</td>
                     <td style={{ padding: "10px 12px" }}>
                       <span style={{ fontFamily: "monospace", fontSize: 11, fontWeight: 700, color: "#6b7280", background: "#f3f4f6", padding: "2px 6px", borderRadius: 4 }}>
                         {item.code}
@@ -296,8 +300,11 @@ export default function CustomersPage() {
               </tbody>
             </table>
           </div>
+          <Pagination pg={pg} />
         </div>
       )}
+
+      {admin && <BulkDeleteBar ids={sel.list} endpoint="/erp/customers/bulk-delete" label="customer" onDone={() => { sel.clear(); reload(); }} />}
 
       {target && (
         <DeleteCustomerModal

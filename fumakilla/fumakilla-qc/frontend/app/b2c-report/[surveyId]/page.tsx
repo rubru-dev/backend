@@ -2,10 +2,12 @@
 import { useState, useEffect, useRef } from "react";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import api from "@/lib/api";
+import { downloadName } from "@/lib/download-name";
 import { Loading } from "@/components/erp/shared";
 import { SignatureModal } from "@/components/erp/SignatureModal";
 import { showAlert } from "@/lib/app-modal";
 import { useAuth } from "@/hooks/useAuth";
+import PestPhotoAnalyze from "@/components/ai/PestPhotoAnalyze";
 
 const BLUE = "#1a4d8c";
 const ORANGE = "#e06b28";
@@ -207,7 +209,8 @@ export default function B2CReportPage() {
   const [editMode, setEditMode] = useState(false);
   const [surveyInfo, setSurveyInfo] = useState<any>(null);
   const [doc, setDoc] = useState<B2CDoc>(DEFAULT_DOC);
-  const canApprove = ["ADMIN", "MANAGER"].includes((user as any)?.role);
+  const [aiPhoto, setAiPhoto] = useState("");
+  const canApprove = ["ADMIN", "MANAGER", "Super Admin"].includes((user as any)?.role);
   const approved = Boolean(doc.approvedAt && doc.approvedByName);
   const [sigOpen, setSigOpen] = useState(false);
   const checkedInOut = Boolean(surveyInfo?.evidenceImagePath && surveyInfo?.checkoutImagePath);
@@ -328,7 +331,7 @@ export default function B2CReportPage() {
         pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, y, pageW, imgH);
         remaining -= pageH;
       }
-      pdf.save(`report-b2c-${surveyId}.pdf`);
+      pdf.save(downloadName({ doc: "Report B2C", client: doc.customerName || surveyInfo?.customer?.name, info: surveyInfo?.number, ext: "pdf" }));
     } finally {
       setExporting(false);
     }
@@ -363,7 +366,7 @@ export default function B2CReportPage() {
         slide.background = { color: "FFFFFF" };
         slide.addImage({ data: imgData, x: (slideW - fitW) / 2, y: (slideH - fitH) / 2, w: fitW, h: fitH });
       }
-      await pptx.writeFile({ fileName: `report-b2c-${surveyId}.pptx` });
+      await pptx.writeFile({ fileName: downloadName({ doc: "Report B2C", client: doc.customerName || surveyInfo?.customer?.name, info: surveyInfo?.number, ext: "pptx" }) });
     } finally {
       setExporting(false);
     }
@@ -547,6 +550,15 @@ export default function B2CReportPage() {
                 ? <BulletEditor items={doc.temuanSurvey} onChange={set("temuanSurvey")} />
                 : <BulletList items={doc.temuanSurvey} />
               }
+              {editMode && (
+                <div className="mt-3 max-w-md">
+                  <PestPhotoAnalyze
+                    photoPath={aiPhoto}
+                    onPhotoChange={setAiPhoto}
+                    onResult={d => set("temuanSurvey")([...doc.temuanSurvey.filter(t => (t || "").trim()), d.findingsDraft].filter(Boolean))}
+                  />
+                </div>
+              )}
             </SectionBody>
           </div>
 

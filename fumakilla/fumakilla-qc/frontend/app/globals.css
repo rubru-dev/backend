@@ -21,3 +21,65 @@ table { width: 100%; border-collapse: collapse; } th { padding: 14px 18px; backg
 .danger-cancel,.danger-confirm { min-height: 42px; border-radius: 9px; padding: 9px 16px; font-size: 14px; font-weight: 700; cursor: pointer; }.danger-cancel { border: 1px solid #d9ddeb; background: transparent; color: #3a3f47; }.danger-confirm { border: 1px solid #ba1a1a; background: #ba1a1a; color: #fff; }.danger-cancel:disabled,.danger-confirm:disabled { cursor: not-allowed; opacity: .65; }
 @media (max-width: 767px) { .p-9 { padding: 20px !important; } h1.text-4xl { font-size: 30px; line-height: 36px; } th, td { padding: 12px; } .card { border-radius: 13px; } }
 @media (max-width: 767px) { .card.overflow-hidden { overflow-x: auto !important; } .card.overflow-hidden table { min-width: 680px; } }
+
+/* ============================================================
+   Motion system — following emil-design-eng / apple-design skill
+   Custom curves (CSS defaults too weak), <300ms UI, transform+opacity only
+   ============================================================ */
+:root {
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);      /* strong ease-out: entries & feedback */
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);  /* on-screen movement */
+}
+
+/* Press feedback — buttons must feel like they heard the click */
+.btn { transition: transform .12s var(--ease-out), background .16s var(--ease-out), border-color .16s var(--ease-out), color .16s var(--ease-out), box-shadow .16s var(--ease-out); }
+.btn:active:not(:disabled) { transform: scale(0.97); }
+.danger-cancel, .danger-confirm { transition: transform .12s var(--ease-out), background .16s var(--ease-out), border-color .16s var(--ease-out); }
+.danger-cancel:active:not(:disabled), .danger-confirm:active:not(:disabled) { transform: scale(0.97); }
+
+/* Inputs already transition border/shadow — align easing */
+input, select, textarea { transition: border-color .16s var(--ease-out), box-shadow .16s var(--ease-out); }
+
+/* Rows: smooth hover instead of instant snap */
+.table-row { transition: background .14s var(--ease-out); }
+
+/* Modal / dialog entrance — overlay fades, card scales from 0.96 (never from 0),
+   transform-origin center because modals aren't anchored to a trigger.
+   Keyframes fire on mount since modals are conditionally rendered. */
+@keyframes fk-overlay-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes fk-modal-in { from { opacity: 0; transform: scale(0.96) translateY(6px); } to { opacity: 1; transform: none; } }
+.fixed.inset-0.items-center, .fixed.inset-0.place-items-center { animation: fk-overlay-in .18s var(--ease-out); }
+.fixed.inset-0.items-center > *, .fixed.inset-0.place-items-center > * { animation: fk-modal-in .22s var(--ease-out); transform-origin: center; }
+
+/* Modal exit — snappier than enter (skill: slow where user decides, fast where system responds).
+   Shared Modal adds .fk-closing for ~170ms before unmount. Higher specificity beats the enter rule. */
+@keyframes fk-overlay-out { to { opacity: 0; } }
+@keyframes fk-modal-out { to { opacity: 0; transform: scale(0.97) translateY(4px); } }
+.fixed.inset-0.items-center.fk-closing, .fixed.inset-0.place-items-center.fk-closing { animation: fk-overlay-out .16s var(--ease-out) both; }
+.fixed.inset-0.items-center.fk-closing > *, .fixed.inset-0.place-items-center.fk-closing > * { animation: fk-modal-out .16s var(--ease-out) both; }
+
+/* Stagger — cascading entrance for grids of cards. 55ms between items (skill: 30-80ms) */
+@keyframes fk-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+.fk-stagger > * { opacity: 0; animation: fk-rise .32s var(--ease-out) forwards; }
+.fk-stagger > *:nth-child(1) { animation-delay: 0ms; }
+.fk-stagger > *:nth-child(2) { animation-delay: 55ms; }
+.fk-stagger > *:nth-child(3) { animation-delay: 110ms; }
+.fk-stagger > *:nth-child(4) { animation-delay: 165ms; }
+.fk-stagger > *:nth-child(5) { animation-delay: 220ms; }
+.fk-stagger > *:nth-child(6) { animation-delay: 275ms; }
+.fk-stagger > *:nth-child(7) { animation-delay: 330ms; }
+.fk-stagger > *:nth-child(8) { animation-delay: 385ms; }
+
+/* Subtle depth on interactive cards — transform+shadow only, gated to real hover devices */
+.fk-lift { transition: transform .18s var(--ease-out), box-shadow .18s var(--ease-out); }
+@media (hover: hover) and (pointer: fine) {
+  .fk-lift:hover { transform: translateY(-2px); box-shadow: 0 10px 24px rgba(37, 50, 79, .12); }
+}
+
+/* Accessibility — reduced motion keeps fades, drops movement (skill: fewer & gentler, not zero) */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; scroll-behavior: auto !important; }
+  .btn:active, .danger-cancel:active, .danger-confirm:active, .fk-lift:hover { transform: none !important; }
+  @keyframes fk-modal-in { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes fk-rise { from { opacity: 0; } to { opacity: 1; } }
+}

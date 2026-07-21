@@ -4,8 +4,10 @@ import { useState, useEffect, useRef } from "react";
 import dynamic from "next/dynamic";
 import api from "@/lib/api";
 import { fileUrl } from "@/lib/utils";
+import { downloadName } from "@/lib/download-name";
 import type { CanvasData } from "@/components/b2b-report/FloorPlanCanvas";
 import { useAuth } from "@/hooks/useAuth";
+import { type PestDraft } from "@/components/ai/AiAssistPanel";
 
 const FloorPlanCanvas = dynamic(() => import("@/components/b2b-report/FloorPlanCanvas"), { ssr: false });
 
@@ -270,6 +272,125 @@ function ImageUpload({ surveyId, value, onChange, label, endpoint = "b2b-report"
   );
 }
 
+// ─── PestPhotoAnalyze (foto + prompt konteks + analisa AI) ─────────────────────
+function PestPhotoAnalyze({ surveyId, photoPath, onPhotoChange, defaultInstruction = "", onResult }: {
+  surveyId: string; photoPath: string; onPhotoChange: (p: string) => void;
+  defaultInstruction?: string; onResult: (d: PestDraft) => void;
+}) {
+  const [instruction, setInstruction] = useState(defaultInstruction);
+  const [followUp, setFollowUp] = useState("");
+  const [history, setHistory] = useState<{ role: "user" | "assistant"; content: string }[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [draft, setDraft] = useState<PestDraft | null>(null);
+  const [aiOn, setAiOn] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    api.get("/ai/status").then(r => { if (alive) setAiOn(!!r.data?.configured); }).catch(() => { if (alive) setAiOn(false); });
+    return () => { alive = false; };
+  }, []);
+
+  // Kirim satu giliran percakapan (analisa awal / perbaikan lanjutan). Gambar sama, konteks bertambah.
+  const send = async (message: string, base: { role: "user" | "assistant"; content: string }[]) => {
+    if (!photoPath) { setError("Upload foto dulu."); return; }
+    const nextHistory = [...base, { role: "user" as const, content: message.trim() }];
+    setLoading(true); setError("");
+    try {
+      const res = await api.post("/ai/identify-pest", { path: photoPath, messages: nextHistory });
+      const d = (res.data?.data ?? null) as PestDraft | null;
+      setDraft(d);
+      if (d) setHistory([...nextHistory, { role: "assistant" as const, content: JSON.stringify(d) }]);
+    } catch (e: any) {
+      setError(e?.response?.data?.error || "Gagal menganalisa. Coba lagi.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const analyze = () => send(instruction, []);                            // mulai percakapan baru
+  const refine = () => { const q = followUp; setFollowUp(""); send(q, history); }; // perbaikan lanjutan
+  const reset = () => { setDraft(null); setHistory([]); setFollowUp(""); setError(""); };
+  const applyDraft = () => { if (draft) onResult(draft); reset(); };
+
+  const confPct = draft ? Math.round((draft.confidence || 0) * 100) : 0;
+  const confColor = confPct >= 80 ? "#16a34a" : confPct >= 50 ? "#d97706" : "#dc2626";
+
+  return (
+    <div className="flex flex-col gap-2">
+      <ImageUpload surveyId={surveyId} value={photoPath} onChange={onPhotoChange} label="Foto temuan hama" />
+
+      <div className="no-print rounded-lg border border-[#c7d7ef] bg-[#f5f9ff] p-2.5 flex flex-col gap-2">
+          <p className="text-[11px] font-semibold text-[#1a4d8c]">🤖 Analisa AI</p>
+          {aiOn === false && <p className="text-[10px] text-red-600">AI belum dikonfigurasi. Set AI_API_KEY di .env backend lalu restart.</p>}
+
+          {/* PROMPT DULU — kasih konteks karena foto survey sering kurang jelas */}
+          <div>
+            <label className="block text-[9px] font-semibold text-[#6b7280] mb-0.5">Konteks / instruksi untuk AI</label>
+            <textarea value={instruction} onChange={e => setInstruction(e.target.value)} rows={2}
+              placeholder="Jelaskan konteks foto, mis. 'ini kotoran tikus di gudang', 'bekas gerekan rayap di kusen jendela' — makin jelas, makin akurat"
+              className="w-full rounded border border-[#d1d5db] px-2 py-1 text-[11px] focus:border-[#1a4d8c] focus:outline-none resize-none" />
+          </div>
+
+          <button type="button" onClick={analyze} disabled={loading || !photoPath}
+            className="rounded-lg bg-[#1a4d8c] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-[#153e70] disabled:opacity-40 transition-colors">
+            {loading ? "Menganalisa…" : "Analisa dengan AI"}
+          </button>
+          {!photoPath && <p className="text-[9px] text-[#9ca3af]">Upload foto dulu untuk mengaktifkan analisa.</p>}
+          {error && <p className="text-[10px] text-red-600">{error}</p>}
+
+          {draft && (
+            <div className="no-print fixed inset-0 z-[200] flex items-center justify-center bg-black/40 p-4" onClick={() => { if (!loading) reset(); }}>
+              <div className="bg-white rounded-xl shadow-2xl w-full max-w-md max-h-[88vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                {/* header */}
+                <div className="flex items-center gap-2 flex-wrap px-4 py-3 border-b border-[#eee]">
+                  <span className="rounded bg-[#fef3c7] px-1.5 py-0.5 text-[10px] font-semibold text-[#92400e]">Draf AI — perlu verifikasi</span>
+                  {!draft.notVisible && (
+                    <span className="rounded px-1.5 py-0.5 text-[10px] font-semibold text-white" style={{ backgroundColor: confColor }}>Yakin {confPct}%</span>
+                  )}
+                  <button type="button" onClick={reset} className="ml-auto text-[#9ca3af] hover:text-[#111] text-lg leading-none">×</button>
+                </div>
+                {/* body (scroll) */}
+                <div className="px-4 py-3 overflow-y-auto flex flex-col gap-2">
+                  {draft.notVisible ? (
+                    <p className="text-xs text-[#b45309]">⚠️ AI kurang yakin ada hama di foto ini. {draft.findingsDraft}</p>
+                  ) : (
+                    <>
+                      <p className="text-xs"><span className="font-semibold text-[#111]">Jenis:</span> {draft.pestType}</p>
+                      <div><p className="text-[10px] font-semibold text-[#6b7280] mb-0.5">Draf temuan</p><p className="text-xs text-[#374151] whitespace-pre-wrap break-words">{draft.findingsDraft}</p></div>
+                      <div><p className="text-[10px] font-semibold text-[#6b7280] mb-0.5">Draf rekomendasi</p><p className="text-xs text-[#374151] whitespace-pre-wrap break-words">{draft.recommendationDraft}</p></div>
+                    </>
+                  )}
+                </div>
+                {/* minta perbaikan — lanjut prompt seperti chat, gambar tetap sama */}
+                <div className="px-4 py-2.5 border-t border-[#eee] flex flex-col gap-1.5">
+                  <label className="text-[10px] font-semibold text-[#6b7280]">Belum pas? Minta perbaikan ke AI:</label>
+                  <div className="flex items-end gap-2">
+                    <textarea value={followUp} onChange={e => setFollowUp(e.target.value)} rows={2} disabled={loading}
+                      onKeyDown={e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey) && followUp.trim() && !loading) refine(); }}
+                      placeholder="mis. 'lebih detail soal tingkat infestasi', 'sebutkan lokasi & saran spesifik', 'ini sebenarnya tikus, bukan kecoa'"
+                      className="flex-1 rounded border border-[#d1d5db] px-2 py-1 text-[11px] focus:border-[#1a4d8c] focus:outline-none resize-none disabled:bg-[#f3f4f6]" />
+                    <button type="button" onClick={refine} disabled={loading || !followUp.trim()}
+                      className="rounded-lg bg-[#1a4d8c] px-3 py-1.5 text-[11px] font-semibold text-white hover:bg-[#153e70] disabled:opacity-40 whitespace-nowrap">
+                      {loading ? "…" : "Kirim"}
+                    </button>
+                  </div>
+                  {error && <p className="text-[10px] text-red-600">{error}</p>}
+                </div>
+                {/* footer (aksi utama) */}
+                <div className="flex items-center gap-2 px-4 py-3 border-t border-[#eee] bg-[#fafafa]">
+                  <button type="button" onClick={applyDraft} disabled={loading}
+                    className="rounded-lg bg-[#16a34a] px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-[#15803d] disabled:opacity-40">✓ Terapkan ke Hasil Survey</button>
+                  <button type="button" onClick={reset} className="rounded-lg border border-[#d1d5db] px-3 py-1.5 text-xs text-[#6b7280] hover:bg-[#f3f4f6]">Buang</button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+    </div>
+  );
+}
+
 // ─── Pest Icons Grid ──────────────────────────────────────────────────────────
 const PEST_ICONS: { name: string; emoji: string }[] = [
   { name: "Tikus", emoji: "🐀" }, { name: "Kecoa", emoji: "🪳" }, { name: "Semut", emoji: "🐜" },
@@ -292,7 +413,7 @@ export default function B2BReportBuilder() {
   const [exportingPdf, setExportingPdf] = useState(false);
   const [surveyInfo, setSurveyInfo] = useState<any>(null);
   const [pendingPage, setPendingPage] = useState<number | null>(null);
-  const canApprove = ["ADMIN", "MANAGER"].includes((user as any)?.role);
+  const canApprove = ["ADMIN", "MANAGER", "Super Admin"].includes((user as any)?.role);
 
   const defaultData: ReportData = {
     clientName: "", clientAddress: "",
@@ -654,7 +775,7 @@ export default function B2BReportBuilder() {
         pdf.addImage(canvas.toDataURL("image/jpeg", 0.95), "JPEG", 0, 0, pdfW, pdfH);
       }
 
-      pdf.save(`report-b2b-${surveyId}.pdf`);
+      pdf.save(downloadName({ doc: "Report B2B", client: data.clientName || surveyInfo?.customer?.company || surveyInfo?.customer?.name, info: surveyInfo?.number, ext: "pdf" }));
     } finally {
       setActivePage(prevPage);
       setExportingPdf(false);
@@ -696,7 +817,7 @@ export default function B2BReportBuilder() {
         wrappers.forEach(w => { w.style.border = ""; w.style.borderRadius = ""; });
       }
 
-      await pptx.writeFile({ fileName: `report-b2b-${surveyId}.pptx` });
+      await pptx.writeFile({ fileName: downloadName({ doc: "Report B2B", client: data.clientName || surveyInfo?.customer?.company || surveyInfo?.customer?.name, info: surveyInfo?.number, ext: "pptx" }) });
     } finally {
       setActivePage(prevPage);
       setExportingPdf(false);
@@ -1101,45 +1222,22 @@ export default function B2BReportBuilder() {
                   </div>
 
                   <div className="grid grid-cols-2 gap-3">
-                    <div className="flex flex-col overflow-hidden">
-                      <FloorPlanCanvas
-                        initialData={(sec.useSharedCanvas ? data.floorPlanCanvasData : sec.canvasData) ?? undefined}
-                        onChange={d => updateSection(sec.id, { canvasData: d })}
-                        width={520} height={370}
-                        hideGrid={exportingPdf}
-                        toolbarExtra={
-                          <label className="flex items-center gap-1 cursor-pointer select-none text-[9px] text-[#6b7280] whitespace-nowrap">
-                            <input type="checkbox" checked={sec.useSharedCanvas}
-                              onChange={e => updateSection(sec.id, { useSharedCanvas: e.target.checked })}
-                              className="accent-[#1a4d8c]" />
-                            Pakai denah Risk Mapping
-                          </label>
-                        } />
-                    </div>
+                    {/* KIRI: foto temuan + prompt konteks + analisa AI */}
+                    <PestPhotoAnalyze
+                      surveyId={surveyId}
+                      photoPath={sec.photos?.[0]?.path || ""}
+                      onPhotoChange={(p) => updateSection(sec.id, { photos: p ? [{ path: p, caption: "", markerNumber: 1 }] : [] })}
+                      defaultInstruction={sec.pestType ? `Fokus jenis: ${sec.pestType}. ` : ""}
+                      onResult={(d) => updateSection(sec.id, {
+                        findings: [...sec.findings.filter(f => (f || "").trim()), d.findingsDraft].filter(Boolean),
+                        title: sec.title || d.pestType,
+                      })}
+                    />
 
+                    {/* KANAN: Hasil Survey */}
                     <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 0, paddingLeft: 4 }}>
-                      <div>
-                        <p className="text-xs font-bold text-[#111] mb-1">Hasil Survey :</p>
-                        <RichFindingEditor items={sec.findings} onChange={findings => updatePestFindings(sec.pestType, findings)} />
-                        <div className="hidden">
-                          {sec.findings.map((item, i) => (
-                            <div key={i} className="flex items-start gap-1.5">
-                              <span className="mt-1.5 text-[#111] font-bold text-xs min-w-[16px]">{i + 1}.</span>
-                              <input value={item} onChange={e => {
-                                const f = [...sec.findings]; f[i] = e.target.value;
-                                updateSection(sec.id, { findings: f });
-                              }} placeholder="Temuan survei..."
-                                className="flex-1 rounded border border-[#d1d5db] px-2 py-1 text-xs focus:border-[#1a4d8c] focus:outline-none" />
-                              <button onClick={() => updateSection(sec.id, { findings: sec.findings.filter((_, j) => j !== i) })}
-                                className="no-print mt-1 text-red-400 hover:text-red-600 text-[10px]">✕</button>
-                            </div>
-                          ))}
-                          <button onClick={() => updateSection(sec.id, { findings: [...sec.findings, ""] })}
-                            className="no-print mt-0.5 text-[10px] text-[#1a4d8c] hover:underline text-left">+ Tambah temuan</button>
-                        </div>
-                      </div>
-
-                      <p className="no-print text-[9px] text-[#9ca3af] mt-1">Upload foto dokumentasi via toolbar canvas (tombol Upload).</p>
+                      <p className="text-xs font-bold text-[#111] mb-1">Hasil Survey :</p>
+                      <RichFindingEditor items={sec.findings} onChange={findings => updatePestFindings(sec.pestType, findings)} />
                     </div>
                   </div>
                 </SlidePage>

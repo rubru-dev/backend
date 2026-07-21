@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useState } from "react";
 import api from "@/lib/api";
-import { Loading, Modal, PageTitle, Status, useGet } from "@/components/erp/shared";
+import { BulkDeleteBar, Loading, Modal, PageTitle, Pagination, RowBox, SelectAllBox, Status, useBulkSelect, useGet, usePagination } from "@/components/erp/shared";
 
 const sourceOptions = ["CUSTOMER", "INTERNAL", "VENDOR"];
 const statusOptions = ["OPEN", "IN_PROGRESS", "WAITING_VENDOR", "WAITING_CUSTOMER", "RESOLVED", "CLOSED", "CANCELLED"];
@@ -170,6 +170,8 @@ export default function ComplaintsPage() {
   const customers = customersData?.data || [];
   const vendors = vendorsData?.data || [];
   const orderSheets = orderSheetsData?.data || [];
+  const sel = useBulkSelect();
+  const pg = usePagination(rows);
   const segmentOptions = useMemo(() => Array.from(new Set(customers.map((c: any) => c.segmentType || c.segment || c.customerType).filter(Boolean))).sort(), [customers]);
   const metric = (predicate: (row: any) => boolean) => rows.filter(predicate).length;
 
@@ -195,12 +197,14 @@ export default function ComplaintsPage() {
       <div className="card mt-5 overflow-x-auto">
         {loading ? <Loading /> : (
           <table>
-            <thead><tr><th className="w-10"></th><th>No</th><th>Tanggal</th><th>Customer</th><th>Segmentasi</th><th>Bentuk</th><th>Source</th><th>Priority</th><th>Status</th><th>PIC</th></tr></thead>
-            <tbody>{rows.map((item: any) => <Fragment key={item.id}><tr className="table-row" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}><td className="text-center text-lg font-bold text-accent">{expandedId === item.id ? "-" : "+"}</td><td><b className="text-accent">{item.number}</b><p className="mt-0.5 text-xs text-ts">{item.subject}</p></td><td>{dateLabel(item.complaintDate)}</td><td>{item.customer?.name || "-"}</td><td>{item.segmentType}</td><td>{item.complaintType}</td><td><Status value={item.source} /></td><td><Status value={item.priority} /></td><td><Status value={item.status} /></td><td>{item.picInternal || "-"}</td></tr>{expandedId === item.id && <tr><td colSpan={10} className="p-0"><ComplaintDetail item={item} onEdit={setFormItem} onSaved={reload} /></td></tr>}</Fragment>)}</tbody>
+            <thead><tr><th className="w-8"><SelectAllBox all={pg.pageRows.map((r: any) => r.id)} sel={sel} /></th><th className="w-10"></th><th>No</th><th>Tanggal</th><th>Customer</th><th>Segmentasi</th><th>Bentuk</th><th>Source</th><th>Priority</th><th>Status</th><th>PIC</th></tr></thead>
+            <tbody>{pg.pageRows.map((item: any) => <Fragment key={item.id}><tr className="table-row" onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}><td className="text-center" onClick={(e) => e.stopPropagation()}><RowBox id={item.id} sel={sel} /></td><td className="text-center text-lg font-bold text-accent">{expandedId === item.id ? "-" : "+"}</td><td><b className="text-accent">{item.number}</b><p className="mt-0.5 text-xs text-ts">{item.subject}</p></td><td>{dateLabel(item.complaintDate)}</td><td>{item.customer?.name || "-"}</td><td>{item.segmentType}</td><td>{item.complaintType}</td><td><Status value={item.source} /></td><td><Status value={item.priority} /></td><td><Status value={item.status} /></td><td>{item.picInternal || "-"}</td></tr>{expandedId === item.id && <tr><td colSpan={11} className="p-0"><ComplaintDetail item={item} onEdit={setFormItem} onSaved={reload} /></td></tr>}</Fragment>)}</tbody>
           </table>
         )}
         {!loading && !rows.length && <p className="p-10 text-center text-sm text-ts">Belum ada complaint.</p>}
+        {!loading && <Pagination pg={pg} />}
       </div>
+      <BulkDeleteBar ids={sel.list} endpoint="/erp/complaints/bulk-delete" label="complaint" onDone={() => { sel.clear(); reload(); }} />
       <Modal open={formItem !== undefined} title={formItem?.id ? "Edit Complaint" : "Input Complaint"} onClose={() => setFormItem(undefined)}>
         <ComplaintForm item={formItem} customers={customers} vendors={vendors} orderSheets={orderSheets} onClose={() => setFormItem(undefined)} onSaved={reload} />
       </Modal>

@@ -7,6 +7,7 @@ import api from "@/lib/api";
 import { PageTitle, useGet, Loading, Status, Modal } from "@/components/erp/shared";
 import { fileUrl } from "@/lib/utils";
 import { showAlert } from "@/lib/app-modal";
+import { downloadName } from "@/lib/download-name";
 
 const visitTypeLabel: Record<string, string> = {
   QC_VISIT: "QC Visit",
@@ -101,7 +102,7 @@ function VisitCalendar() {
       styles: { fontSize: 7, cellPadding: 1.5 },
       headStyles: { fillColor: [40, 95, 144] },
     });
-    doc.save(`visit-qc-${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}.pdf`);
+    doc.save(downloadName({ doc: "Kalender Visit QC", info: month.toLocaleDateString("id-ID", { month: "long", year: "numeric" }), ext: "pdf" }));
   };
 
   return (
