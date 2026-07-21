@@ -544,7 +544,7 @@ export default function SettingsPage() {
             <CardContent className="space-y-2 text-sm">
               <div className="flex gap-4"><span className="text-muted-foreground w-24">Nama:</span><span className="font-medium">{user?.name}</span></div>
               <div className="flex gap-4"><span className="text-muted-foreground w-24">Email:</span><span>{user?.email}</span></div>
-              <div className="flex gap-4"><span className="text-muted-foreground w-24">Role:</span><span>{user?.roles?.join(", ")}</span></div>
+              <div className="flex gap-4"><span className="text-muted-foreground w-24">Role:</span><span>{user?.roles?.map((r) => r.name).join(", ")}</span></div>
             </CardContent>
           </Card>
 
