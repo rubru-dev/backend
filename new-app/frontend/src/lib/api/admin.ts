@@ -79,14 +79,15 @@ export const adminApi = {
         "/admin/settings/whatsapp/status"
       )
       .then((r) => r.data),
-  waConnect: (number: string) =>
+  waConnect: (number: string, mode: "qr" | "code") =>
     apiClient
       .post<{ state: string; qr_base64: string | null; pairing_code: string | null; number: string | null; message?: string }>(
         "/admin/settings/whatsapp/connect",
-        { number }
+        { number, mode }
       )
       .then((r) => r.data),
   waLogout: () => apiClient.post("/admin/settings/whatsapp/logout").then((r) => r.data),
+  waReset: () => apiClient.post("/admin/settings/whatsapp/reset").then((r) => r.data),
 };
 
 export interface ReminderRule {

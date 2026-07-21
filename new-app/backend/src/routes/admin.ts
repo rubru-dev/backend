@@ -9,6 +9,7 @@ import {
   createInstance,
   connectInstance,
   logoutInstance,
+  deleteInstance,
   getConnectedNumber,
   ensureWebhook,
 } from "../lib/evolution";
@@ -510,7 +511,11 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
   const cfg = evolutionConfigured();
   if (!cfg.ok) return res.status(400).json({ detail: cfg.detail });
   const number = typeof req.body?.number === "string" ? req.body.number.replace(/\D/g, "") : undefined;
-  if (!number) return res.status(400).json({ detail: "Nomor pengirim wajib diisi" });
+  // mode "code" = pairing code (butuh nomor), "qr" = QR untuk di-scan.
+  // Evolution/Baileys menentukannya dari ada/tidaknya field `number`.
+  const mode = req.body?.mode === "code" ? "code" : "qr";
+  if (mode === "code" && !number) return res.status(400).json({ detail: "Nomor pengirim wajib diisi untuk kode pairing" });
+  const numberForMode = mode === "code" ? number : undefined;
 
   try {
     const { state } = await getConnectionState();
@@ -523,34 +528,48 @@ router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req
 
     // Instance belum ada → buat. Ini bagian paling lambat (inisialisasi socket
     // WhatsApp), jadi kegagalan/timeout-nya TIDAK dianggap fatal: instance tetap
-    // terbentuk di latar belakang dan kode pairing bisa diambil pada klik berikutnya.
+    // terbentuk di latar belakang dan artefaknya bisa diambil pada klik berikutnya.
     if (state === null) {
       try {
-        await createInstance(number);
+        await createInstance(numberForMode);
       } catch {
         return res.json({
           state: "preparing",
           pairing_code: null,
           qr_base64: null,
-          message: "Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi untuk mendapat kode.",
+          message: "Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi.",
         });
       }
     }
 
     ensureWebhook().catch(() => {}); // best-effort, tidak ditunggu
 
-    const { pairing_code, qr_base64 } = await connectInstance(number);
-    if (!pairing_code) {
+    const { pairing_code, qr_base64 } = await connectInstance(numberForMode);
+    const gotWhatWeAsked = mode === "code" ? !!pairing_code : !!qr_base64;
+    if (!gotWhatWeAsked) {
       return res.json({
         state: "preparing",
-        pairing_code: null,
+        pairing_code,
         qr_base64,
-        message: "Kode belum siap. Tunggu beberapa detik lalu klik lagi.",
+        message: "Belum siap. Tunggu beberapa detik lalu klik lagi.",
       });
     }
-    return res.json({ state: "connecting", pairing_code, qr_base64, number });
+    return res.json({ state: "connecting", pairing_code, qr_base64, number: number ?? null, mode });
   } catch (err: any) {
     return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${err?.message ?? "error"}` });
+  }
+});
+
+// POST /settings/whatsapp/reset — hapus instance agar bisa mulai dari nol
+// (dipakai saat sesi nyangkut atau ingin berganti metode QR <-> kode pairing).
+router.post("/settings/whatsapp/reset", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  const cfg = evolutionConfigured();
+  if (!cfg.ok) return res.status(400).json({ detail: cfg.detail });
+  try {
+    await deleteInstance();
+    return res.json({ message: "Koneksi direset. Silakan buat QR / kode pairing baru." });
+  } catch (err: any) {
+    return res.status(502).json({ detail: `Gagal reset: ${err?.message ?? "error"}` });
   }
 });
 

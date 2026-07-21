@@ -73,6 +73,17 @@ export async function connectInstance(
   };
 }
 
+/** Hapus instance sepenuhnya — dipakai untuk mulai dari nol saat sesi nyangkut. */
+export async function deleteInstance(): Promise<void> {
+  // Logout dulu (diabaikan bila gagal), baru hapus — Evolution kadang menolak
+  // delete selama sesi masih dianggap aktif.
+  await client(8000).delete(`/instance/logout/${INSTANCE()}`).catch(() => undefined);
+  const res = await client(8000).delete(`/instance/delete/${INSTANCE()}`);
+  if (res.status >= 400 && res.status !== 404) {
+    throw new Error(`Evolution delete gagal (${res.status}): ${JSON.stringify(res.data)}`);
+  }
+}
+
 /** Logout / putuskan sesi WhatsApp (agar bisa scan ulang dengan nomor lain). */
 export async function logoutInstance(): Promise<void> {
   const res = await client().delete(`/instance/logout/${INSTANCE()}`);

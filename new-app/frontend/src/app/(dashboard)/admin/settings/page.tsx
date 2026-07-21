@@ -255,6 +255,7 @@ function WhatsAppQrTab() {
   const qc = useQueryClient();
   const [number, setNumber] = useState("");
   const [pairingCode, setPairingCode] = useState<string | null>(null);
+  const [qr, setQr] = useState<string | null>(null);
   const [prepMessage, setPrepMessage] = useState<string | null>(null);
 
   const { data: status, isLoading: statusLoading } = useQuery({
@@ -263,31 +264,49 @@ function WhatsAppQrTab() {
     retry: false,
     // Polling saat menunggu scan (connecting) supaya UI otomatis berubah jadi "Tersambung"
     // Polling saat menunggu kode dimasukkan di HP, supaya status otomatis jadi "Tersambung"
-    refetchInterval: (q) => (q.state.data?.state === "open" ? false : pairingCode ? 3000 : false),
+    refetchInterval: (q) => (q.state.data?.state === "open" ? false : pairingCode || qr ? 3000 : false),
   });
 
   const connected = status?.state === "open";
 
-  // Begitu tersambung, kode tidak relevan lagi.
-  if (connected && pairingCode) setPairingCode(null);
+  // Begitu tersambung, artefak penautan tidak relevan lagi.
+  if (connected && (pairingCode || qr)) {
+    setPairingCode(null);
+    setQr(null);
+  }
 
   const connectMut = useMutation({
-    mutationFn: () => adminApi.waConnect(number),
-    onSuccess: (data) => {
+    mutationFn: (mode: "qr" | "code") => adminApi.waConnect(number, mode),
+    onSuccess: (data, mode) => {
       if (data.state === "open") {
         toast.success(data.message ?? "WhatsApp sudah tersambung");
         setPairingCode(null);
+        setQr(null);
         setPrepMessage(null);
-      } else if (data.pairing_code) {
-        setPairingCode(data.pairing_code);
-        setPrepMessage(null);
-      } else {
-        setPairingCode(null);
-        setPrepMessage(data.message ?? "Kode belum siap. Tunggu sebentar lalu klik lagi.");
+        qc.invalidateQueries({ queryKey: ["wa-status"] });
+        return;
       }
+      // Tampilkan hanya artefak sesuai metode yang dipilih, biar tidak membingungkan.
+      const code = mode === "code" ? data.pairing_code : null;
+      const image = mode === "qr" ? data.qr_base64 : null;
+      setPairingCode(code);
+      setQr(image);
+      setPrepMessage(code || image ? null : data.message ?? "Belum siap. Tunggu sebentar lalu klik lagi.");
       qc.invalidateQueries({ queryKey: ["wa-status"] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal membuat kode"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyiapkan koneksi"),
+  });
+
+  const resetMut = useMutation({
+    mutationFn: () => adminApi.waReset(),
+    onSuccess: () => {
+      toast.success("Koneksi direset — silakan coba lagi");
+      setPairingCode(null);
+      setQr(null);
+      setPrepMessage(null);
+      qc.invalidateQueries({ queryKey: ["wa-status"] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal reset"),
   });
 
   const logoutMut = useMutation({
@@ -352,17 +371,59 @@ function WhatsAppQrTab() {
                 />
                 <p className="text-xs text-muted-foreground mt-1">Format internasional tanpa + (misal: 6281994031608). Nomor ini yang akan meng-scan QR.</p>
               </div>
-              <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2">
                 <Button
-                  onClick={() => connectMut.mutate()}
-                  disabled={!number || connectMut.isPending || status?.configured === false}
+                  onClick={() => connectMut.mutate("qr")}
+                  disabled={connectMut.isPending || status?.configured === false}
                 >
                   {connectMut.isPending
-                    ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Membuat kode...</>
-                    : <><QrCode className="h-4 w-4 mr-1.5" />{pairingCode || prepMessage ? "Buat Kode Baru" : "Buat Kode Pairing"}</>}
+                    ? <><Loader2 className="h-4 w-4 animate-spin mr-1.5" />Menyiapkan...</>
+                    : <><QrCode className="h-4 w-4 mr-1.5" />Tampilkan QR</>}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => connectMut.mutate("code")}
+                  disabled={!number || connectMut.isPending || status?.configured === false}
+                  title={!number ? "Isi nomor pengirim dulu" : undefined}
+                >
+                  <Smartphone className="h-4 w-4 mr-1.5" />Kode Pairing
+                </Button>
+                <Button
+                  variant="ghost"
+                  className="text-muted-foreground"
+                  onClick={() => resetMut.mutate()}
+                  disabled={resetMut.isPending}
+                  title="Hapus sesi dan mulai dari nol"
+                >
+                  {resetMut.isPending
+                    ? <Loader2 className="h-4 w-4 animate-spin" />
+                    : <><Power className="h-4 w-4 mr-1.5" />Reset</>}
                 </Button>
               </div>
+              <p className="text-xs text-muted-foreground">
+                <b>QR</b>: nomor tidak wajib diisi, scan lewat <i>Tautkan Perangkat</i>. <b>Kode Pairing</b>: isi nomor dulu, lalu ketik kode di HP.
+                Kalau gagal terus, klik <b>Reset</b> lalu coba metode satunya.
+              </p>
             </>
+          )}
+
+          {/* QR */}
+          {qr && !connected && (
+            <div className="flex flex-col items-center gap-3 rounded-lg border-2 border-blue-300 bg-blue-50 p-5">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={qr} alt="QR WhatsApp" className="h-60 w-60 rounded bg-white object-contain p-2" />
+              <div className="max-w-sm text-left text-xs text-blue-900/80">
+                <p className="font-semibold">Langkah di HP:</p>
+                <ol className="mt-1 list-decimal space-y-0.5 pl-4">
+                  <li>WhatsApp → <b>Perangkat Tertaut</b></li>
+                  <li>Ketuk <b>Tautkan Perangkat</b> (kamera terbuka)</li>
+                  <li>Arahkan ke QR ini</li>
+                </ol>
+                <p className="mt-2">
+                  QR kedaluwarsa ~30 detik. Siapkan kamera <b>dulu</b>, baru klik <b>Tampilkan QR</b>.
+                </p>
+              </div>
+            </div>
           )}
 
           {/* Kode pairing */}
