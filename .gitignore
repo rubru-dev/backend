@@ -33,15 +33,18 @@ tsconfig.tsbuildinfo
 # Keep schema.prisma and seed.ts, ignore generated client
 new-app/backend/node_modules/.prisma/
 
-# ─── Storage uploads (keep folder structure, ignore content) ─────────────────
-new-app/backend/storage/desain/*
-new-app/backend/storage/interior/*
-new-app/backend/storage/laporan-docs/*
-new-app/backend/storage/sipil-docs/*
+# ─── Storage uploads (keep folder structure, ignore ALL uploaded content) ────
+# SEMUA isi storage/ adalah file upload runtime (pic-docs, absen, sales-visit,
+# kontrak, dll) — JANGAN di-track. Dulu hanya sebagian subfolder di-ignore, jadi
+# pic-docs (dan lainnya) dianggap untracked; saat deploy, `git stash push -u`
+# menyapunya ke stash → file hilang dari disk → gambar broken di produksi.
+# Sekarang ignore semuanya, sisakan hanya .gitkeep untuk menjaga struktur folder.
+new-app/backend/storage/**
+!new-app/backend/storage/**/
 !new-app/backend/storage/**/.gitkeep
 
-# ─── WhatsApp (Baileys) session credentials — JANGAN commit (sensitif) ────────
-new-app/backend/storage/baileys_auth/
+# Baileys (WhatsApp) session credentials sudah tercakup pola di atas — tetap
+# JANGAN commit (sensitif).
 
 # ─── Cypress / E2E Tests ─────────────────────────────────────────────────────
 new-app/e2e-tests/node_modules/
