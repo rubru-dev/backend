@@ -102,13 +102,18 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
   const penutup = dok.template?.penutup ??
     "Demikian Addendum Kontrak ini dibuat dan ditandatangani oleh Para Pihak dalam keadaan sehat dan tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.";
 
-  const pasalHtml = allPasals.map((p, i) => `
+  const pasalHtml = allPasals.map((p, i) => {
+    // Buang "PASAL N" yang diketik ulang di judul agar tidak dobel dengan nomor otomatis.
+    // "pasal 1" → "" ; "Pasal 1 - Ruang Lingkup" → "Ruang Lingkup" ; "Ruang Lingkup" → tetap.
+    const subJudul = (p.judul_pasal ?? "").trim().replace(/^pasal\s*\d+\s*[:.\-]?\s*/i, "").trim();
+    return `
     <div style="margin:16px 0">
-      <p style="font-weight:bold;text-align:center;text-transform:uppercase;white-space:pre-line;margin-bottom:6px">PASAL ${i + 1}${p.judul_pasal ? "\n" + p.judul_pasal.toUpperCase() : ""}</p>
+      <p style="font-weight:bold;text-align:center;text-transform:uppercase;white-space:pre-line;margin-bottom:6px">PASAL ${i + 1}${subJudul ? "\n" + subJudul.toUpperCase() : ""}</p>
       <div style="font-size:11pt;text-align:justify;line-height:1.7;white-space:pre-wrap">${p.isi_pasal ?? ""}</div>
     </div>
     <div style="border-top:1px dashed #bbb;margin:4px 0"></div>
-  `).join("");
+  `;
+  }).join("");
 
   // Lampiran list untuk header
   const lampiranListHtml = lampirans.length > 0
@@ -225,19 +230,17 @@ ${pasalHtml}
     ${dok.tanggal ? `Bekasi, ${fmtDate(dok.tanggal)}` : "Bekasi, __________ ____"}
   </p>
 
-  <!-- TANDA TANGAN — satu baris: Management | RO | Client -->
+  <!-- TANDA TANGAN — kiri: RO (atas) + Management (bawah), Pihak Pertama; kanan: Customer, Pihak Kedua. Tanpa garis pembatas. -->
   <table style="width:100%;border-collapse:collapse">
     <tr style="vertical-align:top;text-align:center">
-      <td style="width:33.33%">
-        <p style="font-weight:bold;font-size:10pt;margin-bottom:10px">PIHAK PERTAMA</p>
+      <td style="width:50%">
+        <p style="font-weight:bold;font-size:10.5pt;margin-bottom:8px">PIHAK PERTAMA</p>
+        ${sigCell("Relationship Officer", dok.ro_name, dok.ro_signature, dok.ro_signed_at)}
+        <p style="font-weight:bold;font-size:10.5pt;margin:26px 0 8px">PIHAK PERTAMA</p>
         ${sigCell("Management RUBAHRUMAH", dok.management_name, dok.management_signature, dok.management_signed_at)}
       </td>
-      <td style="width:33.33%">
-        <p style="font-weight:bold;font-size:10pt;margin-bottom:10px">&nbsp;</p>
-        ${sigCell("Relationship Officer", dok.ro_name, dok.ro_signature, dok.ro_signed_at)}
-      </td>
-      <td style="width:33.33%">
-        <p style="font-weight:bold;font-size:10pt;margin-bottom:10px">PIHAK KEDUA</p>
+      <td style="width:50%">
+        <p style="font-weight:bold;font-size:10.5pt;margin-bottom:8px">PIHAK KEDUA</p>
         ${sigCell("Customer", dok.client_name ?? dok.nama_client, dok.client_signature, dok.client_signed_at)}
       </td>
     </tr>
@@ -1040,15 +1043,17 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
             */}
             <div>
               <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Tanda Tangan</p>
-              {/* Satu baris: Management | RO | Client */}
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-center text-muted-foreground">PIHAK PERTAMA</p>
-                  <SigCard role="Management RUBAHRUMAH" sig={dok.management_signature} name={dok.management_name} date={dok.management_signed_at} onSign={() => setSigTarget("management")} />
-                </div>
-                <div className="space-y-1">
-                  <p className="text-[10px] font-bold text-center text-muted-foreground">&nbsp;</p>
-                  <SigCard role="Relationship Officer" sig={dok.ro_signature} name={dok.ro_name} date={dok.ro_signed_at} onSign={() => setSigTarget("ro")} />
+              {/* Kiri: RO (atas) + Management (bawah), Pihak Pertama. Kanan: Customer, Pihak Kedua. */}
+              <div className="grid grid-cols-2 gap-3 items-start">
+                <div className="space-y-3">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-center text-muted-foreground">PIHAK PERTAMA</p>
+                    <SigCard role="Relationship Officer" sig={dok.ro_signature} name={dok.ro_name} date={dok.ro_signed_at} onSign={() => setSigTarget("ro")} />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold text-center text-muted-foreground">PIHAK PERTAMA</p>
+                    <SigCard role="Management RUBAHRUMAH" sig={dok.management_signature} name={dok.management_name} date={dok.management_signed_at} onSign={() => setSigTarget("management")} />
+                  </div>
                 </div>
                 <div className="space-y-1">
                   <p className="text-[10px] font-bold text-center text-muted-foreground">PIHAK KEDUA</p>
