@@ -403,6 +403,42 @@ router.get("/settings/fontee/status", requireRole("Super Admin"), async (_req: R
   }
 });
 
+// POST /settings/fontee/qr — minta QR untuk menyambung / menyambung-ulang device Fonnte.
+// Memakai device token yang sama dengan pengiriman. Fonnte: POST .../qr (Authorization: token).
+// CATATAN: QR hanya untuk SATU kali scan manual dari HP. Tidak ada cara mengotomatiskan scan —
+// reconnect setelah logout selalu perlu scan manual (desain keamanan WhatsApp linked-device).
+router.post("/settings/fontee/qr", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
+  const cfg = (setting?.value as Record<string, string> | null) ?? {};
+  const apiKey = cfg.api_key || config.fonnteToken;
+  const baseUrl = cfg.base_url || config.fonnteApiUrl;
+  if (!apiKey) return res.status(400).json({ detail: "API key Fonnte belum diisi" });
+
+  // Endpoint QR satu host dengan endpoint kirim: ".../send" → ".../qr".
+  const base = baseUrl.replace(/\/[^/]*$/, "");
+  try {
+    const r = await axios.post(`${base}/qr`, {}, {
+      headers: { Authorization: apiKey },
+      timeout: 20000,
+      validateStatus: () => true,
+    });
+    if (r.status >= 400) {
+      return res.status(502).json({ detail: `Fonnte membalas HTTP ${r.status}`, raw: r.data });
+    }
+    const d = r.data ?? {};
+    // Penamaan field QR tidak konsisten antar versi Fonnte — coba beberapa kemungkinan.
+    // Bisa berupa URL gambar QR, data-URI, atau base64 mentah.
+    let qr: string | null = d.url ?? d.qr ?? d.qrurl ?? d.image ?? d.data ?? null;
+    // Kalau base64 mentah (bukan URL / data-URI), bungkus jadi data-URI PNG agar bisa <img>.
+    if (qr && !/^(https?:|data:)/i.test(qr) && /^[A-Za-z0-9+/=]+$/.test(qr) && qr.length > 100) {
+      qr = `data:image/png;base64,${qr}`;
+    }
+    return res.json({ qr, raw: d });
+  } catch (err: any) {
+    return res.status(502).json({ detail: `Gagal hubungi Fonnte: ${err?.message ?? "error"}` });
+  }
+});
+
 // POST /fontee/send-test — kirim pesan test lewat Fonnte
 router.post("/fontee/send-test", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const { target_number, message } = req.body;

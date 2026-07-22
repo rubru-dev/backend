@@ -14,8 +14,9 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuthStore } from "@/store/authStore";
-import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap } from "lucide-react";
+import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, QrCode } from "lucide-react";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string; active: string; inactive: string }> = {
   rendah: { label: "Rendah", emoji: "🟢", active: "bg-green-600 text-white border-green-600",  inactive: "bg-green-50 text-green-700 border-green-300 hover:bg-green-100" },
@@ -291,6 +292,36 @@ function FonnteTab() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal kirim pesan test"),
   });
 
+  // ── QR reconnect ──────────────────────────────────────────────────────────
+  const [qrOpen, setQrOpen] = useState(false);
+  const qrMut = useMutation({
+    mutationFn: () => adminApi.getFonteeQr(),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal minta QR dari Fonnte"),
+  });
+  const qr = qrMut.data;
+
+  function openQr() {
+    setQrOpen(true);
+    qrMut.mutate();
+  }
+
+  // Selama dialog QR terbuka, cek status tiap 3 detik supaya tahu begitu tersambung.
+  useEffect(() => {
+    if (!qrOpen) return;
+    const iv = setInterval(() => statusMut.mutate(), 3000);
+    return () => clearInterval(iv);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [qrOpen]);
+
+  // Begitu terdeteksi tersambung, tutup dialog otomatis.
+  useEffect(() => {
+    if (qrOpen && status?.connected) {
+      toast.success("WhatsApp tersambung!");
+      setQrOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status?.connected, qrOpen]);
+
   return (
     <div className="space-y-4">
       <Card>
@@ -360,12 +391,20 @@ function FonnteTab() {
                 ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengecek...</>
                 : <><Zap className="h-3.5 w-3.5 mr-1.5" />Cek Status</>}
             </Button>
+            <Button variant="outline" onClick={openQr} disabled={qrMut.isPending}>
+              <QrCode className="h-3.5 w-3.5 mr-1.5" />Hubungkan / QR
+            </Button>
             {status && (
               <Badge className={status.connected ? "bg-green-600 text-white" : "bg-red-600 text-white"}>
                 {status.connected ? "Tersambung" : "Terputus"}
               </Badge>
             )}
           </div>
+          <p className="text-xs text-muted-foreground">
+            QR untuk menyambung / menyambung-ulang WhatsApp tanpa login dashboard Fonnte. QR berlaku
+            singkat — kalau kedaluwarsa, klik "Muat ulang QR". Setelah tersambung, koneksi bertahan lama
+            selama HP utama tetap online berkala.
+          </p>
 
           {status && (
             <div className="text-sm space-y-1">
@@ -420,6 +459,36 @@ function FonnteTab() {
           </Button>
         </CardContent>
       </Card>
+
+      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Sambungkan WhatsApp</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-center">
+            <p className="text-sm text-muted-foreground">
+              Di HP: WhatsApp → <span className="font-medium">Perangkat Tertaut</span> → Tautkan Perangkat, lalu scan QR di bawah.
+            </p>
+            {qrMut.isPending ? (
+              <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
+            ) : qr?.qr ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={qr.qr} alt="QR Fonnte" className="mx-auto w-56 h-56 object-contain border rounded bg-white" />
+            ) : (
+              <div className="text-left space-y-2">
+                <p className="text-sm text-red-600">QR tidak bisa ditampilkan. Respons mentah Fonnte (kirim ke developer bila perlu):</p>
+                <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-48">{JSON.stringify(qr?.raw, null, 2)}</pre>
+              </div>
+            )}
+            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />Menunggu koneksi... (auto-cek tiap 3 detik)
+            </div>
+            <Button variant="outline" size="sm" onClick={() => qrMut.mutate()} disabled={qrMut.isPending}>
+              <QrCode className="h-3.5 w-3.5 mr-1.5" />Muat ulang QR
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

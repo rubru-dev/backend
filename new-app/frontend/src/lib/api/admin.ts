@@ -71,6 +71,10 @@ export const adminApi = {
       .then((r) => r.data),
   sendFonteeTest: (data: { target_number: string; message: string }) =>
     apiClient.post("/admin/fontee/send-test", data).then((r) => r.data),
+  getFonteeQr: () =>
+    apiClient
+      .post<{ qr: string | null; raw: unknown }>("/admin/settings/fontee/qr")
+      .then((r) => r.data),
   getReminderRules: () =>
     apiClient.get<{ rules: ReminderRule[]; roles: { id: number; name: string }[] }>("/admin/settings/reminder-rules").then((r) => r.data),
   updateReminderRule: (id: number, data: { days_before?: number; send_time?: string; is_active?: boolean; role_ids?: number[]; message_template?: string | null; priority?: string }) =>
