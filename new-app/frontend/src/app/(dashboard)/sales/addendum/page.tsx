@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
   kontrakTemplateApi, kontrakDokumenApi,
-  type KontrakTemplate, type KontrakDokumen, type KontrakLampiran,
+  type KontrakTemplate, type KontrakDokumen, type KontrakLampiran, type KontrakDokumenPasal,
 } from "@/lib/api/addendum";
 import { apiClient } from "@/lib/api/client";
 import { useAuthStore } from "@/store/authStore";
@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { SignatureDialog } from "@/components/signature-dialog";
 import {
   Plus, Trash2, PenLine, FileText, CheckCircle2, Eye, Pencil,
-  Printer, BookOpen, ChevronDown, ChevronUp, Upload, X, ExternalLink,
+  Printer, BookOpen, ChevronDown, ChevronUp, Upload, X, ExternalLink, Lock, Building2,
 } from "lucide-react";
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -68,9 +68,17 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
   const dok = typeof dokOrId === "number"
     ? await kontrakDokumenApi.get(dokOrId)
     : await kontrakDokumenApi.get((dokOrId as KontrakDokumen).id);
-  const pasals = dok.template?.pasals ?? [];
+  // Pasal template (live) + pasal ekstra khusus dokumen ini → nomor lanjut.
+  const allPasals = [...(dok.template?.pasals ?? []), ...(dok.extra_pasals ?? [])];
   const lampirans = dok.lampirans ?? [];
   const logoUrl = typeof window !== "undefined" ? `${window.location.origin}/images/logo.png` : "";
+  // Data Pihak Pertama dari pengaturan (fallback ke default perusahaan).
+  const company = await kontrakDokumenApi.getCompany().catch(() => ({
+    nama: "PT. Rubah Rumah Inovasi Pemuda (rubahrumah.com)",
+    nib: "2209220142528",
+    alamat: "Jl. Pandu II No.420, Kota Bekasi 17114",
+    telepon: "0813-7640-5550",
+  }));
 
   const tanggalFull = dok.tanggal
     ? new Date(dok.tanggal).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
@@ -84,7 +92,7 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
   const penutup = dok.template?.penutup ??
     "Demikian Addendum Kontrak ini dibuat dan ditandatangani oleh Para Pihak dalam keadaan sehat dan tanpa adanya paksaan dari pihak manapun, untuk dapat dipergunakan sebagaimana mestinya.";
 
-  const pasalHtml = pasals.map((p, i) => `
+  const pasalHtml = allPasals.map((p, i) => `
     <div style="margin:16px 0">
       <p style="font-weight:bold;text-align:center;text-transform:uppercase;white-space:pre-line;margin-bottom:6px">PASAL ${i + 1}${p.judul_pasal ? "\n" + p.judul_pasal.toUpperCase() : ""}</p>
       <div style="font-size:11pt;text-align:justify;line-height:1.7;white-space:pre-wrap">${p.isi_pasal ?? ""}</div>
@@ -97,10 +105,10 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
     ? lampirans.map((l, i) => `<p style="margin:2px 0">${i + 1}. ${l.judul}</p>`).join("")
     : "<p style='margin:2px 0'>-</p>";
 
-  // Load cap as base64 so it renders in the print window without timing issues
-  const capBase64 = await (async () => {
+  // Load LOGO as base64 untuk watermark di blok TTD (samakan dengan PDF invoice/kwitansi)
+  const sigWatermarkBase64 = await (async () => {
     try {
-      const res = await fetch(`${window.location.origin}/images/cap.png`);
+      const res = await fetch(`${window.location.origin}/images/logo.png`);
       const blob = await res.blob();
       return await new Promise<string>((resolve) => {
         const reader = new FileReader();
@@ -110,11 +118,11 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
     } catch { return ""; }
   })();
 
-  // Signature cell with wet stamp effect
+  // Signature cell: logo samar sebagai watermark di belakang tinta TTD.
   const sigCell = (role: string, name: string | null, sig: string | null, date: string | null) => `
     <div style="text-align:center;padding:0 8px;position:relative">
       <div style="position:relative;height:100px;display:flex;align-items:center;justify-content:center">
-        ${capBase64 ? `<img src="${capBase64}" style="position:absolute;width:120px;height:120px;object-fit:contain;pointer-events:none;mix-blend-mode:multiply;opacity:0.6;filter:blur(0.3px) saturate(1.1);"/>` : ""}
+        ${sigWatermarkBase64 ? `<img src="${sigWatermarkBase64}" style="position:absolute;width:110px;height:110px;object-fit:contain;pointer-events:none;opacity:0.5"/>` : ""}
         ${sig ? `<img src="${sig}" style="position:relative;height:65px;object-fit:contain;display:block;margin:0 auto;z-index:1"/>` : `<div style="height:65px"></div>`}
       </div>
       <div style="border-top:1px solid #000;padding-top:4px">
@@ -172,10 +180,10 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
 
 <!-- PIHAK PERTAMA -->
 <table style="width:100%;font-size:11pt;margin-bottom:4px">
-  <tr><td style="width:140px">Nama</td><td>: <strong>PT. Rubah Rumah Inovasi Pemuda (rubahrumah.com)</strong></td></tr>
-  <tr><td>No. NIB</td><td>: 2209220142528</td></tr>
-  <tr><td>Alamat</td><td>: Jl. Pandu II No.420, Kota Bekasi 17114</td></tr>
-  <tr><td>Telepon</td><td>: 0813-7640-5550</td></tr>
+  <tr><td style="width:140px">Nama</td><td>: <strong>${company.nama}</strong></td></tr>
+  <tr><td>No. NIB</td><td>: ${company.nib}</td></tr>
+  <tr><td>Alamat</td><td>: ${company.alamat}</td></tr>
+  <tr><td>Telepon</td><td>: ${company.telepon}</td></tr>
 </table>
 <p style="font-size:11pt;margin-bottom:12px">Selanjutnya disebut <strong>PIHAK PERTAMA</strong>.</p>
 
@@ -499,8 +507,14 @@ function CreateKontrakDialog({ open, onOpenChange, templates, onSaved }: {
   const [leadId, setLeadId] = useState<string>("");
   const [leadOptions, setLeadOptions] = useState<{ id: number; nama: string; jenis: string; nomor_telepon: string | null; alamat: string | null }[]>([]);
   const [loadingLeads, setLoadingLeads] = useState(false);
+  const [showLeadHelper, setShowLeadHelper] = useState(false);
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [jenisPekerjaan, setJenisPekerjaan] = useState("");
+  const [nomorKontrak, setNomorKontrak] = useState("");
+  // Pihak Kedua — diisi MANUAL (tidak wajib dari lead)
+  const [namaClient, setNamaClient] = useState("");
+  const [teleponClient, setTeleponClient] = useState("");
+  const [alamatClient, setAlamatClient] = useState("");
   const qc = useQueryClient();
 
   async function searchLeads(q: string) {
@@ -521,6 +535,10 @@ function CreateKontrakDialog({ open, onOpenChange, templates, onSaved }: {
       lead_id: leadId ? Number(leadId) : undefined,
       tanggal,
       jenis_pekerjaan: jenisPekerjaan || undefined,
+      nama_client: namaClient || undefined,
+      telepon_client: teleponClient || undefined,
+      alamat_client: alamatClient || undefined,
+      nomor_kontrak: nomorKontrak || undefined,
     }),
     onSuccess: () => {
       toast.success("Kontrak berhasil dibuat");
@@ -545,39 +563,76 @@ function CreateKontrakDialog({ open, onOpenChange, templates, onSaved }: {
             </select>
             {selectedTemplate && <p className="text-xs text-muted-foreground">{selectedTemplate.pasals.length} pasal</p>}
           </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Nomor Kontrak</Label>
+              <Input placeholder="Kosongkan = auto (KTR/…)" value={nomorKontrak} onChange={(e) => setNomorKontrak(e.target.value)} />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Tanggal Kontrak</Label>
+              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
+            </div>
+          </div>
           <div className="space-y-1.5">
             <Label>Jenis / Keterangan Pekerjaan</Label>
             <Input placeholder="Contoh: Tambahan Pekerjaan Renovasi Rumah..." value={jenisPekerjaan} onChange={(e) => setJenisPekerjaan(e.target.value)} />
           </div>
-          <div className="space-y-1.5">
-            <Label>Klien (dari Follow Up Leads)</Label>
-            <div className="relative">
-              <Input placeholder="Cari nama klien dari telemarketing / sales admin..." value={leadSearch} onChange={(e) => searchLeads(e.target.value)} />
-              {leadOptions.length > 0 && (
-                <div className="absolute z-50 bg-white border rounded-md shadow-md w-full mt-1 max-h-48 overflow-y-auto">
-                  {leadOptions.map((l) => (
-                    <button key={l.id} type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm"
-                      onClick={() => { setLeadId(String(l.id)); setLeadSearch(l.nama); setLeadOptions([]); }}>
-                      <span className="font-medium">{l.nama}</span>
-                      <span className="text-slate-400 text-xs ml-2">{l.jenis}</span>
-                      {l.nomor_telepon && <span className="text-slate-400 text-xs ml-2">{l.nomor_telepon}</span>}
-                    </button>
-                  ))}
-                </div>
-              )}
-              {loadingLeads && <p className="text-xs text-slate-400 mt-1">Mencari...</p>}
+
+          {/* PIHAK KEDUA — manual */}
+          <div className="border rounded-lg p-3 space-y-3 bg-slate-50/50">
+            <div className="flex items-center justify-between">
+              <Label className="text-sm font-semibold">Pihak Kedua (Klien)</Label>
+              <button type="button" className="text-xs text-blue-600 hover:underline" onClick={() => setShowLeadHelper((v) => !v)}>
+                {showLeadHelper ? "Tutup" : "Isi dari data Lead"}
+              </button>
             </div>
-            {leadId && <p className="text-xs text-green-600">Nama, telepon, dan alamat klien akan diisi otomatis.</p>}
+            {showLeadHelper && (
+              <div className="relative">
+                <Input placeholder="Cari nama klien dari telemarketing / sales admin..." value={leadSearch} onChange={(e) => searchLeads(e.target.value)} />
+                {leadOptions.length > 0 && (
+                  <div className="absolute z-50 bg-white border rounded-md shadow-md w-full mt-1 max-h-48 overflow-y-auto">
+                    {leadOptions.map((l) => (
+                      <button key={l.id} type="button" className="w-full text-left px-3 py-2 hover:bg-slate-50 text-sm"
+                        onClick={() => {
+                          setLeadId(String(l.id));
+                          setLeadSearch(l.nama);
+                          setNamaClient(l.nama);
+                          setTeleponClient(l.nomor_telepon ?? "");
+                          setAlamatClient(l.alamat ?? "");
+                          setLeadOptions([]);
+                        }}>
+                        <span className="font-medium">{l.nama}</span>
+                        <span className="text-slate-400 text-xs ml-2">{l.jenis}</span>
+                        {l.nomor_telepon && <span className="text-slate-400 text-xs ml-2">{l.nomor_telepon}</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {loadingLeads && <p className="text-xs text-slate-400 mt-1">Mencari...</p>}
+                <p className="text-xs text-muted-foreground mt-1">Memilih lead akan mengisi field di bawah — tetap bisa diubah manual.</p>
+              </div>
+            )}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Nama <span className="text-destructive">*</span></Label>
+              <Input placeholder="Nama lengkap klien" value={namaClient} onChange={(e) => { setNamaClient(e.target.value); setLeadId(""); }} />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Telepon</Label>
+                <Input placeholder="08xxxxxxxxxx" value={teleponClient} onChange={(e) => setTeleponClient(e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Alamat</Label>
+                <Input placeholder="Alamat klien" value={alamatClient} onChange={(e) => setAlamatClient(e.target.value)} />
+              </div>
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <Label>Tanggal Kontrak</Label>
-            <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} />
-          </div>
-          <p className="text-xs text-muted-foreground">Lampiran bisa ditambahkan setelah kontrak dibuat.</p>
+
+          <p className="text-xs text-muted-foreground">Lampiran & pasal tambahan bisa ditambahkan setelah kontrak dibuat.</p>
         </div>
         <div className="flex justify-end gap-2 pt-3">
           <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
-          <Button onClick={() => create.mutate()} disabled={create.isPending || !templateId}>
+          <Button onClick={() => create.mutate()} disabled={create.isPending || !templateId || !namaClient.trim()}>
             {create.isPending ? "Membuat..." : "Buat Kontrak"}
           </Button>
         </div>
@@ -688,10 +743,179 @@ function LampiranManager({ dokId, lampirans }: { dokId: number; lampirans: Kontr
 }
 
 // ── Kontrak detail dialog ──────────────────────────────────────────────────────
+// ── Edit data dokumen (nomor/klien/tanggal/jenis) ──────────────────────────────
+function EditKontrakDialog({ open, onOpenChange, dok }: {
+  open: boolean; onOpenChange: (v: boolean) => void; dok: KontrakDokumen;
+}) {
+  const qc = useQueryClient();
+  const [nomor, setNomor] = useState(dok.nomor_kontrak ?? "");
+  const [jenis, setJenis] = useState(dok.jenis_pekerjaan ?? "");
+  const [tanggal, setTanggal] = useState(dok.tanggal ? new Date(dok.tanggal).toISOString().slice(0, 10) : "");
+  const [nama, setNama] = useState(dok.nama_client ?? "");
+  const [telepon, setTelepon] = useState(dok.telepon_client ?? "");
+  const [alamat, setAlamat] = useState(dok.alamat_client ?? "");
+
+  const save = useMutation({
+    mutationFn: () => kontrakDokumenApi.update(dok.id, {
+      nomor_kontrak: nomor, jenis_pekerjaan: jenis, tanggal: tanggal || undefined,
+      nama_client: nama, telepon_client: telepon, alamat_client: alamat,
+    }),
+    onSuccess: () => {
+      toast.success("Kontrak diperbarui");
+      qc.invalidateQueries({ queryKey: ["kontrak-dokumen"] });
+      qc.invalidateQueries({ queryKey: ["kontrak-dokumen-detail", dok.id] });
+      onOpenChange(false);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui"),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader><DialogTitle>Edit Data Kontrak</DialogTitle></DialogHeader>
+        <div className="space-y-3 mt-2">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label className="text-xs">Nomor Kontrak</Label>
+              <Input value={nomor} onChange={(e) => setNomor(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Tanggal</Label>
+              <Input type="date" value={tanggal} onChange={(e) => setTanggal(e.target.value)} /></div>
+          </div>
+          <div className="space-y-1.5"><Label className="text-xs">Jenis Pekerjaan</Label>
+            <Input value={jenis} onChange={(e) => setJenis(e.target.value)} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">Nama Pihak Kedua</Label>
+            <Input value={nama} onChange={(e) => setNama(e.target.value)} /></div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5"><Label className="text-xs">Telepon</Label>
+              <Input value={telepon} onChange={(e) => setTelepon(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Alamat</Label>
+              <Input value={alamat} onChange={(e) => setAlamat(e.target.value)} /></div>
+          </div>
+        </div>
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? "Menyimpan..." : "Simpan"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Editor pasal EKSTRA khusus dokumen (di luar pasal template) ────────────────
+function ExtraPasalEditor({ dok, locked = false }: { dok: KontrakDokumen; locked?: boolean }) {
+  const qc = useQueryClient();
+  const templateCount = dok.template?.pasals.length ?? 0;
+  const extras = dok.extra_pasals ?? [];
+  const [addOpen, setAddOpen] = useState(false);
+  const [judul, setJudul] = useState("");
+  const [isi, setIsi] = useState("");
+  const [editing, setEditing] = useState<KontrakDokumenPasal | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<KontrakDokumenPasal | null>(null);
+
+  const invalidate = () => {
+    qc.invalidateQueries({ queryKey: ["kontrak-dokumen"] });
+    qc.invalidateQueries({ queryKey: ["kontrak-dokumen-detail", dok.id] });
+  };
+  const addMut = useMutation({
+    mutationFn: () => kontrakDokumenApi.addPasal(dok.id, { judul_pasal: judul || undefined, isi_pasal: isi || undefined }),
+    onSuccess: () => { toast.success("Pasal ditambahkan"); invalidate(); setJudul(""); setIsi(""); setAddOpen(false); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
+  const editMut = useMutation({
+    mutationFn: () => kontrakDokumenApi.updatePasal(dok.id, editing!.id, { judul_pasal: editing!.judul_pasal ?? "", isi_pasal: editing!.isi_pasal ?? "" }),
+    onSuccess: () => { toast.success("Pasal diperbarui"); invalidate(); setEditing(null); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
+  const delMut = useMutation({
+    mutationFn: (id: number) => kontrakDokumenApi.deletePasal(dok.id, id),
+    onSuccess: () => { toast.success("Pasal dihapus"); invalidate(); setDeleteTarget(null); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs font-bold text-muted-foreground uppercase">Pasal Tambahan Khusus Kontrak Ini ({extras.length})</p>
+        {!locked && (
+          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAddOpen(true)}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Pasal
+          </Button>
+        )}
+      </div>
+      <p className="text-[11px] text-muted-foreground mb-2">Pasal ini melanjutkan penomoran setelah {templateCount} pasal dari template, dan hanya berlaku untuk kontrak ini.</p>
+      {extras.length === 0 && <p className="text-xs text-muted-foreground italic py-2">Belum ada pasal tambahan.</p>}
+      <div className="space-y-1.5">
+        {extras.map((p, i) => (
+          <div key={p.id} className="border rounded p-2 text-xs flex items-start justify-between gap-2">
+            <div className="min-w-0">
+              <p className="font-semibold">Pasal {templateCount + i + 1}{p.judul_pasal ? ` — ${p.judul_pasal}` : ""}</p>
+              <p className="text-muted-foreground whitespace-pre-wrap line-clamp-3 mt-0.5">{p.isi_pasal ?? ""}</p>
+            </div>
+            {!locked && (
+              <div className="flex gap-1 shrink-0">
+                <Button size="icon" variant="ghost" className="h-6 w-6" onClick={() => setEditing(p)}><Pencil className="h-3 w-3" /></Button>
+                <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => setDeleteTarget(p)}><Trash2 className="h-3 w-3" /></Button>
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {/* Tambah */}
+      <Dialog open={addOpen} onOpenChange={setAddOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Tambah Pasal Khusus</DialogTitle></DialogHeader>
+          <div className="space-y-3 mt-2">
+            <div className="space-y-1.5"><Label className="text-xs">Judul Pasal (opsional, tampil HURUF BESAR)</Label>
+              <Input value={judul} onChange={(e) => setJudul(e.target.value)} /></div>
+            <div className="space-y-1.5"><Label className="text-xs">Isi Pasal</Label>
+              <Textarea rows={8} value={isi} onChange={(e) => setIsi(e.target.value)} className="font-mono text-sm" placeholder="Ketik isi pasal..." /></div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+            <Button onClick={() => addMut.mutate()} disabled={addMut.isPending}>{addMut.isPending ? "Menyimpan..." : "Tambah"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit */}
+      <Dialog open={!!editing} onOpenChange={(v) => !v && setEditing(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader><DialogTitle>Edit Pasal</DialogTitle></DialogHeader>
+          {editing && (
+            <div className="space-y-3 mt-2">
+              <div className="space-y-1.5"><Label className="text-xs">Judul Pasal</Label>
+                <Input value={editing.judul_pasal ?? ""} onChange={(e) => setEditing({ ...editing, judul_pasal: e.target.value })} /></div>
+              <div className="space-y-1.5"><Label className="text-xs">Isi Pasal</Label>
+                <Textarea rows={8} value={editing.isi_pasal ?? ""} onChange={(e) => setEditing({ ...editing, isi_pasal: e.target.value })} className="font-mono text-sm" /></div>
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setEditing(null)}>Batal</Button>
+            <Button onClick={() => editMut.mutate()} disabled={editMut.isPending}>{editMut.isPending ? "Menyimpan..." : "Simpan"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Hapus */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(v) => !v && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader><AlertDialogTitle>Hapus Pasal?</AlertDialogTitle></AlertDialogHeader>
+          <p className="text-sm text-muted-foreground px-6">Pasal tambahan ini akan dihapus permanen dari kontrak ini.</p>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Batal</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteTarget && delMut.mutate(deleteTarget.id)}>Hapus</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
+
 function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
   open: boolean; onOpenChange: (v: boolean) => void; dok: KontrakDokumen;
 }) {
   const [sigTarget, setSigTarget] = useState<"ro" | "management" | "client" | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
   const qc = useQueryClient();
 
   const { data: dok = initialDok } = useQuery({
@@ -699,6 +923,9 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
     queryFn: () => kontrakDokumenApi.get(initialDok.id),
     initialData: initialDok,
   });
+
+  // Kontrak final (RO + Klien sudah TTD) → terkunci, tidak bisa diedit.
+  const isLocked = !!dok.ro_signature && !!dok.client_signature;
 
   const signRo = useMutation({
     mutationFn: (sig: string) => kontrakDokumenApi.signRo(dok.id, dok.ro_name ?? "Relationship Officer", sig),
@@ -758,6 +985,15 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
               {statusBadge(dok.status)}
               <span className="text-sm text-muted-foreground">{fmtDateShort(dok.tanggal)}</span>
               {dok.jenis_pekerjaan && <span className="text-sm font-medium">{dok.jenis_pekerjaan}</span>}
+              {isLocked ? (
+                <Badge variant="outline" className="ml-auto text-amber-700 border-amber-300 bg-amber-50">
+                  <Lock className="h-3 w-3 mr-1" /> Terkunci (TTD lengkap)
+                </Badge>
+              ) : (
+                <Button size="sm" variant="outline" className="ml-auto h-7 text-xs" onClick={() => setEditOpen(true)}>
+                  <Pencil className="h-3.5 w-3.5 mr-1" /> Edit Data
+                </Button>
+              )}
             </div>
 
             {/* Pihak */}
@@ -777,10 +1013,10 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
             {/* Lampiran */}
             <LampiranManager dokId={dok.id} lampirans={dok.lampirans ?? []} />
 
-            {/* Pasal preview */}
+            {/* Pasal dari template (read-only) */}
             {pasals.length > 0 && (
               <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Isi Kontrak ({pasals.length} pasal)</p>
+                <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Pasal dari Template ({pasals.length})</p>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                   {pasals.map((p, i) => (
                     <div key={p.id} className="border rounded p-2 text-xs">
@@ -791,6 +1027,9 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
                 </div>
               </div>
             )}
+
+            {/* Pasal tambahan khusus dokumen ini */}
+            <ExtraPasalEditor dok={dok} locked={isLocked} />
 
             {/* Tanda tangan
                 Layout: Kiri = RO (atas) + Management (bawah)   |   Kanan = Client
@@ -832,7 +1071,45 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
         title="Tanda Tangan — Management RUBAHRUMAH" loading={signManagement.isPending} onSave={(sig) => signManagement.mutate(sig)} />
       <SignatureDialog open={sigTarget === "client"} onOpenChange={(v) => !v && setSigTarget(null)}
         title="Tanda Tangan — Klien (Pihak Kedua)" loading={signClient.isPending} onSave={(sig) => signClient.mutate(sig)} />
+
+      <EditKontrakDialog open={editOpen} onOpenChange={setEditOpen} dok={dok} />
     </>
+  );
+}
+
+// ── Pengaturan Pihak Pertama (data perusahaan di kontrak) ──────────────────────
+function CompanyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v: boolean) => void }) {
+  const [form, setForm] = useState({ nama: "", nib: "", alamat: "", telepon: "" });
+  const { data } = useQuery({ queryKey: ["kontrak-company"], queryFn: () => kontrakDokumenApi.getCompany(), enabled: open });
+  useEffect(() => {
+    if (data) setForm({ nama: data.nama, nib: data.nib, alamat: data.alamat, telepon: data.telepon });
+  }, [data]);
+  const save = useMutation({
+    mutationFn: () => kontrakDokumenApi.saveCompany(form),
+    onSuccess: () => { toast.success("Data Pihak Pertama disimpan"); onOpenChange(false); },
+    onError: () => toast.error("Gagal menyimpan"),
+  });
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader><DialogTitle>Pengaturan Pihak Pertama</DialogTitle></DialogHeader>
+        <p className="text-xs text-muted-foreground -mt-1">Data perusahaan ini dipakai di semua kontrak yang dicetak.</p>
+        <div className="space-y-3 mt-2">
+          <div className="space-y-1.5"><Label className="text-xs">Nama Perusahaan</Label>
+            <Input value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">No. NIB</Label>
+            <Input value={form.nib} onChange={(e) => setForm({ ...form, nib: e.target.value })} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">Alamat</Label>
+            <Input value={form.alamat} onChange={(e) => setForm({ ...form, alamat: e.target.value })} /></div>
+          <div className="space-y-1.5"><Label className="text-xs">Telepon</Label>
+            <Input value={form.telepon} onChange={(e) => setForm({ ...form, telepon: e.target.value })} /></div>
+        </div>
+        <div className="flex justify-end gap-2 pt-3">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Batal</Button>
+          <Button onClick={() => save.mutate()} disabled={save.isPending}>{save.isPending ? "Menyimpan..." : "Simpan"}</Button>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -854,6 +1131,7 @@ function AddendumKontrakInner() {
   const [createKontrakOpen, setCreateKontrakOpen] = useState(false);
   const [detailDok, setDetailDok] = useState<KontrakDokumen | null>(null);
   const [deleteDok, setDeleteDok] = useState<KontrakDokumen | null>(null);
+  const [companyOpen, setCompanyOpen] = useState(false);
   const qc = useQueryClient();
 
   const { data: templatesData, isLoading: loadingTemplates } = useQuery({
@@ -871,7 +1149,7 @@ function AddendumKontrakInner() {
   const deleteDokMut = useMutation({
     mutationFn: (id: number) => kontrakDokumenApi.delete(id),
     onSuccess: () => { toast.success("Kontrak dihapus"); qc.invalidateQueries({ queryKey: ["kontrak-dokumen"] }); setDeleteDok(null); },
-    onError: () => toast.error("Gagal"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menghapus kontrak"),
   });
 
   const templates = templatesData?.items ?? [];
@@ -880,9 +1158,14 @@ function AddendumKontrakInner() {
 
   return (
     <div className="p-6 space-y-5">
-      <div>
-        <h1 className="text-2xl font-bold">Kontrak</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">Buat template kontrak dengan pasal-pasal, lalu generate kontrak untuk klien</p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Kontrak</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">Buat template kontrak dengan pasal-pasal, lalu generate kontrak untuk klien</p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => setCompanyOpen(true)}>
+          <Building2 className="h-4 w-4 mr-1.5" /> Pihak Pertama
+        </Button>
       </div>
 
       {/* Tab: Daftar Kontrak (kiri) | Template Kontrak (kanan) */}
@@ -1009,6 +1292,8 @@ function AddendumKontrakInner() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CompanyDialog open={companyOpen} onOpenChange={setCompanyOpen} />
     </div>
   );
 }

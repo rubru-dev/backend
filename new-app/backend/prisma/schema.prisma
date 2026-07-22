@@ -2965,10 +2965,26 @@ model KontrakDokumen {
   lead             Lead?                  @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
   creator          User?                  @relation("kontrak_dokumen_creator", fields: [created_by], references: [id], onUpdate: NoAction)
   lampirans        KontrakDokumenLampiran[]
+  extra_pasals     KontrakDokumenPasal[]
 
   @@index([template_id], map: "idx_kontrak_dokumens_template")
   @@index([lead_id], map: "idx_kontrak_dokumens_lead")
   @@map("kontrak_dokumens")
+}
+
+/// Pasal EKSTRA khusus satu dokumen kontrak (di luar pasal template). Ditampilkan
+/// setelah pasal-pasal template saat cetak. Template tetap dibaca live.
+model KontrakDokumenPasal {
+  id          BigInt          @id @default(autoincrement())
+  dokumen_id  BigInt
+  urutan      Int             @default(0)
+  judul_pasal String?         @db.VarChar(255)
+  isi_pasal   String?         @db.Text
+  created_at  DateTime        @default(now()) @db.Timestamptz(6)
+  dokumen     KontrakDokumen  @relation(fields: [dokumen_id], references: [id], onDelete: Cascade)
+
+  @@index([dokumen_id], map: "idx_kontrak_dok_pasals_dokumen")
+  @@map("kontrak_dokumen_pasals")
 }
 
 /// Form Checklist â€” item checklist per proyek sipil (gambar + nama pekerjaan + status + gambar selesai)

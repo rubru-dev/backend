@@ -789,6 +789,7 @@ function mapKontrakDokumen(d: {
   lead?: { nama: string; nomor_telepon: string | null; alamat: string | null } | null;
   creator?: { name: string } | null;
   lampirans?: { id: bigint; urutan: number; judul: string; file_url: string | null }[];
+  extra_pasals?: { id: bigint; urutan: number; judul_pasal: string | null; isi_pasal: string | null }[];
 }) {
   return {
     id: Number(d.id),
@@ -824,8 +825,52 @@ function mapKontrakDokumen(d: {
     lead: d.lead ?? null,
     creator: d.creator ?? null,
     lampirans: (d.lampirans ?? []).map((l) => ({ id: Number(l.id), urutan: l.urutan, judul: l.judul, file_url: l.file_url })),
+    extra_pasals: (d.extra_pasals ?? []).map((p) => ({ id: Number(p.id), urutan: p.urutan, judul_pasal: p.judul_pasal, isi_pasal: p.isi_pasal })),
   };
 }
+
+// Kontrak yang sudah ditandatangani lengkap (RO + Klien) dianggap final → tidak boleh
+// diedit/dihapus. Management dianggap opsional (pihak pertama bisa 1 TTD saja).
+function isKontrakLocked(d: { ro_signature: string | null; client_signature: string | null }) {
+  return !!d.ro_signature && !!d.client_signature;
+}
+
+// ── Pengaturan Pihak Pertama (data perusahaan) untuk kontrak ──────────────────
+const KONTRAK_COMPANY_DEFAULT = {
+  nama: "PT. Rubah Rumah Inovasi Pemuda (rubahrumah.com)",
+  nib: "2209220142528",
+  alamat: "Jl. Pandu II No.420, Kota Bekasi 17114",
+  telepon: "0813-7640-5550",
+};
+
+// GET /sales/kontrak-company
+router.get("/kontrak-company", async (_req: Request, res: Response) => {
+  const setting = await prisma.appSetting.findUnique({ where: { key: "kontrak_company" } });
+  const cfg = (setting?.value as Record<string, string> | null) ?? {};
+  return res.json({
+    nama: cfg.nama ?? KONTRAK_COMPANY_DEFAULT.nama,
+    nib: cfg.nib ?? KONTRAK_COMPANY_DEFAULT.nib,
+    alamat: cfg.alamat ?? KONTRAK_COMPANY_DEFAULT.alamat,
+    telepon: cfg.telepon ?? KONTRAK_COMPANY_DEFAULT.telepon,
+  });
+});
+
+// PUT /sales/kontrak-company
+router.put("/kontrak-company", async (req: Request, res: Response) => {
+  const { nama, nib, alamat, telepon } = req.body;
+  const value = {
+    nama: nama ?? KONTRAK_COMPANY_DEFAULT.nama,
+    nib: nib ?? KONTRAK_COMPANY_DEFAULT.nib,
+    alamat: alamat ?? KONTRAK_COMPANY_DEFAULT.alamat,
+    telepon: telepon ?? KONTRAK_COMPANY_DEFAULT.telepon,
+  };
+  await prisma.appSetting.upsert({
+    where: { key: "kontrak_company" },
+    update: { value },
+    create: { key: "kontrak_company", value },
+  });
+  return res.json({ message: "Data Pihak Pertama disimpan", ...value });
+});
 
 // GET /sales/kontrak-template
 router.get("/kontrak-template", async (req: Request, res: Response) => {
@@ -970,23 +1015,33 @@ router.get("/kontrak-dokumen", async (req: Request, res: Response) => {
 
 // POST /sales/kontrak-dokumen
 router.post("/kontrak-dokumen", async (req: Request, res: Response) => {
-  const { template_id, lead_id, tanggal, jenis_pekerjaan } = req.body;
+  const {
+    template_id, lead_id, tanggal, jenis_pekerjaan,
+    nama_client, telepon_client, alamat_client, nomor_kontrak: nomorManual,
+  } = req.body;
   if (!template_id) return res.status(400).json({ detail: "Template wajib dipilih" });
 
   const template = await prisma.kontrakTemplate.findUnique({ where: { id: BigInt(template_id) } });
   if (!template) return res.status(404).json({ detail: "Template tidak ditemukan" });
 
+  // lead OPSIONAL — hanya dipakai untuk autofill bila field manual kosong.
   let lead: { nama: string; nomor_telepon: string | null; alamat: string | null } | null = null;
   if (lead_id) {
     lead = await prisma.lead.findUnique({ where: { id: BigInt(lead_id) }, select: { nama: true, nomor_telepon: true, alamat: true } });
   }
 
-  // Auto-generate nomor
+  // Nomor: pakai input manual bila ada, kalau tidak auto-generate.
+  // Penomoran memakai tahun & bulan dari `tanggal` (bukan created_at) agar konsisten.
   const d = tanggal ? new Date(tanggal) : new Date();
   const ROMAN = ["I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII"];
   const tahun = d.getFullYear();
-  const count = await prisma.kontrakDokumen.count({ where: { created_at: { gte: new Date(tahun, 0, 1), lt: new Date(tahun + 1, 0, 1) } } });
-  const nomor_kontrak = `KTR/${String(count + 1).padStart(3, "0")}/${ROMAN[d.getMonth()]}/${tahun}`;
+  let nomor_kontrak: string;
+  if (nomorManual && String(nomorManual).trim()) {
+    nomor_kontrak = String(nomorManual).trim();
+  } else {
+    const count = await prisma.kontrakDokumen.count({ where: { created_at: { gte: new Date(tahun, 0, 1), lt: new Date(tahun + 1, 0, 1) } } });
+    nomor_kontrak = `KTR/${String(count + 1).padStart(3, "0")}/${ROMAN[d.getMonth()]}/${tahun}`;
+  }
 
   const dok = await prisma.kontrakDokumen.create({
     data: {
@@ -995,9 +1050,10 @@ router.post("/kontrak-dokumen", async (req: Request, res: Response) => {
       nomor_kontrak,
       jenis_pekerjaan: jenis_pekerjaan ?? null,
       tanggal: tanggal ? new Date(tanggal) : new Date(),
-      nama_client: lead?.nama ?? null,
-      telepon_client: lead?.nomor_telepon ?? null,
-      alamat_client: lead?.alamat ?? null,
+      // Field manual diprioritaskan; lead hanya fallback.
+      nama_client: (nama_client && String(nama_client).trim()) || lead?.nama || null,
+      telepon_client: (telepon_client && String(telepon_client).trim()) || lead?.nomor_telepon || null,
+      alamat_client: (alamat_client && String(alamat_client).trim()) || lead?.alamat || null,
       created_by: req.user?.id ?? null,
     },
     include: {
@@ -1005,6 +1061,7 @@ router.post("/kontrak-dokumen", async (req: Request, res: Response) => {
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
+      extra_pasals: { orderBy: { urutan: "asc" } },
     },
   });
   return res.status(201).json(mapKontrakDokumen(dok));
@@ -1020,10 +1077,41 @@ router.get("/kontrak-dokumen/:id", async (req: Request, res: Response) => {
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
+      extra_pasals: { orderBy: { urutan: "asc" } },
     },
   });
   if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
   return res.json(mapKontrakDokumen(d));
+});
+
+// PATCH /sales/kontrak-dokumen/:id — edit data dokumen (diblokir kalau sudah final)
+router.patch("/kontrak-dokumen/:id", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const d = await prisma.kontrakDokumen.findUnique({ where: { id } });
+  if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
+  if (isKontrakLocked(d)) {
+    return res.status(409).json({ detail: "Kontrak sudah ditandatangani lengkap dan terkunci — tidak bisa diedit." });
+  }
+  const { nomor_kontrak, jenis_pekerjaan, tanggal, nama_client, telepon_client, alamat_client } = req.body;
+  const data: Record<string, unknown> = { updated_at: new Date() };
+  if (nomor_kontrak !== undefined) data.nomor_kontrak = String(nomor_kontrak).trim() || null;
+  if (jenis_pekerjaan !== undefined) data.jenis_pekerjaan = jenis_pekerjaan ?? null;
+  if (tanggal !== undefined) data.tanggal = tanggal ? new Date(tanggal) : null;
+  if (nama_client !== undefined) data.nama_client = nama_client ?? null;
+  if (telepon_client !== undefined) data.telepon_client = telepon_client ?? null;
+  if (alamat_client !== undefined) data.alamat_client = alamat_client ?? null;
+  const updated = await prisma.kontrakDokumen.update({
+    where: { id },
+    data,
+    include: {
+      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, penutup: true, pasals: { orderBy: { urutan: "asc" } } } },
+      lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
+      creator: { select: { name: true } },
+      lampirans: { orderBy: { urutan: "asc" } },
+      extra_pasals: { orderBy: { urutan: "asc" } },
+    },
+  });
+  return res.json(mapKontrakDokumen(updated));
 });
 
 // DELETE /sales/kontrak-dokumen/:id
@@ -1031,8 +1119,52 @@ router.delete("/kontrak-dokumen/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const d = await prisma.kontrakDokumen.findUnique({ where: { id } });
   if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
+  // Kontrak final hanya boleh dihapus Super Admin (mencegah hilangnya dokumen sah).
+  const isSuperAdmin = req.user?.roles?.some((r) => r.role.name === "Super Admin") ?? false;
+  if (isKontrakLocked(d) && !isSuperAdmin) {
+    return res.status(409).json({ detail: "Kontrak sudah ditandatangani lengkap — hanya Super Admin yang bisa menghapus." });
+  }
   await prisma.kontrakDokumen.delete({ where: { id } });
   return res.json({ message: "Kontrak dihapus" });
+});
+
+// ── Pasal EKSTRA per dokumen ──────────────────────────────────────────────────
+// POST /sales/kontrak-dokumen/:id/pasal
+router.post("/kontrak-dokumen/:id/pasal", async (req: Request, res: Response) => {
+  const dokumen_id = BigInt(req.params.id);
+  const d = await prisma.kontrakDokumen.findUnique({ where: { id: dokumen_id } });
+  if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
+  if (isKontrakLocked(d)) return res.status(409).json({ detail: "Kontrak sudah terkunci — pasal tidak bisa diubah." });
+  const { judul_pasal, isi_pasal } = req.body;
+  const last = await prisma.kontrakDokumenPasal.findFirst({ where: { dokumen_id }, orderBy: { urutan: "desc" } });
+  const p = await prisma.kontrakDokumenPasal.create({
+    data: { dokumen_id, urutan: (last?.urutan ?? 0) + 1, judul_pasal: judul_pasal ?? null, isi_pasal: isi_pasal ?? null },
+  });
+  return res.status(201).json({ id: Number(p.id), urutan: p.urutan, judul_pasal: p.judul_pasal, isi_pasal: p.isi_pasal });
+});
+
+// PATCH /sales/kontrak-dokumen/:id/pasal/:pasalId
+router.patch("/kontrak-dokumen/:id/pasal/:pasalId", async (req: Request, res: Response) => {
+  const dokumen_id = BigInt(req.params.id);
+  const d = await prisma.kontrakDokumen.findUnique({ where: { id: dokumen_id } });
+  if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
+  if (isKontrakLocked(d)) return res.status(409).json({ detail: "Kontrak sudah terkunci — pasal tidak bisa diubah." });
+  const { judul_pasal, isi_pasal } = req.body;
+  const data: Record<string, unknown> = {};
+  if (judul_pasal !== undefined) data.judul_pasal = judul_pasal ?? null;
+  if (isi_pasal !== undefined) data.isi_pasal = isi_pasal ?? null;
+  const p = await prisma.kontrakDokumenPasal.update({ where: { id: BigInt(req.params.pasalId) }, data });
+  return res.json({ id: Number(p.id), urutan: p.urutan, judul_pasal: p.judul_pasal, isi_pasal: p.isi_pasal });
+});
+
+// DELETE /sales/kontrak-dokumen/:id/pasal/:pasalId
+router.delete("/kontrak-dokumen/:id/pasal/:pasalId", async (req: Request, res: Response) => {
+  const dokumen_id = BigInt(req.params.id);
+  const d = await prisma.kontrakDokumen.findUnique({ where: { id: dokumen_id } });
+  if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
+  if (isKontrakLocked(d)) return res.status(409).json({ detail: "Kontrak sudah terkunci — pasal tidak bisa diubah." });
+  await prisma.kontrakDokumenPasal.delete({ where: { id: BigInt(req.params.pasalId) } });
+  return res.json({ message: "Pasal dihapus" });
 });
 
 // POST /sales/kontrak-dokumen/:id/sign-ro
@@ -1056,6 +1188,7 @@ router.post("/kontrak-dokumen/:id/sign-ro", async (req: Request, res: Response) 
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
+      extra_pasals: { orderBy: { urutan: "asc" } },
     },
   });
   return res.json(mapKontrakDokumen(updated));
@@ -1083,6 +1216,7 @@ router.post("/kontrak-dokumen/:id/sign-management", async (req: Request, res: Re
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
+      extra_pasals: { orderBy: { urutan: "asc" } },
     },
   });
   return res.json(mapKontrakDokumen(updated));
@@ -1110,6 +1244,7 @@ router.post("/kontrak-dokumen/:id/sign-client", async (req: Request, res: Respon
       lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
       creator: { select: { name: true } },
       lampirans: { orderBy: { urutan: "asc" } },
+      extra_pasals: { orderBy: { urutan: "asc" } },
     },
   });
   return res.json(mapKontrakDokumen(updated));

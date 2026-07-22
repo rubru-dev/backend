@@ -31,6 +31,20 @@ export interface KontrakLampiran {
   file_url: string | null;
 }
 
+export interface KontrakDokumenPasal {
+  id: number;
+  urutan: number;
+  judul_pasal: string | null;
+  isi_pasal: string | null;
+}
+
+export interface KontrakCompany {
+  nama: string;
+  nib: string;
+  alamat: string;
+  telepon: string;
+}
+
 export interface KontrakDokumen {
   id: number;
   template_id: number | null;
@@ -65,6 +79,7 @@ export interface KontrakDokumen {
   lead: { nama: string; nomor_telepon: string | null; alamat: string | null } | null;
   creator: { name: string } | null;
   lampirans: KontrakLampiran[];
+  extra_pasals: KontrakDokumenPasal[];
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -104,11 +119,30 @@ export const kontrakDokumenApi = {
   get: (id: number) =>
     apiClient.get<KontrakDokumen>(`/sales/kontrak-dokumen/${id}`).then((r) => r.data),
 
-  create: (payload: { template_id: number; lead_id?: number; tanggal?: string; jenis_pekerjaan?: string }) =>
+  create: (payload: {
+    template_id: number; lead_id?: number; tanggal?: string; jenis_pekerjaan?: string;
+    nama_client?: string; telepon_client?: string; alamat_client?: string; nomor_kontrak?: string;
+  }) =>
     apiClient.post<KontrakDokumen>("/sales/kontrak-dokumen", payload).then((r) => r.data),
+
+  update: (id: number, payload: {
+    nomor_kontrak?: string; jenis_pekerjaan?: string; tanggal?: string;
+    nama_client?: string; telepon_client?: string; alamat_client?: string;
+  }) =>
+    apiClient.patch<KontrakDokumen>(`/sales/kontrak-dokumen/${id}`, payload).then((r) => r.data),
 
   delete: (id: number) =>
     apiClient.delete(`/sales/kontrak-dokumen/${id}`).then((r) => r.data),
+
+  // Pasal ekstra per dokumen
+  addPasal: (dokId: number, payload: { judul_pasal?: string; isi_pasal?: string }) =>
+    apiClient.post<KontrakDokumenPasal>(`/sales/kontrak-dokumen/${dokId}/pasal`, payload).then((r) => r.data),
+
+  updatePasal: (dokId: number, pasalId: number, payload: { judul_pasal?: string; isi_pasal?: string }) =>
+    apiClient.patch<KontrakDokumenPasal>(`/sales/kontrak-dokumen/${dokId}/pasal/${pasalId}`, payload).then((r) => r.data),
+
+  deletePasal: (dokId: number, pasalId: number) =>
+    apiClient.delete(`/sales/kontrak-dokumen/${dokId}/pasal/${pasalId}`).then((r) => r.data),
 
   signRo: (id: number, ro_name: string, ro_signature: string) =>
     apiClient.post<KontrakDokumen>(`/sales/kontrak-dokumen/${id}/sign-ro`, { ro_name, ro_signature }).then((r) => r.data),
@@ -142,4 +176,11 @@ export const kontrakDokumenApi = {
 
   deleteLampiranFile: (dokId: number, lampId: number) =>
     apiClient.delete(`/sales/kontrak-dokumen/${dokId}/lampirans/${lampId}/file`).then((r) => r.data),
+
+  // Pengaturan Pihak Pertama (data perusahaan)
+  getCompany: () =>
+    apiClient.get<KontrakCompany>("/sales/kontrak-company").then((r) => r.data),
+
+  saveCompany: (payload: KontrakCompany) =>
+    apiClient.put("/sales/kontrak-company", payload).then((r) => r.data),
 };
