@@ -25,7 +25,10 @@ import {
 } from "lucide-react";
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// URL relatif agar melewati proxy Next (/api/v1/* → backend). JANGAN pakai NEXT_PUBLIC_API_URL
+// di sini: nilainya di-bake saat build (mis. http://localhost:8000) dan di browser production
+// jadi src gambar yang broken/mixed-content. file_url dari backend berbentuk "/storage/...".
+const API_BASE = "/api/v1";
 function fileUrl(p: string | null) { return p ? `${API_BASE}${p}` : null; }
 function fmtRp(v: any) { return "Rp " + (Number(v) || 0).toLocaleString("id-ID"); }
 function fmtDate(d?: string | null) {

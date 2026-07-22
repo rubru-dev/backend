@@ -34,7 +34,10 @@ function fmtDateShort(d?: string | Date | null) {
   return new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
 }
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_API_URL?.replace("/api", "") ?? "http://localhost:8000";
+// URL relatif agar melewati proxy Next (/api/v1/* → backend). JANGAN pakai NEXT_PUBLIC_API_URL
+// di sini: nilainya di-bake saat build (mis. http://localhost:8000) dan di browser production
+// jadi tautan file yang broken/mixed-content. file_url dari backend berbentuk "/storage/...".
+const BACKEND_URL = "/api/v1";
 
 const STATUS_BADGE: Record<string, { variant: "secondary" | "default" | "outline" | "destructive"; label: string }> = {
   draft:         { variant: "secondary", label: "Draft" },

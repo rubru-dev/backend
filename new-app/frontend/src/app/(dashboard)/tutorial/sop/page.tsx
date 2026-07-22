@@ -16,7 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClipboardList, Download, FileText, ImagePlus, Pencil, Plus, Search, Trash2, X } from "lucide-react";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+// URL relatif agar melewati proxy Next (/api/v1/* → backend). JANGAN pakai NEXT_PUBLIC_API_URL
+// di sini: nilainya di-bake saat build (mis. http://localhost:8000) dan di browser production
+// jadi src gambar yang broken/mixed-content. Path gambar dari backend berbentuk "/storage/...".
+const API_BASE = "/api/v1";
 
 interface SopImage {
   path: string;

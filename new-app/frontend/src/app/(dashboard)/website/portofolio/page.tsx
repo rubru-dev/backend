@@ -18,7 +18,10 @@ import { Briefcase, Plus, Trash2, Loader2, Edit2, Images, Star } from "lucide-re
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useAuthStore } from "@/store/authStore";
 
-const STORAGE = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000";
+// URL relatif agar melewati proxy Next (/api/v1/* → backend). JANGAN pakai NEXT_PUBLIC_API_URL
+// di sini: nilainya di-bake saat build (mis. http://localhost:8000) dan di browser production
+// jadi src gambar yang broken/mixed-content. Path dari backend berbentuk "/storage/...".
+const STORAGE = "/api/v1";
 const JENIS = ["BANGUN", "RENOVASI", "DESAIN", "INTERIOR"];
 const GROUPS = [
   { key: "cover",   label: "Cover"    },

@@ -18,7 +18,10 @@ import {
   LogIn, LogOut, RefreshCw, Loader2, FileText, Upload,
 } from "lucide-react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace("/api/v1", "") ?? "http://localhost:8000";
+// URL relatif agar melewati proxy Next (/api/v1/* → backend). JANGAN pakai NEXT_PUBLIC_API_URL
+// di sini: nilainya di-bake saat build (mis. http://localhost:8000) dan di browser production
+// jadi src gambar yang broken/mixed-content. Path dari backend berbentuk "/storage/...".
+const API_URL = "/api/v1";
 
 const api = {
   getConfig: () => apiClient.get("/absen-karyawan/config").then((r) => r.data),
