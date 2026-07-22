@@ -2299,11 +2299,15 @@ router.delete("/adm-projek/:id/termins/:tid/cashflow/:cid", async (req: Request,
 
 // ─── Gajian Cashflow ──────────────────────────────────────────────────────────
 
-// GET /finance/adm-projek/:id/gajian/available — Gajian signed by both HF+AF, not yet in cashflow
+// GET /finance/adm-projek/:id/gajian/available — Gajian signed by HF, not yet in cashflow.
+// Gajian tukang hanya menuntut TTD Head Finance (lihat is_fully_signed = !!hf_signature di
+// GET .../tukang/gajian, dan UI hanya menyediakan tombol TTD HF). Dulu filter ini juga
+// menuntut af_signed_at, padahal AF tidak pernah bisa diisi dari UI → daftar selalu kosong
+// dan gajian tidak pernah bisa ditarik ke cashflow.
 router.get("/adm-projek/:id/gajian/available", async (req: Request, res: Response) => {
   const pid = BigInt(req.params.id);
   const gajians = await prisma.gajiTukang.findMany({
-    where: { adm_finance_project_id: pid, hf_signed_at: { not: null }, af_signed_at: { not: null } },
+    where: { adm_finance_project_id: pid, hf_signed_at: { not: null } },
     orderBy: { id: "desc" },
   });
   const pulledRecs = await prisma.projekCashflow.findMany({
@@ -2328,7 +2332,7 @@ router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", async (req: Request,
   const gajiId = BigInt(gaji_tukang_id);
   const gaji = await prisma.gajiTukang.findUnique({ where: { id: gajiId } });
   if (!gaji) return res.status(404).json({ detail: "Gajian tidak ditemukan" });
-  if (!gaji.hf_signed_at || !gaji.af_signed_at) return res.status(400).json({ detail: "Gajian belum ditandatangani kedua pihak" });
+  if (!gaji.hf_signed_at) return res.status(400).json({ detail: "Gajian belum ditandatangani Head Finance" });
   const existing = await prisma.projekCashflow.findFirst({ where: { adm_finance_project_id: pid, gaji_tukang_id: gajiId } });
   if (existing) return res.status(400).json({ detail: "Gajian ini sudah ditarik ke cashflow" });
   const label = (gaji.bulan && gaji.tahun) ? `Gaji Tukang ${gaji.bulan}/${gaji.tahun}` : "Gaji Tukang";
@@ -2768,7 +2772,6 @@ router.get("/adm-projek/:id/tukang/gajian", async (req: Request, res: Response) 
     bulan: g.bulan, tahun: g.tahun,
     total_hari_kerja: g.total_hari_kerja, total_gaji: Number(g.total_gaji),
     kwitansi_dibuat: g.kwitansis.length > 0,
-    af_signature: g.af_signature, af_signed_at: g.af_signed_at,
     hf_signature: g.hf_signature, hf_signed_at: g.hf_signed_at,
     is_fully_signed: !!g.hf_signature,
     items: g.items.map((i) => ({
@@ -2891,19 +2894,8 @@ router.delete("/adm-projek/:id/tukang/gajian/:gid", async (req: Request, res: Re
   return res.json({ message: "Data dihapus" });
 });
 
-// POST /finance/adm-projek/:id/tukang/gajian/:gid/sign-af
-router.post("/adm-projek/:id/tukang/gajian/:gid/sign-af", async (req: Request, res: Response) => {
-  const gid = BigInt(req.params.gid);
-  const { af_signature } = req.body;
-  if (!af_signature) return res.status(400).json({ detail: "Tanda tangan wajib diisi" });
-  const g = await prisma.gajiTukang.findUnique({ where: { id: gid } });
-  if (!g) return res.status(404).json({ detail: "Data tidak ditemukan" });
-  await prisma.gajiTukang.update({
-    where: { id: gid },
-    data: { af_signature, af_signed_by: req.user!.id, af_signed_at: new Date() },
-  });
-  return res.json({ ok: true });
-});
+// Gajian tukang hanya butuh TTD Head Finance — endpoint sign-af sengaja dihapus.
+// Kolom af_* pada GajiTukang dibiarkan ada (tak dipakai) agar tak perlu migrasi.
 
 // POST /finance/adm-projek/:id/tukang/gajian/:gid/sign-hf
 router.post("/adm-projek/:id/tukang/gajian/:gid/sign-hf", async (req: Request, res: Response) => {

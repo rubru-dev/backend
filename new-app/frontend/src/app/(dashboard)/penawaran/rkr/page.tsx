@@ -428,6 +428,7 @@ export default function PenawaranRkrPage() {
                     <SelectItem value="m2">m2</SelectItem>
                     <SelectItem value="m3">m3</SelectItem>
                     <SelectItem value="m1">m1</SelectItem>
+                    <SelectItem value="unit">unit</SelectItem>
                   </SelectContent>
                 </Select>
                 <Input type="number" min={0} value={row.hargaSatuan || row.harga || ""} onChange={(e) => updateRow(i, { hargaSatuan: nonNegativeNumber(e.target.value) })} placeholder="Harga satuan" />

@@ -150,7 +150,7 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
 
   // PDF
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+  const baseUrl = "";
 
   const addMut = useMutation({
     mutationFn: (d: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => api.addChecklistItem(projekId, d),
@@ -1103,7 +1103,7 @@ export default function ProyekSipilDetailPage() {
     setDownloadingPdf(true);
     try {
       const logoUrl = await getLogoBase64();
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+      const apiBase = "";
       // Fetch fotos for all tasks
       const taskFotosMap: Record<string, string[]> = {};
       await Promise.all(
@@ -1445,7 +1445,7 @@ export default function ProyekSipilDetailPage() {
             <div className="space-y-2">
               {links.map((link: any) => {
                 const isFile = link.url?.startsWith("/storage/");
-                const fileUrl = isFile ? `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${link.url}` : link.url;
+                const fileUrl = isFile ? `${""}${link.url}` : link.url;
                 const filename = link.url?.split("/").pop() ?? link.title;
                 return (
                   <div key={link.id} className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-background">
@@ -1686,7 +1686,7 @@ export default function ProyekSipilDetailPage() {
                         <p className="text-sm font-medium mb-3 text-slate-700">{task.nama_pekerjaan ?? "—"}</p>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                           {task.fotos.map((foto: any) => {
-                            const fotoUrl = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${foto.file_path}`;
+                            const fotoUrl = `${""}${foto.file_path}`;
                             return (
                               <div key={foto.id} className="space-y-1">
                                 <a href={fotoUrl} target="_blank" rel="noreferrer" className="block">
@@ -1895,7 +1895,7 @@ export default function ProyekSipilDetailPage() {
               ) : (
                 <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
                   {taskFotos.map((foto: any) => {
-                    const fotoUrl = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${foto.file_path}`;
+                    const fotoUrl = `${""}${foto.file_path}`;
                     return (
                     <div key={foto.id} className="relative group rounded border overflow-hidden">
                       <a href={fotoUrl} target="_blank" rel="noreferrer">

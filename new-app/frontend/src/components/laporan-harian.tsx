@@ -1079,7 +1079,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
                   <div className="space-y-2">
                     {lapDocs.map((doc: any) => {
                       const isFile = doc.url?.startsWith("/storage/");
-                      const fileUrl = isFile ? `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${doc.url}` : doc.url;
+                      const fileUrl = isFile ? `${""}${doc.url}` : doc.url;
                       const filename = doc.url?.split("/").pop() ?? doc.title;
                       return (
                         <div key={doc.id} className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-background">

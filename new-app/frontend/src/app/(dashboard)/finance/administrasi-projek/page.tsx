@@ -199,8 +199,6 @@ const admApi = {
     apiClient.post(`/finance/adm-projek/${id}/tukang/gajian`, data).then((r) => r.data),
   deleteGajian: (id: number, gid: number) =>
     apiClient.delete(`/finance/adm-projek/${id}/tukang/gajian/${gid}`).then((r) => r.data),
-  signGajianAF: (id: number, gid: number, data: { af_signature: string }) =>
-    apiClient.post(`/finance/adm-projek/${id}/tukang/gajian/${gid}/sign-af`, data).then((r) => r.data),
   signGajianHF: (id: number, gid: number, data: { hf_signature: string }) =>
     apiClient.post(`/finance/adm-projek/${id}/tukang/gajian/${gid}/sign-hf`, data).then((r) => r.data),
 
@@ -421,7 +419,10 @@ function DokumentasiTab({ proyekId, proyekBerjalanId, proyekJenis }: { proyekId:
                           <p className="text-xs font-medium text-slate-700 mb-2">{task.nama_pekerjaan ?? "—"}</p>
                           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
                             {task.fotos.map((foto: any) => {
-                              const fotoUrl = `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000"}${foto.file_path}`;
+                              // file_path sudah "/storage/...": pakai relatif agar lewat
+                              // proxy Next (same-origin). Memakai NEXT_PUBLIC_API_URL di sini
+                              // membuat src jadi http://localhost:… di browser user → broken.
+                              const fotoUrl = foto.file_path;
                               return (
                                 <div key={foto.id} className="space-y-1">
                                   <img
