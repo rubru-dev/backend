@@ -54,13 +54,21 @@ const picUpload = multer({
 });
 
 function normalizeImageList(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === "string" && item.length > 0);
+  const normalizePath = (item: string) => {
+    const trimmed = item.trim();
+    if (!trimmed) return "";
+    if (/^(data:|blob:|https?:\/\/|\/api\/v1\/storage\/|\/storage\/)/i.test(trimmed)) return trimmed;
+    if (/^[^/?#]+\.(jpe?g|png|webp|gif|bmp|avif)$/i.test(trimmed)) return `/storage/pic-docs/${trimmed}`;
+    return trimmed;
+  };
+  if (Array.isArray(value)) return value.map((item) => typeof item === "string" ? normalizePath(item) : "").filter(Boolean);
   if (typeof value === "string") {
     try {
       const parsed = JSON.parse(value);
       return normalizeImageList(parsed);
     } catch {
-      return value.length > 0 ? [value] : [];
+      const normalized = normalizePath(value);
+      return normalized ? [normalized] : [];
     }
   }
   return [];
