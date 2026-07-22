@@ -1,4 +1,4 @@
-generator client {
+﻿generator client {
   provider = "prisma-client-js"
 }
 
@@ -1058,7 +1058,7 @@ model LaporanPicProjek {
   @@map("laporan_pic_projeks")
 }
 
-// Tabel gambar laporan PIC — dikelola via raw SQL di routes/picProject.ts.
+// Tabel gambar laporan PIC â€” dikelola via raw SQL di routes/picProject.ts.
 // Didaftarkan di sini agar `prisma db push` tidak menganggapnya tabel liar & menghapusnya.
 // Struktur harus sama persis dengan CREATE TABLE di ensureLaporanPicImagesTable().
 model LaporanPicProjekImage {
@@ -1481,22 +1481,6 @@ model FonteeReminderRule {
   created_at       DateTime @default(now()) @db.Timestamptz(6)
   updated_at       DateTime @default(now()) @db.Timestamptz(6)
   @@map("fontee_reminder_rules")
-}
-
-// Log pesan WA masuk lewat webhook Evolution API. Log-only (v1) — belum ada aksi otomatis
-// berdasarkan isi balasan; user_id sekadar pencocokan best-effort by nomor, tanpa relasi FK.
-model WaInboundMessage {
-  id             BigInt   @id @default(autoincrement())
-  instance       String?  @db.VarChar(100)
-  from_number    String   @db.VarChar(20)
-  from_jid       String   @db.VarChar(50)
-  user_id        BigInt?
-  message_text   String?
-  raw_message_id String?  @db.VarChar(100)
-  received_at    DateTime @default(now()) @db.Timestamptz(6)
-  @@index([user_id])
-  @@index([from_number])
-  @@map("wa_inbound_messages")
 }
 
 model NotificationLog {
@@ -2176,7 +2160,7 @@ model WhatsappReminder {
   @@map("whatsapp_reminders")
 }
 
-// ─── Projek Administrasi – new tabs ──────────────────────────────────────────
+// â”€â”€â”€ Projek Administrasi â€“ new tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model ProjekCashflow {
   id                     BigInt             @id @default(autoincrement())
@@ -2281,7 +2265,7 @@ model ProjekDokumen {
   @@map("projek_dokumens")
 }
 
-// ─── Addendum Kontrak ────────────────────────────────────────────────────────
+// â”€â”€â”€ Addendum Kontrak â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Addendum/perubahan kontrak yang dibuat Sales, ditandatangani RO + Klien
 model AddendumKontrak {
@@ -2314,7 +2298,7 @@ model AddendumKontrak {
   @@map("addendum_kontraks")
 }
 
-// ─── Admin (Sales Admin) Kanban ──────────────────────────────────────────────
+// â”€â”€â”€ Admin (Sales Admin) Kanban â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model AdminKanbanColumn {
   id         BigInt             @id @default(autoincrement())
@@ -2372,7 +2356,7 @@ model AdminKanbanLabel {
   @@map("admin_kanban_labels")
 }
 
-// ─── Telemarketing Kanban ─────────────────────────────────────────────────────
+// â”€â”€â”€ Telemarketing Kanban â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model TelemarketingKanbanColumn {
   id         BigInt                    @id @default(autoincrement())
@@ -2430,7 +2414,7 @@ model TelemarketingKanbanLabel {
   @@map("telemarketing_kanban_labels")
 }
 
-// ─── Client Portal ────────────────────────────────────────────────────────────
+// â”€â”€â”€ Client Portal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Akun login klien untuk mengakses portal rubahrumah.
 /// Username/password terpisah dari sistem internal (User).
@@ -2612,7 +2596,7 @@ model ClientPortalCctvStream {
   @@map("client_portal_cctv_streams")
 }
 
-// ─── Website RubahRumah (public website content management) ──────────────────
+// â”€â”€â”€ Website RubahRumah (public website content management) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Konfigurasi umum site (kontak, WA, alamat, statistik)
 model RbSiteConfig {
@@ -2789,7 +2773,7 @@ model RbWebsiteLead {
   @@map("rb_website_leads")
 }
 
-// ── Absen Karyawan ────────────────────────────────────────────────────────────
+// â”€â”€ Absen Karyawan â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model AbsenKaryawan {
   id               BigInt    @id @default(autoincrement())
@@ -2865,7 +2849,7 @@ model AbsenKaryawanConfig {
   @@map("absen_karyawan_config")
 }
 
-// ── Kalender Visit PIC ────────────────────────────────────────────────────────
+// â”€â”€ Kalender Visit PIC â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model KalenderVisit {
   id           BigInt   @id @default(autoincrement())
@@ -2915,7 +2899,7 @@ model KalenderVisitPic {
   @@map("kalender_visit_pics")
 }
 
-// ─── Kontrak Template (Template Pembuatan Kontrak) ────────────────────────────
+// â”€â”€â”€ Kontrak Template (Template Pembuatan Kontrak) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 /// Template kontrak yang bisa dipakai ulang. User buat pihak 1/2 + pasal-pasal, lalu publish.
 model KontrakTemplate {
@@ -2962,15 +2946,15 @@ model KontrakDokumen {
   telepon_client        String?          @db.VarChar(50)
   alamat_client         String?          @db.Text
   status                String           @default("draft") @db.VarChar(50)
-  // RO (Relationship Officer) — Pihak Pertama signature 1
+  // RO (Relationship Officer) â€” Pihak Pertama signature 1
   ro_name               String?          @db.VarChar(255)
   ro_signature          String?          @db.Text
   ro_signed_at          DateTime?        @db.Timestamptz(6)
-  // Management RubahRumah — Pihak Pertama signature 2
+  // Management RubahRumah â€” Pihak Pertama signature 2
   management_name       String?          @db.VarChar(255)
   management_signature  String?          @db.Text
   management_signed_at  DateTime?        @db.Timestamptz(6)
-  // Client — Pihak Kedua
+  // Client â€” Pihak Kedua
   client_name           String?          @db.VarChar(255)
   client_signature      String?          @db.Text
   client_signed_at      DateTime?        @db.Timestamptz(6)
@@ -2987,7 +2971,7 @@ model KontrakDokumen {
   @@map("kontrak_dokumens")
 }
 
-/// Form Checklist — item checklist per proyek sipil (gambar + nama pekerjaan + status + gambar selesai)
+/// Form Checklist â€” item checklist per proyek sipil (gambar + nama pekerjaan + status + gambar selesai)
 model ChecklistSipil {
   id                   BigInt          @id @default(autoincrement())
   proyek_id            BigInt
@@ -3007,7 +2991,7 @@ model ChecklistSipil {
   @@map("checklist_sipils")
 }
 
-/// Form Checklist — item checklist per proyek interior (gambar + nama pekerjaan + status + gambar selesai)
+/// Form Checklist â€” item checklist per proyek interior (gambar + nama pekerjaan + status + gambar selesai)
 model ChecklistInterior {
   id                   BigInt          @id @default(autoincrement())
   proyek_id            BigInt
@@ -3027,7 +3011,7 @@ model ChecklistInterior {
   @@map("checklist_interiors")
 }
 
-/// Lampiran per kontrak dokumen — bisa lebih dari satu, masing-masing punya judul + file PDF opsional
+/// Lampiran per kontrak dokumen â€” bisa lebih dari satu, masing-masing punya judul + file PDF opsional
 model KontrakDokumenLampiran {
   id         BigInt         @id @default(autoincrement())
   dokumen_id BigInt
@@ -3041,7 +3025,7 @@ model KontrakDokumenLampiran {
   @@map("kontrak_dokumen_lampirans")
 }
 
-// ─── RubahrumahxGolden ────────────────────────────────────────────────────────
+// â”€â”€â”€ RubahrumahxGolden â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // Golden Kanban Admin (mirror of AdminKanban, data terpisah)
 model GoldenKanbanAdminColumn {

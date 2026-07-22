@@ -47,7 +47,6 @@ import goldenKanbanAdminRouter from "./routes/goldenKanbanAdmin";
 import goldenKanbanSalesRouter from "./routes/goldenKanbanSales";
 import tutorialRouter from "./routes/tutorial";
 import penawaranRouter from "./routes/penawaran";
-import webhooksRouter from "./routes/webhooks";
 
 // BigInt serialization fix
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -177,9 +176,6 @@ app.use("/api/v1/notifications", authenticate, notificationsRouter); // auth dih
 
 // Public website routes (no auth — for website-rubahrumah frontend)
 app.use("/v1/public/rb", publicRbRouter);
-
-// Webhook pesan WA masuk (Evolution API) — publik, proteksi via token rahasia di path.
-app.use("/v1/webhooks", webhooksRouter);
 
 // Website admin routes (auth required — for internal dashboard)
 app.use("/api/v1/website", authenticate, websiteAdminRouter);

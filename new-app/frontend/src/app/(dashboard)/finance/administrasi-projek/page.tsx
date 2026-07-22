@@ -5,6 +5,7 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { storageUrl } from "@/lib/storage-url";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -422,7 +423,7 @@ function DokumentasiTab({ proyekId, proyekBerjalanId, proyekJenis }: { proyekId:
                               // file_path sudah "/storage/...": pakai relatif agar lewat
                               // proxy Next (same-origin). Memakai NEXT_PUBLIC_API_URL di sini
                               // membuat src jadi http://localhost:… di browser user → broken.
-                              const fotoUrl = foto.file_path;
+                              const fotoUrl = storageUrl(foto.file_path);
                               return (
                                 <div key={foto.id} className="space-y-1">
                                   <img

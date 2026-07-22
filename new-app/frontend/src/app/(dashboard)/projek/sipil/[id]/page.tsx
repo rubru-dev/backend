@@ -12,6 +12,7 @@ import { LaporanPicProjekTab } from "@/components/laporan-pic-projek-tab";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { sipilApi } from "@/lib/api/content";
+import { storageUrl } from "@/lib/storage-url";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -122,11 +123,14 @@ function MultiImagePreview({ paths, baseUrl, label }: { paths: string[]; baseUrl
   );
   return (
     <div className="flex flex-wrap gap-1">
-      {paths.map((p, i) => (
-        <a key={i} href={`${baseUrl}${p}`} target="_blank" rel="noreferrer">
-          <img src={`${baseUrl}${p}`} alt={`${label ?? "gambar"} ${i + 1}`} className="h-20 w-20 object-cover rounded border hover:opacity-90 transition-opacity" />
+      {paths.map((p, i) => {
+        const url = storageUrl(`${baseUrl}${p}`);
+        return (
+        <a key={i} href={url} target="_blank" rel="noreferrer">
+          <img src={url} alt={`${label ?? "gambar"} ${i + 1}`} className="h-20 w-20 object-cover rounded border hover:opacity-90 transition-opacity" />
         </a>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -225,8 +229,8 @@ function ChecklistTab({ projekId, api, projekDetail }: { projekId: string; api: 
           no: idx + 1,
           nama_pekerjaan: item.nama_pekerjaan,
           area_pekerjaan: item.area_pekerjaan ?? undefined,
-          gambar_b64s: await Promise.all(gambarPaths.map((p) => fetchImgB64(`${baseUrl}${p}`))),
-          gambar_selesai_b64s: await Promise.all(gambarSelesaiPaths.map((p) => fetchImgB64(`${baseUrl}${p}`))),
+          gambar_b64s: await Promise.all(gambarPaths.map((p) => fetchImgB64(storageUrl(`${baseUrl}${p}`)))),
+          gambar_selesai_b64s: await Promise.all(gambarSelesaiPaths.map((p) => fetchImgB64(storageUrl(`${baseUrl}${p}`)))),
           is_checked: item.is_checked,
         };
       }));
@@ -1111,7 +1115,7 @@ export default function ProyekSipilDetailPage() {
           try {
             const fotos = await sipilApi.getTaskFotos(task.id);
             if (fotos.length > 0) {
-              const b64s = await Promise.all(fotos.map((f: any) => fetchImageBase64(`${apiBase}${f.file_path}`)));
+              const b64s = await Promise.all(fotos.map((f: any) => fetchImageBase64(storageUrl(`${apiBase}${f.file_path}`))));
               taskFotosMap[task.id] = b64s.filter(Boolean) as string[];
             }
           } catch {}
@@ -1445,7 +1449,7 @@ export default function ProyekSipilDetailPage() {
             <div className="space-y-2">
               {links.map((link: any) => {
                 const isFile = link.url?.startsWith("/storage/");
-                const fileUrl = isFile ? `${""}${link.url}` : link.url;
+                const fileUrl = isFile ? storageUrl(link.url) : link.url;
                 const filename = link.url?.split("/").pop() ?? link.title;
                 return (
                   <div key={link.id} className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-background">
@@ -1686,7 +1690,7 @@ export default function ProyekSipilDetailPage() {
                         <p className="text-sm font-medium mb-3 text-slate-700">{task.nama_pekerjaan ?? "—"}</p>
                         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                           {task.fotos.map((foto: any) => {
-                            const fotoUrl = `${""}${foto.file_path}`;
+                            const fotoUrl = storageUrl(foto.file_path);
                             return (
                               <div key={foto.id} className="space-y-1">
                                 <a href={fotoUrl} target="_blank" rel="noreferrer" className="block">
@@ -1895,7 +1899,7 @@ export default function ProyekSipilDetailPage() {
               ) : (
                 <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">
                   {taskFotos.map((foto: any) => {
-                    const fotoUrl = `${""}${foto.file_path}`;
+                    const fotoUrl = storageUrl(foto.file_path);
                     return (
                     <div key={foto.id} className="relative group rounded border overflow-hidden">
                       <a href={fotoUrl} target="_blank" rel="noreferrer">

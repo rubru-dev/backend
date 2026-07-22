@@ -1,21 +1,10 @@
-import { Router, Request, Response } from "express";
+﻿import { Router, Request, Response } from "express";
 import axios from "axios";
 import { prisma } from "../lib/prisma";
 import { requireRole } from "../middleware/requireRole";
 import { hashPassword } from "../lib/security";
 import { sendFonnte } from "../lib/fontee";
-import {
-  evolutionConfigured,
-  describeEvolutionError,
-  getConnectionState,
-  createInstance,
-  connectInstance,
-  logoutInstance,
-  deleteInstance,
-  restartInstance,
-  getConnectedNumber,
-  ensureWebhook,
-} from "../lib/evolution";
+import { config } from "../config";
 
 const router = Router();
 
@@ -381,13 +370,15 @@ router.put("/settings/fontee", requireRole("Super Admin"), async (req: Request, 
 router.get("/settings/fontee/status", requireRole("Super Admin"), async (_req: Request, res: Response) => {
   const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
   const cfg = (setting?.value as Record<string, string> | null) ?? {};
-  if (!cfg.api_key) return res.status(400).json({ detail: "API key Fonnte belum diisi" });
+  const apiKey = cfg.api_key || config.fonnteToken;
+  const baseUrl = cfg.base_url || config.fonnteApiUrl;
+  if (!apiKey) return res.status(400).json({ detail: "API key Fonnte belum diisi" });
 
   // Endpoint device satu host dengan endpoint kirim: ".../send" → ".../device".
-  const base = (cfg.base_url || "https://api.fonnte.com/send").replace(/\/[^/]*$/, "");
+  const base = baseUrl.replace(/\/[^/]*$/, "");
   try {
     const r = await axios.post(`${base}/device`, {}, {
-      headers: { Authorization: cfg.api_key },
+      headers: { Authorization: apiKey },
       timeout: 10000,
       validateStatus: () => true,
     });
@@ -412,7 +403,7 @@ router.get("/settings/fontee/status", requireRole("Super Admin"), async (_req: R
   }
 });
 
-// POST /fontee/send-test — kirim pesan test lewat provider WA aktif (Evolution)
+// POST /fontee/send-test — kirim pesan test lewat Fonnte
 router.post("/fontee/send-test", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const { target_number, message } = req.body;
   if (!target_number || !message) {
@@ -527,145 +518,6 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
     errors: errors.length > 0 ? errors : undefined,
     message: `Test terkirim ke ${sent} dari ${usersWithRole.length} user`,
   });
-});
-
-// ── WhatsApp (Evolution API) — tab "GET QR Whatsapp" di Pengaturan ─────────────
-
-// GET /settings/whatsapp/status — status koneksi instance + nomor tersambung
-router.get("/settings/whatsapp/status", requireRole("Super Admin"), async (_req: Request, res: Response) => {
-  const cfg = evolutionConfigured();
-  if (!cfg.ok) return res.json({ configured: false, detail: cfg.detail, state: null, number: null });
-  try {
-    const { state } = await getConnectionState();
-    const number = state === "open" ? await getConnectedNumber() : null;
-    return res.json({ configured: true, state, number, instance: process.env.EVOLUTION_INSTANCE ?? null });
-  } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${describeEvolutionError(err)}` });
-  }
-});
-
-// POST /settings/whatsapp/connect — siapkan instance + kembalikan KODE PAIRING
-// untuk diketik di HP (WhatsApp → Perangkat Tertaut → Tautkan dengan nomor telepon).
-router.post("/settings/whatsapp/connect", requireRole("Super Admin"), async (req: Request, res: Response) => {
-  const cfg = evolutionConfigured();
-  if (!cfg.ok) return res.status(400).json({ detail: cfg.detail });
-  const number = typeof req.body?.number === "string" ? req.body.number.replace(/\D/g, "") : undefined;
-  // mode "code" = pairing code (butuh nomor), "qr" = QR untuk di-scan.
-  // Evolution/Baileys menentukannya dari ada/tidaknya field `number`.
-  const mode = req.body?.mode === "code" ? "code" : "qr";
-  if (mode === "code" && !number) return res.status(400).json({ detail: "Nomor pengirim wajib diisi untuk kode pairing" });
-  const numberForMode = mode === "code" ? number : undefined;
-
-  try {
-    let { state } = await getConnectionState();
-
-    if (state === "open") {
-      const connected = await getConnectedNumber();
-      ensureWebhook().catch(() => {}); // tidak ditunggu — jangan menahan respons
-      return res.json({ state: "open", number: connected, pairing_code: null, qr_base64: null, message: "WhatsApp sudah tersambung" });
-    }
-
-    // Instance belum ada → buat. Ini bagian paling lambat (inisialisasi socket
-    // WhatsApp), jadi kegagalan/timeout-nya TIDAK dianggap fatal: instance tetap
-    // terbentuk di latar belakang dan artefaknya bisa diambil pada klik berikutnya.
-    // Hanya instance yang RUSAK yang dibuang. Sebelumnya setiap klik di mode "code"
-    // menghapus instance apa pun keadaannya — termasuk yang sedang "connecting" —
-    // sehingga QR yang baru terbit langsung hangus dan jatah QR Baileys terbakar
-    // sampai kena "QR code limit reached", yang lalu mengunci instance permanen.
-    // Untuk membuang instance sehat secara sengaja, ada endpoint /reset terpisah.
-    let resetWarning: string | undefined;
-    if (state === "close" || state === "refused") {
-      try {
-        await deleteInstance();
-        state = null;
-      } catch (err: any) {
-        resetWarning = describeEvolutionError(err);
-      }
-    }
-
-    if (state === null) {
-      try {
-        await createInstance(numberForMode);
-      } catch (err: any) {
-        // Setelah delete, Evolution kadang sudah lupa instance-nya di
-        // connectionState (404 → state null) tapi masih menahan namanya, sehingga
-        // create ditolak 403 "already in use". Instance-nya sebenarnya masih ada.
-        // Pulihkan sendiri lewat restart instance, lalu lanjut ambil artefaknya —
-        // supaya admin tidak perlu SSH ke VPS untuk `pm2 restart evolution-api`.
-        const detail = describeEvolutionError(err);
-        if (!/already in use|already exists/i.test(detail)) {
-          return res.json({
-            state: "preparing",
-            pairing_code: null,
-            qr_base64: null,
-            message: `Sedang menyiapkan koneksi WhatsApp. Tunggu ~10 detik lalu klik lagi. (${detail})`,
-          });
-        }
-        await restartInstance();
-        await new Promise((r) => setTimeout(r, 2500)); // beri waktu socket naik
-      }
-    }
-
-    ensureWebhook().catch(() => {}); // best-effort, tidak ditunggu
-
-    let pairing_code: string | null = null;
-    let qr_base64: string | null = null;
-    try {
-      const connectedArtifact = await connectInstance(numberForMode);
-      pairing_code = connectedArtifact.pairing_code;
-      qr_base64 = connectedArtifact.qr_base64;
-    } catch (err: any) {
-      return res.json({
-        state: "preparing",
-        pairing_code: null,
-        qr_base64: null,
-        message: `Evolution belum siap membuat koneksi. Tunggu beberapa detik lalu klik lagi. (${describeEvolutionError(err)})`,
-      });
-    }
-    const hasConnectArtifact = !!pairing_code || !!qr_base64;
-    if (!hasConnectArtifact) {
-      return res.json({
-        state: "preparing",
-        pairing_code,
-        qr_base64,
-        message: resetWarning
-          ? `Belum siap. Reset instance gagal, tapi koneksi tetap dicoba. (${resetWarning})`
-          : "Belum siap. Tunggu beberapa detik lalu klik lagi.",
-      });
-    }
-    const fallbackMessage =
-      mode === "code" && !pairing_code && qr_base64
-        ? "Evolution API tidak mengirim kode pairing untuk versi ini. QR tersedia, silakan scan QR."
-        : undefined;
-    return res.json({ state: "connecting", pairing_code, qr_base64, number: number ?? null, mode, message: fallbackMessage ?? resetWarning });
-  } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal hubungi Evolution API: ${describeEvolutionError(err)}` });
-  }
-});
-
-// POST /settings/whatsapp/reset — hapus instance agar bisa mulai dari nol
-// (dipakai saat sesi nyangkut atau ingin berganti metode QR <-> kode pairing).
-router.post("/settings/whatsapp/reset", requireRole("Super Admin"), async (_req: Request, res: Response) => {
-  const cfg = evolutionConfigured();
-  if (!cfg.ok) return res.status(400).json({ detail: cfg.detail });
-  try {
-    await deleteInstance();
-    return res.json({ message: "Koneksi direset. Silakan buat QR / kode pairing baru." });
-  } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal reset: ${describeEvolutionError(err)}` });
-  }
-});
-
-// POST /settings/whatsapp/logout — putuskan sesi agar bisa scan ulang nomor lain
-router.post("/settings/whatsapp/logout", requireRole("Super Admin"), async (_req: Request, res: Response) => {
-  const cfg = evolutionConfigured();
-  if (!cfg.ok) return res.status(400).json({ detail: cfg.detail });
-  try {
-    await logoutInstance();
-    return res.json({ message: "Sesi WhatsApp diputuskan" });
-  } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal logout: ${describeEvolutionError(err)}` });
-  }
 });
 
 export default router;
