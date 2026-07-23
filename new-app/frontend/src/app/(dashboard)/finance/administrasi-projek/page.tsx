@@ -1180,7 +1180,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                 ))}
               </select>
               {Array.isArray(availableGajians) && availableGajians.length === 0 && (
-                <p className="text-xs text-muted-foreground mt-1">Tidak ada gajian yang tersedia. Gajian harus sudah ditandatangani HF &amp; AF.</p>
+                <p className="text-xs text-muted-foreground mt-1">Tidak ada gajian yang tersedia. Gajian harus sudah ditandatangani HF dan belum pernah ditarik.</p>
               )}
             </div>
             <div>

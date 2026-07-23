@@ -2307,7 +2307,10 @@ router.delete("/adm-projek/:id/termins/:tid/cashflow/:cid", async (req: Request,
 router.get("/adm-projek/:id/gajian/available", async (req: Request, res: Response) => {
   const pid = BigInt(req.params.id);
   const gajians = await prisma.gajiTukang.findMany({
-    where: { adm_finance_project_id: pid, hf_signed_at: { not: null } },
+    where: {
+      adm_finance_project_id: pid,
+      OR: [{ hf_signed_at: { not: null } }, { hf_signature: { not: null } }],
+    },
     orderBy: { id: "desc" },
     include: { items: true },
   });
@@ -2334,7 +2337,7 @@ router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", async (req: Request,
   const gajiId = BigInt(gaji_tukang_id);
   const gaji = await prisma.gajiTukang.findUnique({ where: { id: gajiId }, include: { items: true } });
   if (!gaji) return res.status(404).json({ detail: "Gajian tidak ditemukan" });
-  if (!gaji.hf_signed_at) return res.status(400).json({ detail: "Gajian belum ditandatangani Head Finance" });
+  if (!gaji.hf_signed_at && !gaji.hf_signature) return res.status(400).json({ detail: "Gajian belum ditandatangani Head Finance" });
   const existing = await prisma.projekCashflow.findFirst({ where: { adm_finance_project_id: pid, gaji_tukang_id: gajiId } });
   if (existing) return res.status(400).json({ detail: "Gajian ini sudah ditarik ke cashflow" });
   const label = (gaji.bulan && gaji.tahun) ? `Gaji Tukang ${gaji.bulan}/${gaji.tahun}` : "Gaji Tukang";
