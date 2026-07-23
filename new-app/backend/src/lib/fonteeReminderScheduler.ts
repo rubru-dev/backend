@@ -87,6 +87,27 @@ async function sendMessages(rule: any, messages: string[]): Promise<number> {
   return sent;
 }
 
+async function sendMessagesToUsers(
+  rule: any,
+  users: Array<{ telegram_chat_id: string | null }>,
+  messages: string[],
+): Promise<number> {
+  if (users.length === 0 || messages.length === 0) return 0;
+
+  const prio: string = rule.priority_manual ?? "sedang";
+  const priorityLine = `${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
+  let sent = 0;
+  for (const msg of messages) {
+    const fullMsg = `${msg}\n${priorityLine}`;
+    for (const user of users) {
+      if (!user.telegram_chat_id) continue;
+      await sendFonnte(user.telegram_chat_id, fullMsg).catch(() => {});
+      sent++;
+    }
+  }
+  return sent;
+}
+
 // ── Super Admin notification ──────────────────────────────────────────────────
 
 async function getSuperAdminChatIds(): Promise<string[]> {
@@ -125,6 +146,61 @@ async function processRule(rule: any): Promise<number> {
       });
       messages.push(fillTemplate(tpl, { ...baseVars, jam, waktu: `${tanggalStr} ${jam} WIB` }));
       break;
+    }
+
+    case "absen_masuk_reminder": {
+      const cfg = await (prisma.absenKaryawanConfig as any).findFirst();
+      const { year, month, day } = getJakartaDateParts();
+      const todayStart = new Date(Date.UTC(year, month - 1, day));
+      const todayEnd = new Date(Date.UTC(year, month - 1, day + 1));
+      const roleIds = (rule.role_ids as bigint[]) ?? [];
+      const userWhere: any = { telegram_chat_id: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+      if (roleIds.length > 0) userWhere.roles = { some: { role_id: { in: roleIds } } };
+
+      const [allUsers, checkedIn] = await Promise.all([
+        prisma.user.findMany({ where: userWhere, select: { id: true, name: true, telegram_chat_id: true } }),
+        prisma.absenKaryawan.findMany({
+          where: { tanggal: { gte: todayStart, lt: todayEnd }, jam_masuk: { not: null } },
+          select: { user_id: true },
+        }),
+      ]);
+      const checkedInSet = new Set(checkedIn.map((a) => a.user_id.toString()));
+      const notYetMasuk = allUsers.filter((u) => !checkedInSet.has(u.id.toString()));
+      if (notYetMasuk.length === 0) return 0;
+
+      const msg = fillTemplate(tpl, { ...baseVars, jam_masuk: cfg?.jam_masuk_awal ?? "-" });
+      const sent = await sendMessagesToUsers(rule, notYetMasuk, [msg]);
+      const lines = notYetMasuk.map((u) => `• ${u.name}`).join("\n");
+      notifySuperAdmin(`👑 *[Super Admin] Belum Absen Masuk*\n⏰ Jam masuk: ${cfg?.jam_masuk_awal ?? "-"}\n${notYetMasuk.length} karyawan:\n${lines}`).catch(() => {});
+      return sent;
+    }
+
+    case "absen_keluar_reminder": {
+      const cfg = await (prisma.absenKaryawanConfig as any).findFirst();
+      const { year, month, day } = getJakartaDateParts();
+      const todayStart = new Date(Date.UTC(year, month - 1, day));
+      const todayEnd = new Date(Date.UTC(year, month - 1, day + 1));
+      const roleIds = (rule.role_ids as bigint[]) ?? [];
+      const userFilter: any = { telegram_chat_id: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+      if (roleIds.length > 0) userFilter.roles = { some: { role_id: { in: roleIds } } };
+
+      const masukTapiBelumKeluar = await prisma.absenKaryawan.findMany({
+        where: {
+          tanggal: { gte: todayStart, lt: todayEnd },
+          jam_masuk: { not: null },
+          jam_keluar: null,
+          user: userFilter,
+        },
+        include: { user: { select: { id: true, name: true, telegram_chat_id: true } } },
+      });
+      if (masukTapiBelumKeluar.length === 0) return 0;
+
+      const users = masukTapiBelumKeluar.map((absen: any) => absen.user).filter(Boolean);
+      const msg = fillTemplate(tpl, { ...baseVars, jam_pulang: cfg?.jam_pulang ?? "-" });
+      const sent = await sendMessagesToUsers(rule, users, [msg]);
+      const lines = users.map((u: any) => `• ${u.name ?? "—"}`).join("\n");
+      notifySuperAdmin(`👑 *[Super Admin] Belum Absen Keluar*\n⏰ Jam pulang: ${cfg?.jam_pulang ?? "-"}\n${users.length} karyawan:\n${lines}`).catch(() => {});
+      return sent;
     }
 
     case "task_deadline": {
@@ -347,6 +423,7 @@ async function processRule(rule: any): Promise<number> {
     }
 
     default:
+      console.warn(`[ReminderScheduler] ${rule.feature}: belum ada processor deadline`);
       break;
   }
 
