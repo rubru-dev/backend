@@ -551,8 +551,30 @@ function ruleDict(r: any) {
   };
 }
 
+async function ensureTestTelegramReminderRule() {
+  await (prisma.fonteeReminderRule as any).upsert({
+    where: { feature: "test_telegram" },
+    create: {
+      feature: "test_telegram",
+      label: "Test Telegram",
+      days_before: 0,
+      send_time: "08:00",
+      is_active: false,
+      role_ids: [],
+      message_template: "✅ *Test Telegram Reminder*\nRule scheduler Telegram berhasil berjalan pada {waktu}.",
+      trigger_type: "deadline",
+      priority_manual: "rendah",
+    },
+    update: {
+      label: "Test Telegram",
+      trigger_type: "deadline",
+    },
+  });
+}
+
 // GET /settings/reminder-rules
 router.get("/settings/reminder-rules", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  await ensureTestTelegramReminderRule();
   const rules = await prisma.fonteeReminderRule.findMany({ orderBy: { id: "asc" } });
   const allRoles = await prisma.role.findMany({ orderBy: { name: "asc" } });
   return res.json({

@@ -127,6 +127,18 @@ async function processRule(rule: any): Promise<number> {
   const messages: string[] = [];
 
   switch (rule.feature) {
+    case "test_telegram": {
+      const now = new Date();
+      const jam = now.toLocaleTimeString("id-ID", {
+        timeZone: "Asia/Jakarta",
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      });
+      messages.push(fillTemplate(tpl, { ...baseVars, jam, waktu: `${tanggalStr} ${jam} WIB` }));
+      break;
+    }
+
     case "task_deadline": {
       const [sipil, interior] = await Promise.all([
         prisma.proyekBerjalanTask.findMany({
