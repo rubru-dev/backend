@@ -81,6 +81,9 @@ const styles = StyleSheet.create({
   signTitleText: { fontSize: 8, color: "white", fontWeight: "bold" },
   signImage: { width: 120, height: 50, objectFit: "contain", marginBottom: 4 },
   signImageEmpty: { width: 120, height: 50, borderBottomWidth: 1, borderBottomColor: "#d4d4d4", marginBottom: 4 },
+  signArea: { width: 120, height: 50, position: "relative", marginBottom: 4 },
+  signWatermark: { position: "absolute", top: 0, left: 0, width: 120, height: 50, objectFit: "contain", opacity: 0.55 },
+  signInk: { position: "absolute", top: 0, left: 0, width: 120, height: 50, objectFit: "contain" },
   signName: { fontSize: 9, fontWeight: "bold", color: DARK },
   signDate: { fontSize: 7.5, color: GRAY, marginTop: 1 },
 
@@ -196,9 +199,15 @@ export default function TukangPDF({ type, project, data, meta, logoUrl }: Tukang
               <View style={styles.signTitleBox}>
                 <Text style={styles.signTitleText}>Head Finance</Text>
               </View>
-              {meta.signatures.hf.signature
-                ? <Image style={styles.signImage} src={meta.signatures.hf.signature} />
-                : <View style={styles.signImageEmpty} />}
+              {meta.signatures.hf.signature ? (
+                <View style={styles.signArea}>
+                  {logoUrl && <Image style={styles.signWatermark} src={logoUrl} />}
+                  <Image style={styles.signInk} src={meta.signatures.hf.signature} />
+                  <Image style={styles.signInk} src={meta.signatures.hf.signature} />
+                </View>
+              ) : (
+                <View style={styles.signImageEmpty} />
+              )}
               <Text style={styles.signName}>{meta.signatures.hf.name || "___________________"}</Text>
               {meta.signatures.hf.at && <Text style={styles.signDate}>{fmtDate(meta.signatures.hf.at)}</Text>}
             </View>

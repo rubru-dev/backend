@@ -2309,6 +2309,7 @@ router.get("/adm-projek/:id/gajian/available", async (req: Request, res: Respons
   const gajians = await prisma.gajiTukang.findMany({
     where: { adm_finance_project_id: pid, hf_signed_at: { not: null } },
     orderBy: { id: "desc" },
+    include: { items: true },
   });
   const pulledRecs = await prisma.projekCashflow.findMany({
     where: { adm_finance_project_id: pid, gaji_tukang_id: { not: null } },
@@ -2320,6 +2321,7 @@ router.get("/adm-projek/:id/gajian/available", async (req: Request, res: Respons
     id: g.id, bulan: g.bulan, tahun: g.tahun,
     tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
     total_gaji: Number(g.total_gaji),
+    total_bruto: g.items.reduce((sum, item) => sum + (Number(item.hari_kerja) * Number(item.daily_rate)), 0),
   })));
 });
 
@@ -2330,7 +2332,7 @@ router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", async (req: Request,
   const { gaji_tukang_id, tanggal } = req.body;
   if (!gaji_tukang_id) return res.status(400).json({ detail: "gaji_tukang_id wajib diisi" });
   const gajiId = BigInt(gaji_tukang_id);
-  const gaji = await prisma.gajiTukang.findUnique({ where: { id: gajiId } });
+  const gaji = await prisma.gajiTukang.findUnique({ where: { id: gajiId }, include: { items: true } });
   if (!gaji) return res.status(404).json({ detail: "Gajian tidak ditemukan" });
   if (!gaji.hf_signed_at) return res.status(400).json({ detail: "Gajian belum ditandatangani Head Finance" });
   const existing = await prisma.projekCashflow.findFirst({ where: { adm_finance_project_id: pid, gaji_tukang_id: gajiId } });
@@ -2343,7 +2345,7 @@ router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", async (req: Request,
       gaji_tukang_id: gajiId,
       tanggal: tanggal ? new Date(tanggal) : new Date(),
       keterangan: label,
-      debit: Number(gaji.total_gaji),
+      debit: gaji.items.reduce((sum, item) => sum + (Number(item.hari_kerja) * Number(item.daily_rate)), 0),
       kredit: 0,
     },
   });

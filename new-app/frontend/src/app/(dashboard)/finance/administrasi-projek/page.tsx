@@ -1175,7 +1175,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                 <option value="">— Pilih gajian —</option>
                 {(Array.isArray(availableGajians) ? availableGajians : []).map((g: any) => (
                   <option key={g.id} value={g.id}>
-                    {g.bulan && g.tahun ? `Bulan ${g.bulan}/${g.tahun}` : `Gajian #${g.id}`} — Rp {Number(g.total_gaji).toLocaleString("id-ID")}
+                    {g.bulan && g.tahun ? `Bulan ${g.bulan}/${g.tahun}` : `Gajian #${g.id}`} — Bruto Rp {Number(g.total_bruto ?? g.total_gaji).toLocaleString("id-ID")} (bersih Rp {Number(g.total_gaji).toLocaleString("id-ID")})
                   </option>
                 ))}
               </select>
