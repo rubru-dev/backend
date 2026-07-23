@@ -1,29 +1,14 @@
 import { prisma } from "./prisma";
-import axios from "axios";
 import { config } from "../config";
+import { sendTelegram } from "./telegram";
+
+type TelegramRecipient = {
+  telegram_chat_id: string | null;
+};
 
 export async function sendFonnte(target: string, message: string) {
-  // Gateway Fonnte utama. Config UI di appSetting lebih diutamakan, env menjadi fallback.
-  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
-  const cfg = (setting?.value as Record<string, string> | null) ?? {};
-  const apiKey = cfg.api_key || config.fonnteToken;
-  const baseUrl = cfg.base_url || config.fonnteApiUrl;
-  if (!apiKey || !baseUrl) {
-    throw new Error("API key atau base URL Fonnte belum dikonfigurasi");
-  }
-  try {
-    const res = await axios.post(baseUrl, { target, message, countryCode: "62" }, {
-      headers: { Authorization: apiKey, "Content-Type": "application/json" },
-      timeout: 8000,
-    });
-    if (res.data?.status === false || res.data?.response === false) {
-      console.error(`[Fonnte] Gagal kirim ke ${target}:`, JSON.stringify(res.data));
-      throw new Error(`[Fonnte] Gagal kirim ke ${target}: ${JSON.stringify(res.data)}`);
-    }
-  } catch (err: any) {
-    console.error(`[Fonnte] Error kirim ke ${target}:`, err?.response?.data ?? err?.message);
-    throw new Error(`[Fonnte] Error kirim ke ${target}: ${JSON.stringify(err?.response?.data ?? err?.message)}`);
-  }
+  // Legacy function name kept for existing imports. Delivery is Telegram-only.
+  await sendTelegram(target, message);
 }
 
 /** Send to all users with a specific role name */
@@ -31,23 +16,23 @@ export async function sendFonntToRoles(roleNames: string[], message: string) {
   const users = await prisma.user.findMany({
     where: {
       roles: { some: { role: { name: { in: roleNames } } } },
-      whatsapp_number: { not: null },
+      telegram_chat_id: { not: null },
     },
-    select: { whatsapp_number: true, name: true },
-  });
+    select: { telegram_chat_id: true, name: true },
+  }) as TelegramRecipient[];
   for (const u of users) {
-    if (u.whatsapp_number) await sendFonnte(u.whatsapp_number, message);
+    if (u.telegram_chat_id) await sendTelegram(u.telegram_chat_id, message);
   }
 }
 
 /** Send to user(s) by ID(s) */
 export async function sendFonnteToUserIds(userIds: bigint[], message: string) {
   const users = await prisma.user.findMany({
-    where: { id: { in: userIds }, whatsapp_number: { not: null } },
-    select: { whatsapp_number: true },
-  });
+    where: { id: { in: userIds }, telegram_chat_id: { not: null } },
+    select: { telegram_chat_id: true },
+  }) as TelegramRecipient[];
   for (const u of users) {
-    if (u.whatsapp_number) await sendFonnte(u.whatsapp_number, message);
+    if (u.telegram_chat_id) await sendTelegram(u.telegram_chat_id, message);
   }
 }
 
@@ -66,9 +51,9 @@ export async function triggerEventReminder(feature: string, vars: Record<string,
   if (roleIds.length === 0) return;
 
   const users = await prisma.user.findMany({
-    where: { roles: { some: { role_id: { in: roleIds } } }, whatsapp_number: { not: null } },
-    select: { whatsapp_number: true },
-  });
+    where: { roles: { some: { role_id: { in: roleIds } } }, telegram_chat_id: { not: null } },
+    select: { telegram_chat_id: true },
+  }) as TelegramRecipient[];
   if (users.length === 0) return;
 
   const message = tpl.replace(/\{([^}]+)\}/g, (_: string, key: string) => vars[key] ?? `{${key}}`);
@@ -76,7 +61,7 @@ export async function triggerEventReminder(feature: string, vars: Record<string,
   const fullMsg = `${message}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
 
   for (const u of users) {
-    await sendFonnte(u.whatsapp_number!, fullMsg).catch(() => {});
+    if (u.telegram_chat_id) await sendTelegram(u.telegram_chat_id, fullMsg).catch(() => {});
   }
 }
 
@@ -89,16 +74,16 @@ export async function triggerEventReminderToUsers(feature: string, userIds: bigi
   if (userIds.length === 0) return;
 
   const users = await prisma.user.findMany({
-    where: { id: { in: userIds }, whatsapp_number: { not: null } },
-    select: { whatsapp_number: true },
-  });
+    where: { id: { in: userIds }, telegram_chat_id: { not: null } },
+    select: { telegram_chat_id: true },
+  }) as TelegramRecipient[];
   if (users.length === 0) return;
 
   const message = (rule.message_template as string).replace(/\{([^}]+)\}/g, (_: string, key: string) => vars[key] ?? `{${key}}`);
   const prio: string = rule.priority_manual ?? "sedang";
   const fullMsg = `${message}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
   for (const u of users) {
-    await sendFonnte(u.whatsapp_number!, fullMsg).catch(() => {});
+    if (u.telegram_chat_id) await sendTelegram(u.telegram_chat_id, fullMsg).catch(() => {});
   }
 }
 

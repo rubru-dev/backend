@@ -168,7 +168,7 @@ function ReminderRuleCard({
 
       {/* Message template */}
       <div>
-        <Label className="text-xs">Template Pesan WhatsApp:</Label>
+        <Label className="text-xs">Template Pesan Telegram:</Label>
         <p className="text-[10px] text-muted-foreground mb-1">Gunakan variabel seperti &#123;nama&#125;, &#123;tanggal&#125;, &#123;days_before&#125; dll. Kosongkan untuk pakai template default.</p>
         <Textarea
           className="text-xs min-h-[80px] font-mono"
@@ -207,7 +207,7 @@ function ReminderRulesTab({
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Bell className="h-5 w-5" />Aturan Reminder Otomatis</CardTitle>
           <CardDescription>
-            Atur kapan dan kepada siapa reminder WhatsApp dikirim. <span className="font-medium">Deadline</span>: dikirim via cron sebelum jatuh tempo. <span className="font-medium">Event</span>: dikirim saat kejadian tertentu terjadi.
+            Atur kapan dan kepada siapa reminder Telegram dikirim. <span className="font-medium">Deadline</span>: dikirim via cron sebelum jatuh tempo. <span className="font-medium">Event</span>: dikirim saat kejadian tertentu terjadi.
           </CardDescription>
         </CardHeader>
         <CardContent>

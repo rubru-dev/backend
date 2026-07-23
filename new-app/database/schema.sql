@@ -18,6 +18,7 @@ CREATE TABLE users (
     email       VARCHAR(255) NOT NULL UNIQUE,
     password    VARCHAR(255) NOT NULL,
     whatsapp_number VARCHAR(20),
+    telegram_chat_id VARCHAR(50),
     email_verified_at TIMESTAMPTZ,
     remember_token VARCHAR(100),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -1035,6 +1036,7 @@ CREATE TABLE activity_log (
 -- Users
 CREATE INDEX idx_users_email ON users(email);
 CREATE INDEX idx_users_whatsapp ON users(whatsapp_number) WHERE whatsapp_number IS NOT NULL;
+CREATE INDEX idx_users_telegram_chat ON users(telegram_chat_id) WHERE telegram_chat_id IS NOT NULL;
 
 -- Leads (high-frequency filters)
 CREATE INDEX idx_leads_user_id ON leads(user_id);

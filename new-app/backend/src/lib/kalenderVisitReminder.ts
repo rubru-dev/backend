@@ -89,7 +89,7 @@ export async function sendKalenderVisitReminders(force = false) {
     include: {
       pics: {
         include: {
-          user: { select: { id: true, name: true, whatsapp_number: true } },
+          user: { select: { id: true, name: true, telegram_chat_id: true } },
         },
       },
     },
@@ -115,10 +115,10 @@ export async function sendKalenderVisitReminders(force = false) {
       `— RubahRumah`;
 
     for (const pic of visit.pics) {
-      const wa = pic.user?.whatsapp_number;
-      if (!wa) continue;
+      const chatId = pic.user?.telegram_chat_id;
+      if (!chatId) continue;
       try {
-        await sendFonnte(wa, message);
+        await sendFonnte(chatId, message);
         sentCount++;
       } catch (err) {
         console.error(

@@ -9,12 +9,13 @@ import { config } from "../config";
 
 const router = Router();
 
-function userDict(u: { id: bigint; name: string; email: string; whatsapp_number: string | null; sub_role: string | null; created_at: Date; roles: Array<{ role: { id: bigint; name: string } }> }) {
+function userDict(u: { id: bigint; name: string; email: string; whatsapp_number: string | null; telegram_chat_id: string | null; sub_role: string | null; created_at: Date; roles: Array<{ role: { id: bigint; name: string } }> }) {
   return {
     id: u.id,
     name: u.name,
     email: u.email,
     whatsapp_number: u.whatsapp_number,
+    telegram_chat_id: u.telegram_chat_id,
     sub_role: u.sub_role ?? "Karyawan",
     roles: u.roles.map((r) => ({ id: r.role.id, name: r.role.name })),
     created_at: u.created_at?.toISOString() ?? null,
@@ -40,6 +41,7 @@ async function softDeleteUser(user: { id: bigint; name: string }) {
         email: `deleted+${user.id}-${deletedAt}@rubahrumah.local`,
         password: hashPassword(`deleted-${user.id}-${deletedAt}-${Math.random()}`),
         whatsapp_number: null,
+        telegram_chat_id: null,
         sub_role: "Nonaktif",
         updated_at: new Date(),
       },
@@ -79,7 +81,7 @@ router.get("/users", requireRole("Super Admin"), async (req: Request, res: Respo
 
 // POST /users
 router.post("/users", requireRole("Super Admin"), async (req: Request, res: Response) => {
-  const { name, email, password, whatsapp_number, sub_role, role_ids = [] } = req.body;
+  const { name, email, password, whatsapp_number, telegram_chat_id, sub_role, role_ids = [] } = req.body;
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     return res.status(400).json({ detail: "Email sudah terdaftar" });
@@ -90,6 +92,7 @@ router.post("/users", requireRole("Super Admin"), async (req: Request, res: Resp
       email,
       password: hashPassword(password),
       whatsapp_number: whatsapp_number ?? null,
+      telegram_chat_id: telegram_chat_id ?? null,
       sub_role: sub_role ?? "Karyawan",
       roles: {
         create: uniqueRoleIds(role_ids as (number | string)[]).map((rid) => ({ role: { connect: { id: rid } } })),
@@ -102,7 +105,7 @@ router.post("/users", requireRole("Super Admin"), async (req: Request, res: Resp
 // PATCH /users/:id
 router.patch("/users/:id", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const userId = BigInt(req.params.id);
-  const { name, email, whatsapp_number, sub_role, role_ids } = req.body;
+  const { name, email, whatsapp_number, telegram_chat_id, sub_role, role_ids } = req.body;
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) return res.status(404).json({ detail: "User tidak ditemukan" });
@@ -110,6 +113,7 @@ router.patch("/users/:id", requireRole("Super Admin"), async (req: Request, res:
   const updates: Record<string, unknown> = {};
   if (name !== undefined) updates.name = name;
   if (whatsapp_number !== undefined) updates.whatsapp_number = whatsapp_number;
+  if (telegram_chat_id !== undefined) updates.telegram_chat_id = telegram_chat_id;
   if (sub_role !== undefined) updates.sub_role = sub_role;
   if (email !== undefined) {
     const conflict = await prisma.user.findFirst({ where: { email, id: { not: userId } } });
@@ -577,7 +581,7 @@ router.put("/settings/reminder-rules/:id", requireRole("Super Admin"), async (re
   return res.json(ruleDict(updated));
 });
 
-// POST /settings/reminder-rules/:id/test — kirim test WA ke semua user dengan role yang dipilih rule
+// POST /settings/reminder-rules/:id/test — kirim test Telegram ke semua user dengan role yang dipilih rule
 router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const rule = await prisma.fonteeReminderRule.findUnique({ where: { id } });
@@ -590,13 +594,13 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
   const usersWithRole = await prisma.user.findMany({
     where: {
       roles: { some: { role_id: { in: roleIds } } },
-      whatsapp_number: { not: null },
+      telegram_chat_id: { not: null },
     },
-    select: { id: true, name: true, whatsapp_number: true },
+    select: { id: true, name: true, telegram_chat_id: true },
   });
 
   if (usersWithRole.length === 0) {
-    return res.status(400).json({ detail: "Tidak ada user dengan role tersebut yang memiliki nomor WhatsApp" });
+    return res.status(400).json({ detail: "Tidak ada user dengan role tersebut yang memiliki Telegram Chat ID" });
   }
 
   const priority: string = (rule as any).priority_manual ?? "sedang";
@@ -611,7 +615,7 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
 
   for (const u of usersWithRole) {
     try {
-      await sendFonnte(u.whatsapp_number!, message);
+      await sendFonnte(u.telegram_chat_id!, message);
       sent++;
     } catch (err: any) {
       errors.push(`${u.name}: ${err?.message ?? "error"}`);
@@ -621,7 +625,7 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
   return res.json({
     sent,
     total_targets: usersWithRole.length,
-    targets: usersWithRole.map((u) => ({ name: u.name, wa: u.whatsapp_number })),
+    targets: usersWithRole.map((u) => ({ name: u.name, telegram_chat_id: u.telegram_chat_id })),
     errors: errors.length > 0 ? errors : undefined,
     message: `Test terkirim ke ${sent} dari ${usersWithRole.length} user`,
   });

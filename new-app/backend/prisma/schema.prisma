@@ -1923,6 +1923,7 @@ model User {
   email                                 String                     @unique @db.VarChar(255)
   password                              String                     @db.VarChar(255)
   whatsapp_number                       String?                    @db.VarChar(20)
+  telegram_chat_id                      String?                    @db.VarChar(50)
   sub_role                              String?                    @default("Karyawan") @db.VarChar(50)
   email_verified_at                     DateTime?                  @db.Timestamptz(6)
   remember_token                        String?                    @db.VarChar(100)

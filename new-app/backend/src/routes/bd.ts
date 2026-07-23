@@ -51,12 +51,12 @@ async function notifyCalendarAssignment(args: {
           : []),
       ],
     },
-    select: { id: true, whatsapp_number: true },
+    select: { id: true, telegram_chat_id: true },
   });
 
   const sentTargets = new Set<string>();
   for (const user of recipients) {
-    const target = user.whatsapp_number?.trim();
+    const target = user.telegram_chat_id?.trim();
     if (!target || sentTargets.has(target)) continue;
     sentTargets.add(target);
     sendFonnte(target, args.message).catch(() => {});

@@ -67,12 +67,12 @@ const HARDCODED_FEATURES = new Set([
   "desain_deadline",
 ]);
 
-async function getUsersForRoleIds(roleIds: bigint[]): Promise<{ whatsapp_number: string }[]> {
+async function getUsersForRoleIds(roleIds: bigint[]): Promise<{ telegram_chat_id: string }[]> {
   if (roleIds.length === 0) return [];
   return prisma.user.findMany({
-    where: { roles: { some: { role_id: { in: roleIds } } }, whatsapp_number: { not: null } },
-    select: { whatsapp_number: true },
-  }) as Promise<{ whatsapp_number: string }[]>;
+    where: { roles: { some: { role_id: { in: roleIds } } }, telegram_chat_id: { not: null } },
+    select: { telegram_chat_id: true },
+  }) as Promise<{ telegram_chat_id: string }[]>;
 }
 
 async function sendMessages(rule: any, messages: string[]): Promise<number> {
@@ -83,7 +83,7 @@ async function sendMessages(rule: any, messages: string[]): Promise<number> {
   }
   const users = await getUsersForRoleIds(roleIds);
   if (users.length === 0) {
-    console.warn(`[ReminderScheduler] ${rule.feature}: tidak ada user dengan WA di role yang dipilih`);
+    console.warn(`[ReminderScheduler] ${rule.feature}: tidak ada user dengan Telegram Chat ID di role yang dipilih`);
     return 0;
   }
   const prio: string = rule.priority_manual ?? "sedang";
@@ -92,7 +92,7 @@ async function sendMessages(rule: any, messages: string[]): Promise<number> {
   for (const msg of messages) {
     const fullMsg = `${msg}\n${priorityLine}`;
     for (const u of users) {
-      await sendFonnte(u.whatsapp_number, fullMsg).catch(() => {});
+      await sendFonnte(u.telegram_chat_id, fullMsg).catch(() => {});
       sent++;
     }
   }
@@ -101,17 +101,17 @@ async function sendMessages(rule: any, messages: string[]): Promise<number> {
 
 // ── Super Admin notification ──────────────────────────────────────────────────
 
-async function getSuperAdminNumbers(): Promise<string[]> {
+async function getSuperAdminChatIds(): Promise<string[]> {
   const users = await prisma.user.findMany({
-    where: { roles: { some: { role: { name: "Super Admin" } } }, whatsapp_number: { not: null } },
-    select: { whatsapp_number: true },
+    where: { roles: { some: { role: { name: "Super Admin" } } }, telegram_chat_id: { not: null } },
+    select: { telegram_chat_id: true },
   });
-  return users.map((u) => u.whatsapp_number!);
+  return users.map((u) => u.telegram_chat_id!);
 }
 
 async function notifySuperAdmin(msg: string): Promise<void> {
-  const numbers = await getSuperAdminNumbers();
-  for (const wa of numbers) await sendFonnte(wa, msg).catch(() => {});
+  const chatIds = await getSuperAdminChatIds();
+  for (const chatId of chatIds) await sendFonnte(chatId, msg).catch(() => {});
 }
 
 // ── Feature processors ────────────────────────────────────────────────────────
@@ -292,7 +292,7 @@ async function processRule(rule: any): Promise<number> {
         }),
         prisma.user.findMany({
           where: {
-            whatsapp_number: { not: null },
+            telegram_chat_id: { not: null },
             NOT: [
               { email: { startsWith: "deleted+" } },
               { roles: { some: { role: { name: "Tukang" } } } },
@@ -316,7 +316,7 @@ async function processRule(rule: any): Promise<number> {
       const visits = await prisma.kalenderVisit.findMany({
         where: { tanggal: { gte: start, lt: end } },
         include: {
-          pics: { include: { user: { select: { whatsapp_number: true, name: true } } } },
+          pics: { include: { user: { select: { telegram_chat_id: true, name: true } } } },
         },
       });
       const prio: string = rule.priority_manual ?? "sedang";
@@ -334,8 +334,8 @@ async function processRule(rule: any): Promise<number> {
         const fullMsg = `${msg}\n${priorityLine}`;
         const picNames: string[] = [];
         for (const pic of (visit as any).pics) {
-          const wa = pic.user?.whatsapp_number;
-          if (wa) { await sendFonnte(wa, fullMsg).catch(() => {}); sentCount++; }
+          const chatId = pic.user?.telegram_chat_id;
+          if (chatId) { await sendFonnte(chatId, fullMsg).catch(() => {}); sentCount++; }
           if (pic.user?.name) picNames.push(pic.user.name);
         }
         saLines.push(`• ${namaProyek} — Jam: ${(visit as any).jam ?? "—"} — PIC: ${picNames.join(", ") || "—"}`);
@@ -386,10 +386,10 @@ async function checkAbsenReminders(): Promise<void> {
     if (!rule?.message_template) return;
 
     const roleIds = (rule.role_ids as bigint[]) ?? [];
-    const userWhere: any = { whatsapp_number: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+    const userWhere: any = { telegram_chat_id: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
     if (roleIds.length > 0) userWhere.roles = { some: { role_id: { in: roleIds } } };
 
-    const allUsers = await prisma.user.findMany({ where: userWhere, select: { id: true, name: true, whatsapp_number: true } });
+    const allUsers = await prisma.user.findMany({ where: userWhere, select: { id: true, name: true, telegram_chat_id: true } });
     const checkedIn = await prisma.absenKaryawan.findMany({
       where: { tanggal: { gte: todayStart, lt: todayEnd }, jam_masuk: { not: null } },
       select: { user_id: true },
@@ -402,7 +402,7 @@ async function checkAbsenReminders(): Promise<void> {
     const prio: string = rule.priority_manual ?? "sedang";
     const fullMsg = `${msg}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
     for (const u of notYetMasuk) {
-      await sendFonnte(u.whatsapp_number!, fullMsg).catch(() => {});
+      await sendFonnte(u.telegram_chat_id!, fullMsg).catch(() => {});
     }
     if (notYetMasuk.length > 0) {
       const lines = notYetMasuk.map((u) => `• ${u.name}`).join("\n");
@@ -419,8 +419,8 @@ async function checkAbsenReminders(): Promise<void> {
 
     const roleIds = (rule.role_ids as bigint[]) ?? [];
 
-    // Cari yang sudah absen masuk tapi belum keluar — filter role + punya WA langsung di query
-    const userFilter: any = { whatsapp_number: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+    // Cari yang sudah absen masuk tapi belum keluar — filter role + punya Telegram langsung di query
+    const userFilter: any = { telegram_chat_id: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
     if (roleIds.length > 0) userFilter.roles = { some: { role_id: { in: roleIds } } };
     const masukTapiBelumKeluar = await prisma.absenKaryawan.findMany({
       where: {
@@ -429,7 +429,7 @@ async function checkAbsenReminders(): Promise<void> {
         jam_keluar: null,
         user: userFilter,
       },
-      include: { user: { select: { id: true, name: true, whatsapp_number: true } } },
+      include: { user: { select: { id: true, name: true, telegram_chat_id: true } } },
     });
 
     const jamPulangStr = cfg.jam_pulang;
@@ -437,8 +437,8 @@ async function checkAbsenReminders(): Promise<void> {
     const prio: string = rule.priority_manual ?? "sedang";
     const fullMsg = `${msg}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
     for (const absen of masukTapiBelumKeluar) {
-      const wa = (absen as any).user?.whatsapp_number;
-      if (wa) await sendFonnte(wa, fullMsg).catch(() => {});
+      const chatId = (absen as any).user?.telegram_chat_id;
+      if (chatId) await sendFonnte(chatId, fullMsg).catch(() => {});
     }
     if (masukTapiBelumKeluar.length > 0) {
       const lines = masukTapiBelumKeluar.map((a) => `• ${(a as any).user?.name ?? "—"}`).join("\n");
@@ -484,5 +484,5 @@ export function startReminderScheduler(): void {
     runDeadlineReminders(hour, minute).catch((err) => console.error("[ReminderScheduler] Error:", err));
   }, tz);
 
-  console.log("✓ Fontee reminder scheduler aktif — WIB (rule-based, fitur hardcoded diskip)");
+  console.log("✓ Telegram reminder scheduler aktif — WIB (rule-based, fitur hardcoded diskip)");
 }

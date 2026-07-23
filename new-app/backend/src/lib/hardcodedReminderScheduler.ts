@@ -8,6 +8,7 @@ type ReminderUser = {
   id: bigint;
   name: string;
   whatsapp_number: string | null;
+  telegram_chat_id: string | null;
 };
 
 function jakartaDateParts(offsetDays = 0): { year: number; month: number; day: number } {
@@ -63,7 +64,7 @@ async function usersByRoles(roleNames: string[]): Promise<ReminderUser[]> {
       roles: { some: { role: { name: { in: roleNames } } } },
       NOT: { email: { startsWith: "deleted+" } },
     },
-    select: { id: true, name: true, whatsapp_number: true },
+    select: { id: true, name: true, whatsapp_number: true, telegram_chat_id: true },
   });
 }
 
@@ -75,7 +76,7 @@ async function allActiveUsersExcept(roleNames: string[] = []): Promise<ReminderU
         ...(roleNames.length > 0 ? [{ roles: { some: { role: { name: { in: roleNames } } } } }] : []),
       ],
     },
-    select: { id: true, name: true, whatsapp_number: true },
+    select: { id: true, name: true, whatsapp_number: true, telegram_chat_id: true },
   });
 }
 
@@ -84,7 +85,7 @@ async function surveyRecipients(picName?: string | null): Promise<ReminderUser[]
     picName
       ? prisma.user.findMany({
           where: { name: picName, NOT: { email: { startsWith: "deleted+" } } },
-          select: { id: true, name: true, whatsapp_number: true },
+          select: { id: true, name: true, whatsapp_number: true, telegram_chat_id: true },
         })
       : Promise.resolve([]),
     usersByRoles(["Super Admin"]),
@@ -101,7 +102,7 @@ async function visitProjectRecipients(picIds: bigint[]): Promise<ReminderUser[]>
     picIds.length > 0
       ? prisma.user.findMany({
           where: { id: { in: picIds }, NOT: { email: { startsWith: "deleted+" } } },
-          select: { id: true, name: true, whatsapp_number: true },
+          select: { id: true, name: true, whatsapp_number: true, telegram_chat_id: true },
         })
       : Promise.resolve([]),
     superAdminRecipients(),
@@ -123,7 +124,7 @@ async function hasReminderLog(args: {
       remindable_id: args.remindableId,
       user_id: args.userId,
       deadline_date: args.deadlineDate,
-      status: { in: ["sent", "no_whatsapp"] },
+      status: { in: ["sent", "no_whatsapp", "no_telegram"] },
     },
     select: { id: true },
   });
@@ -157,7 +158,7 @@ async function logReminder(args: {
       sender_name: "System Reminder",
       recipient_user_id: args.user.id,
       recipient_name: args.user.name,
-      target_number: args.user.whatsapp_number ?? null,
+      target_number: args.user.telegram_chat_id ?? null,
       message: args.message,
       status: args.status,
     },
@@ -175,12 +176,12 @@ async function sendOnce(args: {
   let sent = 0;
   for (const user of uniqueUsers(args.users)) {
     if (await hasReminderLog({ ...args, userId: user.id })) continue;
-    if (!user.whatsapp_number) {
-      await logReminder({ ...args, user, status: "no_whatsapp" });
+    if (!user.telegram_chat_id) {
+      await logReminder({ ...args, user, status: "no_telegram" });
       continue;
     }
     try {
-      await sendFonnte(user.whatsapp_number, args.message);
+      await sendFonnte(user.telegram_chat_id, args.message);
       await logReminder({ ...args, user, status: "sent" });
       sent++;
     } catch (err: any) {
@@ -200,7 +201,7 @@ async function sendGlobalDaily(type: string, users: ReminderUser[], message: str
     deadlineDate: start,
     message,
   });
-  console.log(`[HardcodedReminder] ${type}: ${count} WA terkirim`);
+  console.log(`[HardcodedReminder] ${type}: ${count} Telegram terkirim`);
 }
 
 export async function sendSurveyScheduledReminder(leadId: bigint): Promise<void> {
@@ -299,7 +300,7 @@ async function sendTodaySurveyReminders(): Promise<void> {
       message,
     });
   }
-  console.log(`[HardcodedReminder] survey hari ini: ${total} WA terkirim`);
+  console.log(`[HardcodedReminder] survey hari ini: ${total} Telegram terkirim`);
 }
 
 async function sendTodayVisitProjectReminders(): Promise<void> {
@@ -327,7 +328,7 @@ async function sendTodayVisitProjectReminders(): Promise<void> {
       message,
     });
   }
-  console.log(`[HardcodedReminder] visit projek hari ini: ${total} WA terkirim`);
+  console.log(`[HardcodedReminder] visit projek hari ini: ${total} Telegram terkirim`);
 }
 
 async function sendTodayVisitClientReminders(): Promise<void> {
@@ -353,7 +354,7 @@ async function sendTodayVisitClientReminders(): Promise<void> {
       message,
     });
   }
-  console.log(`[HardcodedReminder] visit client hari ini: ${total} WA terkirim`);
+  console.log(`[HardcodedReminder] visit client hari ini: ${total} Telegram terkirim`);
 }
 
 async function sendDesainLateReminders(): Promise<void> {
@@ -381,7 +382,7 @@ async function sendDesainLateReminders(): Promise<void> {
       message,
     });
   }
-  console.log(`[HardcodedReminder] desain telat 1 hari: ${total} WA terkirim`);
+  console.log(`[HardcodedReminder] desain telat 1 hari: ${total} Telegram terkirim`);
 }
 
 async function sendTerminH3Reminders(): Promise<void> {
@@ -414,7 +415,7 @@ async function sendTerminH3Reminders(): Promise<void> {
       `*Deadline:* ${formatDateID(termin.tanggal_selesai)}\n\n${FRONTEND_URL}/projek/interior`;
     total += await sendOnce({ type: "hardcoded_termin_interior_h3", remindableType: "proyek_interior_termin", remindableId: termin.id, users, deadlineDate: start, message });
   }
-  console.log(`[HardcodedReminder] termin H-3: ${total} WA terkirim`);
+  console.log(`[HardcodedReminder] termin H-3: ${total} Telegram terkirim`);
 }
 
 async function sendProjectTaskH3Reminders(): Promise<void> {
@@ -445,7 +446,7 @@ async function sendProjectTaskH3Reminders(): Promise<void> {
       `*Item:* ${task.nama_pekerjaan ?? "-"}\n*Deadline:* ${formatDateID(task.tanggal_selesai)}\n\n${FRONTEND_URL}/projek/interior`;
     total += await sendOnce({ type: "hardcoded_task_interior_h3", remindableType: "proyek_interior_task", remindableId: task.id, users, deadlineDate: start, message });
   }
-  console.log(`[HardcodedReminder] task sipil/interior H-3: ${total} WA terkirim`);
+  console.log(`[HardcodedReminder] task sipil/interior H-3: ${total} Telegram terkirim`);
 }
 
 export function startHardcodedReminderScheduler(): void {
