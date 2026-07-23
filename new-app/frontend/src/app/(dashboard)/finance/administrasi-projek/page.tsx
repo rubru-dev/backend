@@ -2885,6 +2885,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
   const [openGajian, setOpenGajian] = useState(false);
   const [gajianPeriode, setGajianPeriode] = useState({ mulai: today, selesai: today });
   const [gajianItems, setGajianItems] = useState<Array<{ tukang_id: string; tukang_name: string; hari_kerja: number; daily_rate: number; kasbon_dipotong: number; kasbon_tersedia: number }>>([]);
+  const [deleteGajianTarget, setDeleteGajianTarget] = useState<any | null>(null);
 
   const { data: gajianData, isLoading: loadingGajian } = useQuery({
     queryKey: ["tukang-gajian", proyekId],
@@ -2900,7 +2901,13 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
   });
   const delGajianMut = useMutation({
     mutationFn: (gid: number) => admApi.deleteGajian(proyekId, gid),
-    onSuccess: () => { toast.success("Dihapus"); qc.invalidateQueries({ queryKey: ["tukang-gajian", proyekId] }); },
+    onSuccess: () => {
+      toast.success("Gajian dihapus");
+      qc.invalidateQueries({ queryKey: ["tukang-gajian", proyekId] });
+      qc.invalidateQueries({ queryKey: ["tukang-kwitansi", proyekId] });
+      setDeleteGajianTarget(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menghapus gajian"),
   });
 
   // ── Gajian Signatures ────────────────────────────────────────────────────────
@@ -3219,7 +3226,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
                     })}>
                     <FileDown className="h-3 w-3 mr-1" /> PDF Kwitansi
                   </Button>
-                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => delGajianMut.mutate(g.id)}><Trash2 className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteGajianTarget(g)}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
               </div>
               <Table>
@@ -3500,6 +3507,45 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
         }}
         loading={signGajianHFMut.isPending}
       />
+
+      <Dialog open={!!deleteGajianTarget} onOpenChange={(v) => { if (!v) setDeleteGajianTarget(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <Trash2 className="h-5 w-5" /> Hapus Gajian?
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-md border border-destructive/20 bg-destructive/5 p-3">
+              <p className="text-sm font-medium">
+                {deleteGajianTarget?.tanggal_mulai
+                  ? `${fmtDate(deleteGajianTarget.tanggal_mulai)} - ${fmtDate(deleteGajianTarget.tanggal_selesai)}`
+                  : deleteGajianTarget
+                    ? `${deleteGajianTarget.bulan}/${deleteGajianTarget.tahun}`
+                    : ""}
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Total gajian: <span className="font-semibold text-foreground">{formatRp(deleteGajianTarget?.total_gaji ?? 0)}</span>
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Data gajian ini akan dihapus permanen. Kwitansi gaji yang dibuat dari periode ini juga akan ikut terhapus.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setDeleteGajianTarget(null)} disabled={delGajianMut.isPending}>
+                Batal
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={!deleteGajianTarget || delGajianMut.isPending}
+                onClick={() => deleteGajianTarget && delGajianMut.mutate(deleteGajianTarget.id)}
+              >
+                {delGajianMut.isPending ? "Menghapus..." : "Ya, Hapus Gajian"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
