@@ -1,4 +1,5 @@
 import axios from "axios";
+import https from "https";
 import { prisma } from "./prisma";
 import { config } from "../config";
 
@@ -7,6 +8,8 @@ type TelegramConfig = {
   api_url: string;
   default_chat_id: string;
 };
+
+const telegramHttpsAgent = new https.Agent({ family: 4 });
 
 export async function getTelegramConfig(): Promise<TelegramConfig> {
   const setting = await prisma.appSetting.findUnique({ where: { key: "telegram_config" } });
@@ -27,6 +30,7 @@ export async function getTelegramMe() {
   if (!cfg.bot_token) throw new Error("Bot token Telegram belum dikonfigurasi");
   const res = await axios.get(botUrl(cfg.api_url, cfg.bot_token, "getMe"), {
     timeout: 8000,
+    httpsAgent: telegramHttpsAgent,
     validateStatus: () => true,
   });
   if (res.status >= 400 || res.data?.ok === false) {
@@ -40,6 +44,7 @@ export async function getTelegramUpdates() {
   if (!cfg.bot_token) throw new Error("Bot token Telegram belum dikonfigurasi");
   const res = await axios.get(botUrl(cfg.api_url, cfg.bot_token, "getUpdates"), {
     timeout: 10000,
+    httpsAgent: telegramHttpsAgent,
     validateStatus: () => true,
   });
   if (res.status >= 400 || res.data?.ok === false) {
@@ -62,6 +67,7 @@ export async function sendTelegram(chatId: string, message: string) {
     },
     {
       timeout: 8000,
+      httpsAgent: telegramHttpsAgent,
       validateStatus: () => true,
     },
   );
