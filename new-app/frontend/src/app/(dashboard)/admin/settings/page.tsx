@@ -528,7 +528,7 @@ function TelegramTab() {
   });
 
   const updatesMut = useMutation({
-    mutationFn: () => adminApi.getTelegramUpdates(),
+    mutationFn: () => adminApi.getTelegramUpdates(20),
     onSuccess: (data) => {
       if (data.chats.length === 0) toast.info("Belum ada chat. Kirim /start ke bot atau kirim pesan di grup, lalu ambil ulang.");
     },
@@ -618,11 +618,11 @@ function TelegramTab() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><RefreshCw className="h-4 w-4" />Ambil Chat ID</CardTitle>
-          <CardDescription>Kirim /start ke bot atau kirim pesan di grup yang berisi bot, lalu ambil daftar chat terakhir.</CardDescription>
+          <CardDescription>Kirim /start ke bot, lalu ambil hingga 20 update terakhir untuk menemukan chat id personal.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           <Button variant="outline" onClick={() => updatesMut.mutate()} disabled={updatesMut.isPending}>
-            {updatesMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengambil...</> : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Ambil Chat Terakhir</>}
+            {updatesMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengambil...</> : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Ambil 20 Chat Terakhir</>}
           </Button>
           {chats.length > 0 && (
             <div className="space-y-2">

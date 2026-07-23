@@ -84,9 +84,9 @@ export const adminApi = {
     apiClient
       .get<{ connected: boolean; bot: { id: number; username?: string; first_name?: string }; raw: unknown }>("/admin/settings/telegram/status")
       .then((r) => r.data),
-  getTelegramUpdates: () =>
+  getTelegramUpdates: (limit = 20) =>
     apiClient
-      .get<{ chats: Array<{ chat_id: string; type: string | null; title: string | null; username: string | null; last_message: string | null }>; raw: unknown }>("/admin/settings/telegram/updates")
+      .get<{ chats: Array<{ chat_id: string; type: string | null; title: string | null; username: string | null; last_message: string | null }>; raw: unknown; limit: number }>("/admin/settings/telegram/updates", { params: { limit } })
       .then((r) => r.data),
   sendTelegramTest: (data: { chat_id: string; message: string }) =>
     apiClient.post("/admin/telegram/send-test", data).then((r) => r.data),

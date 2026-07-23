@@ -39,10 +39,11 @@ export async function getTelegramMe() {
   return res.data?.result;
 }
 
-export async function getTelegramUpdates() {
+export async function getTelegramUpdates(limit = 20) {
   const cfg = await getTelegramConfig();
   if (!cfg.bot_token) throw new Error("Bot token Telegram belum dikonfigurasi");
   const res = await axios.get(botUrl(cfg.api_url, cfg.bot_token, "getUpdates"), {
+    params: { limit },
     timeout: 10000,
     httpsAgent: telegramHttpsAgent,
     validateStatus: () => true,

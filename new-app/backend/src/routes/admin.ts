@@ -493,9 +493,10 @@ router.get("/settings/telegram/status", requireRole("Super Admin"), async (_req:
   }
 });
 
-router.get("/settings/telegram/updates", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+router.get("/settings/telegram/updates", requireRole("Super Admin"), async (req: Request, res: Response) => {
   try {
-    const updates = await getTelegramUpdates();
+    const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
+    const updates = await getTelegramUpdates(limit);
     const chats = new Map<string, { chat_id: string; type: string | null; title: string | null; username: string | null; last_message: string | null }>();
     for (const update of updates) {
       const msg = update.message ?? update.channel_post ?? update.edited_message ?? update.edited_channel_post;
@@ -509,7 +510,7 @@ router.get("/settings/telegram/updates", requireRole("Super Admin"), async (_req
         last_message: msg.text ?? msg.caption ?? null,
       });
     }
-    return res.json({ chats: Array.from(chats.values()), raw: updates });
+    return res.json({ chats: Array.from(chats.values()), raw: updates, limit });
   } catch (err: any) {
     return res.status(502).json({ detail: "Gagal ambil update Telegram: " + (err?.message ?? "Unknown error") });
   }
