@@ -55,18 +55,6 @@ function fillTemplate(tpl: string, vars: Record<string, string>): string {
 // ── Send helpers ──────────────────────────────────────────────────────────────
 
 const PRIORITY_EMOJI: Record<string, string> = { rendah: "🟢", sedang: "🟡", tinggi: "🔴" };
-const HARDCODED_FEATURES = new Set([
-  "laporan_harian_siang",
-  "laporan_harian_sore",
-  "survey_scheduled",
-  "task_deadline",
-  "termin_deadline",
-  "item_pekerjaan_sipil",
-  "item_pekerjaan_interior",
-  "item_pekerjaan_desain",
-  "desain_deadline",
-]);
-
 async function getUsersForRoleIds(roleIds: bigint[]): Promise<{ telegram_chat_id: string }[]> {
   if (roleIds.length === 0) return [];
   return prisma.user.findMany({
@@ -472,7 +460,6 @@ export async function runDeadlineReminders(currentHour?: number, currentMinute =
   });
 
   for (const rule of rules) {
-    if (HARDCODED_FEATURES.has(rule.feature)) continue;
     const [ruleH, ruleM] = (rule.send_time ?? "08:00").split(":").map(Number);
     // Match exact send_time
     if (ruleH !== targetHour || ruleM !== targetMinute) continue;
@@ -496,5 +483,5 @@ export function startReminderScheduler(): void {
     runDeadlineReminders(hour, minute).catch((err) => console.error("[ReminderScheduler] Error:", err));
   }, tz);
 
-  console.log("✓ Telegram reminder scheduler aktif — WIB (rule-based, fitur hardcoded diskip)");
+  console.log("✓ Telegram reminder scheduler aktif — WIB (rule-based)");
 }
