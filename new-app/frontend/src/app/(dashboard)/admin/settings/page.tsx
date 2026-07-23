@@ -530,7 +530,7 @@ function TelegramTab() {
   const updatesMut = useMutation({
     mutationFn: () => adminApi.getTelegramUpdates(20),
     onSuccess: (data) => {
-      if (data.chats.length === 0) toast.info("Belum ada chat. Kirim /start ke bot atau kirim pesan di grup, lalu ambil ulang.");
+      if ((data.messages?.length ?? 0) === 0) toast.info("Belum ada update. Kirim /start ke bot, lalu ambil ulang.");
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal ambil chat Telegram"),
   });
@@ -542,6 +542,7 @@ function TelegramTab() {
   });
 
   const chats = updatesMut.data?.chats ?? [];
+  const messages = updatesMut.data?.messages ?? [];
 
   return (
     <div className="space-y-4">
@@ -624,8 +625,33 @@ function TelegramTab() {
           <Button variant="outline" onClick={() => updatesMut.mutate()} disabled={updatesMut.isPending}>
             {updatesMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengambil...</> : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Ambil 20 Chat Terakhir</>}
           </Button>
+          {messages.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">20 update/pesan terakhir</p>
+              {messages.map((message) => (
+                <div key={message.update_id} className="border rounded-md p-3 text-sm flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{message.title || message.username || message.chat_id}</div>
+                    <div className="text-xs text-muted-foreground">chat_id: <span className="font-mono">{message.chat_id}</span> · {message.type ?? "-"}</div>
+                    {message.text && <div className="text-xs text-muted-foreground truncate mt-1">{message.text}</div>}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setForm({ ...form, default_chat_id: message.chat_id });
+                      setTestChatId(message.chat_id);
+                    }}
+                  >
+                    Pakai
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
           {chats.length > 0 && (
             <div className="space-y-2">
+              <p className="text-xs font-medium text-muted-foreground">Chat unik dari update terakhir</p>
               {chats.map((chat) => (
                 <div key={chat.chat_id} className="border rounded-md p-3 text-sm flex items-start justify-between gap-3">
                   <div className="min-w-0">

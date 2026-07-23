@@ -498,19 +498,31 @@ router.get("/settings/telegram/updates", requireRole("Super Admin"), async (req:
     const limit = Math.min(Math.max(Number(req.query.limit) || 20, 1), 100);
     const updates = await getTelegramUpdates(limit);
     const chats = new Map<string, { chat_id: string; type: string | null; title: string | null; username: string | null; last_message: string | null }>();
+    const messages: Array<{ update_id: number; chat_id: string; type: string | null; title: string | null; username: string | null; text: string | null; date: string | null }> = [];
     for (const update of updates) {
       const msg = update.message ?? update.channel_post ?? update.edited_message ?? update.edited_channel_post;
       const chat = msg?.chat;
       if (!chat?.id) continue;
+      const title = chat.title ?? ([chat.first_name, chat.last_name].filter(Boolean).join(" ") || null);
+      const text = msg.text ?? msg.caption ?? null;
       chats.set(String(chat.id), {
         chat_id: String(chat.id),
         type: chat.type ?? null,
-        title: chat.title ?? ([chat.first_name, chat.last_name].filter(Boolean).join(" ") || null),
+        title,
         username: chat.username ?? null,
-        last_message: msg.text ?? msg.caption ?? null,
+        last_message: text,
+      });
+      messages.push({
+        update_id: update.update_id,
+        chat_id: String(chat.id),
+        type: chat.type ?? null,
+        title,
+        username: chat.username ?? null,
+        text,
+        date: msg.date ? new Date(Number(msg.date) * 1000).toISOString() : null,
       });
     }
-    return res.json({ chats: Array.from(chats.values()), raw: updates, limit });
+    return res.json({ chats: Array.from(chats.values()), messages: messages.reverse(), raw: updates, limit });
   } catch (err: any) {
     return res.status(502).json({ detail: "Gagal ambil update Telegram: " + (err?.message ?? "Unknown error") });
   }

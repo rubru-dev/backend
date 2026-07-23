@@ -86,7 +86,12 @@ export const adminApi = {
       .then((r) => r.data),
   getTelegramUpdates: (limit = 20) =>
     apiClient
-      .get<{ chats: Array<{ chat_id: string; type: string | null; title: string | null; username: string | null; last_message: string | null }>; raw: unknown; limit: number }>("/admin/settings/telegram/updates", { params: { limit } })
+      .get<{
+        chats: Array<{ chat_id: string; type: string | null; title: string | null; username: string | null; last_message: string | null }>;
+        messages: Array<{ update_id: number; chat_id: string; type: string | null; title: string | null; username: string | null; text: string | null; date: string | null }>;
+        raw: unknown;
+        limit: number;
+      }>("/admin/settings/telegram/updates", { params: { limit } })
       .then((r) => r.data),
   sendTelegramTest: (data: { chat_id: string; message: string }) =>
     apiClient.post("/admin/telegram/send-test", data).then((r) => r.data),
