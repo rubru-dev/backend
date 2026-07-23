@@ -75,6 +75,20 @@ export const adminApi = {
     apiClient
       .post<{ qr: string | null; raw: unknown }>("/admin/settings/fontee/qr")
       .then((r) => r.data),
+  getTelegramConfig: () =>
+    apiClient.get<{ bot_token: string; api_url: string; default_chat_id: string }>("/admin/settings/telegram").then((r) => r.data),
+  saveTelegramConfig: (data: { bot_token: string; api_url: string; default_chat_id: string }) =>
+    apiClient.put("/admin/settings/telegram", data).then((r) => r.data),
+  getTelegramStatus: () =>
+    apiClient
+      .get<{ connected: boolean; bot: { id: number; username?: string; first_name?: string }; raw: unknown }>("/admin/settings/telegram/status")
+      .then((r) => r.data),
+  getTelegramUpdates: () =>
+    apiClient
+      .get<{ chats: Array<{ chat_id: string; type: string | null; title: string | null; username: string | null; last_message: string | null }>; raw: unknown }>("/admin/settings/telegram/updates")
+      .then((r) => r.data),
+  sendTelegramTest: (data: { chat_id: string; message: string }) =>
+    apiClient.post("/admin/telegram/send-test", data).then((r) => r.data),
   getReminderRules: () =>
     apiClient.get<{ rules: ReminderRule[]; roles: { id: number; name: string }[] }>("/admin/settings/reminder-rules").then((r) => r.data),
   updateReminderRule: (id: number, data: { days_before?: number; send_time?: string; is_active?: boolean; role_ids?: number[]; message_template?: string | null; priority?: string }) =>

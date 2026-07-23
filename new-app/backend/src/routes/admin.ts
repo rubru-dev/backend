@@ -4,6 +4,7 @@ import { prisma } from "../lib/prisma";
 import { requireRole } from "../middleware/requireRole";
 import { hashPassword } from "../lib/security";
 import { sendFonnte } from "../lib/fontee";
+import { getTelegramMe, getTelegramUpdates, sendTelegram } from "../lib/telegram";
 import { config } from "../config";
 
 const router = Router();
@@ -450,6 +451,76 @@ router.post("/fontee/send-test", requireRole("Super Admin"), async (req: Request
     return res.json({ message: "Pesan terkirim" });
   } catch (err: any) {
     return res.status(502).json({ detail: "Gagal kirim pesan: " + (err?.message ?? "Unknown error") });
+  }
+});
+
+// Telegram settings
+router.get("/settings/telegram", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  const setting = await prisma.appSetting.findUnique({ where: { key: "telegram_config" } });
+  const cfg = (setting?.value as Record<string, string> | null) ?? {};
+  return res.json({
+    bot_token: cfg.bot_token ?? "",
+    api_url: cfg.api_url ?? "",
+    default_chat_id: cfg.default_chat_id ?? "",
+  });
+});
+
+router.put("/settings/telegram", requireRole("Super Admin"), async (req: Request, res: Response) => {
+  const { bot_token, api_url, default_chat_id } = req.body;
+  const value = {
+    bot_token: bot_token ?? "",
+    api_url: api_url ?? "",
+    default_chat_id: default_chat_id ?? "",
+  };
+  await prisma.appSetting.upsert({
+    where: { key: "telegram_config" },
+    update: { value },
+    create: { key: "telegram_config", value },
+  });
+  return res.json({ message: "Telegram config disimpan" });
+});
+
+router.get("/settings/telegram/status", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  try {
+    const bot = await getTelegramMe();
+    return res.json({ connected: true, bot, raw: bot });
+  } catch (err: any) {
+    return res.status(502).json({ detail: "Gagal cek bot Telegram: " + (err?.message ?? "Unknown error") });
+  }
+});
+
+router.get("/settings/telegram/updates", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  try {
+    const updates = await getTelegramUpdates();
+    const chats = new Map<string, { chat_id: string; type: string | null; title: string | null; username: string | null; last_message: string | null }>();
+    for (const update of updates) {
+      const msg = update.message ?? update.channel_post ?? update.edited_message ?? update.edited_channel_post;
+      const chat = msg?.chat;
+      if (!chat?.id) continue;
+      chats.set(String(chat.id), {
+        chat_id: String(chat.id),
+        type: chat.type ?? null,
+        title: chat.title ?? ([chat.first_name, chat.last_name].filter(Boolean).join(" ") || null),
+        username: chat.username ?? null,
+        last_message: msg.text ?? msg.caption ?? null,
+      });
+    }
+    return res.json({ chats: Array.from(chats.values()), raw: updates });
+  } catch (err: any) {
+    return res.status(502).json({ detail: "Gagal ambil update Telegram: " + (err?.message ?? "Unknown error") });
+  }
+});
+
+router.post("/telegram/send-test", requireRole("Super Admin"), async (req: Request, res: Response) => {
+  const { chat_id, message } = req.body;
+  if (!chat_id || !message) {
+    return res.status(400).json({ detail: "chat_id dan message wajib diisi" });
+  }
+  try {
+    await sendTelegram(String(chat_id), String(message));
+    return res.json({ message: "Pesan Telegram terkirim" });
+  } catch (err: any) {
+    return res.status(502).json({ detail: "Gagal kirim pesan Telegram: " + (err?.message ?? "Unknown error") });
   }
 });
 

@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuthStore } from "@/store/authStore";
-import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, QrCode } from "lucide-react";
+import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, QrCode, Bot, RefreshCw } from "lucide-react";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string; active: string; inactive: string }> = {
   rendah: { label: "Rendah", emoji: "🟢", active: "bg-green-600 text-white border-green-600",  inactive: "bg-green-50 text-green-700 border-green-300 hover:bg-green-100" },
@@ -493,6 +493,198 @@ function FonnteTab() {
   );
 }
 
+function TelegramTab() {
+  const [form, setForm] = useState({ bot_token: "", api_url: "", default_chat_id: "" });
+  const [showToken, setShowToken] = useState(false);
+  const [testChatId, setTestChatId] = useState("");
+  const [testMsg, setTestMsg] = useState("Halo! Ini pesan test Telegram dari sistem RubahRumah.");
+
+  const { data: cfg, isLoading } = useQuery({
+    queryKey: ["telegram-config"],
+    queryFn: () => adminApi.getTelegramConfig(),
+    retry: false,
+  });
+
+  useEffect(() => {
+    if (!cfg) return;
+    setForm({
+      bot_token: cfg.bot_token ?? "",
+      api_url: cfg.api_url || "https://api.telegram.org",
+      default_chat_id: cfg.default_chat_id ?? "",
+    });
+    setTestChatId(cfg.default_chat_id ?? "");
+  }, [cfg]);
+
+  const saveMut = useMutation({
+    mutationFn: () => adminApi.saveTelegramConfig(form),
+    onSuccess: () => toast.success("Konfigurasi Telegram disimpan"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan konfigurasi Telegram"),
+  });
+
+  const statusMut = useMutation({
+    mutationFn: () => adminApi.getTelegramStatus(),
+    onSuccess: (data) => toast.success(`Bot aktif: @${data.bot.username ?? data.bot.first_name ?? data.bot.id}`),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal cek bot Telegram"),
+  });
+
+  const updatesMut = useMutation({
+    mutationFn: () => adminApi.getTelegramUpdates(),
+    onSuccess: (data) => {
+      if (data.chats.length === 0) toast.info("Belum ada chat. Kirim /start ke bot atau kirim pesan di grup, lalu ambil ulang.");
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal ambil chat Telegram"),
+  });
+
+  const sendTestMut = useMutation({
+    mutationFn: (d: { chat_id: string; message: string }) => adminApi.sendTelegramTest(d),
+    onSuccess: () => toast.success("Pesan test Telegram berhasil dikirim!"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal kirim pesan test Telegram"),
+  });
+
+  const chats = updatesMut.data?.chats ?? [];
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Bot className="h-5 w-5" />Konfigurasi Telegram Bot</CardTitle>
+          <CardDescription>Token dari BotFather dan chat tujuan default untuk uji coba reminder Telegram.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isLoading ? (
+            <p className="text-sm text-muted-foreground flex items-center gap-2">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />Memuat...
+            </p>
+          ) : (
+            <>
+              <div>
+                <Label>Bot Token</Label>
+                <div className="relative">
+                  <Input
+                    type={showToken ? "text" : "password"}
+                    placeholder="Token dari @BotFather"
+                    value={form.bot_token}
+                    onChange={(e) => setForm({ ...form, bot_token: e.target.value })}
+                  />
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
+                    onClick={() => setShowToken((v) => !v)}
+                    title={showToken ? "Sembunyikan token" : "Tampilkan token"}
+                  >
+                    {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </button>
+                </div>
+              </div>
+              <div>
+                <Label>API URL</Label>
+                <Input
+                  placeholder="https://api.telegram.org"
+                  value={form.api_url}
+                  onChange={(e) => setForm({ ...form, api_url: e.target.value })}
+                />
+              </div>
+              <div>
+                <Label>Default Chat ID</Label>
+                <Input
+                  placeholder="-100xxxxxxxxxx atau chat id personal"
+                  value={form.default_chat_id}
+                  onChange={(e) => {
+                    setForm({ ...form, default_chat_id: e.target.value });
+                    setTestChatId(e.target.value);
+                  }}
+                />
+                <p className="text-xs text-muted-foreground mt-1">Untuk grup biasanya diawali -100. Untuk personal, user harus /start bot dulu.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={() => saveMut.mutate()} disabled={!form.bot_token || !form.api_url || saveMut.isPending}>
+                  {saveMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : "Simpan"}
+                </Button>
+                <Button variant="outline" onClick={() => statusMut.mutate()} disabled={statusMut.isPending}>
+                  {statusMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengecek...</> : <><Bot className="h-3.5 w-3.5 mr-1.5" />Cek Bot</>}
+                </Button>
+              </div>
+              {statusMut.data?.bot && (
+                <div className="text-sm border rounded-md p-3 bg-muted/40">
+                  <div className="font-medium">@{statusMut.data.bot.username ?? "-"}</div>
+                  <div className="text-muted-foreground">ID: {statusMut.data.bot.id}</div>
+                </div>
+              )}
+            </>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><RefreshCw className="h-4 w-4" />Ambil Chat ID</CardTitle>
+          <CardDescription>Kirim /start ke bot atau kirim pesan di grup yang berisi bot, lalu ambil daftar chat terakhir.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <Button variant="outline" onClick={() => updatesMut.mutate()} disabled={updatesMut.isPending}>
+            {updatesMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengambil...</> : <><RefreshCw className="h-3.5 w-3.5 mr-1.5" />Ambil Chat Terakhir</>}
+          </Button>
+          {chats.length > 0 && (
+            <div className="space-y-2">
+              {chats.map((chat) => (
+                <div key={chat.chat_id} className="border rounded-md p-3 text-sm flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="font-medium truncate">{chat.title || chat.username || chat.chat_id}</div>
+                    <div className="text-xs text-muted-foreground">chat_id: <span className="font-mono">{chat.chat_id}</span> · {chat.type ?? "-"}</div>
+                    {chat.last_message && <div className="text-xs text-muted-foreground truncate mt-1">{chat.last_message}</div>}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setForm({ ...form, default_chat_id: chat.chat_id });
+                      setTestChatId(chat.chat_id);
+                    }}
+                  >
+                    Pakai
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+          {updatesMut.data && (
+            <details>
+              <summary className="text-xs text-muted-foreground cursor-pointer">Respons mentah Telegram</summary>
+              <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-x-auto max-h-48">{JSON.stringify(updatesMut.data.raw, null, 2)}</pre>
+            </details>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Send className="h-4 w-4" />Test Kirim Pesan</CardTitle>
+          <CardDescription>Kirim pesan percobaan ke chat ID Telegram.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label>Chat ID Tujuan</Label>
+            <Input placeholder="-100xxxxxxxxxx" value={testChatId} onChange={(e) => setTestChatId(e.target.value)} />
+          </div>
+          <div>
+            <Label>Pesan</Label>
+            <Input value={testMsg} onChange={(e) => setTestMsg(e.target.value)} />
+          </div>
+          <Button
+            variant="outline"
+            onClick={() => sendTestMut.mutate({ chat_id: testChatId, message: testMsg })}
+            disabled={!testChatId || !testMsg || sendTestMut.isPending}
+          >
+            {sendTestMut.isPending
+              ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengirim...</>
+              : <><Send className="h-3.5 w-3.5 mr-1.5" />Kirim Test</>}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { user, isSuperAdmin } = useAuthStore();
   const superAdmin = isSuperAdmin();
@@ -543,6 +735,7 @@ export default function SettingsPage() {
         <TabsList>
           <TabsTrigger value="akun"><Settings className="h-3.5 w-3.5 mr-1.5" />Akun</TabsTrigger>
           {superAdmin && <TabsTrigger value="fonnte"><Zap className="h-3.5 w-3.5 mr-1.5" />Fonnte</TabsTrigger>}
+          {superAdmin && <TabsTrigger value="telegram"><Bot className="h-3.5 w-3.5 mr-1.5" />Telegram</TabsTrigger>}
           {superAdmin && <TabsTrigger value="reminder"><Bell className="h-3.5 w-3.5 mr-1.5" />Reminder Rules</TabsTrigger>}
         </TabsList>
 
@@ -582,6 +775,11 @@ export default function SettingsPage() {
         {/* Fonnte tab */}
         <TabsContent value="fonnte" className="mt-4 space-y-4">
           {superAdmin && <FonnteTab />}
+        </TabsContent>
+
+        {/* Telegram tab */}
+        <TabsContent value="telegram" className="mt-4 space-y-4">
+          {superAdmin && <TelegramTab />}
         </TabsContent>
 
         {/* Reminder Rules tab */}

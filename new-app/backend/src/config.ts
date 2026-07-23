@@ -15,6 +15,8 @@ export const config = {
   storagePath: process.env.STORAGE_PATH ?? path.resolve(__dirname, "../storage"),
   fonnteToken: process.env.FONNTE_TOKEN ?? "",
   fonnteApiUrl: process.env.FONNTE_API_URL ?? "https://api.fonnte.com/send",
+  telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
+  telegramApiUrl: process.env.TELEGRAM_API_URL ?? "https://api.telegram.org",
   metaAdsAccessToken: process.env.META_ADS_ACCESS_TOKEN ?? "",
   metaAdsAdAccountId: process.env.META_ADS_AD_ACCOUNT_ID ?? "",
   metaAdsApiVersion: process.env.META_ADS_API_VERSION ?? "v21.0",

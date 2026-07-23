@@ -45,6 +45,8 @@ services:
       STORAGE_PATH: storage
       FONNTE_TOKEN: ${FONNTE_TOKEN:-}
       FONNTE_API_URL: https://api.fonnte.com/send
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      TELEGRAM_API_URL: ${TELEGRAM_API_URL:-https://api.telegram.org}
       META_ADS_ACCESS_TOKEN: ${META_ADS_ACCESS_TOKEN:-}
       META_ADS_AD_ACCOUNT_ID: ${META_ADS_AD_ACCOUNT_ID:-}
       META_ADS_API_VERSION: v21.0
