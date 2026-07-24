@@ -204,6 +204,8 @@ function leadDict(l: {
   tahun: number | null; rencana_survey: string | null; tanggal_survey: Date | null;
   jam_survey: string | null; pic_survey: string | null; modul: string | null;
   survey_approval_status: string | null;
+  survey_signature?: string | null;
+  survey_approved_at?: Date | null;
   foto_survey?: string | null;
   luasan_tanah?: any;
   catatan_survey?: string | null;
@@ -224,6 +226,8 @@ function leadDict(l: {
     rencana_survey: l.rencana_survey, tanggal_survey: l.tanggal_survey,
     jam_survey: l.jam_survey, pic_survey: l.pic_survey, modul: l.modul,
     survey_approval_status: l.survey_approval_status?.toLowerCase() ?? null,
+    survey_signature: l.survey_signature ?? null,
+    survey_approved_at: l.survey_approved_at ?? null,
     foto_survey: l.foto_survey ?? null,
     luasan_tanah: l.luasan_tanah != null ? parseFloat(String(l.luasan_tanah)) : null,
     catatan_survey: l.catatan_survey ?? null,
@@ -2617,6 +2621,30 @@ router.post("/:modul/leads/:id/reject-survey", requireRole("Head Golden"), async
     data: { survey_approval_status: "rejected", survey_approved_by: req.user!.id, survey_approved_at: new Date() },
   });
   return res.json({ message: "Survey ditolak" });
+});
+
+// POST /bd/:modul/leads/:id/sign-survey — approve via tanda tangan (Super Admin / Head Golden).
+// Menyimpan gambar TTD sekaligus menandai survey approved. Super Admin selalu lolos requireRole.
+router.post("/:modul/leads/:id/sign-survey", requireRole("Head Golden"), async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+  const id = BigInt(req.params.id);
+  const { signature } = req.body;
+  if (!signature || typeof signature !== "string") {
+    return res.status(400).json({ detail: "Tanda tangan wajib" });
+  }
+  const lead = await prisma.lead.findUnique({ where: { id } });
+  if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
+  await prisma.lead.update({
+    where: { id },
+    data: {
+      survey_signature: signature,
+      survey_approval_status: "approved",
+      survey_approved_by: req.user!.id,
+      survey_approved_at: new Date(),
+    },
+  });
+  return res.json({ message: "Survey disetujui & ditandatangani" });
 });
 
 router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => {

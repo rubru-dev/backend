@@ -99,6 +99,17 @@ const styles = StyleSheet.create({
     flexDirection: "row", justifyContent: "space-between",
   },
   footerText: { fontSize: 7, color: GRAY },
+
+  // Blok tanda tangan / persetujuan
+  signWrap: { marginTop: 20, flexDirection: "row", justifyContent: "flex-end" },
+  signBox: { width: 220, alignItems: "center" },
+  signCaption: { fontSize: 8.5, color: GRAY, marginBottom: 4 },
+  signArea: { width: 200, height: 80, alignItems: "center", justifyContent: "center" },
+  signImage: { width: 160, height: 76, objectFit: "contain" },
+  signLine: { width: 200, borderTopWidth: 1, borderTopColor: DARK, marginTop: 2, paddingTop: 3, alignItems: "center" },
+  signName: { fontSize: 9, fontWeight: "bold", color: DARK },
+  signRole: { fontSize: 7.5, color: GRAY, marginTop: 1 },
+  signPending: { fontSize: 8, color: "#a8a29e", fontStyle: "italic" },
 });
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -114,6 +125,13 @@ function formatTanggalSurvey(tanggal?: string | null, jam?: string | null) {
 /** @react-pdf gagal render seluruh dokumen kalau src Image tidak valid — saring dulu */
 function isRenderableImage(src: string) {
   return typeof src === "string" && /^(data:image\/|https?:\/\/)/.test(src);
+}
+
+function formatApprovedDate(v?: string | null) {
+  if (!v) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -134,6 +152,8 @@ export interface AfterSurveyReportData {
   kondisi_lokasi?: { dokumentasi: string[]; keterangan: string }[];
   kebutuhan?: { area: string; kebutuhan: string }[];
   catatan_tambahan?: string;
+  signature?: string | null;
+  approved_at?: string | null;
 }
 
 export interface AfterSurveyPDFProps {
@@ -287,6 +307,26 @@ export function AfterSurveyPDF({ reports, logoUrl }: AfterSurveyPDFProps) {
                 </View>
               </>
             )}
+
+            {/* Persetujuan / Tanda Tangan */}
+            <View style={styles.signWrap} wrap={false}>
+              <View style={styles.signBox}>
+                <Text style={styles.signCaption}>
+                  Bekasi, {r.approved_at ? formatApprovedDate(r.approved_at) : "________________"}
+                </Text>
+                <View style={styles.signArea}>
+                  {r.signature && isRenderableImage(r.signature) ? (
+                    <Image style={styles.signImage} src={r.signature} />
+                  ) : (
+                    <Text style={styles.signPending}>Menunggu persetujuan</Text>
+                  )}
+                </View>
+                <View style={styles.signLine}>
+                  <Text style={styles.signName}>{COMPANY.name}</Text>
+                  <Text style={styles.signRole}>Menyetujui / Verifikasi Survey</Text>
+                </View>
+              </View>
+            </View>
 
             <View style={styles.footer} fixed>
               <Text style={styles.footerText}>{COMPANY.name} — After Survey Report</Text>

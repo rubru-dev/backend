@@ -17,9 +17,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { SignatureDialog } from "@/components/signature-dialog";
 import {
   CalendarDays, CheckCircle, XCircle, Clock,
-  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X, RotateCcw, EyeOff,
+  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X, RotateCcw, EyeOff, Eye, PenLine,
 } from "lucide-react";
 
 /** Ambil koordinat GPS + nama lokasi via Nominatim reverse geocoding */
@@ -476,6 +479,25 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan bukti"),
   });
 
+  // Approval via tanda tangan (Super Admin / Head Golden) — langsung set approved.
+  const [signTarget, setSignTarget] = useState<any | null>(null);
+  const signMut = useMutation({
+    mutationFn: ({ id, signature }: { id: number; signature: string }) =>
+      apiClient.post(`/bd/${modul}/leads/${id}/sign-survey`, { signature }).then((r) => r.data),
+    onSuccess: () => {
+      toast.success("Survey disetujui & ditandatangani");
+      qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
+      setSignTarget(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menandatangani"),
+  });
+
+  // Download PDF laporan untuk SATU item (dipakai tombol PDF per-baris di tabel).
+  function downloadOneReportPdf(item: any) {
+    if (useGoldenSurveyReportTemplate) handleDownloadGoldenSurveyPdf([item]);
+    else handleDownloadKonstruksiSurveyPdf([item]);
+  }
+
   // ── Derived data ─────────────────────────────────────────────────────────────
 
   const items: any[] = Array.isArray(data) ? data : (data?.items ?? []);
@@ -736,14 +758,12 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setListFotoProcessing(true);
-    // Foto kondisi lokasi tetap dicap timestamp + GPS seperti bukti survey sebelumnya
-    const coords = await getLocation();
+    // Foto kondisi lokasi: TANPA GPS/timestamp — cukup foto apa adanya (deskripsi via keterangan).
     const raws = await Promise.all(files.map(readFileAsDataUrl));
-    const stamped = await Promise.all(raws.map((r) => addTimestamp(r, coords)));
     setKonstruksiReportForm((prev) => {
       const rows = [...prev.kondisi_lokasi];
       const current = rows[index] ?? { dokumentasi: [], keterangan: "" };
-      rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...stamped] };
+      rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...raws] };
       return { ...prev, kondisi_lokasi: rows };
     });
     setListFotoProcessing(false);
@@ -1011,6 +1031,8 @@ ${sections}
           jam_survey: item.jam_survey,
           pic_survey: item.pic_survey,
           ...report,
+          signature: item.survey_signature ?? null,
+          approved_at: item.survey_approved_at ?? null,
         };
       });
 
@@ -1338,73 +1360,92 @@ ${sections}
                 Tidak ada jadwal survey bulan ini.
               </p>
             ) : (
-              <div className="divide-y">
-                {[...items]
-                  .sort((a: any, b: any) => {
-                    const da = a.tanggal_survey ?? "";
-                    const db = b.tanggal_survey ?? "";
-                    return da.localeCompare(db);
-                  })
-                  .map((item: any, i: number) => {
-                    const tgl = item.tanggal_survey
-                      ? new Date(String(item.tanggal_survey).split("T")[0] + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
-                      : "—";
-                    return (
-                      <div
-                        key={item.id}
-                        className="flex items-start gap-3 py-3 cursor-pointer hover:bg-muted/30 rounded-lg px-2 -mx-2 transition-colors"
-                        onClick={() => openListDetail(item)}
-                      >
-                        <div className="text-xs text-muted-foreground w-6 shrink-0 mt-1 font-mono">{i + 1}</div>
-                        <div
-                          className={`w-1 self-stretch rounded-full shrink-0 ${
-                            item.survey_approval_status === "approved" ? "bg-green-500"
-                              : item.survey_approval_status === "rejected" ? "bg-gray-300"
-                              : "bg-red-500"
-                          }`}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-semibold text-sm">{item.nama}</span>
-                            {statusBadge(item.survey_approval_status)}
-                            {showAll && item.modul && (
-                              <Badge variant="outline" className="text-[10px] px-1.5">
-                                {item.modul === "sales-admin" ? "Sales Admin" : item.modul === "golden" ? "Golden" : "Telemarketing"}
-                              </Badge>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1 text-xs text-muted-foreground">
-                            <span className="flex items-center gap-1 font-medium text-amber-700">
-                              <CalendarDays className="h-3 w-3" /> {tgl}
-                            </span>
-                            {item.jam_survey && (
-                              <span className="flex items-center gap-1">
-                                <Clock className="h-3 w-3" /> {item.jam_survey}
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-8">#</TableHead>
+                      <TableHead>Klien</TableHead>
+                      <TableHead>Tanggal / Jam</TableHead>
+                      <TableHead>PIC</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Aksi</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[...items]
+                      .sort((a: any, b: any) => {
+                        const da = a.tanggal_survey ?? "";
+                        const db = b.tanggal_survey ?? "";
+                        return da.localeCompare(db);
+                      })
+                      .map((item: any, i: number) => {
+                        const tgl = item.tanggal_survey
+                          ? new Date(String(item.tanggal_survey).split("T")[0] + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
+                          : "—";
+                        const isApproved = item.survey_approval_status === "approved";
+                        return (
+                          <TableRow key={item.id}>
+                            <TableCell className="text-xs text-muted-foreground font-mono">{i + 1}</TableCell>
+                            <TableCell>
+                              <div className="font-semibold text-sm">{item.nama}</div>
+                              {item.alamat && (
+                                <div className="text-xs text-muted-foreground flex items-center gap-1 truncate max-w-[220px]">
+                                  <MapPin className="h-3 w-3 shrink-0" /> {item.alamat}
+                                </div>
+                              )}
+                              {showAll && item.modul && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 mt-0.5">
+                                  {item.modul === "sales-admin" ? "Sales Admin" : item.modul === "golden" ? "Golden" : "Telemarketing"}
+                                </Badge>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs whitespace-nowrap">
+                              <span className="flex items-center gap-1 font-medium text-amber-700">
+                                <CalendarDays className="h-3 w-3" /> {tgl}
                               </span>
-                            )}
-                            {item.pic_survey && (
-                              <span className="flex items-center gap-1">
-                                <User className="h-3 w-3" /> {item.pic_survey}
-                              </span>
-                            )}
-                            {item.nomor_telepon && (
-                              <span className="flex items-center gap-1">
-                                <Phone className="h-3 w-3" /> {item.nomor_telepon}
-                              </span>
-                            )}
-                            {item.alamat && (
-                              <span className="flex items-center gap-1 truncate max-w-xs">
-                                <MapPin className="h-3 w-3 shrink-0" /> {item.alamat}
-                              </span>
-                            )}
-                            {item.jenis && (
-                              <Badge variant="outline" className="text-[10px]">{item.jenis}</Badge>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                              {item.jam_survey && (
+                                <span className="flex items-center gap-1 text-muted-foreground mt-0.5">
+                                  <Clock className="h-3 w-3" /> {item.jam_survey}
+                                </span>
+                              )}
+                            </TableCell>
+                            <TableCell className="text-xs">{item.pic_survey || "—"}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                {statusBadge(item.survey_approval_status)}
+                                {item.survey_signature && (
+                                  <span className="text-[10px] text-green-700 flex items-center gap-0.5" title="Sudah ditandatangani">
+                                    <PenLine className="h-3 w-3" /> TTD
+                                  </span>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex gap-1 justify-end flex-wrap">
+                                {canApprove && !isApproved && (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
+                                    onClick={() => setSignTarget(item)}>
+                                    <PenLine className="h-3 w-3 mr-1" /> Approval TTD
+                                  </Button>
+                                )}
+                                {reportTemplate && (
+                                  <Button size="sm" variant="outline" className="h-7 text-xs"
+                                    onClick={() => downloadOneReportPdf(item)}>
+                                    <FileDown className="h-3 w-3 mr-1" /> PDF
+                                  </Button>
+                                )}
+                                <Button size="sm" variant="outline" className="h-7 text-xs"
+                                  onClick={() => openListDetail(item)}>
+                                  <Eye className="h-3 w-3 mr-1" /> Detail
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                  </TableBody>
+                </Table>
               </div>
             )}
           </CardContent>
@@ -1809,6 +1850,15 @@ ${sections}
 
       </div>
       </>)}
+
+      {/* ── Approval Tanda Tangan (Super Admin / Head Golden) ── */}
+      <SignatureDialog
+        open={!!signTarget}
+        onOpenChange={(v) => !v && setSignTarget(null)}
+        title={`Approval Tanda Tangan — ${signTarget?.nama ?? ""}`}
+        loading={signMut.isPending}
+        onSave={(sig) => signTarget && signMut.mutate({ id: signTarget.id, signature: sig })}
+      />
 
       {/* ── Reject Dialog ── */}
       <Dialog
@@ -2587,7 +2637,7 @@ function KonstruksiSurveyReportFields({
               <p className="text-sm font-semibold">
                 3. Kondisi Lokasi {canUpload && !disabled && <span className="text-destructive">*</span>}
               </p>
-              <p className="text-[11px] text-muted-foreground">Foto lokasi (timestamp + GPS otomatis) | Keterangan</p>
+              <p className="text-[11px] text-muted-foreground">Foto lokasi (tanpa timestamp/GPS) | Deskripsi kondisi lokasi</p>
             </div>
             {!disabled && (
               <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs text-muted-foreground" onClick={() => hideSection("kondisi_lokasi")}>
@@ -2597,7 +2647,7 @@ function KonstruksiSurveyReportFields({
           </div>
           <div className="space-y-2">
             {form.kondisi_lokasi.map((row, i) => (
-              <div key={i} className="grid grid-cols-[28px_1.4fr_1fr_34px] gap-2 items-start rounded-md border bg-white p-2">
+              <div key={i} className="grid grid-cols-[28px_1fr_1.6fr_34px] gap-2 items-start rounded-md border bg-white p-2">
                 <span className="pt-2 text-center text-xs text-muted-foreground">{i + 1}</span>
                 <div className="space-y-2">
                   {row.dokumentasi.length > 0 && (
@@ -2624,11 +2674,13 @@ function KonstruksiSurveyReportFields({
                     </label>
                   )}
                 </div>
-                <Input
+                <Textarea
                   value={row.keterangan}
                   onChange={(e) => updateRow("kondisi_lokasi", i, { keterangan: e.target.value })}
-                  placeholder="Jelaskan kondisi atau temuan pada foto"
+                  placeholder="Deskripsi / catatan tambahan kondisi lokasi (boleh panjang)..."
                   disabled={disabled}
+                  rows={5}
+                  className="min-h-[110px] text-sm"
                 />
                 <Button type="button" variant="ghost" size="icon" disabled={disabled || form.kondisi_lokasi.length <= 1} onClick={() => removeRow("kondisi_lokasi", i)}>
                   <X className="h-4 w-4 text-red-500" />
@@ -2637,7 +2689,7 @@ function KonstruksiSurveyReportFields({
             ))}
             {photoProcessing && (
               <p className="text-xs text-muted-foreground">
-                <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Menambahkan timestamp...
+                <Loader2 className="mr-1 inline h-3 w-3 animate-spin" /> Memproses foto...
               </p>
             )}
             {!disabled && (
