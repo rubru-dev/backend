@@ -1083,7 +1083,16 @@ ${sections}
       const { AfterSurveyPDF } = await import("@/components/after-survey-pdf");
       const { pdf } = await import("@react-pdf/renderer");
       const { saveAs } = await import("file-saver");
-      const blob = await pdf(<AfterSurveyPDF reports={reports} logoUrl={logoUrl} />).toBlob();
+      // v2 — dengan fallback tanpa gambar bila render penuh gagal
+      let blob: Blob;
+      try {
+        blob = await pdf(<AfterSurveyPDF reports={reports} logoUrl={logoUrl} />).toBlob();
+      } catch (fullErr) {
+        console.warn("[After Survey PDF] render lengkap gagal, coba tanpa gambar/TTD:", fullErr);
+        const stripped = reports.map((r: any) => ({ ...r, kondisi_lokasi: [], signature: null }));
+        blob = await pdf(<AfterSurveyPDF reports={stripped} logoUrl="" />).toBlob();
+        toast.warning("PDF dibuat TANPA gambar (ada foto/logo yang tidak didukung).");
+      }
 
       const namaFile = filtered.length === 1
         ? `after-survey-${String(filtered[0].nama ?? "client").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`

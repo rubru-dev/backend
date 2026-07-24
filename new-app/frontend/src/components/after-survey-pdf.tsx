@@ -171,7 +171,7 @@ export interface AfterSurveyPDFProps {
  * tertinggal sendirian di dasar halaman saat konten pecah ke halaman berikutnya.
  */
 function SectionTitle({ children }: { children: string }) {
-  return <Text style={styles.sectionTitle} minPresenceAhead={70}>{children}</Text>;
+  return <Text style={styles.sectionTitle}>{children}</Text>;
 }
 
 function InfoRow({ label, value }: { label: string; value?: string | null }) {
