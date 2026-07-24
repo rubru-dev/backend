@@ -122,9 +122,13 @@ function formatTanggalSurvey(tanggal?: string | null, jam?: string | null) {
   return jam ? `${label} · ${jam}` : label;
 }
 
-/** @react-pdf gagal render seluruh dokumen kalau src Image tidak valid — saring dulu */
-function isRenderableImage(src: string) {
-  return typeof src === "string" && /^(data:image\/|https?:\/\/)/.test(src);
+/**
+ * @react-pdf hanya bisa render JPEG & PNG. Format lain (HEIC/webp/gif/…) yang
+ * lolos akan bikin SELURUH dokumen gagal ("m is not a function"). Karena itu
+ * hanya izinkan data URI jpeg/png, atau URL http (di-fetch react-pdf).
+ */
+function isRenderableImage(src: unknown): src is string {
+  return typeof src === "string" && /^(data:image\/(jpe?g|png);|https?:\/\/)/i.test(src);
 }
 
 function formatApprovedDate(v?: string | null) {
@@ -183,7 +187,7 @@ function Letterhead({ logoUrl }: { logoUrl: string }) {
   return (
     <View style={styles.header}>
       <View style={styles.logoBlock}>
-        {logoUrl ? <Image style={styles.logo} src={logoUrl} /> : null}
+        {isRenderableImage(logoUrl) ? <Image style={styles.logo} src={logoUrl} /> : null}
         <View style={styles.companyInfo}>
           <Text style={styles.companyName}>{COMPANY.name}</Text>
           <Text style={styles.companyTagline}>{COMPANY.tagline}</Text>
