@@ -99,6 +99,40 @@ async function addTimestamp(dataUrl: string, coords?: { lat: number; lng: number
   });
 }
 
+/**
+ * Normalisasi foto ke JPEG via canvas TANPA cap timestamp/GPS + downscale.
+ * PENTING: react-pdf hanya render JPEG/PNG standar. Foto mentah kamera
+ * (webp / EXIF-rotated / terlalu besar) bisa bikin "gagal generate PDF".
+ * Canvas mengubahnya ke JPEG standar sehingga aman dirender.
+ */
+async function normalizeImage(dataUrl: string): Promise<string> {
+  return new Promise((resolve) => {
+    if (!/^data:image\//i.test(dataUrl)) { resolve(dataUrl); return; }
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const maxSide = 1600;
+        let width = img.width, height = img.height;
+        if (Math.max(width, height) > maxSide) {
+          const scale = maxSide / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d")!;
+        ctx.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL("image/jpeg", 0.9));
+      } catch {
+        resolve(dataUrl);
+      }
+    };
+    img.onerror = () => resolve(dataUrl);
+    img.src = dataUrl;
+  });
+}
+
 interface KalenderSurveyProps {
   modul: "sales-admin" | "telemarketing" | "golden" | "filter-air";
   showAll?: boolean;
@@ -758,12 +792,14 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
     setListFotoProcessing(true);
-    // Foto kondisi lokasi: TANPA GPS/timestamp — cukup foto apa adanya (deskripsi via keterangan).
+    // Foto kondisi lokasi: TANPA GPS/timestamp, tapi tetap dinormalisasi ke JPEG
+    // (via canvas) agar bisa dirender di PDF. Deskripsi via keterangan.
     const raws = await Promise.all(files.map(readFileAsDataUrl));
+    const normalized = await Promise.all(raws.map(normalizeImage));
     setKonstruksiReportForm((prev) => {
       const rows = [...prev.kondisi_lokasi];
       const current = rows[index] ?? { dokumentasi: [], keterangan: "" };
-      rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...raws] };
+      rows[index] = { ...current, dokumentasi: [...(current.dokumentasi ?? []), ...normalized] };
       return { ...prev, kondisi_lokasi: rows };
     });
     setListFotoProcessing(false);
@@ -1018,9 +1054,15 @@ ${sections}
     setPdfBusy(true);
     try {
       const today = new Date();
-      const reports = filtered.map((item: any, idx: number) => {
+      const reports = await Promise.all(filtered.map(async (item: any, idx: number) => {
         const report = parseKonstruksiSurveyReportForm(item.catatan_survey, item);
         const nomor = `RB-KS-SVR/${String(idx + 1).padStart(3, "0")}/${String(today.getDate()).padStart(2, "0")}/${String(today.getMonth() + 1).padStart(2, "0")}/${today.getFullYear()}`;
+        // Jaring pengaman: normalisasi semua foto kondisi lokasi ke JPEG standar
+        // supaya foto lama (mentah) pun tetap bisa dirender react-pdf.
+        const kondisi_lokasi = await Promise.all((report.kondisi_lokasi ?? []).map(async (row: any) => ({
+          ...row,
+          dokumentasi: await Promise.all((row.dokumentasi ?? []).map((d: string) => normalizeImage(d))),
+        })));
         // Field "Terisi otomatis" di template — semuanya diambil dari data lead yang dijadwalkan survey
         return {
           nomor,
@@ -1031,10 +1073,11 @@ ${sections}
           jam_survey: item.jam_survey,
           pic_survey: item.pic_survey,
           ...report,
+          kondisi_lokasi,
           signature: item.survey_signature ?? null,
           approved_at: item.survey_approved_at ?? null,
         };
-      });
+      }));
 
       const logoUrl = await getLogoBase64();
       const { AfterSurveyPDF } = await import("@/components/after-survey-pdf");
@@ -1046,7 +1089,8 @@ ${sections}
         ? `after-survey-${String(filtered[0].nama ?? "client").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`
         : `after-survey-${dari && sampai ? `${dari}_${sampai}` : `${MONTH_NAMES_ID[bulan - 1]}-${tahun}`}`;
       saveAs(blob, `${namaFile}.pdf`);
-    } catch {
+    } catch (err) {
+      console.error("[After Survey PDF] gagal generate:", err);
       toast.error("Gagal generate PDF laporan survey");
     } finally {
       setPdfBusy(false);
@@ -1429,7 +1473,7 @@ ${sections}
                                     <PenLine className="h-3 w-3 mr-1" /> Approval TTD
                                   </Button>
                                 )}
-                                {reportTemplate && (
+                                {reportTemplate && isApproved && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs"
                                     onClick={() => downloadOneReportPdf(item)}>
                                     <FileDown className="h-3 w-3 mr-1" /> PDF
