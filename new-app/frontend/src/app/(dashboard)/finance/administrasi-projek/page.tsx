@@ -3208,7 +3208,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
                     : <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setGajianSigDialog({ open: true, gid: g.id })}>
                         <PenLine className="h-3 w-3 mr-1" /> TTD HF
                       </Button>}
-                  {/* PDF Gajian — 2 varian: dengan kasbon (gaji bersih) & tanpa kasbon (gaji kotor) */}
+                  {/* PDF Gajian — dengan kasbon (gaji bersih) */}
                   <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!g.is_fully_signed}
                     title={!g.is_fully_signed ? "Perlu TTD HF terlebih dahulu" : "Rekap gajian dengan potongan kasbon (gaji bersih)"}
                     onClick={() => downloadPDF("gajian", g.items || [], {
@@ -3216,16 +3216,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
                       signatures: { hf: { name: g.hf_name, signature: g.hf_signature, at: g.hf_signed_at } },
                       showKasbon: true,
                     })}>
-                    <FileDown className="h-3 w-3 mr-1" /> Gajian + Kasbon
-                  </Button>
-                  <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!g.is_fully_signed}
-                    title={!g.is_fully_signed ? "Perlu TTD HF terlebih dahulu" : "Rekap gajian tanpa potongan kasbon (gaji kotor)"}
-                    onClick={() => downloadPDF("gajian", g.items || [], {
-                      tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
-                      signatures: { hf: { name: g.hf_name, signature: g.hf_signature, at: g.hf_signed_at } },
-                      showKasbon: false,
-                    })}>
-                    <FileDown className="h-3 w-3 mr-1" /> Gajian
+                    <FileDown className="h-3 w-3 mr-1" /> PDF Gajian
                   </Button>
                   {/* PDF Kwitansi per periode — locked until fully signed */}
                   <Button variant="outline" size="sm" className="h-7 text-xs" disabled={!g.is_fully_signed}
