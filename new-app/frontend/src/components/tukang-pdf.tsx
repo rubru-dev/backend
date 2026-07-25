@@ -335,8 +335,8 @@ function KasbonTable({ data }: { data: any[] }) {
 
 function GajianTable({ data }: { data: any[] }) {
   // data is flat items array for a single gajian period.
-  // CATATAN: kasbon TIDAK dipotong di PDF — pakai gaji kotor (hari_kerja * upah).
-  const grandTotal = data.reduce((s, it) => s + (it.hari_kerja * it.daily_rate), 0);
+  // Total = gaji BERSIH (upah kotor dikurangi kasbon).
+  const grandTotal = data.reduce((s, it) => s + Math.max(0, (it.hari_kerja * it.daily_rate) - (it.kasbon_dipotong || 0)), 0);
   return (
     <>
       <View style={styles.tableHead}>
@@ -344,16 +344,18 @@ function GajianTable({ data }: { data: any[] }) {
         <Text style={[styles.tableHeadCell, styles.cMd]}>Nama Tukang</Text>
         <Text style={[styles.tableHeadCell, { flex: 0.8, textAlign: "right" }]}>Hari</Text>
         <Text style={[styles.tableHeadCell, { flex: 1.5, textAlign: "right" }]}>Upah/Hari</Text>
+        <Text style={[styles.tableHeadCell, { flex: 1.5, textAlign: "right" }]}>Kasbon</Text>
         <Text style={[styles.tableHeadCell, { flex: 1.5, textAlign: "right" }]}>Total</Text>
       </View>
       {data.map((it, i) => {
-        const total = it.hari_kerja * it.daily_rate;
+        const total = Math.max(0, (it.hari_kerja * it.daily_rate) - (it.kasbon_dipotong || 0));
         return (
           <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
             <Text style={[styles.cellText, styles.cNo]}>{i + 1}</Text>
             <Text style={[styles.cellText, styles.cMd]}>{it.tukang_name}</Text>
             <Text style={[styles.cellText, { flex: 0.8, textAlign: "right" }]}>{it.hari_kerja}</Text>
             <Text style={[styles.cellText, { flex: 1.5, textAlign: "right" }]}>{formatRp(it.daily_rate)}</Text>
+            <Text style={[styles.cellText, { flex: 1.5, textAlign: "right" }]}>{it.kasbon_dipotong > 0 ? `-${formatRp(it.kasbon_dipotong)}` : "—"}</Text>
             <Text style={[styles.cellBold, { flex: 1.5, textAlign: "right" }]}>{formatRp(total)}</Text>
           </View>
         );
@@ -369,6 +371,7 @@ function GajianTable({ data }: { data: any[] }) {
           <Text style={[styles.cellWhite, styles.cMd]}>GRAND TOTAL</Text>
           <Text style={[styles.cellWhite, { flex: 0.8 }]} />
           <Text style={[styles.cellWhite, { flex: 1.5 }]} />
+          <Text style={[styles.cellWhite, { flex: 1.5 }]} />
           <Text style={[styles.cellWhite, { flex: 1.5, textAlign: "right" }]}>{formatRp(grandTotal)}</Text>
         </View>
       )}
@@ -377,15 +380,17 @@ function GajianTable({ data }: { data: any[] }) {
 }
 
 function KwitansiTable({ data }: { data: any[] }) {
-  // CATATAN: kasbon TIDAK dipotong — jumlah dibayar pakai gaji kotor (sebelum potong kasbon).
-  const totalDibayar = data.reduce((s, k) => s + (Number(k.jumlah_gaji) + Number(k.kasbon_dipotong || 0)), 0);
+  // Dibayar = gaji BERSIH (jumlah_gaji, sudah dipotong kasbon).
+  const totalDibayar = data.reduce((s, k) => s + (Number(k.jumlah_gaji) || 0), 0);
   return (
     <>
       <View style={styles.tableHead}>
         <Text style={[styles.tableHeadCell, styles.cNo]}>No</Text>
         <Text style={[styles.tableHeadCell, styles.cMd]}>Nama</Text>
         <Text style={[styles.tableHeadCell, styles.cMd]}>Periode</Text>
-        <Text style={[styles.tableHeadCell, { flex: 1.5, textAlign: "right" }]}>Jumlah Dibayar</Text>
+        <Text style={[styles.tableHeadCell, { flex: 1.5, textAlign: "right" }]}>Gaji Kotor</Text>
+        <Text style={[styles.tableHeadCell, { flex: 1.2, textAlign: "right" }]}>Kasbon</Text>
+        <Text style={[styles.tableHeadCell, { flex: 1.5, textAlign: "right" }]}>Dibayar</Text>
         <Text style={[styles.tableHeadCell, styles.cSm]}>Tanggal</Text>
       </View>
       {data.map((k, i) => {
@@ -397,7 +402,9 @@ function KwitansiTable({ data }: { data: any[] }) {
             <Text style={[styles.cellText, styles.cMd]}>
               {k.tanggal_mulai ? `${fmtDate(k.tanggal_mulai)} – ${fmtDate(k.tanggal_selesai)}` : "—"}
             </Text>
-            <Text style={[styles.cellBold, { flex: 1.5, textAlign: "right" }]}>{formatRp(gajiBruto)}</Text>
+            <Text style={[styles.cellText, { flex: 1.5, textAlign: "right" }]}>{formatRp(gajiBruto)}</Text>
+            <Text style={[styles.cellText, { flex: 1.2, textAlign: "right" }]}>{k.kasbon_dipotong > 0 ? `-${formatRp(k.kasbon_dipotong)}` : "—"}</Text>
+            <Text style={[styles.cellBold, { flex: 1.5, textAlign: "right" }]}>{formatRp(k.jumlah_gaji)}</Text>
             <Text style={[styles.cellText, styles.cSm]}>{fmtDate(k.tanggal_pembayaran)}</Text>
           </View>
         );
@@ -412,6 +419,8 @@ function KwitansiTable({ data }: { data: any[] }) {
           <Text style={[styles.cellWhite, styles.cNo]} />
           <Text style={[styles.cellWhite, styles.cMd]}>TOTAL DIBAYAR</Text>
           <Text style={[styles.cellWhite, styles.cMd]} />
+          <Text style={[styles.cellWhite, { flex: 1.5 }]} />
+          <Text style={[styles.cellWhite, { flex: 1.2 }]} />
           <Text style={[styles.cellWhite, { flex: 1.5, textAlign: "right" }]}>{formatRp(totalDibayar)}</Text>
           <Text style={[styles.cellWhite, styles.cSm]} />
         </View>
