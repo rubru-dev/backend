@@ -22,7 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SignatureDialog } from "@/components/signature-dialog";
 import {
   CalendarDays, CheckCircle, XCircle, Clock,
-  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X, RotateCcw, EyeOff, Eye, PenLine,
+  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X, RotateCcw, EyeOff, Eye, PenLine, Save,
 } from "lucide-react";
 
 /** Ambil koordinat GPS + nama lokasi via Nominatim reverse geocoding */
@@ -629,6 +629,16 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     } catch {
       return [raw];
     }
+  }
+
+  // Simpan report SEKARANG (tombol manual) — flush debounce + toast konfirmasi.
+  function saveReportNow() {
+    if (!listDetailItem) return;
+    if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
+    autoSaveMut.mutate(
+      { id: listDetailItem.id, foto_survey: activeReportPhotos(), ...listDetailPayload() },
+      { onSuccess: () => toast.success("Report tersimpan") },
+    );
   }
 
   function closeListDetail() {
@@ -2247,14 +2257,19 @@ ${sections}
               {/* Report tersimpan OTOMATIS. Persetujuan dilakukan lewat tombol
                   "Approval TTD" di tabel — tidak perlu tombol setujui/tolak di sini. */}
               {listDetailItem.survey_approval_status !== "approved" && (canApprove || currentUserName === listDetailItem.pic_survey) && (
-                <div className="flex items-center justify-center gap-1.5 pt-1 text-xs text-muted-foreground">
-                  {autoSaveState === "saving" ? (
-                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Menyimpan otomatis...</>
-                  ) : autoSaveState === "saved" ? (
-                    <><CheckCircle className="h-3.5 w-3.5 text-green-600" /> Tersimpan otomatis</>
-                  ) : (
-                    <span>Perubahan tersimpan otomatis</span>
-                  )}
+                <div className="flex items-center justify-between gap-2 pt-1">
+                  <span className="text-xs text-muted-foreground flex items-center gap-1.5">
+                    {autoSaveState === "saving" ? (
+                      <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Menyimpan...</>
+                    ) : autoSaveState === "saved" ? (
+                      <><CheckCircle className="h-3.5 w-3.5 text-green-600" /> Tersimpan otomatis</>
+                    ) : (
+                      <span>Perubahan tersimpan otomatis</span>
+                    )}
+                  </span>
+                  <Button onClick={saveReportNow} disabled={autoSaveMut.isPending}>
+                    <Save className="h-4 w-4 mr-1.5" /> {autoSaveMut.isPending ? "Menyimpan..." : "Simpan"}
+                  </Button>
                 </div>
               )}
               {listDetailItem.survey_approval_status === "rejected" && canSchedule && (
