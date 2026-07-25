@@ -2772,12 +2772,17 @@ router.get("/adm-projek/:id/tukang/gajian", async (req: Request, res: Response) 
       kwitansis: { select: { id: true, tukang_name: true, jumlah_gaji: true, kasbon_dipotong: true, tanggal_pembayaran: true } },
     },
   });
+  // Nama Head Finance penandatangan (untuk PDF) — diturunkan dari user by hf_signed_by.
+  const hfIds = [...new Set(gajians.map((g) => g.hf_signed_by).filter((x): x is bigint => x != null))];
+  const hfUsers = hfIds.length ? await prisma.user.findMany({ where: { id: { in: hfIds } }, select: { id: true, name: true } }) : [];
+  const hfNameById = new Map(hfUsers.map((u) => [String(u.id), u.name]));
   return res.json(gajians.map((g) => ({
     id: g.id, tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
     bulan: g.bulan, tahun: g.tahun,
     total_hari_kerja: g.total_hari_kerja, total_gaji: Number(g.total_gaji),
     kwitansi_dibuat: g.kwitansis.length > 0,
     hf_signature: g.hf_signature, hf_signed_at: g.hf_signed_at,
+    hf_name: g.hf_signed_by ? (hfNameById.get(String(g.hf_signed_by)) ?? null) : null,
     is_fully_signed: !!g.hf_signature,
     items: g.items.map((i) => ({
       id: i.id, tukang_id: i.tukang_id, tukang_name: i.tukang_name,

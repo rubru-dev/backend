@@ -3213,7 +3213,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
                     title={!g.is_fully_signed ? "Perlu TTD HF terlebih dahulu" : undefined}
                     onClick={() => downloadPDF("gajian", g.items || [], {
                       tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
-                      signatures: { hf: { signature: g.hf_signature, at: g.hf_signed_at } },
+                      signatures: { hf: { name: g.hf_name, signature: g.hf_signature, at: g.hf_signed_at } },
                     })}>
                     <FileDown className="h-3 w-3 mr-1" /> PDF Gajian
                   </Button>
@@ -3222,7 +3222,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
                     title={!g.is_fully_signed ? "Perlu TTD HF terlebih dahulu" : undefined}
                     onClick={() => downloadPDF("kwitansi", g.kwitansis || [], {
                       tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
-                      signatures: { hf: { signature: g.hf_signature, at: g.hf_signed_at } },
+                      signatures: { hf: { name: g.hf_name, signature: g.hf_signature, at: g.hf_signed_at } },
                     })}>
                     <FileDown className="h-3 w-3 mr-1" /> PDF Kwitansi
                   </Button>
