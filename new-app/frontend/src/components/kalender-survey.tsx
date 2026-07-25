@@ -1079,17 +1079,33 @@ ${sections}
         };
       }));
 
+      console.log("[survey pdf] step: reports built =", reports.length);
       const logoUrl = await getLogoBase64();
+      console.log("[survey pdf] step: logo len =", logoUrl?.length ?? 0);
+      const pdfMod = await import("@react-pdf/renderer");
       const { AfterSurveyPDF } = await import("@/components/after-survey-pdf");
-      const { pdf } = await import("@react-pdf/renderer");
       const { saveAs } = await import("file-saver");
-      // v2 — dengan fallback tanpa gambar bila render penuh gagal
+      const pdf = (pdfMod as any).pdf ?? (pdfMod as any).default?.pdf;
+      console.log("[survey pdf] step: imports; typeof pdf =", typeof pdf, "typeof saveAs =", typeof saveAs);
+
+      // TES mesin react-pdf dengan dokumen minimal (memisahkan bug mesin vs komponen)
+      try {
+        const { Document, Page, Text } = pdfMod as any;
+        await pdf(<Document><Page size="A4"><Text>test</Text></Page></Document>).toBlob();
+        console.log("[survey pdf] step: mesin react-pdf OK");
+      } catch (engineErr) {
+        console.error("[survey pdf] MESIN react-pdf GAGAL (bukan komponen):", String(engineErr), engineErr);
+      }
+
+      // v3 — dengan fallback tanpa gambar bila render penuh gagal
       let blob: Blob;
       try {
+        console.log("[survey pdf] step: render FULL");
         blob = await pdf(<AfterSurveyPDF reports={reports} logoUrl={logoUrl} />).toBlob();
       } catch (fullErr) {
-        console.warn("[After Survey PDF] render lengkap gagal, coba tanpa gambar/TTD:", fullErr);
+        console.warn("[survey pdf] render FULL gagal:", String(fullErr), fullErr);
         const stripped = reports.map((r: any) => ({ ...r, kondisi_lokasi: [], signature: null }));
+        console.log("[survey pdf] step: render STRIPPED (tanpa gambar/TTD)");
         blob = await pdf(<AfterSurveyPDF reports={stripped} logoUrl="" />).toBlob();
         toast.warning("PDF dibuat TANPA gambar (ada foto/logo yang tidak didukung).");
       }
@@ -1099,7 +1115,7 @@ ${sections}
         : `after-survey-${dari && sampai ? `${dari}_${sampai}` : `${MONTH_NAMES_ID[bulan - 1]}-${tahun}`}`;
       saveAs(blob, `${namaFile}.pdf`);
     } catch (err) {
-      console.error("[After Survey PDF] gagal generate:", err);
+      console.error("[After Survey PDF] gagal generate:", String(err), "| stack:", (err as any)?.stack?.slice(0, 300), err);
       toast.error("Gagal generate PDF laporan survey");
     } finally {
       setPdfBusy(false);

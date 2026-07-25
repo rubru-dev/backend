@@ -160,6 +160,15 @@ if [ "$DO_FRONTEND" = true ]; then
   [ -d "$FRONTEND_DIR/.next" ] || fail "Build frontend tidak menghasilkan .next/"
   ok "Build frontend OK"
 
+  # Next.js output:"standalone" TIDAK menyalin static & public ke .next/standalone
+  # secara otomatis. Tanpa langkah ini, server standalone tetap menyajikan chunk JS
+  # LAMA → deploy terlihat "tidak ngefek" (hash file JS tak berubah di browser).
+  if [ -d "$FRONTEND_DIR/.next/standalone" ]; then
+    cp -r "$FRONTEND_DIR/.next/static" "$FRONTEND_DIR/.next/standalone/.next/" 2>/dev/null || true
+    [ -d "$FRONTEND_DIR/public" ] && cp -r "$FRONTEND_DIR/public" "$FRONTEND_DIR/.next/standalone/" 2>/dev/null || true
+    ok "Static & public disalin ke .next/standalone"
+  fi
+
   step "8. Frontend — restart PM2"
   pm2 restart "$PM2_FRONTEND" --update-env
   ok "PM2 '$PM2_FRONTEND' di-restart"
