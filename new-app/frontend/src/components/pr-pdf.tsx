@@ -74,6 +74,11 @@ const formatDate = (d: string | Date | null | undefined) => {
   if (!d) return "-";
   return new Date(d).toLocaleDateString("id-ID", { day: "2-digit", month: "long", year: "numeric" });
 };
+const pdfPrintDate = () => {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
+};
 
 export interface PRPDFProps {
   project: { nama_proyek?: string | null; klien?: string | null };
@@ -206,6 +211,7 @@ export default function PRPDF({ project, pr, items, total }: PRPDFProps) {
           </View>
           <View style={styles.signBox}>
             <Text style={styles.signTitle}>Head Finance</Text>
+            <Text style={{ fontSize: 8.5, color: DARK, marginBottom: 6 }}>Bekasi, {pdfPrintDate()}</Text>
             {pr.hf_signed_at ? (
               <>
                 {pr.hf_signature && (
@@ -213,8 +219,6 @@ export default function PRPDF({ project, pr, items, total }: PRPDFProps) {
                 )}
                 <View style={styles.signLine}>
                   <Text style={styles.signName}>{pr.hf_name || "-"}</Text>
-                  <Text style={styles.signDate}>{formatDate(pr.hf_signed_at)}</Text>
-                  <Text style={styles.signDate}>Bekasi</Text>
                 </View>
               </>
             ) : (

@@ -153,6 +153,11 @@ function formatDate(d: string | Date | null) {
   if (!d) return "-";
   return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 }
+function pdfPrintDate() {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
+}
 function softBreak(value: string) {
   return value.replace(/([/\\\-()])/g, "$1\u200B");
 }
@@ -301,6 +306,7 @@ export function KwitansiPDF({
         <View style={styles.signRow}>
           <View style={styles.signBlock}>
             <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Head Finance</Text></View>
+            <Text style={{ fontSize: 8.5, color: DARK, marginBottom: 6 }}>Bekasi, {pdfPrintDate()}</Text>
             {head_finance?.signature ? (
               <View style={styles.signArea}>
                 {/* Logo sebagai watermark di belakang TTD — samar agar tinta TTD tetap dominan */}
@@ -313,8 +319,6 @@ export function KwitansiPDF({
               <View style={styles.signImageEmpty} />
             )}
             <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
-            {head_finance?.at && <Text style={styles.signDate}>{formatDate(head_finance.at)}</Text>}
-            {head_finance?.signature ? <Text style={styles.signDate}>Bekasi</Text> : null}
           </View>
         </View>
 

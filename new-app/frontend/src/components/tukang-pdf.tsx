@@ -127,6 +127,11 @@ function fmtDate(d: string | Date | null | undefined) {
   if (!d) return "—";
   return new Date(d).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" });
 }
+function pdfPrintDate() {
+  const d = new Date();
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${p(d.getDate())}-${p(d.getMonth() + 1)}-${d.getFullYear()}`;
+}
 
 const DOC_TITLES: Record<TukangPDFType, string> = {
   registry: "DAFTAR TUKANG",
@@ -199,6 +204,7 @@ export default function TukangPDF({ type, project, data, meta, logoUrl }: Tukang
               <View style={styles.signTitleBox}>
                 <Text style={styles.signTitleText}>Head Finance</Text>
               </View>
+              <Text style={{ fontSize: 8.5, color: DARK, marginBottom: 6 }}>Bekasi, {pdfPrintDate()}</Text>
               {meta.signatures.hf.signature ? (
                 <View style={styles.signArea}>
                   {logoUrl && <Image style={styles.signWatermark} src={logoUrl} />}
@@ -209,8 +215,6 @@ export default function TukangPDF({ type, project, data, meta, logoUrl }: Tukang
                 <View style={styles.signImageEmpty} />
               )}
               <Text style={styles.signName}>{meta.signatures.hf.name || "___________________"}</Text>
-              {meta.signatures.hf.at && <Text style={styles.signDate}>{fmtDate(meta.signatures.hf.at)}</Text>}
-              {meta.signatures.hf.signature ? <Text style={styles.signDate}>Bekasi</Text> : null}
             </View>
           </View>
         )}
