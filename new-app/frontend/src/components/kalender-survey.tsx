@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import type { ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -423,6 +423,10 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   const [listDetailFotos, setListDetailFotos] = useState<string[]>([]);
   const [listDetailLuasan, setListDetailLuasan] = useState("");
   const [listDetailCatatan, setListDetailCatatan] = useState("");
+  // Auto-save report
+  const [autoSaveState, setAutoSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoSaveReady = useRef(false);
   const [goldenReportForm, setGoldenReportForm] = useState<GoldenSurveyReportForm>(() => defaultGoldenSurveyReportForm());
   const [konstruksiReportForm, setKonstruksiReportForm] = useState<KonstruksiSurveyReportForm>(() => defaultKonstruksiSurveyReportForm());
   const listFotoRef = useRef<HTMLInputElement>(null);
@@ -526,6 +530,17 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menandatangani"),
   });
 
+  // Auto-save report (silent, tanpa toast) — dipanggil debounced saat form berubah.
+  const autoSaveMut = useMutation({
+    mutationFn: (p: { id: number; foto_survey: string[]; luasan_tanah?: string; catatan_survey?: string }) =>
+      apiClient.patch(`/bd/${modul}/leads/${p.id}/bukti-survey`, {
+        foto_survey: p.foto_survey, luasan_tanah: p.luasan_tanah || undefined, catatan_survey: p.catatan_survey || undefined,
+      }).then((r) => r.data),
+    onMutate: () => setAutoSaveState("saving"),
+    onSuccess: () => { setAutoSaveState("saved"); qc.invalidateQueries({ queryKey: ["survey-kalender", modul] }); },
+    onError: () => setAutoSaveState("idle"),
+  });
+
   // Download PDF laporan untuk SATU item (dipakai tombol PDF per-baris di tabel).
   function downloadOneReportPdf(item: any) {
     if (useGoldenSurveyReportTemplate) handleDownloadGoldenSurveyPdf([item]);
@@ -617,6 +632,15 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   }
 
   function closeListDetail() {
+    // Flush auto-save yang masih tertunda supaya perubahan terakhir tidak hilang
+    // saat modal ditutup (sengaja maupun tak sengaja).
+    if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
+    const it = listDetailItem;
+    if (it && autoSaveReady.current && it.survey_approval_status !== "approved" &&
+        (canApprove || currentUserName === it.pic_survey)) {
+      autoSaveMut.mutate({ id: it.id, foto_survey: activeReportPhotos(), ...listDetailPayload() });
+    }
+    autoSaveReady.current = false;
     setListDetailItem(null);
     setListDetailFotos([]);
     setListDetailLuasan("");
@@ -733,6 +757,30 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
       catatan_survey: listDetailCatatan || undefined,
     };
   }
+
+  // Saat modal detail dibuka: tandai "belum siap auto-save" supaya set-state awal
+  // (parse data lama) tidak memicu penyimpanan. Siap setelah 800ms.
+  useEffect(() => {
+    autoSaveReady.current = false;
+    setAutoSaveState("idle");
+    if (!listDetailItem) return;
+    const t = setTimeout(() => { autoSaveReady.current = true; }, 800);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [listDetailItem?.id]);
+
+  // Auto-save debounced setiap report berubah (biar tidak hilang kalau modal ke-tutup).
+  useEffect(() => {
+    if (!listDetailItem || !autoSaveReady.current) return;
+    if (listDetailItem.survey_approval_status === "approved") return; // terkunci
+    if (!(canApprove || currentUserName === listDetailItem.pic_survey)) return; // tak boleh edit
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
+    autoSaveTimer.current = setTimeout(() => {
+      autoSaveMut.mutate({ id: listDetailItem.id, foto_survey: activeReportPhotos(), ...listDetailPayload() });
+    }, 1200);
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [konstruksiReportForm, goldenReportForm, listDetailFotos, listDetailLuasan, listDetailCatatan]);
 
   function readFileAsDataUrl(file: File): Promise<string> {
     return new Promise((resolve) => {
@@ -2196,57 +2244,17 @@ ${sections}
               </div>
               )}
 
-              {/* Actions */}
-              {listDetailItem.survey_approval_status !== "approved" && (
-                <div className="flex gap-2 pt-1">
-                  {canApprove ? (
-                    activeReportPhotos().length > 0 ? (
-                      <>
-                        <Button
-                          variant="outline"
-                          className="flex-1 border-red-300 text-red-600 hover:bg-red-50"
-                          disabled={rejectMut.isPending || approveMut.isPending}
-                          onClick={() => setRejectId(listDetailItem.id)}
-                        >
-                          <XCircle className="h-4 w-4 mr-1.5" /> Tolak Survey
-                        </Button>
-                        <Button
-                          className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-                          disabled={approveMut.isPending}
-                          onClick={() => approveMut.mutate({
-                            id: listDetailItem.id,
-                            foto_survey: activeReportPhotos(),
-                            ...listDetailPayload(),
-                          })}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1.5" />
-                          {approveMut.isPending ? "Menyimpan..." : "Setujui Survey"}
-                        </Button>
-                      </>
-                    ) : (
-                      <div className="w-full text-center py-3 text-sm text-muted-foreground bg-muted/30 rounded-lg border border-dashed">
-                        <Clock className="h-5 w-5 mx-auto mb-1.5 text-amber-500" />
-                        {useGoldenSurveyReportTemplate
-                          ? "Menunggu PIC upload dokumentasi foto area survey atau temuan hama"
-                          : konstruksiTemplate
-                            ? "Menunggu PIC upload foto kondisi lokasi"
-                            : "Menunggu PIC upload bukti foto survey"}
-                      </div>
-                    )
-                  ) : currentUserName === listDetailItem.pic_survey ? (
-                    <Button
-                      className="w-full"
-                      disabled={activeReportPhotos().length === 0 || buktimut.isPending || listFotoProcessing}
-                      onClick={() => buktimut.mutate({
-                        id: listDetailItem.id,
-                        foto_survey: activeReportPhotos(),
-                        ...listDetailPayload(),
-                      })}
-                    >
-                      <Upload className="h-4 w-4 mr-1.5" />
-                      {buktimut.isPending ? "Menyimpan..." : "Simpan Bukti Survey"}
-                    </Button>
-                  ) : null}
+              {/* Report tersimpan OTOMATIS. Persetujuan dilakukan lewat tombol
+                  "Approval TTD" di tabel — tidak perlu tombol setujui/tolak di sini. */}
+              {listDetailItem.survey_approval_status !== "approved" && (canApprove || currentUserName === listDetailItem.pic_survey) && (
+                <div className="flex items-center justify-center gap-1.5 pt-1 text-xs text-muted-foreground">
+                  {autoSaveState === "saving" ? (
+                    <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Menyimpan otomatis...</>
+                  ) : autoSaveState === "saved" ? (
+                    <><CheckCircle className="h-3.5 w-3.5 text-green-600" /> Tersimpan otomatis</>
+                  ) : (
+                    <span>Perubahan tersimpan otomatis</span>
+                  )}
                 </div>
               )}
               {listDetailItem.survey_approval_status === "rejected" && canSchedule && (
