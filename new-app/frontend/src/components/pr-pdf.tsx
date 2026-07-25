@@ -214,6 +214,7 @@ export default function PRPDF({ project, pr, items, total }: PRPDFProps) {
                 <View style={styles.signLine}>
                   <Text style={styles.signName}>{pr.hf_name || "-"}</Text>
                   <Text style={styles.signDate}>{formatDate(pr.hf_signed_at)}</Text>
+                  <Text style={styles.signDate}>Bekasi</Text>
                 </View>
               </>
             ) : (

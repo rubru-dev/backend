@@ -119,7 +119,7 @@ const styles = StyleSheet.create({
   noteText: { fontSize: 8, color: GRAY, textAlign: "center", lineHeight: 1.3 },
 
   // Signatures
-  signRow: { flexDirection: "row", justifyContent: "space-around", marginTop: 28 },
+  signRow: { flexDirection: "row", justifyContent: "flex-end", marginTop: 28 },
   signBlock: { alignItems: "center", width: 160 },
   signTitleBox: {
     paddingHorizontal: 10, paddingVertical: 3,
@@ -314,6 +314,7 @@ export function KwitansiPDF({
             )}
             <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
             {head_finance?.at && <Text style={styles.signDate}>{formatDate(head_finance.at)}</Text>}
+            {head_finance?.signature ? <Text style={styles.signDate}>Bekasi</Text> : null}
           </View>
         </View>
 
