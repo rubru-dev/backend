@@ -1079,41 +1079,25 @@ ${sections}
         };
       }));
 
-      console.log("[survey pdf] step: reports built =", reports.length);
       const logoUrl = await getLogoBase64();
-      console.log("[survey pdf] step: logo len =", logoUrl?.length ?? 0);
-      const pdfMod = await import("@react-pdf/renderer");
+      const pdfMod: any = await import("@react-pdf/renderer");
       const { AfterSurveyPDF } = await import("@/components/after-survey-pdf");
-      const { saveAs } = await import("file-saver");
-      const pdf = (pdfMod as any).pdf ?? (pdfMod as any).default?.pdf;
-      console.log("[survey pdf] step: imports; typeof pdf =", typeof pdf, "typeof saveAs =", typeof saveAs);
-
-      // TES mesin react-pdf dengan dokumen minimal (memisahkan bug mesin vs komponen)
-      try {
-        const { Document, Page, Text } = pdfMod as any;
-        await pdf(<Document><Page size="A4"><Text>test</Text></Page></Document>).toBlob();
-        console.log("[survey pdf] step: mesin react-pdf OK");
-      } catch (engineErr) {
-        console.error("[survey pdf] MESIN react-pdf GAGAL (bukan komponen):", String(engineErr), engineErr);
-      }
-
-      // v3 — dengan fallback tanpa gambar bila render penuh gagal
-      let blob: Blob;
-      try {
-        console.log("[survey pdf] step: render FULL");
-        blob = await pdf(<AfterSurveyPDF reports={reports} logoUrl={logoUrl} />).toBlob();
-      } catch (fullErr) {
-        console.warn("[survey pdf] render FULL gagal:", String(fullErr), fullErr);
-        const stripped = reports.map((r: any) => ({ ...r, kondisi_lokasi: [], signature: null }));
-        console.log("[survey pdf] step: render STRIPPED (tanpa gambar/TTD)");
-        blob = await pdf(<AfterSurveyPDF reports={stripped} logoUrl="" />).toBlob();
-        toast.warning("PDF dibuat TANPA gambar (ada foto/logo yang tidak didukung).");
-      }
+      const pdf = pdfMod.pdf ?? pdfMod.default?.pdf;
+      const blob: Blob = await pdf(<AfterSurveyPDF reports={reports} logoUrl={logoUrl} />).toBlob();
 
       const namaFile = filtered.length === 1
         ? `after-survey-${String(filtered[0].nama ?? "client").replace(/[^a-zA-Z0-9]+/g, "-").toLowerCase()}`
         : `after-survey-${dari && sampai ? `${dari}_${sampai}` : `${MONTH_NAMES_ID[bulan - 1]}-${tahun}`}`;
-      saveAs(blob, `${namaFile}.pdf`);
+      // Unduh via anchor manual — TIDAK pakai file-saver karena import dinamisnya
+      // membuat saveAs undefined di build ini ("v is not a function").
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${namaFile}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error("[After Survey PDF] gagal generate:", String(err), "| stack:", (err as any)?.stack?.slice(0, 300), err);
       toast.error("Gagal generate PDF laporan survey");
