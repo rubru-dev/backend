@@ -1436,7 +1436,6 @@ ${sections}
                         const tgl = item.tanggal_survey
                           ? new Date(String(item.tanggal_survey).split("T")[0] + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "short", year: "numeric" })
                           : "—";
-                        const isApproved = item.survey_approval_status === "approved";
                         return (
                           <TableRow key={item.id}>
                             <TableCell className="text-xs text-muted-foreground font-mono">{i + 1}</TableCell>
@@ -1476,13 +1475,13 @@ ${sections}
                             </TableCell>
                             <TableCell className="text-right">
                               <div className="flex gap-1 justify-end flex-wrap">
-                                {canApprove && !isApproved && (
+                                {canApprove && !item.survey_signature && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs border-green-300 text-green-700 hover:bg-green-50"
                                     onClick={() => setSignTarget(item)}>
                                     <PenLine className="h-3 w-3 mr-1" /> Approval TTD
                                   </Button>
                                 )}
-                                {reportTemplate && isApproved && (
+                                {reportTemplate && item.survey_signature && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs"
                                     onClick={() => downloadOneReportPdf(item)}>
                                     <FileDown className="h-3 w-3 mr-1" /> PDF
@@ -2113,18 +2112,8 @@ ${sections}
                 />
               )}
 
-              {konstruksiTemplate && listDetailItem.survey_approval_status === "approved" && (
-                <Button
-                  variant="outline"
-                  className="w-full border-amber-300 text-amber-700 hover:bg-amber-50"
-                  disabled={pdfBusy}
-                  onClick={() => void handleDownloadKonstruksiSurveyPdf([listDetailItem])}
-                >
-                  {pdfBusy
-                    ? <><Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> Menyiapkan PDF...</>
-                    : <><FileDown className="h-4 w-4 mr-1.5" /> Download PDF Laporan</>}
-                </Button>
-              )}
+              {/* Download PDF sengaja TIDAK di sini — hanya lewat tombol PDF di tabel
+                  (muncul setelah survey ditandatangani). */}
 
               {!reportTemplate && (
                 <>

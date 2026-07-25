@@ -104,8 +104,9 @@ const styles = StyleSheet.create({
   signWrap: { marginTop: 20, flexDirection: "row", justifyContent: "flex-end" },
   signBox: { width: 220, alignItems: "center" },
   signCaption: { fontSize: 8.5, color: GRAY, marginBottom: 4 },
-  signArea: { width: 200, height: 80, alignItems: "center", justifyContent: "center" },
-  signImage: { width: 160, height: 76, objectFit: "contain" },
+  signArea: { width: 200, height: 80, position: "relative", alignItems: "center", justifyContent: "center" },
+  signWatermark: { position: "absolute", top: 2, left: 20, width: 160, height: 76, objectFit: "contain", opacity: 0.5 },
+  signImage: { position: "absolute", top: 2, left: 20, width: 160, height: 76, objectFit: "contain" },
   signLine: { width: 200, borderTopWidth: 1, borderTopColor: DARK, marginTop: 2, paddingTop: 3, alignItems: "center" },
   signName: { fontSize: 9, fontWeight: "bold", color: DARK },
   signRole: { fontSize: 7.5, color: GRAY, marginTop: 1 },
@@ -320,14 +321,17 @@ export function AfterSurveyPDF({ reports, logoUrl }: AfterSurveyPDFProps) {
                 </Text>
                 <View style={styles.signArea}>
                   {r.signature && isRenderableImage(r.signature) ? (
-                    <Image style={styles.signImage} src={r.signature} />
+                    <>
+                      {isRenderableImage(logoUrl) ? <Image style={styles.signWatermark} src={logoUrl} /> : null}
+                      <Image style={styles.signImage} src={r.signature} />
+                    </>
                   ) : (
                     <Text style={styles.signPending}>Menunggu persetujuan</Text>
                   )}
                 </View>
                 <View style={styles.signLine}>
-                  <Text style={styles.signName}>{COMPANY.name}</Text>
-                  <Text style={styles.signRole}>Menyetujui / Verifikasi Survey</Text>
+                  <Text style={styles.signName}>Management RubahRumah</Text>
+                  <Text style={styles.signRole}>Menyetujui Survey</Text>
                 </View>
               </View>
             </View>
