@@ -1361,6 +1361,7 @@ model ProyekInteriorTermin {
   nama                  String?                 @db.VarChar(255)
   tanggal_mulai         DateTime?               @db.Date
   tanggal_selesai       DateTime?               @db.Date
+  rab                   Decimal                 @default(0) @db.Decimal(15, 2)
   created_at            DateTime                @default(now()) @db.Timestamptz(6)
   updated_at            DateTime                @default(now()) @db.Timestamptz(6)
   tasks                       ProyekInteriorTask[]

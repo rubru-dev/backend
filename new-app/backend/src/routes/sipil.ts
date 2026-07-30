@@ -311,7 +311,8 @@ router.patch("/termins/:id", requirePermission("projek_sipil", "termin"), async 
   const updates: Record<string, unknown> = {};
 
   if (nama !== undefined) updates.nama = nama;
-  if (rab !== undefined) updates.rab = rab ?? 0;
+  // rab bisa angka atau string berformat ("1.000.000") — bersihkan dulu.
+  if (rab !== undefined) updates.rab = typeof rab === "number" ? rab : (parseFloat(String(rab).replace(/[^\d]/g, "")) || 0);
   if (tanggal_mulai !== undefined) {
     const newDate = tanggal_mulai ? new Date(tanggal_mulai) : null;
     if (newDate && p.tanggal_mulai && newDate < p.tanggal_mulai) {

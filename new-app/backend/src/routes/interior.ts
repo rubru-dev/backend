@@ -560,7 +560,8 @@ router.patch("/projeks/termins/:id", async (req: Request, res: Response) => {
   const { nama, tanggal_mulai, tanggal_selesai, rab } = req.body;
   const updates: Record<string, unknown> = {};
   if (nama !== undefined) updates.nama = nama;
-  if (rab !== undefined) updates.rab = rab ?? 0;
+  // rab bisa datang sebagai angka atau string berformat ("1.000.000") — bersihkan dulu.
+  if (rab !== undefined) updates.rab = typeof rab === "number" ? rab : (parseFloat(String(rab).replace(/[^\d]/g, "")) || 0);
   if (tanggal_mulai !== undefined) updates.tanggal_mulai = tanggal_mulai ? new Date(tanggal_mulai) : null;
   if (tanggal_selesai !== undefined) updates.tanggal_selesai = tanggal_selesai ? new Date(tanggal_selesai) : null;
   await prisma.proyekInteriorTermin.update({ where: { id }, data: updates });
@@ -629,7 +630,7 @@ router.get("/projeks/termins/:id/rapp", async (req: Request, res: Response) => {
   if (!t) return res.status(404).json({ detail: "Termin tidak ditemukan" });
   return res.json({
     id: t.id,
-    rab: 0,
+    rab: fmtNum((t as any).rab),
     material_kategoris: t.rapp_material_kategoris.map((k) => ({
       id: k.id, kode: k.kode, nama: k.nama, urutan: k.urutan,
       items: k.items.map((i) => ({ id: i.id, material: i.material, vol: fmtNum(i.vol), sat: i.sat, harga_satuan: fmtNum(i.harga_satuan), jumlah: fmtNum(i.jumlah), urutan: i.urutan })),

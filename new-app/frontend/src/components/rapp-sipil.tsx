@@ -84,6 +84,26 @@ function fmtNum(n: number) {
   return n.toLocaleString("id-ID", { maximumFractionDigits: 4 });
 }
 
+// Input HARGA (Rupiah): tampil "1.000.000", simpan angka mentah "1000000",
+// tanpa spinner (type text) sehingga tidak ke-geser saat scroll.
+function RupiahInput({ value, onChange, className, placeholder, autoFocus }: {
+  value: string | number; onChange: (raw: string) => void; className?: string; placeholder?: string; autoFocus?: boolean;
+}) {
+  const digits = String(value ?? "").replace(/\D/g, "");
+  const display = digits ? Number(digits).toLocaleString("id-ID") : "";
+  return (
+    <Input
+      type="text"
+      inputMode="numeric"
+      className={className}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      value={display}
+      onChange={(e) => onChange(e.target.value.replace(/\D/g, ""))}
+    />
+  );
+}
+
 // ── Inline edit row for material/vendor items ─────────────────────────────────
 function MaterialItemRow({
   item,
@@ -134,13 +154,13 @@ function MaterialItemRow({
           <Input className="h-7 text-sm" value={form.material} onChange={(e) => setForm({ ...form, material: e.target.value })} autoFocus />
         </TableCell>
         <TableCell>
-          <Input className="h-7 text-sm w-20" type="number" value={form.vol} onChange={(e) => setForm({ ...form, vol: e.target.value })} />
+          <Input className="h-7 text-sm w-20" type="text" inputMode="decimal" value={form.vol} onChange={(e) => setForm({ ...form, vol: e.target.value })} />
         </TableCell>
         <TableCell>
           <Input className="h-7 text-sm w-20" value={form.sat} onChange={(e) => setForm({ ...form, sat: e.target.value })} />
         </TableCell>
         <TableCell>
-          <Input className="h-7 text-sm w-32" type="number" value={form.harga_satuan} onChange={(e) => setForm({ ...form, harga_satuan: e.target.value })} />
+          <RupiahInput className="h-7 text-sm w-32" value={form.harga_satuan} onChange={(v) => setForm({ ...form, harga_satuan: v })} />
         </TableCell>
         <TableCell className="text-right font-medium">{fmtRp(jumlah)}</TableCell>
         <TableCell>
@@ -229,24 +249,23 @@ function SipilItemRow({
           <Input className="h-7 text-sm" value={form.nama} onChange={(e) => setForm({ ...form, nama: e.target.value })} autoFocus />
         </TableCell>
         <TableCell>
-          <Input className="h-7 text-sm w-20" type="number" value={form.vol} placeholder="—" onChange={(e) => setForm({ ...form, vol: e.target.value })} />
+          <Input className="h-7 text-sm w-20" type="text" inputMode="decimal" value={form.vol} placeholder="—" onChange={(e) => setForm({ ...form, vol: e.target.value })} />
         </TableCell>
         <TableCell>
           <Input className="h-7 text-sm w-20" value={form.sat} placeholder="—" onChange={(e) => setForm({ ...form, sat: e.target.value })} />
         </TableCell>
         <TableCell>
-          <Input className="h-7 text-sm w-32" type="number" value={form.harga_satuan} placeholder="—" onChange={(e) => setForm({ ...form, harga_satuan: e.target.value })} />
+          <RupiahInput className="h-7 text-sm w-32" placeholder="—" value={form.harga_satuan} onChange={(v) => setForm({ ...form, harga_satuan: v })} />
         </TableCell>
         <TableCell>
           <Input className="h-7 text-sm w-40" value={form.keterangan} placeholder="Keterangan (opsional)" onChange={(e) => setForm({ ...form, keterangan: e.target.value })} />
         </TableCell>
         <TableCell>
-          <Input
+          <RupiahInput
             className="h-7 text-sm w-32"
-            type="number"
-            value={autoJumlah !== null ? String(autoJumlah) : form.jumlah}
+            value={autoJumlah !== null ? String(Math.round(autoJumlah)) : form.jumlah}
             placeholder="Jumlah"
-            onChange={(e) => setForm({ ...form, jumlah: e.target.value })}
+            onChange={(v) => setForm({ ...form, jumlah: v })}
           />
         </TableCell>
         <TableCell>
@@ -388,13 +407,13 @@ function AddItemDialog({
                         />
                       </td>
                       <td className="py-1 pr-2">
-                        <Input className="h-7 text-sm" type="number" value={row.vol} onChange={(e) => updateRow(idx, "vol", e.target.value)} placeholder="0" />
+                        <Input className="h-7 text-sm" type="text" inputMode="decimal" value={row.vol} onChange={(e) => updateRow(idx, "vol", e.target.value)} placeholder="0" />
                       </td>
                       <td className="py-1 pr-2">
                         <Input className="h-7 text-sm" value={row.sat} onChange={(e) => updateRow(idx, "sat", e.target.value)} placeholder="bh/m2..." />
                       </td>
                       <td className="py-1 pr-2">
-                        <Input className="h-7 text-sm" type="number" value={row.harga_satuan} onChange={(e) => updateRow(idx, "harga_satuan", e.target.value)} placeholder="0" />
+                        <RupiahInput className="h-7 text-sm" value={row.harga_satuan} onChange={(v) => updateRow(idx, "harga_satuan", v)} placeholder="0" />
                       </td>
                       {isSipil && (
                         <td className="py-1 pr-2">
@@ -403,11 +422,10 @@ function AddItemDialog({
                       )}
                       {isSipil && (
                         <td className="py-1 pr-2">
-                          <Input
+                          <RupiahInput
                             className="h-7 text-sm"
-                            type="number"
-                            value={autoJumlah > 0 ? String(autoJumlah) : row.jumlah}
-                            onChange={(e) => updateRow(idx, "jumlah", e.target.value)}
+                            value={autoJumlah > 0 ? String(Math.round(autoJumlah)) : row.jumlah}
+                            onChange={(v) => updateRow(idx, "jumlah", v)}
                             placeholder="vol × harga"
                           />
                         </td>
@@ -1603,11 +1621,10 @@ export function RappSipilView({
                 <span className="font-medium text-blue-900">RAB</span>
                 {editingRab ? (
                   <div className="flex items-center gap-2">
-                    <Input
-                      type="number"
+                    <RupiahInput
                       className="h-7 w-40 text-right"
                       value={rabInput}
-                      onChange={(e) => setRabInput(e.target.value)}
+                      onChange={(v) => setRabInput(v)}
                       autoFocus
                     />
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-green-600" onClick={() => updTerminRab.mutate({ terminId: selectedTerminId, rab: parseFloat(rabInput) || 0 })}>
