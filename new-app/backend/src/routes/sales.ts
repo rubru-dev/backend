@@ -332,9 +332,9 @@ router.post("/kanban/carryover", async (req: Request, res: Response) => {
   const targetStart = new Date(year, month - 1, 1);
   const targetEnd   = new Date(year, month, 0, 23, 59, 59, 999);
 
-  // Fetch all permanent columns at once
+  // Carry over HANYA kartu kolom "Outstanding" dari bulan lalu (bukan semua kolom permanen).
   const permCols = await prisma.salesKanbanColumn.findMany({
-    where: { title: { in: PERMANENT_COLUMNS } },
+    where: { title: "Outstanding" },
   });
   if (permCols.length === 0) return res.json({ copied: 0 });
 
