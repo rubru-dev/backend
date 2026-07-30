@@ -318,9 +318,11 @@ router.post("/kanban/columns/reorder", async (req: Request, res: Response) => {
 router.post("/kanban/carryover", async (req: Request, res: Response) => {
   const { month, year, source } = req.body as { month: number; year: number; source?: string };
 
-  // Refuse to carry over into a future month
+  // Izinkan carry over ke bulan ini ATAU bulan depan (kebutuhan: bawa Outstanding
+  // bulan lalu ke bulan berikutnya). Tolak hanya bila target > 1 bulan ke depan.
   const now = new Date();
-  if (new Date(year, month - 1, 1) > now) return res.json({ copied: 0 });
+  const cutoff = new Date(now.getFullYear(), now.getMonth() + 2, 1); // awal 2 bulan ke depan
+  if (new Date(year, month - 1, 1) >= cutoff) return res.json({ copied: 0 });
 
   // Previous month bounds
   const prevMonth = month === 1 ? 12 : month - 1;
