@@ -230,7 +230,7 @@ export const interiorProjekApi = {
   deleteTask: (taskId: string) => apiClient.delete(`/interior/projeks/tasks/${taskId}`).then((r) => r.data),
   listEmployees: () => apiClient.get("/interior/employees").then((r) => r.data),
   listLeads: (search?: string) =>
-    apiClient.get("/finance/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
+    apiClient.get("/interior/leads-dropdown", { params: { search: search || undefined, limit: 25 } }).then((r) => r.data?.items ?? []),
   // RAPP (same shape as sipilApi)
   getRapp: (terminId: string) => apiClient.get(`/interior/projeks/termins/${terminId}/rapp`).then((r) => r.data),
   addMaterialKategori: (terminId: string, data: any) => apiClient.post(`/interior/projeks/termins/${terminId}/rapp/material-kategori`, data).then((r) => r.data),
