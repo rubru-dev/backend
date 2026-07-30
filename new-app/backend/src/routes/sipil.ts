@@ -83,7 +83,8 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
 
   const leads = await prisma.lead.findMany({
     where: {
-      modul: "sales-admin",
+      // Client leads dari Follow Up Leads Sales Admin DAN RKR (modul "telemarketing").
+      modul: { in: ["sales-admin", "telemarketing"] },
       status: { equals: "Client", mode: "insensitive" },
       ...(searchFilter ? {
         OR: [
@@ -110,6 +111,7 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
   return res.json({
     items: leads.map((lead) => ({
       ...lead,
+      brand: lead.modul === "telemarketing" ? "RKR" : "Sales Admin",
       display_name: lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama,
     })),
   });

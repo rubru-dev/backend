@@ -304,7 +304,11 @@ export default function ProyekSipilListPage() {
                     <Input placeholder="Cari nama klien..." value={leadSearch} onChange={(e) => setLeadSearch(e.target.value)} className="h-8 text-sm" />
                   </div>
                   <SelectItem value="__none__">— Tanpa klien —</SelectItem>
-                  {leadOptions.map((l: any) => <SelectItem key={l.id} value={String(l.id)}>{l.nama}</SelectItem>)}
+                  {leadOptions.map((l: any) => (
+                    <SelectItem key={l.id} value={String(l.id)}>
+                      {l.nama}{l.brand ? <span className="text-muted-foreground text-xs ml-1">· {l.brand}</span> : null}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
