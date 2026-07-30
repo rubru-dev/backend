@@ -266,11 +266,9 @@ router.post("/kanban/columns/reorder", async (req: Request, res: Response) => {
 router.post("/kanban/carryover", async (req: Request, res: Response) => {
   const { month, year, source } = req.body as { month: number; year: number; source?: string };
 
-  // Izinkan carry over ke bulan ini ATAU bulan depan (kebutuhan: bawa Outstanding
-  // bulan lalu ke bulan berikutnya). Tolak hanya bila target > 1 bulan ke depan.
-  const now = new Date();
-  const cutoff = new Date(now.getFullYear(), now.getMonth() + 2, 1); // awal 2 bulan ke depan
-  if (new Date(year, month - 1, 1) >= cutoff) return res.json({ copied: 0 });
+  // `month/year` = bulan TARGET (yang sedang dilihat). Ambil Outstanding dari bulan
+  // SEBELUMNYA. Tidak ada batasan bulan real — user bebas carry over ke bulan mana pun
+  // yang sedang dilihat (mis. pindah ke Agustus lalu tarik Outstanding Juli).
 
   // Previous month bounds
   const prevMonth = month === 1 ? 12 : month - 1;

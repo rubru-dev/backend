@@ -618,18 +618,15 @@ export function SalesKanbanBoard({
     }
   }, [initialColumns]);
 
-  // ── Manual carryover: copy cards from filterMonth (or prev month) into the next/current month ──
+  // ── Manual carryover: bawa Outstanding bulan SEBELUMNYA ke bulan yang SEDANG DILIHAT ──
   const [carryoverLoading, setCarryoverLoading] = useState(false);
   const handleCarryover = useCallback(async () => {
     const nowDate = new Date();
-    // Source = filterMonth if set, else previous month
-    const srcMonth = filterMonth ?? (nowDate.getMonth() === 0 ? 12 : nowDate.getMonth());
-    const srcYear  = filterMonth !== null
-      ? filterYear
-      : (nowDate.getMonth() === 0 ? nowDate.getFullYear() - 1 : nowDate.getFullYear());
-    // Target = month after source
-    const targetMonth = srcMonth === 12 ? 1 : srcMonth + 1;
-    const targetYear  = srcMonth === 12 ? srcYear + 1 : srcYear;
+    // Target = bulan yang sedang dilihat (filter). Backend otomatis ambil dari bulan
+    // sebelum target. Contoh: lihat Agustus → tarik Outstanding Juli. Default (tanpa
+    // filter) = bulan berjalan. Tidak bergantung pada bulan real saat ini.
+    const targetMonth = filterMonth ?? (nowDate.getMonth() + 1);
+    const targetYear  = filterMonth !== null ? filterYear : nowDate.getFullYear();
     setCarryoverLoading(true);
     try {
       const { copied } = await salesKanbanApi.carryover({ month: targetMonth, year: targetYear, source });
