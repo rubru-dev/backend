@@ -358,8 +358,10 @@ export function KwitansiPDF({
             <Text style={styles.refValue}>{nomor_invoice}</Text>
           </View>
 
-          {/* Bukti bayar image */}
-          <View style={{
+          {/* Bukti bayar image — tinggi TETAP + wrap={false} agar selalu muat 1 halaman.
+              maxWidth/maxHeight tidak reliable di react-pdf sehingga gambar bisa tumpah
+              ke halaman berikutnya; width/height tetap + objectFit contain menjaganya. */}
+          <View wrap={false} style={{
             borderWidth: 1, borderColor: ORANGE_MID, borderRadius: 6,
             padding: 12, backgroundColor: "#ffffff", alignItems: "center",
           }}>
@@ -368,7 +370,7 @@ export function KwitansiPDF({
             </Text>
             <Image
               src={buktiBayar}
-              style={{ maxWidth: 460, maxHeight: 580, objectFit: "contain" }}
+              style={{ width: 470, height: 500, objectFit: "contain" }}
             />
           </View>
 
