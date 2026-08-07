@@ -1,7 +1,6 @@
 import type { MetadataRoute } from "next";
 import { publicApi } from "@/lib/api";
-
-const BASE = "https://rubahrumah.id";
+import { SITE_URL as BASE } from "@/lib/site";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const staticRoutes: MetadataRoute.Sitemap = [
