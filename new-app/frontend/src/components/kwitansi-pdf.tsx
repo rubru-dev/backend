@@ -1,4 +1,5 @@
 import { Document, Page, Text, View, Image, StyleSheet } from "@react-pdf/renderer";
+import { A4_HEIGHT, estimateLines, fitOnePage } from "./pdf/fit-one-page";
 
 // ── Info perusahaan (sama dengan invoice-pdf) ─────────────────────────────────
 const COMPANY = {
@@ -14,13 +15,17 @@ const ORANGE_LIGHT = "#fff7ed";
 const ORANGE_MID = "#fed7aa";
 const DARK = "#1c1917";
 const GRAY = "#78716c";
+
+const PAGE_PADDING_TOP = 36;
+const PAGE_PADDING_BOTTOM = 76;
+const CONTENT_HEIGHT = A4_HEIGHT - PAGE_PADDING_TOP - PAGE_PADDING_BOTTOM;
 // ─────────────────────────────────────────────────────────────────────────────
 
 const styles = StyleSheet.create({
   page: {
-    paddingTop: 36,
+    paddingTop: PAGE_PADDING_TOP,
     paddingHorizontal: 40,
-    paddingBottom: 76,
+    paddingBottom: PAGE_PADDING_BOTTOM,
     fontSize: 10,
     color: DARK,
     backgroundColor: "#ffffff",
@@ -75,7 +80,7 @@ const styles = StyleSheet.create({
   // Metode
   metodeBox: {
     flexDirection: "row", alignItems: "center", marginTop: 14,
-    padding: "8 12", backgroundColor: "#ffffff",
+    paddingVertical: 8, paddingHorizontal: 12, backgroundColor: "#ffffff",
     borderRadius: 4, borderWidth: 1, borderColor: ORANGE_MID,
   },
   metodeLabel: { fontSize: 8, color: GRAY, marginRight: 8, width: 110 },
@@ -104,6 +109,8 @@ const styles = StyleSheet.create({
   col3: { width: 100, textAlign: "right" },
   col4: { width: 105, textAlign: "right" },
   cellText: { fontSize: 8.2, color: DARK, lineHeight: 1.25 },
+  moreRow: { paddingVertical: 4, paddingHorizontal: 8 },
+  moreText: { fontSize: 8, color: ORANGE, fontWeight: "bold" },
 
   // Reference
   refRow: { flexDirection: "row", marginTop: 4 },
@@ -112,7 +119,7 @@ const styles = StyleSheet.create({
 
   // Note
   note: {
-    marginTop: 16, padding: "8 12",
+    marginTop: 16, paddingVertical: 8, paddingHorizontal: 12,
     borderWidth: 1, borderColor: ORANGE_MID, borderRadius: 4,
     backgroundColor: "#ffffff",
   },
@@ -200,13 +207,49 @@ export function KwitansiPDF({
   head_finance,
 }: KwitansiPDFProps) {
   const metodeLabel = detail_bayar ? `${metode_bayar} - ${detail_bayar}` : metode_bayar;
+  const itemList = items ?? [];
+  const hasItems = itemList.length > 0;
+
+  // ── Auto-fit satu halaman ──────────────────────────────────────────────────
+  // Tinggi tiap blok diestimasi (pt), lalu margin/padding vertikal dikompres
+  // secukupnya agar blok tanda tangan selalu ikut di halaman pertama.
+  const rowText = itemList.map(
+    (it) => Math.max(1, estimateLines(it.keterangan, 222, 8.2)) * 10.3,
+  );
+  const cardSubLines =
+    (lead_jenis ? 1 : 0) + estimateLines(alamat_klien, 270, 8) + (telepon_klien ? 1 : 0);
+  const metodeLines = Math.max(1, estimateLines(metodeLabel, 300, 9));
+  const catatanLines = estimateLines(catatan, 380, 8);
+
+  const fixedText =
+    64 +                            // header: logo + identitas perusahaan
+    39 +                            // judul dokumen + nomor
+    (22 + cardSubLines * 10) +      // kartu: diterima dari / tanggal
+    20 +                            // kotak jumlah diterima
+    metodeLines * 11 +              // metode pembayaran
+    (hasItems ? 21 : 0) +           // judul + header tabel item
+    12 +                            // baris nomor invoice + divider
+    (catatan ? catatanLines * 10 : 0) +
+    21 +                            // catatan kaki dokumen
+    85;                             // blok tanda tangan
+  const fixedSpace =
+    39 + 43 + 54 + 48 + 32 +
+    (hasItems ? 48 : 0) +
+    32 + 4 + (catatan ? 4 : 0) + 34 + 52;
+
+  const fit = fitOnePage({
+    contentHeight: CONTENT_HEIGHT, fixedText, fixedSpace, rowText, rowSpace: 9,
+  });
+  const sp = (v: number) => Math.round(v * fit.spacing * 10) / 10;
+  const shownItems = fit.overflow ? itemList.slice(0, fit.rows) : itemList;
+  const hiddenCount = itemList.length - shownItems.length;
 
   return (
     <Document title={`Kwitansi ${nomor_kwitansi}`} author={COMPANY.name}>
       <Page size="A4" style={styles.page}>
 
         {/* ── Header ── */}
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingBottom: sp(16), marginBottom: sp(20) }]}>
           <View style={styles.logoBlock}>
             {logoUrl && <Image style={styles.logo} src={logoUrl} />}
             <View style={styles.companyInfo}>
@@ -218,15 +261,15 @@ export function KwitansiPDF({
           </View>
         </View>
 
-        <View style={styles.docHeader}>
+        <View style={[styles.docHeader, { marginTop: sp(14), marginBottom: sp(14), paddingBottom: sp(10) }]}>
           <Text style={styles.docTitle}>KWITANSI</Text>
           <Text style={styles.docNumber}>{softBreak(nomor_kwitansi)}</Text>
         </View>
 
         {/* ── Body Card ── */}
-        <View style={styles.card}>
+        <View style={[styles.card, { marginTop: sp(4), paddingVertical: sp(20) }]}>
           {/* Row 1: Klien & Tanggal */}
-          <View style={styles.cardRow}>
+          <View style={[styles.cardRow, { marginBottom: sp(10) }]}>
             <View style={styles.cardField}>
               <Text style={styles.fieldLabel}>DITERIMA DARI</Text>
               <Text style={styles.fieldValue}>{klien || "-"}</Text>
@@ -241,74 +284,89 @@ export function KwitansiPDF({
           </View>
 
           {/* Amount */}
-          <View style={styles.amountBox}>
+          <View style={[styles.amountBox, { marginTop: sp(16), paddingVertical: sp(16) }]}>
             <Text style={styles.amountLabel}>JUMLAH DITERIMA</Text>
             <Text style={styles.amountValue}>{formatRp(jumlah)}</Text>
           </View>
 
           {/* Metode */}
-          <View style={styles.metodeBox}>
+          <View style={[styles.metodeBox, { marginTop: sp(14), paddingVertical: sp(8) }]}>
             <Text style={styles.metodeLabel}>METODE PEMBAYARAN</Text>
             <Text style={styles.metodeValue}>{metodeLabel || "-"}</Text>
           </View>
         </View>
 
         {/* ── Items Table ── */}
-        {items && items.length > 0 && (
+        {hasItems && (
           <>
-            <View style={[styles.divider, { marginVertical: 12 }]} />
-            <Text style={{ fontSize: 8, color: ORANGE, fontWeight: "bold", marginBottom: 6 }}>
+            <View style={[styles.divider, { marginVertical: sp(12) }]} />
+            <Text style={{ fontSize: 8, color: ORANGE, fontWeight: "bold", marginBottom: sp(6) }}>
               RINCIAN ITEM YANG DIBAYAR
             </Text>
-            <View style={styles.table}>
-              <View style={styles.tableHead}>
+            <View style={[styles.table, { marginTop: sp(4), marginBottom: sp(4) }]}>
+              <View style={[styles.tableHead, { paddingVertical: sp(5) }]}>
                 <Text style={[styles.tableHeadCell, styles.col1]}>Keterangan</Text>
                 <Text style={[styles.tableHeadCell, styles.col2]}>Qty</Text>
                 <Text style={[styles.tableHeadCell, styles.col3]}>Harga Satuan</Text>
                 <Text style={[styles.tableHeadCell, styles.col4]}>Subtotal</Text>
               </View>
-              {items.map((item, i) => (
-                <View key={i} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
+              {shownItems.map((item, i) => (
+                <View
+                  key={i}
+                  wrap={false}
+                  style={[i % 2 === 0 ? styles.tableRow : styles.tableRowAlt, { paddingVertical: sp(4) }]}
+                >
                   <Text style={[styles.cellText, styles.col1]}>{item.keterangan}</Text>
                   <Text style={[styles.cellText, styles.col2]}>{item.jumlah}</Text>
                   <Text style={[styles.cellText, styles.col3]}>{formatRp(item.harga_satuan)}</Text>
                   <Text style={[styles.cellText, styles.col4]}>{formatRp(item.jumlah * item.harga_satuan)}</Text>
                 </View>
               ))}
+              {hiddenCount > 0 && (
+                <View style={[styles.moreRow, { paddingVertical: sp(4) }]}>
+                  <Text style={styles.moreText}>
+                    + {hiddenCount} item lainnya — lihat Lampiran Rincian Item
+                  </Text>
+                </View>
+              )}
             </View>
           </>
         )}
 
         {/* ── Divider ── */}
-        <View style={styles.divider} />
+        <View style={[styles.divider, { marginVertical: sp(16) }]} />
 
         {/* ── Reference ── */}
-        <View style={styles.refRow}>
+        <View style={[styles.refRow, { marginTop: sp(4) }]}>
           <Text style={styles.refLabel}>Nomor Invoice:</Text>
           <Text style={styles.refValue}>{nomor_invoice}</Text>
         </View>
         {catatan && (
-          <View style={[styles.refRow, { marginTop: 4 }]}>
+          <View style={[styles.refRow, { marginTop: sp(4) }]}>
             <Text style={styles.refLabel}>Keterangan:</Text>
             <Text style={styles.refValue}>{catatan}</Text>
           </View>
         )}
 
         {/* ── Note ── */}
-        <View style={styles.note}>
+        <View style={[styles.note, { marginTop: sp(16), paddingVertical: sp(8) }]}>
           <Text style={styles.noteText}>
             Dokumen ini merupakan bukti pembayaran yang sah dari {COMPANY.name}.{"\n"}
             Harap simpan kwitansi ini sebagai bukti transaksi Anda.
           </Text>
         </View>
 
-        {/* ── Signatures ── */}
-        <View style={styles.signRow}>
+        {/* ── Signatures ──
+            wrap={false} menjaga blok TTD tetap utuh (tidak terbelah dua halaman);
+            auto-fit di atas yang menjaganya tetap berada di halaman pertama. */}
+        <View wrap={false} style={[styles.signRow, { marginTop: sp(28) }]}>
           <View style={styles.signBlock}>
-            <View style={styles.signTitleBox}><Text style={styles.signTitleText}>Head Finance</Text></View>
-            <Text style={{ fontSize: 8.5, color: DARK, marginBottom: 6 }}>Bekasi, {pdfPrintDate()}</Text>
+            <View style={[styles.signTitleBox, { marginBottom: sp(8) }]}>
+              <Text style={styles.signTitleText}>Head Finance</Text>
+            </View>
+            <Text style={{ fontSize: 8.5, color: DARK, marginBottom: sp(6) }}>Bekasi, {pdfPrintDate()}</Text>
             {head_finance?.signature ? (
-              <View style={styles.signArea}>
+              <View style={[styles.signArea, { marginBottom: sp(4) }]}>
                 {/* Logo sebagai watermark di belakang TTD — samar agar tinta TTD tetap dominan */}
                 {logoUrl && <Image style={styles.signWatermark} src={logoUrl} />}
                 {/* TTD ditumpuk dua kali agar goresannya lebih pekat di atas watermark */}
@@ -316,7 +374,7 @@ export function KwitansiPDF({
                 <Image style={styles.signInk} src={head_finance.signature} />
               </View>
             ) : (
-              <View style={styles.signImageEmpty} />
+              <View style={[styles.signImageEmpty, { marginBottom: sp(4) }]} />
             )}
             <Text style={styles.signName}>{head_finance?.name || "___________________"}</Text>
           </View>
@@ -329,6 +387,56 @@ export function KwitansiPDF({
         </View>
 
       </Page>
+
+      {/* ── Lampiran: item yang tidak muat di halaman pertama ── */}
+      {hiddenCount > 0 && (
+        <Page size="A4" style={styles.page}>
+          <View style={styles.header}>
+            <View style={styles.logoBlock}>
+              {logoUrl && <Image style={styles.logo} src={logoUrl} />}
+              <View style={styles.companyInfo}>
+                <Text style={styles.companyName}>{COMPANY.name}</Text>
+                <Text style={styles.companyTagline}>{COMPANY.tagline}</Text>
+              </View>
+            </View>
+            <View style={styles.titleBlock}>
+              <Text style={[styles.kwitansiTitle, { fontSize: 16 }]}>LAMPIRAN</Text>
+              <Text style={styles.kwitansiNumber}>Rincian Item</Text>
+            </View>
+          </View>
+
+          <View style={styles.refRow}>
+            <Text style={styles.refLabel}>Nomor Kwitansi:</Text>
+            <Text style={styles.refValue}>{nomor_kwitansi}</Text>
+          </View>
+          <View style={[styles.refRow, { marginTop: 2, marginBottom: 12 }]}>
+            <Text style={styles.refLabel}>Nomor Invoice:</Text>
+            <Text style={styles.refValue}>{nomor_invoice}</Text>
+          </View>
+
+          <View style={styles.table}>
+            <View style={styles.tableHead} fixed>
+              <Text style={[styles.tableHeadCell, styles.col1]}>Keterangan</Text>
+              <Text style={[styles.tableHeadCell, styles.col2]}>Qty</Text>
+              <Text style={[styles.tableHeadCell, styles.col3]}>Harga Satuan</Text>
+              <Text style={[styles.tableHeadCell, styles.col4]}>Subtotal</Text>
+            </View>
+            {itemList.map((item, i) => (
+              <View key={i} wrap={false} style={i % 2 === 0 ? styles.tableRow : styles.tableRowAlt}>
+                <Text style={[styles.cellText, styles.col1]}>{item.keterangan}</Text>
+                <Text style={[styles.cellText, styles.col2]}>{item.jumlah}</Text>
+                <Text style={[styles.cellText, styles.col3]}>{formatRp(item.harga_satuan)}</Text>
+                <Text style={[styles.cellText, styles.col4]}>{formatRp(item.jumlah * item.harga_satuan)}</Text>
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.footer} fixed>
+            <Text style={styles.footerText}>{COMPANY.name} - {COMPANY.phone}</Text>
+            <Text style={styles.footerText}>Lampiran Kwitansi #{nomor_kwitansi}</Text>
+          </View>
+        </Page>
+      )}
 
       {/* ── Lampiran Bukti Bayar ── */}
       {buktiBayar && (
