@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { prisma } from "./prisma";
-import { sendFonnte } from "./fontee";
+import { deliver, deliverMany, NOTIFY_USER_SELECT, type NotifyRecipient } from "./notify";
 
 // ── Timezone helpers ──────────────────────────────────────────────────────────
 
@@ -55,12 +55,17 @@ function fillTemplate(tpl: string, vars: Record<string, string>): string {
 // ── Send helpers ──────────────────────────────────────────────────────────────
 
 const PRIORITY_EMOJI: Record<string, string> = { rendah: "🟢", sedang: "🟡", tinggi: "🔴" };
-async function getUsersForRoleIds(roleIds: bigint[]): Promise<{ telegram_chat_id: string }[]> {
+async function getUsersForRoleIds(roleIds: bigint[]): Promise<NotifyRecipient[]> {
   if (roleIds.length === 0) return [];
+  // Tidak lagi memfilter telegram_chat_id: user tanpa Telegram tetap dijangkau
+  // lewat email. Yang disaring hanya akun terhapus (email placeholder).
   return prisma.user.findMany({
-    where: { roles: { some: { role_id: { in: roleIds } } }, telegram_chat_id: { not: null } },
-    select: { telegram_chat_id: true },
-  }) as Promise<{ telegram_chat_id: string }[]>;
+    where: {
+      roles: { some: { role_id: { in: roleIds } } },
+      NOT: { email: { startsWith: "deleted+" } },
+    },
+    select: NOTIFY_USER_SELECT,
+  });
 }
 
 async function sendMessages(rule: any, messages: string[]): Promise<number> {
@@ -71,25 +76,15 @@ async function sendMessages(rule: any, messages: string[]): Promise<number> {
   }
   const users = await getUsersForRoleIds(roleIds);
   if (users.length === 0) {
-    console.warn(`[ReminderScheduler] ${rule.feature}: tidak ada user dengan Telegram Chat ID di role yang dipilih`);
+    console.warn(`[ReminderScheduler] ${rule.feature}: tidak ada user di role yang dipilih`);
     return 0;
   }
-  const prio: string = rule.priority_manual ?? "sedang";
-  const priorityLine = `${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
-  let sent = 0;
-  for (const msg of messages) {
-    const fullMsg = `${msg}\n${priorityLine}`;
-    for (const u of users) {
-      await sendFonnte(u.telegram_chat_id, fullMsg).catch(() => {});
-      sent++;
-    }
-  }
-  return sent;
+  return sendMessagesToUsers(rule, users, messages);
 }
 
 async function sendMessagesToUsers(
   rule: any,
-  users: Array<{ telegram_chat_id: string | null }>,
+  users: NotifyRecipient[],
   messages: string[],
 ): Promise<number> {
   if (users.length === 0 || messages.length === 0) return 0;
@@ -100,9 +95,8 @@ async function sendMessagesToUsers(
   for (const msg of messages) {
     const fullMsg = `${msg}\n${priorityLine}`;
     for (const user of users) {
-      if (!user.telegram_chat_id) continue;
-      await sendFonnte(user.telegram_chat_id, fullMsg).catch(() => {});
-      sent++;
+      const hasil = await deliver(user, fullMsg, rule.label);
+      if (hasil.telegram || hasil.email) sent++;
     }
   }
   return sent;
@@ -110,17 +104,15 @@ async function sendMessagesToUsers(
 
 // ── Super Admin notification ──────────────────────────────────────────────────
 
-async function getSuperAdminChatIds(): Promise<string[]> {
-  const users = await prisma.user.findMany({
-    where: { roles: { some: { role: { name: "Super Admin" } } }, telegram_chat_id: { not: null } },
-    select: { telegram_chat_id: true },
-  });
-  return users.map((u) => u.telegram_chat_id!);
-}
-
 async function notifySuperAdmin(msg: string): Promise<void> {
-  const chatIds = await getSuperAdminChatIds();
-  for (const chatId of chatIds) await sendFonnte(chatId, msg).catch(() => {});
+  const users = await prisma.user.findMany({
+    where: {
+      roles: { some: { role: { name: "Super Admin" } } },
+      NOT: { email: { startsWith: "deleted+" } },
+    },
+    select: NOTIFY_USER_SELECT,
+  });
+  await deliverMany(users, msg);
 }
 
 // ── Feature processors ────────────────────────────────────────────────────────
@@ -154,11 +146,11 @@ async function processRule(rule: any): Promise<number> {
       const todayStart = new Date(Date.UTC(year, month - 1, day));
       const todayEnd = new Date(Date.UTC(year, month - 1, day + 1));
       const roleIds = (rule.role_ids as bigint[]) ?? [];
-      const userWhere: any = { telegram_chat_id: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+      const userWhere: any = { NOT: { email: { startsWith: "deleted+" } } };
       if (roleIds.length > 0) userWhere.roles = { some: { role_id: { in: roleIds } } };
 
       const [allUsers, checkedIn] = await Promise.all([
-        prisma.user.findMany({ where: userWhere, select: { id: true, name: true, telegram_chat_id: true } }),
+        prisma.user.findMany({ where: userWhere, select: NOTIFY_USER_SELECT }),
         prisma.absenKaryawan.findMany({
           where: { tanggal: { gte: todayStart, lt: todayEnd }, jam_masuk: { not: null } },
           select: { user_id: true },
@@ -181,7 +173,7 @@ async function processRule(rule: any): Promise<number> {
       const todayStart = new Date(Date.UTC(year, month - 1, day));
       const todayEnd = new Date(Date.UTC(year, month - 1, day + 1));
       const roleIds = (rule.role_ids as bigint[]) ?? [];
-      const userFilter: any = { telegram_chat_id: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+      const userFilter: any = { NOT: { email: { startsWith: "deleted+" } } };
       if (roleIds.length > 0) userFilter.roles = { some: { role_id: { in: roleIds } } };
 
       const masukTapiBelumKeluar = await prisma.absenKaryawan.findMany({
@@ -191,7 +183,7 @@ async function processRule(rule: any): Promise<number> {
           jam_keluar: null,
           user: userFilter,
         },
-        include: { user: { select: { id: true, name: true, telegram_chat_id: true } } },
+        include: { user: { select: NOTIFY_USER_SELECT } },
       });
       if (masukTapiBelumKeluar.length === 0) return 0;
 
@@ -368,13 +360,12 @@ async function processRule(rule: any): Promise<number> {
         }),
         prisma.user.findMany({
           where: {
-            telegram_chat_id: { not: null },
             NOT: [
               { email: { startsWith: "deleted+" } },
               { roles: { some: { role: { name: "Tukang" } } } },
             ],
           },
-          select: { id: true, name: true },
+          select: NOTIFY_USER_SELECT,
         }),
       ]);
       const sudahSet = new Set(sudahIsi.map((l) => l.user_id?.toString()));
@@ -392,7 +383,7 @@ async function processRule(rule: any): Promise<number> {
       const visits = await prisma.kalenderVisit.findMany({
         where: { tanggal: { gte: start, lt: end } },
         include: {
-          pics: { include: { user: { select: { telegram_chat_id: true, name: true } } } },
+          pics: { include: { user: { select: NOTIFY_USER_SELECT } } },
         },
       });
       const prio: string = rule.priority_manual ?? "sedang";
@@ -410,8 +401,10 @@ async function processRule(rule: any): Promise<number> {
         const fullMsg = `${msg}\n${priorityLine}`;
         const picNames: string[] = [];
         for (const pic of (visit as any).pics) {
-          const chatId = pic.user?.telegram_chat_id;
-          if (chatId) { await sendFonnte(chatId, fullMsg).catch(() => {}); sentCount++; }
+          if (pic.user) {
+            const hasil = await deliver(pic.user, fullMsg, rule.label);
+            if (hasil.telegram || hasil.email) sentCount++;
+          }
           if (pic.user?.name) picNames.push(pic.user.name);
         }
         saLines.push(`• ${namaProyek} — Jam: ${(visit as any).jam ?? "—"} — PIC: ${picNames.join(", ") || "—"}`);
@@ -457,16 +450,16 @@ async function checkAbsenReminders(): Promise<void> {
   const todayEnd = new Date(Date.UTC(year, month - 1, day + 1));
 
   if (isMasukWindow) {
-    const rule: any = await (prisma.fonteeReminderRule as any).findFirst({
+    const rule: any = await (prisma.reminderRule as any).findFirst({
       where: { feature: "absen_masuk_reminder", is_active: true },
     });
     if (!rule?.message_template) return;
 
     const roleIds = (rule.role_ids as bigint[]) ?? [];
-    const userWhere: any = { telegram_chat_id: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+    const userWhere: any = { NOT: { email: { startsWith: "deleted+" } } };
     if (roleIds.length > 0) userWhere.roles = { some: { role_id: { in: roleIds } } };
 
-    const allUsers = await prisma.user.findMany({ where: userWhere, select: { id: true, name: true, telegram_chat_id: true } });
+    const allUsers = await prisma.user.findMany({ where: userWhere, select: NOTIFY_USER_SELECT });
     const checkedIn = await prisma.absenKaryawan.findMany({
       where: { tanggal: { gte: todayStart, lt: todayEnd }, jam_masuk: { not: null } },
       select: { user_id: true },
@@ -478,9 +471,7 @@ async function checkAbsenReminders(): Promise<void> {
     const msg = fillTemplate(rule.message_template, { jam_masuk: jamMasukStr });
     const prio: string = rule.priority_manual ?? "sedang";
     const fullMsg = `${msg}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
-    for (const u of notYetMasuk) {
-      await sendFonnte(u.telegram_chat_id!, fullMsg).catch(() => {});
-    }
+    await deliverMany(notYetMasuk, fullMsg, rule.label);
     if (notYetMasuk.length > 0) {
       const lines = notYetMasuk.map((u) => `• ${u.name}`).join("\n");
       notifySuperAdmin(`👑 *[Super Admin] Belum Absen Masuk*\n⏰ Jam masuk: ${jamMasukStr}\n${notYetMasuk.length} karyawan:\n${lines}`).catch(() => {});
@@ -489,7 +480,7 @@ async function checkAbsenReminders(): Promise<void> {
   }
 
   if (isPulangWindow) {
-    const rule: any = await (prisma.fonteeReminderRule as any).findFirst({
+    const rule: any = await (prisma.reminderRule as any).findFirst({
       where: { feature: "absen_keluar_reminder", is_active: true },
     });
     if (!rule?.message_template) return;
@@ -497,7 +488,7 @@ async function checkAbsenReminders(): Promise<void> {
     const roleIds = (rule.role_ids as bigint[]) ?? [];
 
     // Cari yang sudah absen masuk tapi belum keluar — filter role + punya Telegram langsung di query
-    const userFilter: any = { telegram_chat_id: { not: null }, NOT: { email: { startsWith: "deleted+" } } };
+    const userFilter: any = { NOT: { email: { startsWith: "deleted+" } } };
     if (roleIds.length > 0) userFilter.roles = { some: { role_id: { in: roleIds } } };
     const masukTapiBelumKeluar = await prisma.absenKaryawan.findMany({
       where: {
@@ -506,17 +497,18 @@ async function checkAbsenReminders(): Promise<void> {
         jam_keluar: null,
         user: userFilter,
       },
-      include: { user: { select: { id: true, name: true, telegram_chat_id: true } } },
+      include: { user: { select: NOTIFY_USER_SELECT } },
     });
 
     const jamPulangStr = cfg.jam_pulang;
     const msg = fillTemplate(rule.message_template, { jam_pulang: jamPulangStr });
     const prio: string = rule.priority_manual ?? "sedang";
     const fullMsg = `${msg}\n${PRIORITY_EMOJI[prio] ?? "🟡"} Prioritas: ${prio.toUpperCase()}`;
-    for (const absen of masukTapiBelumKeluar) {
-      const chatId = (absen as any).user?.telegram_chat_id;
-      if (chatId) await sendFonnte(chatId, fullMsg).catch(() => {});
-    }
+    await deliverMany(
+      masukTapiBelumKeluar.map((absen: any) => absen.user).filter(Boolean),
+      fullMsg,
+      rule.label,
+    );
     if (masukTapiBelumKeluar.length > 0) {
       const lines = masukTapiBelumKeluar.map((a) => `• ${(a as any).user?.name ?? "—"}`).join("\n");
       notifySuperAdmin(`👑 *[Super Admin] Belum Absen Keluar*\n⏰ Jam pulang: ${jamPulangStr}\n${masukTapiBelumKeluar.length} karyawan:\n${lines}`).catch(() => {});
@@ -532,7 +524,7 @@ export async function runDeadlineReminders(currentHour?: number, currentMinute =
   const targetHour = currentHour ?? hour;
   const targetMinute = currentMinute;
 
-  const rules: any[] = await (prisma.fonteeReminderRule as any).findMany({
+  const rules: any[] = await (prisma.reminderRule as any).findMany({
     where: { is_active: true, trigger_type: "deadline" },
   });
 

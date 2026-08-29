@@ -4,7 +4,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { config } from "../config";
-import { sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
+import { sendNotifToRoles, FRONTEND_URL } from "../lib/notify";
 
 const router = Router();
 
@@ -547,7 +547,7 @@ router.patch("/timeline/items/:id", async (req: Request, res: Response) => {
       `Tagihan sisa 50%: *${sisaFmt}*\n` +
       `Harap buat invoice Payment Desain atas nama client tersebut.\n` +
       `${FRONTEND_URL}/finance/invoice-kwitansi`;
-    sendFonntToRoles(["Sales Admin", "Admin Finance"], msg).catch(() => {});
+    sendNotifToRoles(["Sales Admin", "Admin Finance"], msg).catch(() => {});
   }
 
   return res.json({ message: "Item diupdate" });

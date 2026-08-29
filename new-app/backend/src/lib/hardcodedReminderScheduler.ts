@@ -1,13 +1,13 @@
 import cron from "node-cron";
 import { prisma } from "./prisma";
-import { sendFonnte, FRONTEND_URL } from "./fontee";
+import { deliver, NOTIFY_USER_SELECT, FRONTEND_URL } from "./notify";
 
 const TZ = "Asia/Jakarta";
 
 type ReminderUser = {
   id: bigint;
   name: string;
-  whatsapp_number: string | null;
+  email: string;
   telegram_chat_id: string | null;
 };
 
@@ -64,7 +64,7 @@ async function usersByRoles(roleNames: string[]): Promise<ReminderUser[]> {
       roles: { some: { role: { name: { in: roleNames } } } },
       NOT: { email: { startsWith: "deleted+" } },
     },
-    select: { id: true, name: true, whatsapp_number: true, telegram_chat_id: true },
+    select: NOTIFY_USER_SELECT,
   });
 }
 
@@ -76,7 +76,7 @@ async function allActiveUsersExcept(roleNames: string[] = []): Promise<ReminderU
         ...(roleNames.length > 0 ? [{ roles: { some: { role: { name: { in: roleNames } } } } }] : []),
       ],
     },
-    select: { id: true, name: true, whatsapp_number: true, telegram_chat_id: true },
+    select: NOTIFY_USER_SELECT,
   });
 }
 
@@ -85,7 +85,7 @@ async function surveyRecipients(picName?: string | null): Promise<ReminderUser[]
     picName
       ? prisma.user.findMany({
           where: { name: picName, NOT: { email: { startsWith: "deleted+" } } },
-          select: { id: true, name: true, whatsapp_number: true, telegram_chat_id: true },
+          select: NOTIFY_USER_SELECT,
         })
       : Promise.resolve([]),
     usersByRoles(["Super Admin"]),
@@ -102,7 +102,7 @@ async function visitProjectRecipients(picIds: bigint[]): Promise<ReminderUser[]>
     picIds.length > 0
       ? prisma.user.findMany({
           where: { id: { in: picIds }, NOT: { email: { startsWith: "deleted+" } } },
-          select: { id: true, name: true, whatsapp_number: true, telegram_chat_id: true },
+          select: NOTIFY_USER_SELECT,
         })
       : Promise.resolve([]),
     superAdminRecipients(),
@@ -124,7 +124,9 @@ async function hasReminderLog(args: {
       remindable_id: args.remindableId,
       user_id: args.userId,
       deadline_date: args.deadlineDate,
-      status: { in: ["sent", "no_whatsapp", "no_telegram"] },
+      // "no_whatsapp"/"no_telegram" ditinggalkan agar log lama tetap dianggap
+      // sudah diproses dan tidak dikirim ulang saat versi ini naik.
+      status: { in: ["sent", "no_whatsapp", "no_telegram", "no_channel"] },
     },
     select: { id: true },
   });
@@ -139,6 +141,7 @@ async function logReminder(args: {
   deadlineDate: Date;
   message: string;
   status: string;
+  channel?: string;
   error?: string;
 }) {
   await prisma.whatsappReminderLog.create({
@@ -150,6 +153,7 @@ async function logReminder(args: {
       deadline_date: args.deadlineDate,
       message_sent: args.message,
       status: args.status,
+      channel: args.channel ?? null,
       error_message: args.error ?? null,
     },
   });
@@ -158,7 +162,7 @@ async function logReminder(args: {
       sender_name: "System Reminder",
       recipient_user_id: args.user.id,
       recipient_name: args.user.name,
-      target_number: args.user.telegram_chat_id ?? null,
+      target_number: args.user.telegram_chat_id ?? args.user.email ?? null,
       message: args.message,
       status: args.status,
     },
@@ -172,20 +176,26 @@ async function sendOnce(args: {
   users: ReminderUser[];
   deadlineDate: Date;
   message: string;
+  /** Subjek email; kalau kosong dipakai baris pertama pesan. */
+  subject?: string;
 }): Promise<number> {
   let sent = 0;
   for (const user of uniqueUsers(args.users)) {
     if (await hasReminderLog({ ...args, userId: user.id })) continue;
-    if (!user.telegram_chat_id) {
-      await logReminder({ ...args, user, status: "no_telegram" });
-      continue;
-    }
-    try {
-      await sendFonnte(user.telegram_chat_id, args.message);
-      await logReminder({ ...args, user, status: "sent" });
+
+    // Telegram dan email dicoba dalam satu panggilan, jadi satu baris log per
+    // user tetap cukup untuk dedup — tidak ada pass kedua yang perlu dibedakan.
+    const hasil = await deliver(user, args.message, args.subject);
+    const channels = [hasil.telegram ? "telegram" : null, hasil.email ? "email" : null]
+      .filter(Boolean).join("+");
+
+    if (hasil.telegram || hasil.email) {
+      await logReminder({ ...args, user, status: "sent", channel: channels });
       sent++;
-    } catch (err: any) {
-      await logReminder({ ...args, user, status: "failed", error: err?.message ?? "Unknown error" });
+    } else if (hasil.skipped) {
+      await logReminder({ ...args, user, status: "no_channel" });
+    } else {
+      await logReminder({ ...args, user, status: "failed", error: hasil.errors.join("; ") || "Unknown error" });
     }
   }
   return sent;

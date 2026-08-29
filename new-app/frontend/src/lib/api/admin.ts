@@ -59,23 +59,21 @@ export const adminApi = {
   listPermissions: () =>
     apiClient.get<Record<string, PermissionItem[]>>("/admin/permissions").then((r) => r.data),
 
-  // Fontee / WhatsApp settings
-  getFonteeConfig: () =>
-    apiClient.get<{ api_key: string; base_url: string; sender_number: string }>("/admin/settings/fontee").then((r) => r.data),
-  saveFonteeConfig: (data: { api_key: string; base_url: string; sender_number: string }) =>
-    apiClient.put("/admin/settings/fontee", data).then((r) => r.data),
-  getFonteeStatus: () =>
+  // Email (SMTP) settings — password tidak pernah dikirim balik oleh server
+  getEmailConfig: () =>
     apiClient
-      .get<{ connected: boolean; device: string | null; quota: string | number | null; raw: unknown }>(
-        "/admin/settings/fontee/status"
+      .get<{ host: string; port: number; secure: boolean; user: string; from_name: string; from_email: string; password_set: boolean }>(
+        "/admin/settings/email"
       )
       .then((r) => r.data),
-  sendFonteeTest: (data: { target_number: string; message: string }) =>
-    apiClient.post("/admin/fontee/send-test", data).then((r) => r.data),
-  getFonteeQr: () =>
+  saveEmailConfig: (data: { host: string; port: number; secure: boolean; user: string; from_name: string; from_email: string }) =>
+    apiClient.put("/admin/settings/email", data).then((r) => r.data),
+  getEmailStatus: () =>
     apiClient
-      .post<{ qr: string | null; raw: unknown }>("/admin/settings/fontee/qr")
+      .get<{ connected: boolean; message: string }>("/admin/settings/email/status")
       .then((r) => r.data),
+  sendEmailTest: (data: { target_email: string; message: string }) =>
+    apiClient.post("/admin/email/send-test", data).then((r) => r.data),
   getTelegramConfig: () =>
     apiClient.get<{ bot_token: string; api_url: string; default_chat_id: string }>("/admin/settings/telegram").then((r) => r.data),
   saveTelegramConfig: (data: { bot_token: string; api_url: string; default_chat_id: string }) =>

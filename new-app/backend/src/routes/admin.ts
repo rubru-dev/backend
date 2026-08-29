@@ -1,11 +1,10 @@
 import { Router, Request, Response } from "express";
-import axios from "axios";
 import { prisma } from "../lib/prisma";
 import { requireRole } from "../middleware/requireRole";
 import { hashPassword } from "../lib/security";
-import { sendFonnte } from "../lib/fontee";
+import { deliver, NOTIFY_USER_SELECT } from "../lib/notify";
+import { getEmailConfig, getEmailPassword, isEmailConfigured, verifyEmailTransport, resetEmailTransport, sendEmail } from "../lib/email";
 import { getTelegramMe, getTelegramUpdates, sendTelegram } from "../lib/telegram";
-import { config } from "../config";
 
 const router = Router();
 
@@ -345,116 +344,74 @@ router.get("/permissions", requireRole("Super Admin"), async (_req: Request, res
   return res.json(grouped);
 });
 
-// ── Fontee Settings ──────────────────────────────────────────────────────────────
+// ── Email (SMTP) Settings ────────────────────────────────────────────────────
+// Menggantikan konfigurasi Fonnte. Password TIDAK disimpan di database —
+// hanya dibaca dari env SMTP_PASSWORD, jadi tidak pernah dikembalikan lewat API.
 
-// GET /settings/fontee
-router.get("/settings/fontee", requireRole("Super Admin"), async (_req: Request, res: Response) => {
-  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
-  const cfg = (setting?.value as Record<string, string> | null) ?? {};
+// GET /settings/email
+router.get("/settings/email", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  const cfg = await getEmailConfig();
   return res.json({
-    api_key: cfg.api_key ?? "",
-    base_url: cfg.base_url ?? "",
-    sender_number: cfg.sender_number ?? "",
+    host: cfg.host,
+    port: cfg.port,
+    secure: cfg.secure,
+    user: cfg.user,
+    from_name: cfg.from_name,
+    from_email: cfg.from_email,
+    // Hanya penanda, bukan nilainya.
+    password_set: Boolean(getEmailPassword()),
   });
 });
 
-// PUT /settings/fontee
-router.put("/settings/fontee", requireRole("Super Admin"), async (req: Request, res: Response) => {
-  const { api_key, base_url, sender_number } = req.body;
-  const value = { api_key: api_key ?? "", base_url: base_url ?? "", sender_number: sender_number ?? "" };
+// PUT /settings/email
+router.put("/settings/email", requireRole("Super Admin"), async (req: Request, res: Response) => {
+  const { host, port, secure, user, from_name, from_email } = req.body;
+  const parsedPort = parseInt(String(port ?? 465));
+  const value = {
+    host: String(host ?? "").trim(),
+    port: Number.isFinite(parsedPort) && parsedPort > 0 ? parsedPort : 465,
+    secure: Boolean(secure),
+    user: String(user ?? "").trim(),
+    from_name: String(from_name ?? "RubahRumah").trim(),
+    from_email: String(from_email ?? "").trim(),
+  };
   await prisma.appSetting.upsert({
-    where: { key: "fontee_config" },
+    where: { key: "email_config" },
     update: { value },
-    create: { key: "fontee_config", value },
+    create: { key: "email_config", value },
   });
-  return res.json({ message: "Fontee config disimpan" });
+  // Transporter di-cache; tanpa reset, perubahan host/port tidak akan berlaku
+  // sampai proses backend di-restart.
+  resetEmailTransport();
+  return res.json({ message: "Konfigurasi email disimpan" });
 });
 
-// GET /settings/fontee/status — perangkat Fonnte tersambung atau tidak.
-// Fonnte menyediakan endpoint /device yang mengembalikan status device milik token.
-router.get("/settings/fontee/status", requireRole("Super Admin"), async (_req: Request, res: Response) => {
-  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
-  const cfg = (setting?.value as Record<string, string> | null) ?? {};
-  const apiKey = cfg.api_key || config.fonnteToken;
-  const baseUrl = cfg.base_url || config.fonnteApiUrl;
-  if (!apiKey) return res.status(400).json({ detail: "API key Fonnte belum diisi" });
-
-  // Endpoint device satu host dengan endpoint kirim: ".../send" → ".../device".
-  const base = baseUrl.replace(/\/[^/]*$/, "");
+// GET /settings/email/status — verifikasi kredensial SMTP tanpa mengirim pesan
+router.get("/settings/email/status", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+  if (!(await isEmailConfigured())) {
+    return res.status(400).json({
+      detail: "Konfigurasi email belum lengkap (host, user, dan SMTP_PASSWORD di server wajib diisi)",
+    });
+  }
   try {
-    const r = await axios.post(`${base}/device`, {}, {
-      headers: { Authorization: apiKey },
-      timeout: 10000,
-      validateStatus: () => true,
-    });
-    if (r.status >= 400) {
-      return res.status(502).json({ detail: `Fonnte membalas HTTP ${r.status}`, raw: r.data });
-    }
-    const d = r.data ?? {};
-    // Penamaan field Fonnte tidak konsisten antar versi — periksa beberapa kemungkinan
-    // dan sertakan `raw` supaya UI tetap informatif kalau semuanya meleset.
-    const flag = String(
-      d.device_status ?? d.status_device ?? d.connected ?? d.status ?? ""
-    ).toLowerCase();
-    const connected = flag === "connect" || flag === "connected" || flag === "true";
-    return res.json({
-      connected,
-      device: d.device ?? d.name ?? cfg.sender_number ?? null,
-      quota: d.quota ?? null,
-      raw: d,
-    });
+    await verifyEmailTransport();
+    return res.json({ connected: true, message: "Koneksi SMTP berhasil" });
   } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal hubungi Fonnte: ${err?.message ?? "error"}` });
+    return res.status(502).json({ connected: false, detail: `Gagal konek SMTP: ${err?.message ?? "error"}` });
   }
 });
 
-// POST /settings/fontee/qr — minta QR untuk menyambung / menyambung-ulang device Fonnte.
-// Memakai device token yang sama dengan pengiriman. Fonnte: POST .../qr (Authorization: token).
-// CATATAN: QR hanya untuk SATU kali scan manual dari HP. Tidak ada cara mengotomatiskan scan —
-// reconnect setelah logout selalu perlu scan manual (desain keamanan WhatsApp linked-device).
-router.post("/settings/fontee/qr", requireRole("Super Admin"), async (_req: Request, res: Response) => {
-  const setting = await prisma.appSetting.findUnique({ where: { key: "fontee_config" } });
-  const cfg = (setting?.value as Record<string, string> | null) ?? {};
-  const apiKey = cfg.api_key || config.fonnteToken;
-  const baseUrl = cfg.base_url || config.fonnteApiUrl;
-  if (!apiKey) return res.status(400).json({ detail: "API key Fonnte belum diisi" });
-
-  // Endpoint QR satu host dengan endpoint kirim: ".../send" → ".../qr".
-  const base = baseUrl.replace(/\/[^/]*$/, "");
-  try {
-    const r = await axios.post(`${base}/qr`, {}, {
-      headers: { Authorization: apiKey },
-      timeout: 20000,
-      validateStatus: () => true,
-    });
-    if (r.status >= 400) {
-      return res.status(502).json({ detail: `Fonnte membalas HTTP ${r.status}`, raw: r.data });
-    }
-    const d = r.data ?? {};
-    // Penamaan field QR tidak konsisten antar versi Fonnte — coba beberapa kemungkinan.
-    // Bisa berupa URL gambar QR, data-URI, atau base64 mentah.
-    let qr: string | null = d.url ?? d.qr ?? d.qrurl ?? d.image ?? d.data ?? null;
-    // Kalau base64 mentah (bukan URL / data-URI), bungkus jadi data-URI PNG agar bisa <img>.
-    if (qr && !/^(https?:|data:)/i.test(qr) && /^[A-Za-z0-9+/=]+$/.test(qr) && qr.length > 100) {
-      qr = `data:image/png;base64,${qr}`;
-    }
-    return res.json({ qr, raw: d });
-  } catch (err: any) {
-    return res.status(502).json({ detail: `Gagal hubungi Fonnte: ${err?.message ?? "error"}` });
-  }
-});
-
-// POST /fontee/send-test — kirim pesan test lewat Fonnte
-router.post("/fontee/send-test", requireRole("Super Admin"), async (req: Request, res: Response) => {
-  const { target_number, message } = req.body;
-  if (!target_number || !message) {
-    return res.status(400).json({ detail: "target_number dan message wajib diisi" });
+// POST /email/send-test — kirim email percobaan
+router.post("/email/send-test", requireRole("Super Admin"), async (req: Request, res: Response) => {
+  const { target_email, message } = req.body;
+  if (!target_email || !message) {
+    return res.status(400).json({ detail: "target_email dan message wajib diisi" });
   }
   try {
-    await sendFonnte(String(target_number), String(message));
-    return res.json({ message: "Pesan terkirim" });
+    await sendEmail(String(target_email), String(message), "Test Email RubahRumah");
+    return res.json({ message: "Email terkirim" });
   } catch (err: any) {
-    return res.status(502).json({ detail: "Gagal kirim pesan: " + (err?.message ?? "Unknown error") });
+    return res.status(502).json({ detail: "Gagal kirim email: " + (err?.message ?? "Unknown error") });
   }
 });
 
@@ -565,7 +522,7 @@ function ruleDict(r: any) {
 }
 
 async function ensureTestTelegramReminderRule() {
-  await (prisma.fonteeReminderRule as any).upsert({
+  await (prisma.reminderRule as any).upsert({
     where: { feature: "test_telegram" },
     create: {
       feature: "test_telegram",
@@ -588,7 +545,7 @@ async function ensureTestTelegramReminderRule() {
 // GET /settings/reminder-rules
 router.get("/settings/reminder-rules", requireRole("Super Admin"), async (_req: Request, res: Response) => {
   await ensureTestTelegramReminderRule();
-  const rules = await prisma.fonteeReminderRule.findMany({ orderBy: { id: "asc" } });
+  const rules = await prisma.reminderRule.findMany({ orderBy: { id: "asc" } });
   const allRoles = await prisma.role.findMany({ orderBy: { name: "asc" } });
   return res.json({
     rules: rules.map(ruleDict),
@@ -600,9 +557,9 @@ router.get("/settings/reminder-rules", requireRole("Super Admin"), async (_req: 
 router.put("/settings/reminder-rules/:id", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { days_before, is_active, role_ids, send_time, message_template, priority } = req.body;
-  const rule = await prisma.fonteeReminderRule.findUnique({ where: { id } });
+  const rule = await prisma.reminderRule.findUnique({ where: { id } });
   if (!rule) return res.status(404).json({ detail: "Rule tidak ditemukan" });
-  const updated = await prisma.fonteeReminderRule.update({
+  const updated = await prisma.reminderRule.update({
     where: { id },
     data: {
       days_before: days_before !== undefined ? Number(days_before) : undefined,
@@ -619,7 +576,7 @@ router.put("/settings/reminder-rules/:id", requireRole("Super Admin"), async (re
 // POST /settings/reminder-rules/:id/test — kirim test Telegram ke semua user dengan role yang dipilih rule
 router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const rule = await prisma.fonteeReminderRule.findUnique({ where: { id } });
+  const rule = await prisma.reminderRule.findUnique({ where: { id } });
   if (!rule) return res.status(404).json({ detail: "Rule tidak ditemukan" });
 
   // Find users with matching roles
@@ -629,13 +586,13 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
   const usersWithRole = await prisma.user.findMany({
     where: {
       roles: { some: { role_id: { in: roleIds } } },
-      telegram_chat_id: { not: null },
+      NOT: { email: { startsWith: "deleted+" } },
     },
-    select: { id: true, name: true, telegram_chat_id: true },
+    select: NOTIFY_USER_SELECT,
   });
 
   if (usersWithRole.length === 0) {
-    return res.status(400).json({ detail: "Tidak ada user dengan role tersebut yang memiliki Telegram Chat ID" });
+    return res.status(400).json({ detail: "Tidak ada user aktif dengan role tersebut" });
   }
 
   const priority: string = (rule as any).priority_manual ?? "sedang";
@@ -649,12 +606,10 @@ router.post("/settings/reminder-rules/:id/test", requireRole("Super Admin"), asy
   const errors: string[] = [];
 
   for (const u of usersWithRole) {
-    try {
-      await sendFonnte(u.telegram_chat_id!, message);
-      sent++;
-    } catch (err: any) {
-      errors.push(`${u.name}: ${err?.message ?? "error"}`);
-    }
+    const hasil = await deliver(u, message, `[TEST] ${rule.label}`);
+    if (hasil.telegram || hasil.email) sent++;
+    if (hasil.errors.length) errors.push(`${u.name}: ${hasil.errors.join("; ")}`);
+    else if (hasil.skipped) errors.push(`${u.name}: tidak punya channel aktif`);
   }
 
   return res.json({

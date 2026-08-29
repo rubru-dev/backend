@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 
 import { verifyPassword, createClientPortalToken } from "../lib/security";
 import { authenticateClientPortal } from "../middleware/auth";
-import { sendFonnte } from "../lib/fontee";
+import { deliver, NOTIFY_USER_SELECT, type NotifyRecipient } from "../lib/notify";
 
 const router = Router();
 
@@ -479,12 +479,15 @@ router.get("/monitoring", async (req: Request, res: Response) => {
 });
 
 // ── GET /kontak ───────────────────────────────────────────────────────────────
-// POST /tiket — klien kirim pesan/tiket ke PIC via Fontee
+// POST /tiket — klien kirim pesan/tiket ke PIC (Telegram + email)
+// `whatsapp_target` dipertahankan di body demi kompatibilitas dengan portal klien
+// yang sudah terpasang, tapi TIDAK lagi dipakai sebagai alamat pengiriman —
+// dulu nomor WA ini dikirim sebagai chat_id Telegram sehingga selalu gagal 500.
 router.post("/tiket", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const { whatsapp_target, nama_pic, pesan } = req.body;
-  if (!whatsapp_target || !pesan) {
-    return res.status(400).json({ detail: "whatsapp_target dan pesan wajib diisi" });
+  if (!pesan) {
+    return res.status(400).json({ detail: "pesan wajib diisi" });
   }
   const project = await prisma.clientPortalProject.findUnique({
     where: { id: projectId },
@@ -492,8 +495,45 @@ router.post("/tiket", async (req: Request, res: Response) => {
   });
   const clientName = project?.klien ?? project?.nama_proyek ?? "Klien";
   const projectName = project?.nama_proyek ?? "—";
-  const msg = `🎫 *Tiket dari Klien*\n\nKlien: *${clientName}*\nProyek: ${projectName}\nKepada: ${nama_pic || "PIC"}\n\n${pesan}`;
-  await sendFonnte(whatsapp_target, msg);
+
+  // Cari PIC tujuan: baris kontak proyek ini yang cocok nama / nomor WA-nya.
+  const kontak = await prisma.clientPortalKontak.findFirst({
+    where: {
+      project_id: projectId,
+      OR: [
+        ...(nama_pic ? [{ nama: String(nama_pic) }] : []),
+        ...(whatsapp_target ? [{ whatsapp: String(whatsapp_target) }] : []),
+      ],
+    },
+    select: { nama: true, email: true },
+  });
+
+  // Akun user internal dengan nama yang sama dipakai untuk channel Telegram.
+  const picName = kontak?.nama ?? (nama_pic ? String(nama_pic) : null);
+  const picUser = picName
+    ? await prisma.user.findFirst({
+        where: { name: picName, NOT: { email: { startsWith: "deleted+" } } },
+        select: NOTIFY_USER_SELECT,
+      })
+    : null;
+
+  const target: NotifyRecipient | null = picUser
+    ? picUser
+    : kontak?.email
+      ? { name: kontak.nama, email: kontak.email }
+      : null;
+
+  if (!target) {
+    return res.status(400).json({
+      detail: "PIC tujuan tidak punya email atau akun terdaftar. Lengkapi kontak proyek terlebih dulu.",
+    });
+  }
+
+  const msg = `🎫 *Tiket dari Klien*\n\nKlien: *${clientName}*\nProyek: ${projectName}\nKepada: ${picName || "PIC"}\n\n${pesan}`;
+  const hasil = await deliver(target, msg, `Tiket dari klien — ${projectName}`);
+  if (!hasil.telegram && !hasil.email) {
+    return res.status(502).json({ detail: `Gagal mengirim pesan${hasil.errors.length ? `: ${hasil.errors.join("; ")}` : ""}` });
+  }
   return res.json({ message: "Pesan berhasil dikirim" });
 });
 

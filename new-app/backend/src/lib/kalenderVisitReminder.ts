@@ -1,6 +1,6 @@
 import cron from "node-cron";
 import { prisma } from "./prisma";
-import { sendFonnte } from "./fontee";
+import { deliver, NOTIFY_USER_SELECT } from "./notify";
 
 /**
  * Reminder WhatsApp untuk PIC Kalender Visit.
@@ -89,7 +89,7 @@ export async function sendKalenderVisitReminders(force = false) {
     include: {
       pics: {
         include: {
-          user: { select: { id: true, name: true, telegram_chat_id: true } },
+          user: { select: NOTIFY_USER_SELECT },
         },
       },
     },
@@ -115,15 +115,13 @@ export async function sendKalenderVisitReminders(force = false) {
       `— RubahRumah`;
 
     for (const pic of visit.pics) {
-      const chatId = pic.user?.telegram_chat_id;
-      if (!chatId) continue;
-      try {
-        await sendFonnte(chatId, message);
-        sentCount++;
-      } catch (err) {
+      if (!pic.user) continue;
+      const hasil = await deliver(pic.user, message, "Reminder Kunjungan Hari Ini");
+      if (hasil.telegram || hasil.email) sentCount++;
+      if (hasil.errors.length) {
         console.error(
           `[KalenderVisitReminder] Gagal kirim ke ${pic.user?.name ?? pic.user_id}:`,
-          err,
+          hasil.errors.join("; "),
         );
       }
     }

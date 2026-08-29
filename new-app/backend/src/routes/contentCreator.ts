@@ -3,7 +3,7 @@ import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { syncInstagram, syncTikTok, syncYouTube, syncInstagramAccountLevel } from "../lib/socialSync";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { sendFonntToRoles, FRONTEND_URL } from "../lib/fontee";
+import { sendNotifToRoles, FRONTEND_URL } from "../lib/notify";
 
 const router = Router();
 
@@ -124,7 +124,7 @@ router.post("/timeline", async (req: Request, res: Response) => {
   // Notify BD roles via WhatsApp
   const creatorName = req.user!.name;
   const msg = `📋 *Konten Baru Perlu Approval*\n\nContent creator *${creatorName}* menambahkan konten baru:\n*${judul ?? "-"}*\nPlatform: ${platform ?? "-"}\n\nSilakan review dan approve di Timeline Konten.\n\n🔗 ${FRONTEND_URL}/content/timelines`;
-  sendFonntToRoles(["BD", "Super Admin"], msg).catch(() => {});
+  sendNotifToRoles(["BD", "Super Admin"], msg).catch(() => {});
 
   return res.status(201).json({ id: c.id, judul: c.judul, planning_status: c.planning_status });
 });

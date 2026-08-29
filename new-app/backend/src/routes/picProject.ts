@@ -4,7 +4,7 @@ import path from "path";
 import fs from "fs";
 import { prisma } from "../lib/prisma";
 import { config } from "../config";
-import { triggerEventReminder } from "../lib/fontee";
+import { triggerEventReminder } from "../lib/notify";
 import { sendVisitProjectAssignedReminder } from "../lib/hardcodedReminderScheduler";
 import { reverseGeocode, numOrNull } from "../lib/reverseGeocode";
 

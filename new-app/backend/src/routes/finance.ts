@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission, requireModuleAccess } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { sendFonntToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/fontee";
+import { sendNotifToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/notify";
 import fs from "fs";
 import path from "path";
 import { config } from "../config";
@@ -1900,7 +1900,7 @@ router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
     include: { items: true },
   });
   const prMsg = `📋 *Purchase Request Baru*\n\nNomor PR: *${nomor_pr}*\nToko: ${nama_toko || "—"}\n\nSilakan review dan tanda tangani.\n\n🔗 ${FRONTEND_URL}/finance/adm-projek`;
-  sendFonntToRoles(["Head Finance", "Admin Finance"], prMsg).catch(() => {});
+  sendNotifToRoles(["Head Finance", "Admin Finance"], prMsg).catch(() => {});
   return res.json({ message: "PR dibuat", data: pr });
 });
 
@@ -2651,8 +2651,10 @@ router.post("/adm-projek/:id/tukang/absen-foto/:aid/approve", async (req: Reques
     where: { id: aid },
     data: { status: "Disetujui", approved_by: req.user!.id, approved_at: new Date() },
   });
-  const tukangWa = (p.tukang as any)?.user?.whatsapp_number;
-  if (tukangWa) {
+  // Dulu notifikasi ini digerbangi keberadaan nomor WhatsApp tukang, padahal
+  // pengirimannya bukan WhatsApp — akibatnya reminder tidak pernah jalan untuk
+  // tukang tanpa nomor. Sekarang selalu dipicu; penentuan channel ada di notify.
+  {
     const proyekNama = (p.tukang as any)?.adm_finance_project?.nama_proyek ?? "—";
     const tanggalStr = p.tanggal.toLocaleDateString("id-ID", { timeZone: "Asia/Jakarta", day: "numeric", month: "long", year: "numeric" });
     triggerEventReminder("absen_tukang_approved", { nama_proyek: proyekNama, tanggal: tanggalStr }).catch(() => {});
@@ -3015,7 +3017,7 @@ router.post("/tukang-absen/:project_id/submit", async (req: Request, res: Respon
   const projectName = (tukang as any).adm_finance_project?.nama_proyek ?? "—";
   const absenDateStr = absenDate.toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" });
   const absenMsg = `📸 *Absen Tukang Baru*\n\nTukang: *${tukangName}*\nProyek: ${projectName}\nTanggal: ${absenDateStr}\n\nSilakan review dan setujui foto absen.\n\n🔗 ${FRONTEND_URL}/finance/adm-projek`;
-  sendFonntToRoles(["Admin Finance"], absenMsg).catch(() => {});
+  sendNotifToRoles(["Admin Finance"], absenMsg).catch(() => {});
   return res.status(201).json({ id: p.id });
 });
 

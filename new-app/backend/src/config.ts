@@ -13,8 +13,11 @@ export const config = {
   corsOrigins: process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()) ?? ["http://localhost:3000"],
   corsAllowAll: process.env.CORS_ALLOW_ALL === "true",
   storagePath: process.env.STORAGE_PATH ?? path.resolve(__dirname, "../storage"),
-  fonnteToken: process.env.FONNTE_TOKEN ?? "",
-  fonnteApiUrl: process.env.FONNTE_API_URL ?? "https://api.fonnte.com/send",
+  // SMTP — password SENGAJA hanya dari env, tidak pernah disimpan di database.
+  smtpHost: process.env.SMTP_HOST ?? "",
+  smtpPort: parseInt(process.env.SMTP_PORT ?? "465"),
+  smtpUser: process.env.SMTP_USER ?? "",
+  smtpPassword: process.env.SMTP_PASSWORD ?? "",
   telegramBotToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
   telegramApiUrl: process.env.TELEGRAM_API_URL ?? "https://api.telegram.org",
   metaAdsAccessToken: process.env.META_ADS_ACCESS_TOKEN ?? "",

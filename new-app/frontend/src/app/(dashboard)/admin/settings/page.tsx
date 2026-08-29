@@ -16,7 +16,7 @@ import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useAuthStore } from "@/store/authStore";
-import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, QrCode, Bot, RefreshCw } from "lucide-react";
+import { Settings, Bell, Send, Eye, EyeOff, Loader2, FlaskConical, CalendarClock, Zap, Bot, RefreshCw, Mail } from "lucide-react";
 
 const PRIORITY_CONFIG: Record<string, { label: string; emoji: string; active: string; inactive: string }> = {
   rendah: { label: "Rendah", emoji: "🟢", active: "bg-green-600 text-white border-green-600",  inactive: "bg-green-50 text-green-700 border-green-300 hover:bg-green-100" },
@@ -252,127 +252,139 @@ function ReminderRulesTab({
   );
 }
 
-// bukan .env, jadi tanpa tab ini tidak ada cara mengisinya lewat aplikasi.
-function FonnteTab() {
-  const [form, setForm] = useState({ api_key: "", base_url: "", sender_number: "" });
-  const [showKey, setShowKey] = useState(false);
-  const [testNum, setTestNum] = useState("");
-  const [testMsg, setTestMsg] = useState("Halo! Ini pesan test dari sistem RubahRumah.");
+// Konfigurasi SMTP disimpan di database (bukan .env) supaya bisa diubah tanpa
+// deploy — KECUALI password, yang sengaja hanya dibaca dari env SMTP_PASSWORD
+// di server dan tidak pernah dikirim balik ke browser.
+function EmailTab() {
+  const [form, setForm] = useState({
+    host: "", port: 465, secure: true, user: "", from_name: "RubahRumah", from_email: "",
+  });
+  const [passwordSet, setPasswordSet] = useState(false);
+  const [testEmail, setTestEmail] = useState("");
+  const [testMsg, setTestMsg] = useState("Halo! Ini email test dari sistem RubahRumah.");
 
   const { data: cfg, isLoading } = useQuery({
-    queryKey: ["fontee-config"],
-    queryFn: () => adminApi.getFonteeConfig(),
-    retry: false,
+    queryKey: ["email-config"],
+    queryFn: () => adminApi.getEmailConfig(),
   });
 
   useEffect(() => {
     if (!cfg) return;
     setForm({
-      api_key: cfg.api_key ?? "",
-      base_url: cfg.base_url ?? "",
-      sender_number: cfg.sender_number ?? "",
+      host: cfg.host ?? "",
+      port: cfg.port ?? 465,
+      secure: cfg.secure ?? true,
+      user: cfg.user ?? "",
+      from_name: cfg.from_name || "RubahRumah",
+      from_email: cfg.from_email ?? "",
     });
+    setPasswordSet(Boolean(cfg.password_set));
   }, [cfg]);
 
-  const saveMut = useMutation({
-    mutationFn: () => adminApi.saveFonteeConfig(form),
-    onSuccess: () => toast.success("Konfigurasi Fonnte disimpan"),
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan konfigurasi"),
+  const save = useMutation({
+    mutationFn: () => adminApi.saveEmailConfig(form),
+    onSuccess: () => toast.success("Konfigurasi email disimpan"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan konfigurasi email"),
   });
 
-  const statusMut = useMutation({
-    mutationFn: () => adminApi.getFonteeStatus(),
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal cek status Fonnte"),
-  });
-  const status = statusMut.data;
-
-  const sendTestMut = useMutation({
-    mutationFn: (d: { target_number: string; message: string }) => adminApi.sendFonteeTest(d),
-    onSuccess: () => toast.success("Pesan test berhasil dikirim!"),
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal kirim pesan test"),
+  const cek = useMutation({
+    mutationFn: () => adminApi.getEmailStatus(),
+    onSuccess: (d) => toast.success(d?.message || "Koneksi SMTP berhasil"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal konek SMTP"),
   });
 
-  // ── QR reconnect ──────────────────────────────────────────────────────────
-  const [qrOpen, setQrOpen] = useState(false);
-  const qrMut = useMutation({
-    mutationFn: () => adminApi.getFonteeQr(),
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal minta QR dari Fonnte"),
+  const kirimTest = useMutation({
+    mutationFn: () => adminApi.sendEmailTest({ target_email: testEmail, message: testMsg }),
+    onSuccess: () => toast.success("Email test terkirim"),
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal kirim email test"),
   });
-  const qr = qrMut.data;
-
-  function openQr() {
-    setQrOpen(true);
-    qrMut.mutate();
-  }
-
-  // Selama dialog QR terbuka, cek status tiap 3 detik supaya tahu begitu tersambung.
-  useEffect(() => {
-    if (!qrOpen) return;
-    const iv = setInterval(() => statusMut.mutate(), 3000);
-    return () => clearInterval(iv);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [qrOpen]);
-
-  // Begitu terdeteksi tersambung, tutup dialog otomatis.
-  useEffect(() => {
-    if (qrOpen && status?.connected) {
-      toast.success("WhatsApp tersambung!");
-      setQrOpen(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status?.connected, qrOpen]);
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
-          <CardTitle>Konfigurasi Fonnte</CardTitle>
-          <CardDescription>Gateway WhatsApp. Kredensial diambil dari sini oleh semua pengiriman reminder.</CardDescription>
+          <CardTitle>Konfigurasi Email (SMTP)</CardTitle>
+          <CardDescription>
+            Alamat pengirim utama untuk semua notifikasi. Telegram dan email dikirim bersamaan —
+            user yang punya keduanya menerima dua-duanya.
+          </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {isLoading ? (
-            <p className="text-sm text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />Memuat...
-            </p>
+            <p className="text-sm text-muted-foreground">Memuat...</p>
           ) : (
             <>
-              <div>
-                <Label>API Key / Token</Label>
-                <div className="relative">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>SMTP Host</Label>
                   <Input
-                    type={showKey ? "text" : "password"}
-                    placeholder="Token dari dashboard Fonnte"
-                    value={form.api_key}
-                    onChange={(e) => setForm({ ...form, api_key: e.target.value })}
+                    value={form.host}
+                    onChange={(e) => setForm({ ...form, host: e.target.value })}
+                    placeholder="smtp.gmail.com"
                   />
-                  <button
-                    type="button"
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground"
-                    onClick={() => setShowKey((v) => !v)}
-                  >
-                    {showKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
+                </div>
+                <div>
+                  <Label>Port</Label>
+                  <Input
+                    type="number"
+                    value={form.port}
+                    onChange={(e) => {
+                      const port = parseInt(e.target.value) || 465;
+                      // 465 = SMTPS; 587 = STARTTLS. Salah pasang di sini adalah
+                      // penyebab paling umum "connection timeout".
+                      setForm({ ...form, port, secure: port !== 587 });
+                    }}
+                    placeholder="465"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">465 = SSL, 587 = STARTTLS</p>
                 </div>
               </div>
+
               <div>
-                <Label>Base URL</Label>
+                <Label>Akun Pengirim (login SMTP)</Label>
                 <Input
-                  placeholder="https://api.fonnte.com/send"
-                  value={form.base_url}
-                  onChange={(e) => setForm({ ...form, base_url: e.target.value })}
-                />
-                <p className="text-xs text-muted-foreground mt-1">Biasanya https://api.fonnte.com/send</p>
-              </div>
-              <div>
-                <Label>Nomor Pengirim</Label>
-                <Input
-                  placeholder="628xxxxxxxxxx"
-                  value={form.sender_number}
-                  onChange={(e) => setForm({ ...form, sender_number: e.target.value })}
+                  value={form.user}
+                  onChange={(e) => setForm({ ...form, user: e.target.value })}
+                  placeholder="notifikasi@rubahrumah.com"
                 />
               </div>
-              <Button onClick={() => saveMut.mutate()} disabled={!form.api_key || !form.base_url || saveMut.isPending}>
-                {saveMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : "Simpan"}
+
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div>
+                  <Label>Nama Pengirim</Label>
+                  <Input
+                    value={form.from_name}
+                    onChange={(e) => setForm({ ...form, from_name: e.target.value })}
+                    placeholder="RubahRumah"
+                  />
+                </div>
+                <div>
+                  <Label>Alamat From</Label>
+                  <Input
+                    value={form.from_email}
+                    onChange={(e) => setForm({ ...form, from_email: e.target.value })}
+                    placeholder="samakan dengan akun pengirim"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Kosongkan = ikut akun pengirim. Alamat berbeda dianggap spoofing dan masuk spam.
+                  </p>
+                </div>
+              </div>
+
+              <div className={`rounded-md border p-3 text-sm ${passwordSet ? "border-green-300 bg-green-50 text-green-800" : "border-amber-300 bg-amber-50 text-amber-900"}`}>
+                {passwordSet ? (
+                  <>Password SMTP sudah terpasang di server.</>
+                ) : (
+                  <>
+                    <b>Password SMTP belum di-set.</b> Demi keamanan, password tidak disimpan di
+                    database. Isi <code>SMTP_PASSWORD</code> di file <code>.env</code> server lalu
+                    restart backend. Untuk Gmail, pakai <b>App Password</b> 16 karakter (butuh 2FA aktif).
+                  </>
+                )}
+              </div>
+
+              <Button onClick={() => save.mutate()} disabled={save.isPending}>
+                {save.isPending ? "Menyimpan..." : "Simpan"}
               </Button>
             </>
           )}
@@ -381,114 +393,44 @@ function FonnteTab() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Status Perangkat</CardTitle>
-          <CardDescription>Cek apakah nomor Fonnte sedang tersambung ke WhatsApp.</CardDescription>
+          <CardTitle>Cek Koneksi</CardTitle>
+          <CardDescription>Verifikasi login SMTP tanpa mengirim email.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex items-center gap-3">
-            <Button variant="outline" onClick={() => statusMut.mutate()} disabled={statusMut.isPending}>
-              {statusMut.isPending
-                ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengecek...</>
-                : <><Zap className="h-3.5 w-3.5 mr-1.5" />Cek Status</>}
-            </Button>
-            <Button variant="outline" onClick={openQr} disabled={qrMut.isPending}>
-              <QrCode className="h-3.5 w-3.5 mr-1.5" />Hubungkan / QR
-            </Button>
-            {status && (
-              <Badge className={status.connected ? "bg-green-600 text-white" : "bg-red-600 text-white"}>
-                {status.connected ? "Tersambung" : "Terputus"}
-              </Badge>
-            )}
-          </div>
-          <p className="text-xs text-muted-foreground">
-            QR untuk menyambung / menyambung-ulang WhatsApp tanpa login dashboard Fonnte. QR berlaku
-            singkat — kalau kedaluwarsa, klik "Muat ulang QR". Setelah tersambung, koneksi bertahan lama
-            selama HP utama tetap online berkala.
-          </p>
-
-          {status && (
-            <div className="text-sm space-y-1">
-              {status.device && (
-                <div className="flex gap-4">
-                  <span className="text-muted-foreground w-24">Perangkat:</span>
-                  <span className="font-medium">{status.device}</span>
-                </div>
-              )}
-              {status.quota !== null && status.quota !== undefined && (
-                <div className="flex gap-4">
-                  <span className="text-muted-foreground w-24">Kuota:</span>
-                  <span>{String(status.quota)}</span>
-                </div>
-              )}
-              {/* Fonnte tidak konsisten menamai field statusnya antar versi — tampilkan
-                  respons mentahnya supaya tetap bisa dibaca kalau badge salah tebak. */}
-              <details className="pt-1">
-                <summary className="text-xs text-muted-foreground cursor-pointer">Respons mentah Fonnte</summary>
-                <pre className="text-xs bg-muted p-2 rounded mt-1 overflow-x-auto">
-                  {JSON.stringify(status.raw, null, 2)}
-                </pre>
-              </details>
-            </div>
-          )}
+        <CardContent>
+          <Button variant="outline" onClick={() => cek.mutate()} disabled={cek.isPending}>
+            {cek.isPending ? "Mengecek..." : "Cek Koneksi SMTP"}
+          </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2"><Send className="h-4 w-4" />Test Kirim Pesan</CardTitle>
-          <CardDescription>Kirim pesan percobaan lewat Fonnte untuk memverifikasi koneksi.</CardDescription>
+          <CardTitle>Kirim Email Test</CardTitle>
+          <CardDescription>
+            Kirim ke alamat mana pun untuk memastikan email benar-benar sampai — cek juga folder Spam.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-3">
           <div>
-            <Label>Nomor Tujuan</Label>
-            <Input placeholder="628xxxxxxxxxx" value={testNum} onChange={(e) => setTestNum(e.target.value)} />
-            <p className="text-xs text-muted-foreground mt-1">Format internasional tanpa + (misal: 6281234567890)</p>
+            <Label>Email Tujuan</Label>
+            <Input
+              value={testEmail}
+              onChange={(e) => setTestEmail(e.target.value)}
+              placeholder="nama@contoh.com"
+            />
           </div>
           <div>
             <Label>Pesan</Label>
             <Input value={testMsg} onChange={(e) => setTestMsg(e.target.value)} />
           </div>
           <Button
-            variant="outline"
-            onClick={() => sendTestMut.mutate({ target_number: testNum, message: testMsg })}
-            disabled={!testNum || !testMsg || sendTestMut.isPending}
+            onClick={() => kirimTest.mutate()}
+            disabled={kirimTest.isPending || !testEmail || !testMsg}
           >
-            {sendTestMut.isPending
-              ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengirim...</>
-              : <><Send className="h-3.5 w-3.5 mr-1.5" />Kirim Test</>}
+            {kirimTest.isPending ? "Mengirim..." : "Kirim Test"}
           </Button>
         </CardContent>
       </Card>
-
-      <Dialog open={qrOpen} onOpenChange={setQrOpen}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Sambungkan WhatsApp</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-3 text-center">
-            <p className="text-sm text-muted-foreground">
-              Di HP: WhatsApp → <span className="font-medium">Perangkat Tertaut</span> → Tautkan Perangkat, lalu scan QR di bawah.
-            </p>
-            {qrMut.isPending ? (
-              <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin" /></div>
-            ) : qr?.qr ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={qr.qr} alt="QR Fonnte" className="mx-auto w-56 h-56 object-contain border rounded bg-white" />
-            ) : (
-              <div className="text-left space-y-2">
-                <p className="text-sm text-red-600">QR tidak bisa ditampilkan. Respons mentah Fonnte (kirim ke developer bila perlu):</p>
-                <pre className="text-xs bg-muted p-2 rounded overflow-x-auto max-h-48">{JSON.stringify(qr?.raw, null, 2)}</pre>
-              </div>
-            )}
-            <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
-              <Loader2 className="h-3 w-3 animate-spin" />Menunggu koneksi... (auto-cek tiap 3 detik)
-            </div>
-            <Button variant="outline" size="sm" onClick={() => qrMut.mutate()} disabled={qrMut.isPending}>
-              <QrCode className="h-3.5 w-3.5 mr-1.5" />Muat ulang QR
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
@@ -760,7 +702,7 @@ export default function SettingsPage() {
       <Tabs defaultValue="akun">
         <TabsList>
           <TabsTrigger value="akun"><Settings className="h-3.5 w-3.5 mr-1.5" />Akun</TabsTrigger>
-          {superAdmin && <TabsTrigger value="fonnte"><Zap className="h-3.5 w-3.5 mr-1.5" />Fonnte</TabsTrigger>}
+          {superAdmin && <TabsTrigger value="email"><Mail className="h-3.5 w-3.5 mr-1.5" />Email</TabsTrigger>}
           {superAdmin && <TabsTrigger value="telegram"><Bot className="h-3.5 w-3.5 mr-1.5" />Telegram</TabsTrigger>}
           {superAdmin && <TabsTrigger value="reminder"><Bell className="h-3.5 w-3.5 mr-1.5" />Reminder Rules</TabsTrigger>}
         </TabsList>
@@ -798,9 +740,9 @@ export default function SettingsPage() {
         </TabsContent>
 
 
-        {/* Fonnte tab */}
-        <TabsContent value="fonnte" className="mt-4 space-y-4">
-          {superAdmin && <FonnteTab />}
+        {/* Email tab */}
+        <TabsContent value="email" className="mt-4 space-y-4">
+          {superAdmin && <EmailTab />}
         </TabsContent>
 
         {/* Telegram tab */}

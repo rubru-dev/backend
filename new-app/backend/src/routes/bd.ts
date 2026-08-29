@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { sendFonnte, sendFonntToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/fontee";
+import { deliver, sendNotifToRoles, triggerEventReminder, NOTIFY_USER_SELECT, FRONTEND_URL } from "../lib/notify";
 import { sendSurveyScheduledReminder } from "../lib/hardcodedReminderScheduler";
 import { syncInstagram, syncInstagramAccountLevel, syncYouTube } from "../lib/socialSync";
 
@@ -51,15 +51,17 @@ async function notifyCalendarAssignment(args: {
           : []),
       ],
     },
-    select: { id: true, telegram_chat_id: true },
+    select: NOTIFY_USER_SELECT,
   });
 
-  const sentTargets = new Set<string>();
+  // Dedup per user (bukan per chat_id) karena satu user kini bisa dijangkau
+  // lewat dua channel sekaligus dan bisa cocok dengan lebih dari satu klausa OR.
+  const sentUserIds = new Set<string>();
   for (const user of recipients) {
-    const target = user.telegram_chat_id?.trim();
-    if (!target || sentTargets.has(target)) continue;
-    sentTargets.add(target);
-    sendFonnte(target, args.message).catch(() => {});
+    const key = String(user.id);
+    if (sentUserIds.has(key)) continue;
+    sentUserIds.add(key);
+    deliver(user, args.message).catch(() => {});
   }
 }
 
@@ -503,7 +505,7 @@ router.post("/leads/:id/approve-survey", requirePermission("bd", "approve"), asy
     `Tagihan survey: *Rp 300.000*\n` +
     `Harap buat invoice Payment Survey atas nama client tersebut.\n` +
     `${FRONTEND_URL}/finance/invoice-kwitansi`;
-  sendFonntToRoles(["Sales Admin", "Admin Finance"], surveyMsg).catch(() => {});
+  sendNotifToRoles(["Sales Admin", "Admin Finance"], surveyMsg).catch(() => {});
 
   return res.json({ message: "Survey disetujui" });
 });
@@ -2454,17 +2456,6 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
     }
   }
 
-  // Legacy notification block disabled; covered by the normalized notification above.
-  if (false && b.pic_survey && b.tanggal_survey) {
-    const picUser = await prisma.user.findFirst({ where: { name: b.pic_survey }, select: { whatsapp_number: true } });
-    if (picUser?.whatsapp_number) {
-      const calendarPath = modul === "golden"
-        ? "golden/kalender-survey"
-        : modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
-      const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${updatedLead.nama}\n*Tanggal:* ${b.tanggal_survey}\n*Jam:* ${b.jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
-      sendFonnte(picUser!.whatsapp_number!, msg).catch(() => {});
-    }
-  }
 
   return res.json({ message: "Lead berhasil diupdate" });
 });
@@ -2725,18 +2716,6 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
     }
   }
 
-  // Legacy notification block disabled; covered by the normalized notification above.
-  if (false && pic_survey && tanggal_survey) {
-    const picUser = await prisma.user.findFirst({ where: { name: pic_survey }, select: { whatsapp_number: true } });
-    if (picUser?.whatsapp_number) {
-      const modul = req.params.modul;
-      const calendarPath = modul === "golden"
-        ? "golden/kalender-survey"
-        : modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
-      const msg = `📅 *Assign Survey Baru*\n\nAnda ditugaskan sebagai PIC Survey:\n*Klien:* ${lead!.nama}\n*Tanggal:* ${tanggal_survey}\n*Jam:* ${jam_survey ?? "-"}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
-      sendFonnte(picUser!.whatsapp_number!, msg).catch(() => {});
-    }
-  }
 
   return res.json({ message: "Jadwal survey diupdate" });
 });
@@ -2830,15 +2809,6 @@ router.patch("/:modul/leads/:id/pengerjaan-schedule", requireRole("Head Golden",
     });
   }
 
-  // Legacy notification block disabled; covered by the normalized notification above.
-  if (false && lead!.pic_survey) {
-    const picUser = await prisma.user.findFirst({ where: { name: lead!.pic_survey as string }, select: { whatsapp_number: true } });
-    if (picUser?.whatsapp_number) {
-      const calendarPath = modul === "golden" ? "golden/kalender-after" : "telemarketing/kalender-instalasi-filter-air";
-      const msg = `🔨 *Assign After Pengerjaan Baru*\n\nAnda ditugaskan sebagai PIC After Pengerjaan:\n*Klien:* ${lead!.nama}\n*Tanggal:* ${tanggal_pengerjaan}\n\n🔗 ${FRONTEND_URL}/${calendarPath}`;
-      sendFonnte(picUser!.whatsapp_number!, msg).catch(() => {});
-    }
-  }
   return res.json({ message: "Tanggal pengerjaan berhasil diset" });
 });
 

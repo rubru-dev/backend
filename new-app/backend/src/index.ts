@@ -15,7 +15,7 @@ import { authenticate } from "./middleware/auth";
 import { PrismaClient } from "@prisma/client";
 import { syncCamerasToMediaMTX } from "./lib/mediamtx";
 import { startMetaAutoRefresh } from "./lib/metaAutoRefresh";
-import { startReminderScheduler } from "./lib/fonteeReminderScheduler";
+import { startReminderScheduler } from "./lib/reminderScheduler";
 import { startHardcodedReminderScheduler } from "./lib/hardcodedReminderScheduler";
 
 const prismaSync = new PrismaClient();
@@ -222,7 +222,7 @@ app.listen(config.port, async () => {
     console.error("✗ startMetaAutoRefresh gagal:", err);
   }
 
-  // Reminder WhatsApp otomatis berdasarkan FonteeReminderRule (cek setiap jam + 16:50 + absen)
+  // Reminder otomatis (Telegram + email) berdasarkan ReminderRule (cek setiap jam + 16:50 + absen)
   // Termasuk kalender_visit_reminder (menggantikan hardcoded kalenderVisitReminder)
   try {
     startReminderScheduler();

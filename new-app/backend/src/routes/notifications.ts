@@ -1,6 +1,6 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
-import { sendFonnte, FRONTEND_URL } from "../lib/fontee";
+import { deliver, NOTIFY_USER_SELECT, FRONTEND_URL } from "../lib/notify";
 
 const router = Router();
 
@@ -26,18 +26,18 @@ router.post("/send", async (req: Request, res: Response) => {
   // Tentukan penerima
   const allUsers = !recipient_user_ids || recipient_user_ids.length === 0;
 
-  let recipients: { id: bigint; name: string; whatsapp_number: string | null }[];
+  let recipients: { id: bigint; name: string; telegram_chat_id: string | null; email: string }[];
 
   if (allUsers) {
     recipients = await prisma.user.findMany({
-      where: { id: { not: senderId } },
-      select: { id: true, name: true, whatsapp_number: true },
+      where: { id: { not: senderId }, NOT: { email: { startsWith: "deleted+" } } },
+      select: NOTIFY_USER_SELECT,
     });
   } else {
     const ids = recipient_user_ids.map(BigInt);
     recipients = await prisma.user.findMany({
-      where: { id: { in: ids } },
-      select: { id: true, name: true, whatsapp_number: true },
+      where: { id: { in: ids }, NOT: { email: { startsWith: "deleted+" } } },
+      select: NOTIFY_USER_SELECT,
     });
   }
 
@@ -57,20 +57,28 @@ router.post("/send", async (req: Request, res: Response) => {
     })),
   });
 
-  // Also send via Fonnte WA to recipients who have a whatsapp_number
-  const waMessage = `*Pesan dari ${senderName}:*\n${message}\n\n🔗 Buka Dashboard: ${FRONTEND_URL}/dashboard`;
-  let waSent = 0;
+  // Kirim ke Telegram + email. Kegagalan satu penerima tidak boleh
+  // menjatuhkan seluruh request — deliver() menelan errornya per-channel.
+  const fullMessage = `*Pesan dari ${senderName}:*\n${message}\n\n🔗 Buka Dashboard: ${FRONTEND_URL}/dashboard`;
+  const subject = `Pesan dari ${senderName}`;
+  let telegramSent = 0;
+  let emailSent = 0;
   for (const r of recipients) {
-    if (r.whatsapp_number) {
-      await sendFonnte(r.whatsapp_number, waMessage);
-      waSent++;
-    }
+    const hasil = await deliver(r, fullMessage, subject);
+    if (hasil.telegram) telegramSent++;
+    if (hasil.email) emailSent++;
   }
+
+  const rincian = [
+    telegramSent > 0 ? `${telegramSent} Telegram` : null,
+    emailSent > 0 ? `${emailSent} email` : null,
+  ].filter(Boolean).join(", ");
 
   return res.json({
     sent_to: recipients.length,
-    wa_sent: waSent,
-    message: `Pesan terkirim ke ${recipients.length} pengguna${waSent > 0 ? ` (${waSent} via WhatsApp)` : ""}`,
+    telegram_sent: telegramSent,
+    email_sent: emailSent,
+    message: `Pesan terkirim ke ${recipients.length} pengguna${rincian ? ` (${rincian})` : ""}`,
   });
 });
 

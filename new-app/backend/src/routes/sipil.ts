@@ -901,7 +901,7 @@ router.post("/tasks/:id/fotos", requirePermission("projek_sipil", "dokumentasi")
       })
     )
   );
-  const { triggerEventReminder: triggerEvt } = await import("../lib/fontee");
+  const { triggerEventReminder: triggerEvt } = await import("../lib/notify");
   triggerEvt("dokumentasi_projek_upload", {
     jenis: "sipil",
     nama_proyek: "Projek Sipil",

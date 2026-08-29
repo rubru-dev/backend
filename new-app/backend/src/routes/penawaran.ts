@@ -1,7 +1,7 @@
 import { randomUUID } from "crypto";
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
-import { triggerEventReminder } from "../lib/fontee";
+import { triggerEventReminder } from "../lib/notify";
 
 const router = Router();
 const TYPES = new Set(["desain", "rkr", "golden", "filter-air"]);

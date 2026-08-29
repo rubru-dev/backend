@@ -43,8 +43,10 @@ services:
       CORS_ORIGINS: "http://localhost:3000,${FRONTEND_URL:-http://localhost:3000}"
       CORS_ALLOW_ALL: "false"
       STORAGE_PATH: storage
-      FONNTE_TOKEN: ${FONNTE_TOKEN:-}
-      FONNTE_API_URL: https://api.fonnte.com/send
+      SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
       TELEGRAM_API_URL: ${TELEGRAM_API_URL:-https://api.telegram.org}
       META_ADS_ACCESS_TOKEN: ${META_ADS_ACCESS_TOKEN:-}
