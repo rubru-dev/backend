@@ -2090,6 +2090,51 @@ function validateModul(modul: string, res: Response): boolean {
   return true;
 }
 
+// Scope picker "Tambah Survey" di Kalender Survey Sales Admin — sengaja gabungan 3 modul,
+// sama persis dengan yang ditampilkan kalender saat show_all=true.
+const SURVEY_PICKER_MODULS = ["sales-admin", "telemarketing", "database-client"];
+
+// GET /bd/survey-leads-dropdown — pilihan lead untuk tombol "Tambah Survey".
+// Beda dari /:modul/leads-dropdown yang per-brand & tanpa cap: di sini lintas 3 modul
+// dan DIBATASI limit karena database-client bisa ribuan baris.
+router.get("/survey-leads-dropdown", async (req: Request, res: Response) => {
+  const search = (req.query.search as string | undefined)?.trim();
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 25, 1), 100);
+
+  const where: Record<string, unknown> = { modul: { in: SURVEY_PICKER_MODULS } };
+  const searchFilter = leadSearchFilter(search);
+  if (searchFilter) where.OR = searchFilter;
+
+  const leads = await prisma.lead.findMany({
+    where,
+    select: {
+      id: true, salutation: true, nama: true, nomor_telepon: true, alamat: true,
+      modul: true, jenis: true,
+      tanggal_survey: true, jam_survey: true, pic_survey: true, survey_approval_status: true,
+    },
+    orderBy: { id: "desc" },
+    take: limit,
+  });
+
+  return res.json({
+    items: leads.map((l) => ({
+      id: String(l.id),
+      salutation: l.salutation ?? null,
+      nama: l.nama,
+      display_name: leadDisplayName(l),
+      nomor_telepon: l.nomor_telepon,
+      alamat: l.alamat,
+      modul: l.modul,
+      jenis: l.jenis,
+      // Dipakai UI untuk warning "sudah punya jadwal"
+      tanggal_survey: l.tanggal_survey,
+      jam_survey: l.jam_survey,
+      pic_survey: l.pic_survey,
+      survey_approval_status: l.survey_approval_status?.toLowerCase() ?? null,
+    })),
+  });
+});
+
 // GET /:modul/leads-dropdown — daftar lead ringkas untuk picker (mis. form Penawaran).
 // Tanpa cap pagination & tanpa join berat: form penawaran perlu SEMUA lead modul tsb,
 // beda dengan /:modul/leads yang dibatasi 500 untuk tabel follow-up.

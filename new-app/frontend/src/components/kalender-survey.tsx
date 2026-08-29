@@ -22,7 +22,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SignatureDialog } from "@/components/signature-dialog";
 import {
   CalendarDays, CheckCircle, XCircle, Clock,
-  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X, RotateCcw, EyeOff, Eye, PenLine, Save,
+  MapPin, Phone, User, ChevronLeft, ChevronRight, Upload, RefreshCw, FileDown, List, Loader2, ZoomIn, X, RotateCcw, EyeOff, Eye, PenLine, Save, Plus, AlertTriangle,
 } from "lucide-react";
 
 /** Ambil koordinat GPS + nama lokasi via Nominatim reverse geocoding */
@@ -137,7 +137,37 @@ interface KalenderSurveyProps {
   modul: "sales-admin" | "telemarketing" | "golden" | "filter-air";
   showAll?: boolean;
   useGoldenSurveyReportTemplate?: boolean;
+  /**
+   * Tampilkan tombol "Tambah Survey" (pilih lead lintas 3 modul / buat klien baru).
+   * Opt-in: hanya dipakai Kalender Survey Sales Admin, kalender lain tidak berubah.
+   */
+  allowAddSurvey?: boolean;
 }
+
+/** Modul asal lead yang boleh dijadwalkan lewat tombol "Tambah Survey" */
+const ADD_SURVEY_MODUL_OPTIONS = [
+  { value: "sales-admin", label: "Leads Sales Admin" },
+  { value: "telemarketing", label: "Produk Mitra" },
+  { value: "database-client", label: "Database Client" },
+];
+const ADD_SURVEY_MODUL_LABEL: Record<string, string> = {
+  "sales-admin": "Sales Admin",
+  telemarketing: "Produk Mitra",
+  "database-client": "Data Klien",
+};
+const ADD_SURVEY_SALUTATIONS = ["Mr", "Mrs"];
+const ADD_SURVEY_SUMBER = ["Instagram", "TikTok", "Facebook", "Referral", "Walk-in", "Lainnya"];
+const ADD_SURVEY_JENIS = ["Sipil", "Interior", "Desain"];
+
+const EMPTY_ADD_SURVEY_LEAD = {
+  modul: "sales-admin",
+  salutation: "Mr",
+  nama: "",
+  nomor_telepon: "",
+  alamat: "",
+  sumber_leads: "Instagram",
+  jenis: "Interior",
+};
 
 const MONTH_NAMES = [
   "Januari", "Februari", "Maret", "April", "Mei", "Juni",
@@ -373,7 +403,7 @@ function serializeKonstruksiSurveyReportForm(form: KonstruksiSurveyReportForm) {
   return JSON.stringify({ type: "konstruksi_survey_report", data: form });
 }
 
-export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }: KalenderSurveyProps) {
+export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, allowAddSurvey }: KalenderSurveyProps) {
   const qc = useQueryClient();
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [filterUserId, setFilterUserId] = useState<string>("_all");
@@ -401,6 +431,13 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
     s.isSuperAdmin() || s.hasAnyRole("Head Golden", "Sales Admin Golden")
   );
   const currentUserName = useAuthStore((s) => s.user?.name ?? "");
+  // "Tambah Survey" boleh dipakai semua role KECUALI orang Golden (Super Admin tetap boleh).
+  const isGoldenUser = useAuthStore((s) =>
+    !s.isSuperAdmin() &&
+    (s.hasAnyRole("Head Golden", "Sales Admin Golden", "Ops Golden") ||
+      s.user?.sub_role === "Mitra" || s.user?.sub_role === "Ops Golden")
+  );
+  const canAddSurvey = !!allowAddSurvey && !isGoldenUser;
 
   const now = new Date();
   const [bulan, setBulan] = useState(now.getMonth() + 1);
@@ -431,6 +468,15 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
   const [konstruksiReportForm, setKonstruksiReportForm] = useState<KonstruksiSurveyReportForm>(() => defaultKonstruksiSurveyReportForm());
   const listFotoRef = useRef<HTMLInputElement>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
+
+  // ── Tambah Survey ───────────────────────────────────────────────────────────
+  const [addOpen, setAddOpen] = useState(false);
+  const [addMode, setAddMode] = useState<"lead" | "baru">("lead");
+  const [addLeadSearch, setAddLeadSearch] = useState("");
+  const [addLeadSearchDebounced, setAddLeadSearchDebounced] = useState("");
+  const [addSelectedLead, setAddSelectedLead] = useState<any | null>(null);
+  const [addForm, setAddForm] = useState({ tanggal_survey: "", jam_survey: "", pic_survey: "" });
+  const [addNewLead, setAddNewLead] = useState({ ...EMPTY_ADD_SURVEY_LEAD });
 
   // ── API ─────────────────────────────────────────────────────────────────────
 
@@ -467,6 +513,89 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate }
         .then((r) => r.data),
   });
   const picUserList: any[] = Array.isArray(picUsers) ? picUsers : [];
+
+  // Pencarian lead untuk dialog Tambah Survey (server-side, dibatasi 25 per query)
+  useEffect(() => {
+    const t = setTimeout(() => setAddLeadSearchDebounced(addLeadSearch.trim()), 300);
+    return () => clearTimeout(t);
+  }, [addLeadSearch]);
+
+  const { data: addLeadOptions, isFetching: addLeadSearching } = useQuery({
+    queryKey: ["survey-leads-dropdown", addLeadSearchDebounced],
+    queryFn: () =>
+      apiClient
+        .get("/bd/survey-leads-dropdown", {
+          params: { search: addLeadSearchDebounced || undefined, limit: 25 },
+        })
+        .then((r) => r.data?.items ?? []),
+    enabled: canAddSurvey && addOpen && addMode === "lead",
+  });
+  const addLeadList: any[] = Array.isArray(addLeadOptions) ? addLeadOptions : [];
+
+  function openAddSurvey() {
+    setAddMode("lead");
+    setAddLeadSearch("");
+    setAddLeadSearchDebounced("");
+    setAddSelectedLead(null);
+    setAddForm({ tanggal_survey: "", jam_survey: "", pic_survey: "" });
+    setAddNewLead({ ...EMPTY_ADD_SURVEY_LEAD });
+    setAddOpen(true);
+  }
+
+  /** Setelah jadwal tersimpan: lompat ke bulan tanggal survey supaya item barunya kelihatan */
+  function jumpToMonthOf(tanggal: string) {
+    const [y, m] = tanggal.split("-").map(Number);
+    if (!y || !m) return;
+    setSelectedDate(null);
+    setBulan(m);
+    setTahun(y);
+  }
+
+  const addSurveyMut = useMutation({
+    mutationFn: async () => {
+      const body = {
+        tanggal_survey: addForm.tanggal_survey,
+        jam_survey: addForm.jam_survey || null,
+        pic_survey: addForm.pic_survey || null,
+      };
+      if (addMode === "lead") {
+        const lead = addSelectedLead!;
+        // Pakai modul milik lead itu sendiri, bukan modul halaman — lead bisa dari
+        // sales-admin / telemarketing / database-client.
+        return apiClient
+          .patch(`/bd/${lead.modul ?? modul}/leads/${lead.id}/survey`, body)
+          .then((r) => r.data);
+      }
+      // Klien baru: buat lead dulu, lalu jadwalkan lewat endpoint survey yang sama
+      // supaya reminder WA ke PIC ikut terkirim seperti penjadwalan biasa.
+      const created = await apiClient
+        .post(`/bd/${addNewLead.modul}/leads`, {
+          salutation: addNewLead.salutation,
+          nama: addNewLead.nama.trim(),
+          nomor_telepon: addNewLead.nomor_telepon || null,
+          alamat: addNewLead.alamat || null,
+          sumber_leads: addNewLead.sumber_leads || null,
+          jenis: addNewLead.jenis || null,
+          rencana_survey: "Ya",
+        })
+        .then((r) => r.data);
+      return apiClient
+        .patch(`/bd/${addNewLead.modul}/leads/${created.id}/survey`, body)
+        .then((r) => r.data);
+    },
+    onSuccess: () => {
+      toast.success("Survey ditambahkan ke kalender");
+      qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
+      qc.invalidateQueries({ queryKey: ["survey-leads-dropdown"] });
+      jumpToMonthOf(addForm.tanggal_survey);
+      setAddOpen(false);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menambah survey"),
+  });
+
+  const addSurveyValid =
+    !!addForm.tanggal_survey &&
+    (addMode === "lead" ? !!addSelectedLead : !!addNewLead.nama.trim());
 
   const approveMut = useMutation({
     mutationFn: ({ id, foto_survey, luasan_tanah, catatan_survey }: { id: number; foto_survey: string[]; luasan_tanah?: string; catatan_survey?: string }) =>
@@ -1431,6 +1560,11 @@ ${sections}
           <Button variant="outline" size="sm" onClick={openPdfDialog} disabled={isLoading || items.length === 0}>
             <FileDown className="h-4 w-4 mr-1.5" /> Download PDF {reportTemplate ? "Laporan" : ""}
           </Button>
+          {canAddSurvey && (
+            <Button size="sm" onClick={openAddSurvey}>
+              <Plus className="h-4 w-4 mr-1.5" /> Tambah Survey
+            </Button>
+          )}
         </div>
       </div>
 
@@ -2005,6 +2139,280 @@ ${sections}
       </Dialog>
 
       {/* ── Edit / Reschedule Dialog ── */}
+      {/* ── Tambah Survey ── */}
+      <Dialog open={addOpen} onOpenChange={(v) => { if (!v) setAddOpen(false); }}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-4 w-4 text-amber-500" /> Tambah Survey
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            {/* Sumber klien */}
+            <div className="flex rounded-md border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setAddMode("lead")}
+                className={`flex-1 px-3 py-1.5 text-sm transition-colors ${addMode === "lead" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+              >
+                Pilih Klien Terdaftar
+              </button>
+              <button
+                type="button"
+                onClick={() => setAddMode("baru")}
+                className={`flex-1 px-3 py-1.5 text-sm border-l transition-colors ${addMode === "baru" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
+              >
+                Klien Baru
+              </button>
+            </div>
+
+            {addMode === "lead" ? (
+              <div className="space-y-2">
+                <Label>Klien <span className="text-destructive">*</span></Label>
+                {addSelectedLead ? (
+                  <div className="border rounded-md p-3 space-y-1.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="font-medium text-sm truncate">
+                          {addSelectedLead.display_name || addSelectedLead.nama}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {[addSelectedLead.nomor_telepon, addSelectedLead.alamat].filter(Boolean).join(" · ") || "—"}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <Badge variant="outline" className="text-[10px]">
+                          {ADD_SURVEY_MODUL_LABEL[addSelectedLead.modul] ?? addSelectedLead.modul ?? "—"}
+                        </Badge>
+                        <button
+                          type="button"
+                          className="text-xs text-blue-600 hover:underline"
+                          onClick={() => setAddSelectedLead(null)}
+                        >
+                          Ganti
+                        </button>
+                      </div>
+                    </div>
+                    {addSelectedLead.tanggal_survey && (
+                      <div className="flex gap-2 rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                        <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />
+                        <div>
+                          <p className="font-semibold">Klien ini sudah punya jadwal survey.</p>
+                          <p>
+                            {new Date(String(addSelectedLead.tanggal_survey)).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+                            {addSelectedLead.jam_survey ? ` · ${addSelectedLead.jam_survey}` : ""}
+                            {addSelectedLead.pic_survey ? ` · PIC ${addSelectedLead.pic_survey}` : ""}
+                            {addSelectedLead.survey_approval_status ? ` · status ${addSelectedLead.survey_approval_status}` : ""}
+                          </p>
+                          <p className="mt-1">
+                            Menyimpan akan <b>menimpa jadwal lama</b> serta menghapus status persetujuan dan foto bukti survey-nya.
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <>
+                    <Input
+                      placeholder="Cari nama / telepon / alamat klien…"
+                      value={addLeadSearch}
+                      onChange={(e) => setAddLeadSearch(e.target.value)}
+                    />
+                    <div className="border rounded-md max-h-56 overflow-y-auto divide-y">
+                      {addLeadSearching && addLeadList.length === 0 ? (
+                        <div className="p-3 text-sm text-muted-foreground flex items-center gap-2">
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" /> Mencari…
+                        </div>
+                      ) : addLeadList.length === 0 ? (
+                        <div className="p-3 text-sm text-muted-foreground">
+                          Tidak ada klien cocok. Coba kata kunci lain atau pakai tab “Klien Baru”.
+                        </div>
+                      ) : (
+                        addLeadList.map((l: any) => (
+                          <button
+                            key={l.id}
+                            type="button"
+                            onClick={() => setAddSelectedLead(l)}
+                            className="w-full text-left px-3 py-2 hover:bg-muted transition-colors"
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="text-sm font-medium truncate">{l.display_name || l.nama}</span>
+                              <div className="flex items-center gap-1 shrink-0">
+                                {l.tanggal_survey && (
+                                  <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700">
+                                    Sudah dijadwalkan
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-[10px]">
+                                  {ADD_SURVEY_MODUL_LABEL[l.modul] ?? l.modul ?? "—"}
+                                </Badge>
+                              </div>
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate">
+                              {[l.nomor_telepon, l.alamat].filter(Boolean).join(" · ") || "—"}
+                            </div>
+                          </button>
+                        ))
+                      )}
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Sumber: Leads Sales Admin, Produk Mitra, dan Database Client (maks. 25 hasil).
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <Label>Masuk ke Modul</Label>
+                  <Select
+                    value={addNewLead.modul}
+                    onValueChange={(v) => setAddNewLead({ ...addNewLead, modul: v })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ADD_SURVEY_MODUL_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Klien baru ikut muncul di Follow Up Leads modul ini.
+                  </p>
+                </div>
+                <div className="grid grid-cols-[90px_1fr] gap-3">
+                  <div>
+                    <Label>Sapaan</Label>
+                    <Select
+                      value={addNewLead.salutation}
+                      onValueChange={(v) => setAddNewLead({ ...addNewLead, salutation: v })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ADD_SURVEY_SALUTATIONS.map((s) => (
+                          <SelectItem key={s} value={s}>{s}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Nama Klien <span className="text-destructive">*</span></Label>
+                    <Input
+                      value={addNewLead.nama}
+                      onChange={(e) => setAddNewLead({ ...addNewLead, nama: e.target.value })}
+                      placeholder="Nama klien"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label>Nomor Telepon</Label>
+                    <Input
+                      value={addNewLead.nomor_telepon}
+                      onChange={(e) => setAddNewLead({ ...addNewLead, nomor_telepon: e.target.value })}
+                      placeholder="08…"
+                    />
+                  </div>
+                  <div>
+                    <Label>Jenis</Label>
+                    <Select
+                      value={addNewLead.jenis}
+                      onValueChange={(v) => setAddNewLead({ ...addNewLead, jenis: v })}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        {ADD_SURVEY_JENIS.map((j) => (
+                          <SelectItem key={j} value={j}>{j}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div>
+                  <Label>Alamat</Label>
+                  <Input
+                    value={addNewLead.alamat}
+                    onChange={(e) => setAddNewLead({ ...addNewLead, alamat: e.target.value })}
+                    placeholder="Alamat survey"
+                  />
+                </div>
+                <div>
+                  <Label>Sumber Leads</Label>
+                  <Select
+                    value={addNewLead.sumber_leads}
+                    onValueChange={(v) => setAddNewLead({ ...addNewLead, sumber_leads: v })}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {ADD_SURVEY_SUMBER.map((s) => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
+
+            {/* Jadwal survey */}
+            <div className="border-t pt-3 space-y-3">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <Label>Tanggal Survey <span className="text-destructive">*</span></Label>
+                  <Input
+                    type="date"
+                    value={addForm.tanggal_survey}
+                    onChange={(e) => setAddForm({ ...addForm, tanggal_survey: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <Label>Jam Survey</Label>
+                  <Input
+                    type="time"
+                    value={addForm.jam_survey}
+                    onChange={(e) => setAddForm({ ...addForm, jam_survey: e.target.value })}
+                  />
+                </div>
+              </div>
+              <div>
+                <Label>PIC Survey</Label>
+                {picUserList.length > 0 ? (
+                  <Select
+                    value={addForm.pic_survey}
+                    onValueChange={(v) => setAddForm({ ...addForm, pic_survey: v })}
+                  >
+                    <SelectTrigger><SelectValue placeholder="— Pilih PIC —" /></SelectTrigger>
+                    <SelectContent>
+                      {picUserList.map((u: any) => (
+                        <SelectItem key={u.id} value={u.name}>{u.name} {u.sub_role ? `(${u.sub_role})` : ""}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={addForm.pic_survey}
+                    onChange={(e) => setAddForm({ ...addForm, pic_survey: e.target.value })}
+                    placeholder="Nama PIC"
+                  />
+                )}
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  PIC yang dipilih akan menerima notifikasi WhatsApp.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+              <Button
+                disabled={!addSurveyValid || addSurveyMut.isPending}
+                onClick={() => addSurveyMut.mutate()}
+              >
+                {addSurveyMut.isPending ? "Menyimpan..." : "Simpan Jadwal"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!scheduleId} onOpenChange={() => setScheduleId(null)}>
         <DialogContent>
           <DialogHeader>
