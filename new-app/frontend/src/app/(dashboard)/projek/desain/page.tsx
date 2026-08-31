@@ -1128,7 +1128,7 @@ export default function ProyekDesainPage() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-1">
-                                    {item.status === "Proses" && (
+                                    {item.status !== "Selesai" && (
                                       <label title="Submit Gambar" className="cursor-pointer">
                                         <span className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-amber-700 hover:bg-amber-50">
                                           <Upload className="h-3 w-3" />
