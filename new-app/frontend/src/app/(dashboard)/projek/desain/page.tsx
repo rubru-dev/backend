@@ -548,6 +548,17 @@ export default function ProyekDesainPage() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal upload file"),
   });
 
+  async function handleSubmitGambar(itemId: string, file: File) {
+    try {
+      await desainApi.uploadFileBukti(itemId, file);
+      toast.success("Gambar berhasil disubmit untuk direview");
+      qc.invalidateQueries({ queryKey: ["desain-detail", expandedId] });
+      qc.invalidateQueries({ queryKey: ["desain-timelines"] });
+    } catch (e: any) {
+      toast.error(e?.response?.data?.detail || "Gagal submit gambar");
+    }
+  }
+
   // ── Handlers ──────────────────────────────────────────────────────────────────
   function openCreateTl() {
     setEditTl(null);
@@ -1117,6 +1128,24 @@ export default function ProyekDesainPage() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-1">
+                                    {item.status === "Proses" && (
+                                      <label title="Submit Gambar" className="cursor-pointer">
+                                        <span className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-amber-700 hover:bg-amber-50">
+                                          <Upload className="h-3 w-3" />
+                                          Submit Gambar
+                                        </span>
+                                        <input
+                                          type="file"
+                                          className="hidden"
+                                          accept=".jpg,.jpeg,.png,.webp,.gif,.pdf"
+                                          onChange={(e) => {
+                                            const file = e.target.files?.[0];
+                                            if (file) handleSubmitGambar(item.id, file);
+                                            e.target.value = "";
+                                          }}
+                                        />
+                                      </label>
+                                    )}
                                     <Button
                                       variant="ghost"
                                       size="icon"
