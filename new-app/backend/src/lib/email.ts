@@ -28,7 +28,7 @@ const EMPTY_CONFIG: EmailConfig = {
   port: 465,
   secure: true,
   user: "",
-  from_name: "RubahRumah",
+  from_name: "Backend Notifikasi Rubru",
   from_email: "",
 };
 
@@ -56,7 +56,7 @@ async function readEmailConfigFromDb(): Promise<EmailConfig> {
     // Port 465 = SMTPS (secure), 587 = STARTTLS (secure=false lalu upgrade).
     secure: cfg.secure != null ? Boolean(cfg.secure) : (Number(cfg.port ?? config.smtpPort) !== 587),
     user: String(cfg.user ?? "") || config.smtpUser,
-    from_name: String(cfg.from_name ?? "") || "RubahRumah",
+    from_name: String(cfg.from_name ?? "") || "Backend Notifikasi Rubru",
     from_email: String(cfg.from_email ?? "") || config.smtpUser,
   };
 }
