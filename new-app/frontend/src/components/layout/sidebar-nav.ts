@@ -56,6 +56,18 @@ export const NAV_GROUPS: NavGroup[] = [
   // ── Database Client ───────────────────────────────────────────────────────────
   // Group: sales_admin.view | Input leads database klien mandiri
   {
+    title: "Copy Writer",
+    color: "#f97316",
+    permission: "copy_writer.view",
+    roles: ["Copy Writer"],
+    items: [
+      { label: "Dashboard Sosmed", href: "/copy-writer/dashboard-sosmed", icon: "BarChart2", permission: "copy_writer.dashboard_sosmed" },
+      { label: "Laporan Harian", href: "/copy-writer/laporan-harian", icon: "ClipboardList", permission: "copy_writer.laporan_harian" },
+    ],
+  },
+
+  // Database Client
+  {
     title: "Database Client",
     color: "#0ea5e9",
     permission: "sales_admin.view",

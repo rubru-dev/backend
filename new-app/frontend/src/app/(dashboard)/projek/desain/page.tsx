@@ -105,7 +105,7 @@ const BULAN_OPTIONS = [
 
 const JENIS_DESAIN_OPTIONS = ["Basic", "Standart", "Premium", "Deluxe"];
 
-const STATUS_OPTIONS = ["Belum Mulai", "Proses", "Submit Gambar", "Selesai"];
+const STATUS_OPTIONS = ["Belum Mulai", "Proses", "Selesai"];
 
 const STATUS_STYLE: Record<string, string> = {
   "Belum Mulai": "bg-gray-100 text-gray-700 border-gray-200",
@@ -409,6 +409,7 @@ const EMPTY_ITEM = {
 export default function ProyekDesainPage() {
   const qc = useQueryClient();
   const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin());
+  const canUploadEvidence = useAuthStore((s) => s.isSuperAdmin() || s.hasAnyRole("Sr. Arsitek", "Jr. Arsitek", "sr.arsitek", "jr.arsitek"));
   const [showDone, setShowDone] = useState(false); // Part 3: projek 100% disembunyikan, tampilkan via filter
 
   // Expand & view state
@@ -548,14 +549,14 @@ export default function ProyekDesainPage() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal upload file"),
   });
 
-  async function handleSubmitGambar(itemId: string, file: File) {
+  async function handleUploadBukti(itemId: string, file: File) {
     try {
       await desainApi.uploadFileBukti(itemId, file);
-      toast.success("Gambar berhasil disubmit untuk direview");
+      toast.success("File bukti berhasil diupload");
       qc.invalidateQueries({ queryKey: ["desain-detail", expandedId] });
       qc.invalidateQueries({ queryKey: ["desain-timelines"] });
     } catch (e: any) {
-      toast.error(e?.response?.data?.detail || "Gagal submit gambar");
+      toast.error(e?.response?.data?.detail || "Gagal upload file bukti");
     }
   }
 
@@ -611,7 +612,7 @@ export default function ProyekDesainPage() {
       target_selesai: item.target_selesai
         ? item.target_selesai.substring(0, 10)
         : "",
-      status: item.status ?? "Belum Mulai",
+      status: item.status === "Submit Gambar" ? "Proses" : item.status ?? "Belum Mulai",
       pic: item.pic?.id ?? "",
     });
     setSelectedFile(null);
@@ -1128,19 +1129,19 @@ export default function ProyekDesainPage() {
                                 </TableCell>
                                 <TableCell>
                                   <div className="flex gap-1">
-                                    {item.status !== "Selesai" && (
-                                      <label title="Submit Gambar" className="cursor-pointer">
+                                    {canUploadEvidence && (
+                                      <label title="Upload Bukti" className="cursor-pointer">
                                         <span className="inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-amber-700 hover:bg-amber-50">
                                           <Upload className="h-3 w-3" />
-                                          Submit Gambar
+                                          Upload Bukti
                                         </span>
                                         <input
                                           type="file"
                                           className="hidden"
-                                          accept=".jpg,.jpeg,.png,.webp,.gif,.pdf"
+                                          accept=".pdf,.png,.jpg,.jpeg"
                                           onChange={(e) => {
                                             const file = e.target.files?.[0];
-                                            if (file) handleSubmitGambar(item.id, file);
+                                            if (file) handleUploadBukti(item.id, file);
                                             e.target.value = "";
                                           }}
                                         />
@@ -1620,12 +1621,11 @@ export default function ProyekDesainPage() {
             </div>
 
             {/* ── File Bukti (wajib saat status Selesai) ───────────────────── */}
-            {itemForm.status === "Selesai" && editItem && (
+            {editItem && canUploadEvidence && (
               <div className="rounded-lg border border-green-200 bg-green-50 p-3 space-y-2">
                 <Label className="text-green-800 flex items-center gap-1.5">
                   <FileCheck className="h-4 w-4" />
-                  File Bukti Penyelesaian{" "}
-                  {!editItem.file_bukti && <span className="text-red-500">*</span>}
+                  File Bukti Pekerjaan
                 </Label>
 
                 {/* Existing file */}
@@ -1659,15 +1659,15 @@ export default function ProyekDesainPage() {
                   <input
                     type="file"
                     className="hidden"
-                    accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.zip,.rar"
+                    accept=".pdf,.jpg,.jpeg,.png"
                     onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
                   />
                 </label>
                 <p className="text-xs text-green-600/80">
                   {editItem.file_bukti
                     ? "Upload file baru untuk mengganti yang lama."
-                    : "Wajib upload file bukti untuk menandai sebagai Selesai."}
-                  {" "}Maks. 20 MB (PDF, gambar, Word, Excel, ZIP)
+                    : "Upload file hasil pekerjaan sebagai lampiran bukti."}
+                  {" "}Maks. 20 MB (PDF, PNG, JPG, JPEG)
                 </p>
               </div>
             )}
@@ -1681,7 +1681,7 @@ export default function ProyekDesainPage() {
                 disabled={
                   !itemForm.item_pekerjaan ||
                   itemPending ||
-                  (itemForm.status === "Selesai" && editItem !== null && !editItem.file_bukti && !selectedFile)
+                    (itemForm.status === "Selesai" && editItem !== null && !editItem.file_bukti && !selectedFile)
                 }
               >
                 {itemPending ? "Menyimpan..." : "Simpan"}

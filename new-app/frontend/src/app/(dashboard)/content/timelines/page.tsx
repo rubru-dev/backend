@@ -16,9 +16,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   CalendarDays, ChevronLeft, ChevronRight, Plus, CheckCircle,
-  AlertCircle, Clock, Pencil, Trash2, X, Upload, PenLine, ImageIcon, RefreshCw,
+  AlertCircle, Clock, Pencil, Trash2, X, Upload, PenLine, ImageIcon, RefreshCw, FileDown,
 } from "lucide-react";
 import { SignatureDialog } from "@/components/signature-dialog";
+import jsPDF from "jspdf";
 
 // ── Constants ──────────────────────────────────────────────────────────────
 
@@ -419,6 +420,12 @@ export default function ContentTimelinePage() {
 
   const [bulan, setBulan] = useState(now.getMonth() + 1);
   const [tahun, setTahun] = useState(now.getFullYear());
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const [pdfBulan, setPdfBulan] = useState(now.getMonth() + 1);
+  const [pdfTahun, setPdfTahun] = useState(now.getFullYear());
+  const [pdfMulai, setPdfMulai] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`);
+  const [pdfSelesai, setPdfSelesai] = useState(`${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate()).padStart(2, "0")}`);
+  const [pdfGenerating, setPdfGenerating] = useState(false);
 
   // Dialogs
   const [createOpen, setCreateOpen] = useState(false);
@@ -459,6 +466,15 @@ export default function ContentTimelinePage() {
   const { data: pendingUploadItems = [] } = useQuery<TimelineItem[]>({
     queryKey: QK_PENDING_UPLOAD,
     queryFn: () => contentApi.uploadPending(),
+  });
+
+  const { data: pdfPlanningItems = [], isLoading: isLoadingPdfPlanning } = useQuery<TimelineItem[]>({
+    queryKey: ["content-pdf-calendar", pdfBulan, pdfTahun],
+    queryFn: () => contentApi.calendarTimeline({ bulan: pdfBulan, tahun: pdfTahun }),
+  });
+  const { data: pdfUploadItems = [], isLoading: isLoadingPdfUpload } = useQuery<TimelineItem[]>({
+    queryKey: ["content-pdf-upload-calendar", pdfBulan, pdfTahun],
+    queryFn: () => contentApi.uploadCalendar({ bulan: pdfBulan, tahun: pdfTahun }),
   });
 
   // Mutations
@@ -621,6 +637,130 @@ export default function ContentTimelinePage() {
   const years = Array.from({ length: 4 }, (_, i) => (now.getFullYear() - 1 + i).toString());
   const months = Array.from({ length: 12 }, (_, i) => i + 1);
 
+  function openPdfDialog() {
+    setPdfBulan(bulan);
+    setPdfTahun(tahun);
+    setPdfMulai(`${tahun}-${String(bulan).padStart(2, "0")}-01`);
+    setPdfSelesai(`${tahun}-${String(bulan).padStart(2, "0")}-${String(new Date(tahun, bulan, 0).getDate()).padStart(2, "0")}`);
+    setPdfOpen(true);
+  }
+
+  function changePdfPeriod(month: number, year: number) {
+    setPdfBulan(month);
+    setPdfTahun(year);
+    setPdfMulai(`${year}-${String(month).padStart(2, "0")}-01`);
+    setPdfSelesai(`${year}-${String(month).padStart(2, "0")}-${String(new Date(year, month, 0).getDate()).padStart(2, "0")}`);
+  }
+
+  function downloadTimelinePdf() {
+    if (!pdfMulai || !pdfSelesai || pdfMulai > pdfSelesai) {
+      toast.error("Tanggal mulai dan selesai belum valid");
+      return;
+    }
+    setPdfGenerating(true);
+    try {
+      const inRange = (value?: string | null) => Boolean(value && value >= pdfMulai && value <= pdfSelesai);
+      const planning = pdfPlanningItems.filter((i) => inRange(i.tanggal_publish));
+      const produksi = pdfPlanningItems.filter((i) => i.produksi_status !== null && i.produksi_status !== undefined && inRange(i.tanggal_publish));
+      const upload = pdfUploadItems.filter((i) => i.upload_status !== null && i.upload_status !== undefined && inRange(i.tanggal_upload));
+      const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const margin = 12;
+      const contentWidth = pageWidth - margin * 2;
+      let y = margin;
+
+      const text = (value: unknown) => String(value ?? "-").replace(/\s+/g, " ").trim() || "-";
+      const dateText = (value?: string | null) => value ? new Date(`${value}T00:00:00`).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-";
+      const statusText = (value: ApprovalStatus) => value === "approved" ? "Diapprove" : value === "revised" ? "Revisi" : "Pending";
+      const columns = [10, 53, 30, 31, 31, 28, 24];
+      const headers = ["No", "Judul Konten", "Platform", "Tanggal", "Status", "Dibuat Oleh", "Tahap"];
+
+      const pageHeader = () => {
+        pdf.setFillColor(15, 23, 42);
+        pdf.rect(0, 0, pageWidth, 25, "F");
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(16);
+        pdf.text("RUBRU — RINGKASAN TIMELINE KONTEN", margin, 11);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8.5);
+        pdf.text(`${MONTH_NAMES[pdfBulan - 1]} ${pdfTahun}  •  Periode ${dateText(pdfMulai)} s.d. ${dateText(pdfSelesai)}`, margin, 18);
+        pdf.setTextColor(15, 23, 42);
+        y = 33;
+      };
+      const addPage = () => { pdf.addPage(); pageHeader(); };
+      const ensureSpace = (height: number) => { if (y + height > pageHeight - 12) addPage(); };
+
+      pageHeader();
+      pdf.setFont("helvetica", "bold");
+      pdf.setFontSize(10);
+      pdf.text("Ringkasan", margin, y);
+      y += 5;
+      pdf.setFont("helvetica", "normal");
+      pdf.setFontSize(9);
+      pdf.text(`Total konten: ${planning.length}   |   Produksi: ${produksi.length}   |   Terjadwal upload: ${upload.length}`, margin, y);
+      y += 9;
+
+      const drawSection = (title: string, items: TimelineItem[], stage: string, dateField: "tanggal_publish" | "tanggal_upload", color: [number, number, number]) => {
+        ensureSpace(24);
+        pdf.setFillColor(...color);
+        pdf.roundedRect(margin, y, contentWidth, 8, 1.5, 1.5, "F");
+        pdf.setTextColor(255, 255, 255);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(10);
+        pdf.text(`${title} (${items.length})`, margin + 4, y + 5.4);
+        y += 11;
+        pdf.setTextColor(15, 23, 42);
+        pdf.setFontSize(7.5);
+        let x = margin;
+        pdf.setFillColor(241, 245, 249);
+        pdf.rect(margin, y, contentWidth, 7, "F");
+        headers.forEach((header, index) => { pdf.text(header, x + 2, y + 4.6); x += columns[index]; });
+        y += 7;
+        if (!items.length) {
+          pdf.setFont("helvetica", "italic");
+          pdf.text("Tidak ada data pada periode ini.", margin + 2, y + 5);
+          y += 10;
+          return;
+        }
+        items.forEach((item, index) => {
+          const values = [String(index + 1), text(item.judul), text(item.platform), dateText(item[dateField]), statusText(item[stage === "Planning" ? "planning_status" : stage === "Produksi" ? "produksi_status" : "upload_status"]), text(item.user?.name), stage];
+          const wrapped = values.map((value, i) => pdf.splitTextToSize(value, columns[i] - 4).slice(0, 3));
+          const rowHeight = Math.max(8, ...wrapped.map((lines) => lines.length * 3.4 + 3));
+          ensureSpace(rowHeight);
+          if (index % 2 === 0) { pdf.setFillColor(250, 250, 251); pdf.rect(margin, y, contentWidth, rowHeight, "F"); }
+          x = margin;
+          pdf.setFont("helvetica", "normal");
+          wrapped.forEach((lines, i) => { lines.forEach((line: string, lineIndex: number) => pdf.text(line, x + 2, y + 4 + lineIndex * 3.4)); x += columns[i]; });
+          pdf.setDrawColor(226, 232, 240);
+          pdf.line(margin, y + rowHeight, margin + contentWidth, y + rowHeight);
+          x = margin;
+          columns.forEach((width) => { x += width; pdf.line(x, y, x, y + rowHeight); });
+          y += rowHeight;
+        });
+        y += 8;
+      };
+
+      drawSection("Kalender Timeline Planning", planning, "Planning", "tanggal_publish", [124, 58, 237]);
+      drawSection("Kalender Timeline Produksi", produksi, "Produksi", "tanggal_publish", [37, 99, 235]);
+      drawSection("Kalender Upload", upload, "Upload", "tanggal_upload", [22, 163, 74]);
+      const pageCount = pdf.getNumberOfPages();
+      for (let page = 1; page <= pageCount; page += 1) {
+        pdf.setPage(page);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(7);
+        pdf.setTextColor(100, 116, 139);
+        pdf.text(`RubahRumah — Timeline Konten  |  Halaman ${page} dari ${pageCount}`, margin, pageHeight - 6);
+      }
+      pdf.save(`timeline-konten-${pdfTahun}-${String(pdfBulan).padStart(2, "0")}.pdf`);
+      setPdfOpen(false);
+      toast.success("PDF timeline berhasil dibuat");
+    } finally {
+      setPdfGenerating(false);
+    }
+  }
+
   // Stats
   const totalItems = rawItems.length;
   const planningApproved = rawItems.filter((i) => i.planning_status === "approved").length;
@@ -639,9 +779,14 @@ export default function ContentTimelinePage() {
           </h1>
           <p className="text-muted-foreground text-sm">Alur planning → produksi → upload konten media sosial</p>
         </div>
-        <Button onClick={() => openCreate()} className="gap-1.5">
-          <Plus className="h-4 w-4" /> Tambah Konten
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={openPdfDialog} className="gap-1.5 border-violet-300 text-violet-700 hover:bg-violet-50">
+            <FileDown className="h-4 w-4" /> Download PDF
+          </Button>
+          <Button onClick={() => openCreate()} className="gap-1.5">
+            <Plus className="h-4 w-4" /> Tambah Konten
+          </Button>
+        </div>
       </div>
 
       {/* ── Month nav ── */}
@@ -807,6 +952,30 @@ export default function ContentTimelinePage() {
 
         </div>
       )}
+
+      {/* ── Download PDF Dialog ── */}
+      <Dialog open={pdfOpen} onOpenChange={setPdfOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><FileDown className="h-5 w-5 text-violet-600" /> Download PDF Timeline</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">PDF akan merangkum kalender planning, produksi, dan upload dalam tabel yang rapi.</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Bulan</Label><Select value={pdfBulan.toString()} onValueChange={(v) => changePdfPeriod(Number(v), pdfTahun)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{months.map((m) => <SelectItem key={m} value={m.toString()}>{MONTH_NAMES[m - 1]}</SelectItem>)}</SelectContent></Select></div>
+              <div><Label>Tahun</Label><Select value={pdfTahun.toString()} onValueChange={(v) => changePdfPeriod(pdfBulan, Number(v))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{years.map((y) => <SelectItem key={y} value={y}>{y}</SelectItem>)}</SelectContent></Select></div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div><Label>Tanggal Mulai</Label><Input type="date" value={pdfMulai} onChange={(e) => setPdfMulai(e.target.value)} /></div>
+              <div><Label>Tanggal Selesai</Label><Input type="date" value={pdfSelesai} onChange={(e) => setPdfSelesai(e.target.value)} /></div>
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={() => setPdfOpen(false)}>Batal</Button>
+              <Button onClick={downloadTimelinePdf} disabled={pdfGenerating || isLoadingPdfPlanning || isLoadingPdfUpload} className="gap-1.5 bg-violet-600 hover:bg-violet-700 text-white"><FileDown className="h-4 w-4" />{pdfGenerating ? "Membuat PDF..." : isLoadingPdfPlanning || isLoadingPdfUpload ? "Memuat data..." : "Download PDF"}</Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* ── Create / Edit Dialog ── */}
       <Dialog open={createOpen} onOpenChange={(v) => { setCreateOpen(v); if (!v) setEditItem(null); }}>

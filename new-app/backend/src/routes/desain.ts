@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import { config } from "../config";
 import { sendNotifToRoles, FRONTEND_URL } from "../lib/notify";
+import { requireRole } from "../middleware/requireRole";
 
 const router = Router();
 
@@ -116,20 +117,16 @@ const storage = multer.diskStorage({
   },
 });
 const ALLOWED_MIME_TYPES = [
-  "image/jpeg", "image/png", "image/webp", "image/gif",
+  "image/jpeg", "image/png",
   "application/pdf",
-  "application/msword",
-  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 ];
-const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf", ".doc", ".docx", ".xls", ".xlsx"];
+const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".pdf"];
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const ext = path.extname(file.originalname).toLowerCase();
   if (ALLOWED_MIME_TYPES.includes(file.mimetype) && ALLOWED_EXTENSIONS.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error("Tipe file tidak diizinkan. Hanya PDF, gambar, dan dokumen Office yang diperbolehkan."));
+    cb(new Error("Tipe file tidak diizinkan. Hanya PDF, PNG, JPG, dan JPEG yang diperbolehkan."));
   }
 };
 const upload = multer({ storage, limits: { fileSize: 20 * 1024 * 1024 }, fileFilter });
@@ -459,6 +456,7 @@ router.post("/timeline/:id/items", async (req: Request, res: Response) => {
 // POST /timeline/items/:id/upload
 router.post(
   "/timeline/items/:id/upload",
+  requireRole("Sr. Arsitek", "Jr. Arsitek", "sr.arsitek", "jr.arsitek"),
   upload.single("file"),
   async (req: Request, res: Response) => {
     const id = BigInt(req.params.id);
@@ -492,9 +490,9 @@ router.patch("/timeline/items/:id", async (req: Request, res: Response) => {
   const tl = item.desain_timeline;
 
   if (status !== undefined) {
-    const validStatus = ["Belum Mulai", "Proses", "Submit Gambar", "Selesai"];
+    const validStatus = ["Belum Mulai", "Proses", "Selesai"];
     if (!validStatus.includes(status)) {
-      return res.status(400).json({ detail: "Status tidak valid. Pilihan: Belum Mulai, Proses, Submit Gambar, Selesai" });
+      return res.status(400).json({ detail: "Status tidak valid. Pilihan: Belum Mulai, Proses, Selesai" });
     }
     // Approve "Selesai" hanya boleh oleh Super Admin
     const isSuperAdmin = (req.user?.roles ?? []).some((r) => r.role.name === "Super Admin");

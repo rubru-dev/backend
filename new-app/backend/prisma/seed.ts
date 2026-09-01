@@ -37,6 +37,11 @@ async function main() {
     { name: "content.edit",    module: "content", label: "Edit Content" },
     { name: "content.delete",  module: "content", label: "Hapus Content" },
     { name: "content.approve", module: "content", label: "Approve Content Timeline" },
+    // Copy Writer
+    { name: "copy_writer.view",    module: "copy_writer", label: "Lihat Copy Writer" },
+    { name: "copy_writer.create",  module: "copy_writer", label: "Buat Copy Writer" },
+    { name: "copy_writer.edit",    module: "copy_writer", label: "Edit Copy Writer" },
+    { name: "copy_writer.delete",  module: "copy_writer", label: "Hapus Copy Writer" },
     // Sales Admin
     { name: "sales_admin.view",   module: "sales_admin", label: "Lihat Sales Admin" },
     { name: "sales_admin.create", module: "sales_admin", label: "Buat Sales Admin" },
@@ -103,6 +108,9 @@ async function main() {
     { name: "content.timelines",        module: "content", label: "Sub-menu: Timeline Konten" },
     { name: "content.laporan_harian",   module: "content", label: "Sub-menu: Laporan Harian Content" },
     { name: "content.target",           module: "content", label: "Tab: Target Metrik Sosmed" },
+    // Copy Writer sub-menus
+    { name: "copy_writer.dashboard_sosmed", module: "copy_writer", label: "Sub-menu: Dashboard Sosmed Copy Writer" },
+    { name: "copy_writer.laporan_harian",   module: "copy_writer", label: "Sub-menu: Laporan Harian Copy Writer" },
     // Sales Admin sub-menus
     { name: "sales_admin.kanban",        module: "sales_admin", label: "Sub-menu: Kanban Admin" },
     { name: "sales_admin.follow_up",     module: "sales_admin", label: "Sub-menu: Follow Up Leads" },
@@ -208,7 +216,7 @@ async function main() {
   // ── 1. Roles ─────────────────────────────────────────────────────────────────
   const roleNames = [
     "Super Admin", "BD", "Sales", "Finance",
-    "Content Creator", "Desain", "PIC Project",
+    "Content Creator", "Copy Writer", "Desain", "PIC Project",
     "Telemarketing", "Sales Admin",
     "Head Finance", "Admin Finance",
     "Tukang",
@@ -229,6 +237,7 @@ async function main() {
   const rolePermissions: Record<string, string[]> = {
     "BD": ["bd.view","bd.create","bd.edit","bd.delete"],
     "Content Creator": ["content.view","content.create","content.edit","content.delete"],
+    "Copy Writer": ["copy_writer.view","copy_writer.create","copy_writer.edit","copy_writer.delete"],
     "Sales Admin": ["sales_admin.view","sales_admin.create","sales_admin.edit","sales_admin.delete"],
     "Telemarketing": ["telemarketing.view","telemarketing.create","telemarketing.edit","telemarketing.delete"],
     "Desain": ["desain.view","desain.create","desain.edit","desain.delete"],
@@ -269,6 +278,10 @@ async function main() {
     "Content Creator": [
       "content.dashboard_sosmed","content.social_media",
       "content.timelines","content.laporan_harian","content.target",
+      "absen.submit", ...TUTORIAL_PERMS,
+    ],
+    "Copy Writer": [
+      "copy_writer.dashboard_sosmed","copy_writer.laporan_harian",
       "absen.submit", ...TUTORIAL_PERMS,
     ],
     "Sales Admin": [

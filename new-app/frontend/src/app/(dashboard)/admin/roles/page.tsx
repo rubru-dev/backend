@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 const MODULE_META: Record<string, { label: string; color: string }> = {
   bd:              { label: "BD (Business Development)", color: "#6366f1" },
   content:         { label: "Content Creator",           color: "#ec4899" },
+  copy_writer:     { label: "Copy Writer",               color: "#f97316" },
   sales_admin:     { label: "Sales Admin",               color: "#f59e0b" },
   telemarketing:   { label: "Sales Admin Product dan Mitra", color: "#10b981" },
   desain:          { label: "Desain",                    color: "#8b5cf6" },
