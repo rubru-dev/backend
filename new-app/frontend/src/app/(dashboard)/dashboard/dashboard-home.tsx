@@ -774,7 +774,7 @@ export function DashboardHome() {
             <CardTitle className="flex items-center gap-2 text-base">
               <Send className="h-4 w-4 text-green-600" /> Kirim Pesan
             </CardTitle>
-            <CardDescription>Kirim pesan ke pengguna lain dalam sistem</CardDescription>
+            <CardDescription>Kirim pesan ke pengguna lain melalui Telegram dan email</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div>
@@ -805,7 +805,10 @@ export function DashboardHome() {
                           onCheckedChange={() => toggleUser(u.id)}
                           className="h-3.5 w-3.5"
                         />
-                        <span className="text-xs">{u.name}</span>
+                        <span className="min-w-0 text-xs">
+                          <span className="block truncate">{u.name}</span>
+                          <span className="block truncate text-[10px] text-muted-foreground">{u.email}</span>
+                        </span>
                       </label>
                     ))}
                   </div>

@@ -5,8 +5,12 @@ import { deliver, NOTIFY_USER_SELECT, FRONTEND_URL } from "../lib/notify";
 const router = Router();
 
 // GET /users — daftar user untuk dipilih sebagai penerima
-router.get("/users", async (_req: Request, res: Response) => {
+router.get("/users", async (req: Request, res: Response) => {
   const users = await prisma.user.findMany({
+    where: {
+      id: { not: req.user!.id },
+      NOT: { email: { startsWith: "deleted+" } },
+    },
     select: { id: true, name: true, email: true },
     orderBy: { name: "asc" },
   });
@@ -34,7 +38,7 @@ router.post("/send", async (req: Request, res: Response) => {
       select: NOTIFY_USER_SELECT,
     });
   } else {
-    const ids = recipient_user_ids.map(BigInt);
+    const ids = [...new Set(recipient_user_ids.map(BigInt))].filter((id) => id !== senderId);
     recipients = await prisma.user.findMany({
       where: { id: { in: ids }, NOT: { email: { startsWith: "deleted+" } } },
       select: NOTIFY_USER_SELECT,
