@@ -126,6 +126,7 @@ export interface PdfTask {
   pic:    string;
   status: string;
   fotos?: string[]; // base64 data URLs
+  laporan?: PdfReport[];
 }
 
 export interface PdfTermin {
@@ -133,7 +134,6 @@ export interface PdfTermin {
   tanggal_mulai:  string | null;
   tanggal_selesai: string | null;
   tasks: PdfTask[];
-  laporan?: PdfReport[];
 }
 
 export interface PdfReport {
@@ -198,12 +198,13 @@ function TaskTable({ tasks }: { tasks: PdfTask[] }) {
                 </View>
               </View>
               {t.fotos && t.fotos.length > 0 && (
-                <View style={{ flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 6, paddingTop: 3, paddingBottom: 5, borderBottomWidth: 1, borderBottomColor: "#e7e5e4", backgroundColor: rowBg }}>
+                <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", paddingHorizontal: 6, paddingTop: 3, paddingBottom: 5, borderBottomWidth: 1, borderBottomColor: "#e7e5e4", backgroundColor: rowBg }}>
                   {t.fotos.map((foto, fi) => (
-                    <Image key={fi} style={{ width: 58, height: 58, margin: 2, borderRadius: 2 }} src={foto} />
+                    <Image key={fi} style={{ width: 58, height: 58, margin: 2, borderRadius: 2, objectFit: "contain" }} src={foto} />
                   ))}
                 </View>
               )}
+              <ReportList reports={t.laporan ?? []} />
             </View>
           );
         })
@@ -217,12 +218,20 @@ function ReportList({ reports }: { reports: PdfReport[] }) {
   return (
     <View style={{ marginTop: 8 }}>
       <Text style={{ fontSize: 8, fontWeight: "bold", color: ORANGE, marginBottom: 4 }}>LAPORAN PIC PROJECT</Text>
+      <View style={{ flexDirection: "row", backgroundColor: "#44403c", paddingVertical: 4, paddingHorizontal: 5 }}>
+        <Text style={{ width: 52, color: "white", fontSize: 7, fontWeight: "bold" }}>Tanggal</Text>
+        <Text style={{ width: 65, color: "white", fontSize: 7, fontWeight: "bold" }}>PIC</Text>
+        <Text style={{ flex: 1, color: "white", fontSize: 7, fontWeight: "bold" }}>Laporan / Kendala / Foto</Text>
+      </View>
       {reports.map((r, i) => (
-        <View key={i} wrap={false} style={{ borderBottomWidth: 1, borderBottomColor: "#e7e5e4", padding: 5, backgroundColor: i % 2 === 0 ? "#fff" : ORANGE_LIGHT }}>
-          <Text style={{ fontSize: 7.5, color: GRAY }}>{fmtDate(r.tanggal)} · PIC: {r.pic_name}</Text>
-          <Text style={{ fontSize: 8, marginTop: 2 }}>{r.kegiatan}</Text>
-          {r.kendala ? <Text style={{ fontSize: 7.5, color: "#92400e", marginTop: 2 }}>Kendala: {r.kendala}</Text> : null}
-          {!!r.images?.length && <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 3 }}>{r.images.map((img, j) => <Image key={j} src={img} style={{ width: 48, height: 48, marginRight: 3, marginBottom: 2 }} />)}</View>}
+        <View key={i} wrap={false} style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#e7e5e4", padding: 5, backgroundColor: i % 2 === 0 ? "#fff" : ORANGE_LIGHT }}>
+          <Text style={{ width: 52, fontSize: 7.5, color: GRAY }}>{fmtDate(r.tanggal)}</Text>
+          <Text style={{ width: 65, fontSize: 7.5, color: GRAY }}>{r.pic_name}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={{ fontSize: 8 }}>{r.kegiatan}</Text>
+            {r.kendala ? <Text style={{ fontSize: 7.5, color: "#92400e", marginTop: 2 }}>Kendala: {r.kendala}</Text> : null}
+            {!!r.images?.length && <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", marginTop: 3 }}>{r.images.map((img, j) => <Image key={j} src={img} style={{ width: 48, height: 48, marginRight: 3, marginBottom: 2, objectFit: "contain" }} />)}</View>}
+          </View>
         </View>
       ))}
     </View>
@@ -332,7 +341,6 @@ export function ProyekPDF({ data }: { data: ProyekPDFData }) {
               )}
             </View>
             <TaskTable tasks={termin.tasks} />
-            <ReportList reports={termin.laporan ?? []} />
           </View>
         ))}
 

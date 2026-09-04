@@ -413,7 +413,7 @@ export default function PICLaporanHarianPage() {
                         <img
                           src={storageUrl(p)}
                           alt={`foto ${i + 1}`}
-                          className="h-20 w-20 rounded border object-cover"
+                          className="h-20 w-20 rounded border bg-slate-50 object-contain"
                           onLoad={() =>
                             console.log("[LaporanPIC] Gambar tampil di Laporan Saya", {
                               report_id: r.id,

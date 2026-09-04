@@ -1119,7 +1119,7 @@ function TabAktivitas({ pid }: { pid: number }) {
                                <p className="text-xs text-gray-500">PIC: {item.pic_nama ?? "PIC"}</p>
                                <p className="text-sm whitespace-pre-wrap text-gray-700">{item.deskripsi}</p>
                                {item.kendala && <p className="text-xs text-amber-700">Kendala: {item.kendala}</p>}
-                               {item.images?.length > 0 && <div className="flex flex-wrap gap-2 pt-1">{item.images.map((p: string, i: number) => <a key={i} href={fileUrl(p) ?? undefined} target="_blank" rel="noreferrer"><img src={fileUrl(p) ?? ""} alt={`Foto laporan ${i + 1}`} className="h-16 w-16 rounded border object-cover" /></a>)}</div>}
+                               {item.images?.length > 0 && <div className="flex flex-wrap gap-2 pt-1">{item.images.map((p: string, i: number) => <a key={i} href={fileUrl(p) ?? undefined} target="_blank" rel="noreferrer"><img src={fileUrl(p) ?? ""} alt={`Foto laporan ${i + 1}`} className="h-16 w-16 rounded border bg-slate-50 object-contain" /></a>)}</div>}
                              </div>
                            )}
                         </div>

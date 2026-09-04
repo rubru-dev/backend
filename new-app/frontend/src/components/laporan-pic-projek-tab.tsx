@@ -27,6 +27,11 @@ export function LaporanPicProjekTab({
   });
 
   const rows = data ?? [];
+  const grouped = rows.reduce<Record<string, typeof rows>>((groups, row) => {
+    const key = `${row.termin_id ?? "none"}:${row.task_id ?? "none"}`;
+    (groups[key] ??= []).push(row);
+    return groups;
+  }, {});
 
   if (isLoading) {
     return <div className="py-10 text-center text-sm text-muted-foreground">Memuat laporan…</div>;
@@ -45,9 +50,15 @@ export function LaporanPicProjekTab({
   }
 
   return (
-    <div className="space-y-4">
-      {rows.map((r) => (
-        <div key={r.id} className="rounded-lg border bg-card p-4 shadow-sm">
+    <div className="space-y-6">
+      {Object.entries(grouped).map(([key, reports]) => {
+        const first = reports[0];
+        return <div key={key} className="space-y-2">
+          <div className="border-l-4 border-orange-400 pl-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{first.termin_nama || "Tanpa termin"}</p>
+            <p className="text-sm font-semibold text-foreground">{first.pekerjaan_nama || "Tanpa pekerjaan"}</p>
+          </div>
+          {reports.map((r) => <div key={r.id} className="rounded-lg border bg-card p-4 shadow-sm ml-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-1 font-medium text-foreground">
               <User className="h-3.5 w-3.5" />
@@ -76,7 +87,7 @@ export function LaporanPicProjekTab({
                   <img
                     src={storageUrl(p)}
                     alt={`Foto ${i + 1}`}
-                    className="h-24 w-24 rounded border object-cover transition-opacity hover:opacity-90"
+                    className="h-24 w-24 rounded border bg-slate-50 object-contain transition-opacity hover:opacity-90"
                     onLoad={() =>
                       console.log("[LaporanPIC] Gambar tampil di tab project", {
                         report_id: r.id,
@@ -103,8 +114,9 @@ export function LaporanPicProjekTab({
               ))}
             </div>
           )}
-        </div>
-      ))}
+          </div>)}
+        </div>;
+      })}
     </div>
   );
 }

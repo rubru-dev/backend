@@ -1127,15 +1127,10 @@ export default function ProyekSipilDetailPage() {
           } catch {}
         })
       );
-      const laporanByTermin = await Promise.all((detail.termins ?? []).map((t) => Promise.all(
-        laporanPic.filter((r) => String(r.termin_id) === String(t.id)).map(async (r) => ({
-          tanggal: r.tanggal,
-          pic_name: r.user?.name ?? "PIC",
-          kegiatan: r.kegiatan,
-          kendala: r.kendala,
-          images: (await Promise.all((r.images || []).map((p) => fetchImageBase64(storageUrl(p))))).filter(Boolean) as string[],
-        }))
-      )));
+      const laporanImagesMap: Record<string, string[]> = {};
+      await Promise.all(laporanPic.map(async (r) => {
+        laporanImagesMap[String(r.id)] = (await Promise.all((r.images || []).map((p) => fetchImageBase64(storageUrl(p))))).filter(Boolean) as string[];
+      }));
       const pdfData: any = {
         type: "sipil" as const,
         judul: detail.nama_proyek ?? "Proyek Sipil",
@@ -1156,7 +1151,22 @@ export default function ProyekSipilDetailPage() {
         })),
         logoUrl,
       };
-      pdfData.termins = pdfData.termins.map((t: any, index: number) => ({ ...t, laporan: laporanByTermin[index] ?? [] }));
+      pdfData.termins = pdfData.termins.map((termin: any, index: number) => ({
+        ...termin,
+        tasks: termin.tasks.map((task: any, taskIndex: number) => {
+          const sourceTask = detail.termins[index]?.tasks[taskIndex];
+          return {
+            ...task,
+            laporan: laporanPic.filter((r) => String(r.task_id) === String(sourceTask?.id)).map((r) => ({
+              tanggal: r.tanggal,
+              pic_name: r.user?.name ?? "PIC",
+              kegiatan: r.kegiatan,
+              kendala: r.kendala,
+              images: laporanImagesMap[String(r.id)] || [],
+            })),
+          };
+        }),
+      }));
       const { ProyekPDF } = await import("@/components/projek-pdf");
       const blob = await pdf(<ProyekPDF data={pdfData} />).toBlob();
       saveAs(blob, `proyek-sipil-${(detail.nama_proyek ?? "proyek").replace(/\s+/g, "-").toLowerCase()}.pdf`);
