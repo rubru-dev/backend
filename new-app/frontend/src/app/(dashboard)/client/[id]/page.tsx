@@ -1102,7 +1102,7 @@ function TabAktivitas({ pid }: { pid: number }) {
                 {(tasks as any[]).map((item: any) => (
                   <Card key={item.id}>
                     <CardContent className="py-3 px-4">
-                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 mb-1 flex-wrap">
                             <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColor(item.status)}`}>{item.status}</span>
@@ -1113,11 +1113,19 @@ function TabAktivitas({ pid }: { pid: number }) {
                             </span>
                             <span className="text-xs text-gray-300 capitalize">[{item.type}]</span>
                           </div>
-                          <p className="font-medium text-gray-800 truncate">{item.judul ?? "-"}</p>
+                           <p className="font-medium text-gray-800 truncate">{item.judul ?? "-"}</p>
+                           {item.is_laporan_pic && (
+                             <div className="mt-2 space-y-1">
+                               <p className="text-xs text-gray-500">PIC: {item.pic_nama ?? "PIC"}</p>
+                               <p className="text-sm whitespace-pre-wrap text-gray-700">{item.deskripsi}</p>
+                               {item.kendala && <p className="text-xs text-amber-700">Kendala: {item.kendala}</p>}
+                               {item.images?.length > 0 && <div className="flex flex-wrap gap-2 pt-1">{item.images.map((p: string, i: number) => <a key={i} href={fileUrl(p) ?? undefined} target="_blank" rel="noreferrer"><img src={fileUrl(p) ?? ""} alt={`Foto laporan ${i + 1}`} className="h-16 w-16 rounded border object-cover" /></a>)}</div>}
+                             </div>
+                           )}
                         </div>
-                        <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => openEdit(item)}>
-                          <Pencil className="w-3 h-3" />
-                        </Button>
+                         {!item.is_laporan_pic && <Button size="icon" variant="ghost" className="h-7 w-7 shrink-0" onClick={() => openEdit(item)}>
+                           <Pencil className="w-3 h-3" />
+                         </Button>}
                       </div>
                     </CardContent>
                   </Card>

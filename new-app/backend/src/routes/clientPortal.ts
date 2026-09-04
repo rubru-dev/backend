@@ -595,6 +595,11 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
 
   const result: any[] = [];
 
+  const [laporanSipil, laporanInterior] = await Promise.all([
+    prisma.laporanPicProjek.findMany({ where: { project_type: "sipil", project_id: { in: sipilProyeks.map((p) => p.id) } }, include: { user: { select: { name: true } }, image_files: true }, orderBy: { tanggal: "desc" } }),
+    prisma.laporanPicProjek.findMany({ where: { project_type: "interior", project_id: { in: interiorProyeks.map((p) => p.id) } }, include: { user: { select: { name: true } }, image_files: true }, orderBy: { tanggal: "desc" } }),
+  ]);
+
   for (const p of sipilProyeks) {
     for (const t of p.termins) {
       for (const task of t.tasks) {
@@ -631,9 +636,31 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
     }
   }
 
+  for (const report of [...laporanSipil, ...laporanInterior]) {
+    result.push({
+      id: `laporan_pic_${report.id}`,
+      type: report.project_type,
+      is_laporan_pic: true,
+      report_id: Number(report.id),
+      proyek_nama: report.project_nama,
+      termin_nama: report.termin_nama,
+      pekerjaan_nama: report.pekerjaan_nama,
+      judul: report.pekerjaan_nama || "Laporan Harian PIC",
+      tanggal: report.tanggal,
+      tanggal_mulai: report.tanggal,
+      tanggal_selesai: report.tanggal,
+      status: "Laporan PIC",
+      deskripsi: report.kegiatan,
+      kendala: report.kendala,
+      pic_nama: report.user?.name ?? "PIC",
+      images: report.image_files.map((image) => image.file_path),
+    });
+  }
+
   // Sort: belum selesai dulu, lalu urut deadline
   result.sort((a, b) => {
     const done = (s: string) => s === "Selesai";
+    if (a.is_laporan_pic !== b.is_laporan_pic) return a.is_laporan_pic ? -1 : 1;
     if (done(a.status) !== done(b.status)) return done(a.status) ? 1 : -1;
     if (!a.tanggal_selesai) return 1;
     if (!b.tanggal_selesai) return -1;

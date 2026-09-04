@@ -759,6 +759,22 @@ router.get("/laporan-pic/projek-options", async (req: Request, res: Response) =>
   return res.json(rows.map((r) => ({ id: r.id, nama: r.nama_proyek || `Sipil #${r.id}` })));
 });
 
+// Opsi termin dan pekerjaan untuk laporan harian PIC.
+router.get("/laporan-pic/termin-options", async (req: Request, res: Response) => {
+  const type = String(req.query.type || "sipil") === "interior" ? "interior" : "sipil";
+  const projectId = String(req.query.project_id || "");
+  if (!projectId) return res.status(400).json({ detail: "project_id wajib diisi" });
+  const id = BigInt(projectId);
+  if (type === "interior") {
+    const project = await prisma.proyekInterior.findUnique({ where: { id }, include: { termins: { orderBy: { urutan: "asc" }, include: { tasks: { orderBy: { id: "asc" } } } } } });
+    if (!project) return res.status(404).json({ detail: "Projek tidak ditemukan" });
+    return res.json(project.termins.map((t) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama, tasks: t.tasks.map((task) => ({ id: String(task.id), nama_pekerjaan: task.nama_pekerjaan })) })));
+  }
+  const project = await prisma.proyekBerjalan.findUnique({ where: { id }, include: { termins: { orderBy: { urutan: "asc" }, include: { tasks: { orderBy: { id: "asc" } } } } } });
+  if (!project) return res.status(404).json({ detail: "Projek tidak ditemukan" });
+  return res.json(project.termins.map((t) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama, tasks: t.tasks.map((task) => ({ id: String(task.id), nama_pekerjaan: task.nama_pekerjaan })) })));
+});
+
 // PIC membuat laporan (teks + banyak gambar). Terima beberapa nama field supaya kompatibel
 // dengan bundle lama/cache yang mungkin masih mengirim "fotos" atau "files".
 router.post(
@@ -771,7 +787,7 @@ router.post(
   ]),
   async (req: Request, res: Response) => {
   const user = req.user!;
-  const { project_type, project_id, kegiatan, kendala, expected_file_count } = req.body;
+  const { project_type, project_id, termin_id, task_id, kegiatan, kendala, expected_file_count } = req.body;
   const files = getUploadedFiles(req).slice(0, 20);
   const expectedFileCount = Number(expected_file_count ?? 0);
   console.log("[LaporanPIC] request upload diterima", {
@@ -792,6 +808,16 @@ router.post(
   const proj = type === "interior"
     ? await prisma.proyekInterior.findUnique({ where: { id: pid }, select: { nama_proyek: true } })
     : await prisma.proyekBerjalan.findUnique({ where: { id: pid }, select: { nama_proyek: true } });
+  if (!proj) return res.status(404).json({ detail: "Projek tidak ditemukan" });
+  if (!termin_id || !task_id) return res.status(400).json({ detail: "Termin dan nama pekerjaan wajib dipilih" });
+  const tid = BigInt(termin_id);
+  const tkid = BigInt(task_id);
+  const target = type === "interior"
+    ? await prisma.proyekInteriorTask.findFirst({ where: { id: tkid, termin_id: tid }, include: { termin: true } })
+    : await prisma.proyekBerjalanTask.findFirst({ where: { id: tkid, termin_id: tid }, include: { termin: true } });
+  if (!target) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan termin yang dipilih" });
+  const targetProjectId = type === "interior" ? (target as any).termin.proyek_interior_id : (target as any).termin.proyek_berjalan_id;
+  if (String(targetProjectId) !== String(pid)) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan projek yang dipilih" });
   if (expectedFileCount > 0 && files.length === 0) {
     console.warn("[LaporanPIC] upload gagal: frontend kirim file tapi backend tidak menerima file", {
       expected_file_count: expectedFileCount,
@@ -807,6 +833,10 @@ router.post(
       project_type: type,
       project_id: pid,
       project_nama: proj?.nama_proyek ?? null,
+      termin_id: tid,
+      task_id: tkid,
+      termin_nama: (target as any).termin.nama ?? null,
+      pekerjaan_nama: target.nama_pekerjaan ?? null,
       kegiatan: String(kegiatan),
       kendala: kendala ? String(kendala) : null,
       images: [],
@@ -814,6 +844,17 @@ router.post(
     include: { user: { select: { name: true } } },
   });
   const images = await insertLaporanPicImages(row.id, files);
+  // Mirror foto laporan ke Galeri Web Client jika projek operasional terhubung
+  // ke client melalui lead. File tetap memakai storage PIC agar tidak diduplikasi.
+  const operational = type === "interior"
+    ? await prisma.proyekInterior.findUnique({ where: { id: pid }, select: { lead_id: true } })
+    : await prisma.proyekBerjalan.findUnique({ where: { id: pid }, select: { lead_id: true } });
+  if (operational?.lead_id && images.length > 0) {
+    const clientProject = await prisma.clientPortalProject.findUnique({ where: { lead_id: operational.lead_id }, select: { id: true } });
+    if (clientProject) {
+      await prisma.clientPortalGaleri.createMany({ data: images.map((file_path) => ({ project_id: clientProject.id, judul: `${(target as any).termin.nama || "Umum"} ‖ ${target.nama_pekerjaan || "Dokumentasi"}`, deskripsi: [kegiatan, kendala ? `Kendala: ${kendala}` : ""].filter(Boolean).join("\n"), file_path, tanggal_foto: new Date(), created_by: user.id })) });
+    }
+  }
   console.log("[LaporanPIC] upload berhasil disimpan", {
     laporan_id: String(row.id),
     image_count: images.length,
@@ -847,6 +888,7 @@ router.delete("/laporan-pic/:id", async (req: Request, res: Response) => {
     const filePath = path.resolve(config.storagePath, imagePath.replace(/^\/storage\//, ""));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
   }
+  await prisma.clientPortalGaleri.deleteMany({ where: { file_path: { in: rows[0]?.images ?? [] } } });
   await prisma.laporanPicProjek.delete({ where: { id } });
   return res.json({ success: true });
 });

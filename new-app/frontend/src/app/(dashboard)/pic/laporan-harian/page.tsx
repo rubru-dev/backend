@@ -16,6 +16,8 @@ export default function PICLaporanHarianPage() {
   const qc = useQueryClient();
   const [projectType, setProjectType] = useState<"sipil" | "interior">("sipil");
   const [projectId, setProjectId] = useState("");
+  const [terminId, setTerminId] = useState("");
+  const [taskId, setTaskId] = useState("");
   const [kegiatan, setKegiatan] = useState("");
   const [kendala, setKendala] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -30,7 +32,14 @@ export default function PICLaporanHarianPage() {
     queryKey: ["laporan-pic-options", projectType],
     queryFn: () => laporanPicApi.projekOptions(projectType),
   });
-  useEffect(() => setProjectId(""), [projectType]);
+  const { data: terminOptions = [], isLoading: loadingTermins } = useQuery({
+    queryKey: ["laporan-pic-termin-options", projectType, projectId],
+    queryFn: () => laporanPicApi.terminOptions(projectType, projectId),
+    enabled: Boolean(projectId),
+  });
+  const selectedTermin = terminOptions.find((t) => t.id === terminId);
+  useEffect(() => { setProjectId(""); setTerminId(""); setTaskId(""); }, [projectType]);
+  useEffect(() => { setTerminId(""); setTaskId(""); }, [projectId]);
 
   const { data: mine = [] } = useQuery({
     queryKey: ["laporan-pic-mine"],
@@ -89,6 +98,8 @@ export default function PICLaporanHarianPage() {
           project_type: r.project_type,
           project_nama: r.project_nama ?? `#${r.project_id}`,
           pic_name: r.user?.name ?? "PIC",
+          termin_nama: r.termin_nama,
+          pekerjaan_nama: r.pekerjaan_nama,
           kegiatan: r.kegiatan,
           kendala: r.kendala,
           images: (await Promise.all((r.images || []).map((p) => toB64(storageUrl(p))))).filter(Boolean),
@@ -126,6 +137,8 @@ export default function PICLaporanHarianPage() {
       console.groupCollapsed("[LaporanPIC] Mulai upload laporan");
       console.log("project_type", projectType);
       console.log("project_id", projectId);
+      console.log("termin_id", terminId);
+      console.log("task_id", taskId);
       console.log("jumlah_file_frontend", files.length);
       console.table(files.map((file) => ({ name: file.name, type: file.type, size: file.size })));
       console.groupEnd();
@@ -133,6 +146,8 @@ export default function PICLaporanHarianPage() {
       const fd = new FormData();
       fd.append("project_type", projectType);
       fd.append("project_id", projectId);
+      fd.append("termin_id", terminId);
+      fd.append("task_id", taskId);
       fd.append("kegiatan", kegiatan);
       if (kendala) fd.append("kendala", kendala);
       fd.append("expected_file_count", String(files.length));
@@ -149,6 +164,8 @@ export default function PICLaporanHarianPage() {
       setKegiatan("");
       setKendala("");
       setProjectId("");
+      setTerminId("");
+      setTaskId("");
       setFiles([]);
       qc.invalidateQueries({ queryKey: ["laporan-pic-mine"] });
     },
@@ -174,6 +191,8 @@ export default function PICLaporanHarianPage() {
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!projectId) return toast.error("Pilih nama projek terlebih dahulu.");
+    if (!terminId) return toast.error("Pilih termin terlebih dahulu.");
+    if (!taskId) return toast.error("Pilih nama pekerjaan terlebih dahulu.");
     if (!kegiatan.trim()) return toast.error("Isi kegiatan terlebih dahulu.");
     createMut.mutate();
   };
@@ -228,6 +247,22 @@ export default function PICLaporanHarianPage() {
                   {o.nama}
                 </option>
               ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Termin</label>
+            <select className={inputCls} value={terminId} disabled={!projectId || loadingTermins} onChange={(e) => { setTerminId(e.target.value); setTaskId(""); }}>
+              <option value="">{loadingTermins ? "Memuat termin…" : "— Pilih termin —"}</option>
+              {terminOptions.map((t) => <option key={t.id} value={t.id}>{t.nama || `Termin ${t.urutan}`}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Nama Pekerjaan</label>
+            <select className={inputCls} value={taskId} disabled={!terminId} onChange={(e) => setTaskId(e.target.value)}>
+              <option value="">— Pilih pekerjaan —</option>
+              {(selectedTermin?.tasks ?? []).map((task) => <option key={task.id} value={task.id}>{task.nama_pekerjaan || `Pekerjaan #${task.id}`}</option>)}
             </select>
           </div>
         </div>
@@ -364,6 +399,7 @@ export default function PICLaporanHarianPage() {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
+                <p className="mt-1 text-xs text-muted-foreground">{r.termin_nama || "Tanpa termin"} · {r.pekerjaan_nama || "Tanpa pekerjaan"}</p>
                 <p className="mt-2 whitespace-pre-wrap text-sm">{r.kegiatan}</p>
                 {r.kendala && (
                   <p className="mt-1.5 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">

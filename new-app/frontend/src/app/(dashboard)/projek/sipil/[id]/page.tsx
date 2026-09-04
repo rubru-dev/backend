@@ -12,6 +12,7 @@ import { LaporanPicProjekTab } from "@/components/laporan-pic-projek-tab";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { sipilApi } from "@/lib/api/content";
+import { laporanPicApi } from "@/lib/api/laporanPic";
 import { storageUrl } from "@/lib/storage-url";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
@@ -895,6 +896,11 @@ export default function ProyekSipilDetailPage() {
     enabled: !!id,
     retry: false,
   });
+  const { data: laporanPic = [] } = useQuery({
+    queryKey: ["laporan-pic", "sipil", id],
+    queryFn: () => laporanPicApi.listByProject("sipil", id),
+    enabled: Boolean(id),
+  });
 
   const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
     queryKey: ["sipil-employees"],
@@ -1121,7 +1127,16 @@ export default function ProyekSipilDetailPage() {
           } catch {}
         })
       );
-      const pdfData = {
+      const laporanByTermin = await Promise.all((detail.termins ?? []).map((t) => Promise.all(
+        laporanPic.filter((r) => String(r.termin_id) === String(t.id)).map(async (r) => ({
+          tanggal: r.tanggal,
+          pic_name: r.user?.name ?? "PIC",
+          kegiatan: r.kegiatan,
+          kendala: r.kendala,
+          images: (await Promise.all((r.images || []).map((p) => fetchImageBase64(storageUrl(p))))).filter(Boolean) as string[],
+        }))
+      )));
+      const pdfData: any = {
         type: "sipil" as const,
         judul: detail.nama_proyek ?? "Proyek Sipil",
         docLabel: "PROYEK SIPIL",
@@ -1141,6 +1156,7 @@ export default function ProyekSipilDetailPage() {
         })),
         logoUrl,
       };
+      pdfData.termins = pdfData.termins.map((t: any, index: number) => ({ ...t, laporan: laporanByTermin[index] ?? [] }));
       const { ProyekPDF } = await import("@/components/projek-pdf");
       const blob = await pdf(<ProyekPDF data={pdfData} />).toBlob();
       saveAs(blob, `proyek-sipil-${(detail.nama_proyek ?? "proyek").replace(/\s+/g, "-").toLowerCase()}.pdf`);

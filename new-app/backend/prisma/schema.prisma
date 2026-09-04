@@ -1046,6 +1046,10 @@ model LaporanPicProjek {
   project_type String   @db.VarChar(20)
   project_id   BigInt
   project_nama String?  @db.VarChar(255)
+  termin_id    BigInt?
+  task_id      BigInt?
+  termin_nama  String?  @db.VarChar(255)
+  pekerjaan_nama String? @db.VarChar(255)
   tanggal      DateTime @default(dbgenerated("CURRENT_DATE")) @db.Date
   kegiatan     String
   kendala      String?

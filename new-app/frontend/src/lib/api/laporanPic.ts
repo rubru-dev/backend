@@ -1,12 +1,17 @@
 import { apiClient } from "./client";
 
 export type ProjekOption = { id: number; nama: string };
+export type TerminOption = { id: string; urutan: number; nama: string | null; tasks: { id: string; nama_pekerjaan: string | null }[] };
 export type LaporanPicItem = {
   id: number;
   user_id: number | null;
   project_type: "sipil" | "interior";
   project_id: number;
   project_nama: string | null;
+  termin_id: string | null;
+  task_id: string | null;
+  termin_nama: string | null;
+  pekerjaan_nama: string | null;
   tanggal: string;
   kegiatan: string;
   kendala: string | null;
@@ -18,6 +23,8 @@ export type LaporanPicItem = {
 export const laporanPicApi = {
   projekOptions: (type: "sipil" | "interior"): Promise<ProjekOption[]> =>
     apiClient.get(`/pic/laporan-pic/projek-options`, { params: { type } }).then((r) => r.data),
+  terminOptions: (type: "sipil" | "interior", project_id: string): Promise<TerminOption[]> =>
+    apiClient.get(`/pic/laporan-pic/termin-options`, { params: { type, project_id } }).then((r) => r.data),
 
   create: (formData: FormData): Promise<LaporanPicItem> =>
     apiClient

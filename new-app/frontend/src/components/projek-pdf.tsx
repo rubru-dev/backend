@@ -133,6 +133,15 @@ export interface PdfTermin {
   tanggal_mulai:  string | null;
   tanggal_selesai: string | null;
   tasks: PdfTask[];
+  laporan?: PdfReport[];
+}
+
+export interface PdfReport {
+  tanggal: string;
+  pic_name: string;
+  kegiatan: string;
+  kendala?: string | null;
+  images?: string[];
 }
 
 export type ProyekPDFType = "desain" | "interior" | "sipil";
@@ -199,6 +208,23 @@ function TaskTable({ tasks }: { tasks: PdfTask[] }) {
           );
         })
       )}
+    </View>
+  );
+}
+
+function ReportList({ reports }: { reports: PdfReport[] }) {
+  if (reports.length === 0) return null;
+  return (
+    <View style={{ marginTop: 8 }}>
+      <Text style={{ fontSize: 8, fontWeight: "bold", color: ORANGE, marginBottom: 4 }}>LAPORAN PIC PROJECT</Text>
+      {reports.map((r, i) => (
+        <View key={i} wrap={false} style={{ borderBottomWidth: 1, borderBottomColor: "#e7e5e4", padding: 5, backgroundColor: i % 2 === 0 ? "#fff" : ORANGE_LIGHT }}>
+          <Text style={{ fontSize: 7.5, color: GRAY }}>{fmtDate(r.tanggal)} · PIC: {r.pic_name}</Text>
+          <Text style={{ fontSize: 8, marginTop: 2 }}>{r.kegiatan}</Text>
+          {r.kendala ? <Text style={{ fontSize: 7.5, color: "#92400e", marginTop: 2 }}>Kendala: {r.kendala}</Text> : null}
+          {!!r.images?.length && <View style={{ flexDirection: "row", flexWrap: "wrap", marginTop: 3 }}>{r.images.map((img, j) => <Image key={j} src={img} style={{ width: 48, height: 48, marginRight: 3, marginBottom: 2 }} />)}</View>}
+        </View>
+      ))}
     </View>
   );
 }
@@ -306,6 +332,7 @@ export function ProyekPDF({ data }: { data: ProyekPDFData }) {
               )}
             </View>
             <TaskTable tasks={termin.tasks} />
+            <ReportList reports={termin.laporan ?? []} />
           </View>
         ))}
 

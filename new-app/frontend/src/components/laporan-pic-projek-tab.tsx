@@ -60,6 +60,7 @@ export function LaporanPicProjekTab({
           </div>
 
           <div className="mt-2">
+            <p className="text-xs text-muted-foreground">{r.termin_nama || "Tanpa termin"} · {r.pekerjaan_nama || "Tanpa pekerjaan"}</p>
             <p className="whitespace-pre-wrap text-sm text-foreground">{r.kegiatan}</p>
             {r.kendala && (
               <p className="mt-2 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">

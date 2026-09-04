@@ -17,6 +17,8 @@ export type PdfReport = {
   tanggal: string;
   project_type: "sipil" | "interior";
   project_nama: string;
+  termin_nama?: string | null;
+  pekerjaan_nama?: string | null;
   pic_name: string;
   kegiatan: string;
   kendala?: string | null;
@@ -117,6 +119,7 @@ export function LaporanPicPdf({ reports, logo, meta }: { reports: PdfReport[]; l
               </View>
               <View style={s.cardBody}>
                 <Text style={s.secLabel}>Kegiatan</Text>
+                {(r.termin_nama || r.pekerjaan_nama) && <Text style={{ fontSize: 8, color: DARK, marginBottom: 3 }}>{r.termin_nama || "Tanpa termin"} · {r.pekerjaan_nama || "Tanpa pekerjaan"}</Text>}
                 <Text style={s.kegiatan}>{r.kegiatan}</Text>
                 {r.kendala ? <Text style={s.kendala}>Kendala: {r.kendala}</Text> : null}
                 {r.images.length > 0 && (

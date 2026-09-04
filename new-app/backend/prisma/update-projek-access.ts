@@ -58,6 +58,15 @@ async function main() {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
   `);
+  // Hubungan polymorphic ke termin/task sipil atau interior; validasi kepemilikan
+  // dilakukan di endpoint karena kedua modul memakai tabel termin/task berbeda.
+  await prisma.$executeRawUnsafe(`
+    ALTER TABLE laporan_pic_projeks
+      ADD COLUMN IF NOT EXISTS termin_id BIGINT,
+      ADD COLUMN IF NOT EXISTS task_id BIGINT,
+      ADD COLUMN IF NOT EXISTS termin_nama VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS pekerjaan_nama VARCHAR(255);
+  `);
   await prisma.$executeRawUnsafe(
     `CREATE INDEX IF NOT EXISTS idx_laporan_pic_projeks_project ON laporan_pic_projeks (project_type, project_id);`
   );
