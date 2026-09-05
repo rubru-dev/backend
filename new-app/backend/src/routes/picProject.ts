@@ -85,6 +85,10 @@ function getUploadedFiles(req: Request): Express.Multer.File[] {
   return [];
 }
 
+function isSuperAdmin(user: any) {
+  return user.roles?.some((r: any) => r.role.name === "Super Admin");
+}
+
 let laporanPicImagesTableReady: Promise<void> | null = null;
 
 function ensureLaporanPicImagesTable() {
@@ -863,6 +867,79 @@ router.post(
   return res.status(201).json({ ...mapLaporanPic(row), images });
 });
 
+// Edit laporan milik sendiri (Super Admin boleh mengedit semua laporan).
+router.patch(
+  "/laporan-pic/:id",
+  picUpload.fields([
+    { name: "images", maxCount: 20 },
+    { name: "fotos", maxCount: 20 },
+    { name: "files", maxCount: 20 },
+    { name: "file", maxCount: 20 },
+  ]),
+  async (req: Request, res: Response) => {
+    const id = BigInt(req.params.id);
+    const user = req.user!;
+    const row = await prisma.laporanPicProjek.findUnique({ where: { id } });
+    if (!row) return res.status(404).json({ detail: "Laporan tidak ditemukan" });
+    if (!isSuperAdmin(user) && String(row.user_id) !== String(user.id)) return res.status(403).json({ detail: "Anda hanya dapat mengedit laporan sendiri" });
+
+    const kegiatan = req.body.kegiatan !== undefined ? String(req.body.kegiatan).trim() : row.kegiatan;
+    if (!kegiatan) return res.status(400).json({ detail: "Kegiatan wajib diisi" });
+    const tid = req.body.termin_id ? BigInt(req.body.termin_id) : row.termin_id;
+    const tkid = req.body.task_id ? BigInt(req.body.task_id) : row.task_id;
+    if (!tid || !tkid) return res.status(400).json({ detail: "Termin dan nama pekerjaan wajib dipilih" });
+    const target = row.project_type === "interior"
+      ? await prisma.proyekInteriorTask.findFirst({ where: { id: tkid, termin_id: tid }, include: { termin: true } })
+      : await prisma.proyekBerjalanTask.findFirst({ where: { id: tkid, termin_id: tid }, include: { termin: true } });
+    if (!target) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan termin yang dipilih" });
+    const targetProjectId = row.project_type === "interior" ? (target as any).termin.proyek_interior_id : (target as any).termin.proyek_berjalan_id;
+    if (String(targetProjectId) !== String(row.project_id)) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan projek laporan" });
+
+    const keepImages = normalizeImageList(req.body.keep_images ?? "[]");
+    await ensureLaporanPicImagesTable();
+    const oldImages = await prisma.$queryRawUnsafe<{ file_path: string }[]>("SELECT file_path FROM laporan_pic_projek_images WHERE laporan_id = $1 ORDER BY id ASC", id);
+    const oldPaths = Array.from(new Set([...oldImages.map((image) => image.file_path), ...normalizeImageList(row.images)]));
+    const removedPaths = oldPaths.filter((filePath) => !keepImages.includes(filePath));
+    if (removedPaths.length > 0) {
+      await prisma.$executeRawUnsafe("DELETE FROM laporan_pic_projek_images WHERE laporan_id = $1 AND file_path = ANY($2::text[])", id, removedPaths);
+      for (const imagePath of removedPaths) {
+        const filePath = path.resolve(config.storagePath, imagePath.replace(/^\/storage\//, ""));
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      }
+      await prisma.clientPortalGaleri.deleteMany({ where: { file_path: { in: removedPaths } } });
+    }
+
+    const files = getUploadedFiles(req).slice(0, 20);
+    const newImages = await insertLaporanPicImages(id, files);
+    const allImages = [...keepImages.filter((filePath) => oldPaths.includes(filePath)), ...newImages];
+    const updated = await prisma.laporanPicProjek.update({
+      where: { id },
+      data: {
+        termin_id: tid,
+        task_id: tkid,
+        termin_nama: (target as any).termin.nama ?? null,
+        pekerjaan_nama: target.nama_pekerjaan ?? null,
+        kegiatan,
+        kendala: req.body.kendala ? String(req.body.kendala) : null,
+        images: allImages,
+      },
+      include: { user: { select: { name: true } } },
+    });
+
+    const operational = row.project_type === "interior"
+      ? await prisma.proyekInterior.findUnique({ where: { id: row.project_id }, select: { lead_id: true } })
+      : await prisma.proyekBerjalan.findUnique({ where: { id: row.project_id }, select: { lead_id: true } });
+    if (operational?.lead_id) {
+      const clientProject = await prisma.clientPortalProject.findUnique({ where: { lead_id: operational.lead_id }, select: { id: true } });
+      if (clientProject) {
+        await prisma.clientPortalGaleri.deleteMany({ where: { file_path: { in: oldPaths } } });
+        if (allImages.length > 0) await prisma.clientPortalGaleri.createMany({ data: allImages.map((file_path) => ({ project_id: clientProject.id, judul: `${(target as any).termin.nama || "Umum"} ‖ ${target.nama_pekerjaan || "Dokumentasi"}`, deskripsi: [kegiatan, req.body.kendala ? `Kendala: ${req.body.kendala}` : ""].filter(Boolean).join("\n"), file_path, tanggal_foto: new Date(), created_by: row.user_id })) });
+      }
+    }
+    return res.json({ ...mapLaporanPic(updated), images: allImages });
+  }
+);
+
 // List laporan: per-projek (tab Laporan PIC Project) atau milik sendiri (?mine=1)
 router.get("/laporan-pic", async (req: Request, res: Response) => {
   const { project_type, project_id, mine } = req.query;
@@ -883,6 +960,7 @@ router.delete("/laporan-pic/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const row = await prisma.laporanPicProjek.findUnique({ where: { id } });
   if (!row) return res.status(404).json({ detail: "Laporan tidak ditemukan" });
+  if (!isSuperAdmin(req.user) && String(row.user_id) !== String(req.user!.id)) return res.status(403).json({ detail: "Anda hanya dapat menghapus laporan sendiri" });
   const rows = await attachLaporanPicImages([row]);
   for (const imagePath of rows[0]?.images ?? []) {
     const filePath = path.resolve(config.storagePath, imagePath.replace(/^\/storage\//, ""));

@@ -7,7 +7,7 @@ import { laporanPicApi } from "@/lib/api/laporanPic";
 import { storageUrl } from "@/lib/storage-url";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { HardHat, Upload, X, Trash2, Calendar, Building2, Home, FileDown, Filter } from "lucide-react";
+import { HardHat, Upload, X, Trash2, Pencil, Calendar, Building2, Home, FileDown, Filter } from "lucide-react";
 
 // Muat gambar lewat /api/v1 (path yang sudah pasti diteruskan ke backend oleh reverse proxy / Next rewrite,
 // karena semua API call juga lewat sini). Path DB berupa "/storage/..." → jadi "/api/v1/storage/...".
@@ -27,6 +27,13 @@ export default function PICLaporanHarianPage() {
   const [toDate, setToDate] = useState("");
   const [filterProject, setFilterProject] = useState("all");
   const [downloading, setDownloading] = useState(false);
+  const [editingReport, setEditingReport] = useState<any>(null);
+  const [editTerminId, setEditTerminId] = useState("");
+  const [editTaskId, setEditTaskId] = useState("");
+  const [editKegiatan, setEditKegiatan] = useState("");
+  const [editKendala, setEditKendala] = useState("");
+  const [editKeepImages, setEditKeepImages] = useState<string[]>([]);
+  const [editFiles, setEditFiles] = useState<File[]>([]);
 
   const { data: options = [] } = useQuery({
     queryKey: ["laporan-pic-options", projectType],
@@ -38,6 +45,12 @@ export default function PICLaporanHarianPage() {
     enabled: Boolean(projectId),
   });
   const selectedTermin = terminOptions.find((t) => t.id === terminId);
+  const { data: editTerminOptions = [], isLoading: loadingEditTermins } = useQuery({
+    queryKey: ["laporan-pic-edit-termin-options", editingReport?.project_type, editingReport?.project_id],
+    queryFn: () => laporanPicApi.terminOptions(editingReport.project_type, String(editingReport.project_id)),
+    enabled: Boolean(editingReport),
+  });
+  const selectedEditTermin = editTerminOptions.find((t) => t.id === editTerminId);
   useEffect(() => { setProjectId(""); setTerminId(""); setTaskId(""); }, [projectType]);
   useEffect(() => { setTerminId(""); setTaskId(""); }, [projectId]);
 
@@ -187,6 +200,37 @@ export default function PICLaporanHarianPage() {
       qc.invalidateQueries({ queryKey: ["laporan-pic-mine"] });
     },
   });
+
+  const updateMut = useMutation({
+    mutationFn: () => {
+      const fd = new FormData();
+      fd.append("termin_id", editTerminId);
+      fd.append("task_id", editTaskId);
+      fd.append("kegiatan", editKegiatan);
+      if (editKendala) fd.append("kendala", editKendala);
+      fd.append("keep_images", JSON.stringify(editKeepImages));
+      editFiles.forEach((file) => fd.append("fotos", file));
+      return laporanPicApi.update(editingReport.id, fd);
+    },
+    onSuccess: () => {
+      toast.success("Laporan berhasil diedit.");
+      setEditingReport(null);
+      setEditFiles([]);
+      qc.invalidateQueries({ queryKey: ["laporan-pic-mine"] });
+      qc.invalidateQueries({ queryKey: ["laporan-pic"] });
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal mengedit laporan."),
+  });
+
+  const openEdit = (report: any) => {
+    setEditingReport(report);
+    setEditTerminId(String(report.termin_id ?? ""));
+    setEditTaskId(String(report.task_id ?? ""));
+    setEditKegiatan(report.kegiatan ?? "");
+    setEditKendala(report.kendala ?? "");
+    setEditKeepImages(Array.isArray(report.images) ? [...report.images] : []);
+    setEditFiles([]);
+  };
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -391,6 +435,13 @@ export default function PICLaporanHarianPage() {
                       {r.tanggal ? format(new Date(r.tanggal), "d MMM yyyy", { locale: idLocale }) : "-"}
                     </span>
                   </div>
+                   <button
+                    onClick={() => openEdit(r)}
+                    className="text-muted-foreground hover:text-orange-600"
+                    title="Edit laporan"
+                  >
+                    <Pencil className="h-4 w-4" />
+                  </button>
                   <button
                     onClick={() => delMut.mutate(r.id)}
                     className="text-muted-foreground hover:text-red-600"
@@ -441,6 +492,23 @@ export default function PICLaporanHarianPage() {
           </div>
         )}
       </div>
+
+      {editingReport && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditingReport(null); }}>
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-background p-5 shadow-xl">
+            <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">Edit Laporan Harian</h2><button onClick={() => setEditingReport(null)}><X className="h-5 w-5" /></button></div>
+            <div className="space-y-3">
+              <div><label className="mb-1 block text-sm font-medium">Termin</label><select className={inputCls} value={editTerminId} disabled={loadingEditTermins} onChange={(e) => { setEditTerminId(e.target.value); setEditTaskId(""); }}><option value="">{loadingEditTermins ? "Memuat termin…" : "— Pilih termin —"}</option>{editTerminOptions.map((t) => <option key={t.id} value={t.id}>{t.nama || `Termin ${t.urutan}`}</option>)}</select></div>
+              <div><label className="mb-1 block text-sm font-medium">Nama Pekerjaan</label><select className={inputCls} value={editTaskId} disabled={!editTerminId} onChange={(e) => setEditTaskId(e.target.value)}><option value="">— Pilih pekerjaan —</option>{(selectedEditTermin?.tasks ?? []).map((task) => <option key={task.id} value={task.id}>{task.nama_pekerjaan || `Pekerjaan #${task.id}`}</option>)}</select></div>
+              <div><label className="mb-1 block text-sm font-medium">Kegiatan / Laporan</label><textarea className={inputCls} rows={4} value={editKegiatan} onChange={(e) => setEditKegiatan(e.target.value)} /></div>
+              <div><label className="mb-1 block text-sm font-medium">Kendala</label><textarea className={inputCls} rows={2} value={editKendala} onChange={(e) => setEditKendala(e.target.value)} /></div>
+              <div><label className="mb-1 block text-sm font-medium">Foto tersimpan</label><div className="flex flex-wrap gap-2">{editKeepImages.map((p, i) => <div key={`${p}-${i}`} className="relative"><img src={storageUrl(p)} alt={`foto ${i + 1}`} className="h-20 w-20 rounded border bg-slate-50 object-contain" /><button type="button" title="Hapus foto" onClick={() => setEditKeepImages((items) => items.filter((_, j) => j !== i))} className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-white"><X className="h-3 w-3" /></button></div>)}</div></div>
+              <div><label className="mb-1 block text-sm font-medium">Tambah foto</label><input type="file" accept="image/*" multiple onChange={(e) => setEditFiles((items) => [...items, ...Array.from(e.target.files ?? [])].slice(0, 20))} /><p className="mt-1 text-xs text-muted-foreground">{editFiles.length ? `${editFiles.length} foto baru dipilih` : "Tidak ada foto baru"}</p></div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2"><button className="rounded-md border px-4 py-2 text-sm" onClick={() => setEditingReport(null)}>Batal</button><button className="rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={updateMut.isPending || !editTerminId || !editTaskId || !editKegiatan.trim()} onClick={() => updateMut.mutate()}>{updateMut.isPending ? "Menyimpan…" : "Simpan Perubahan"}</button></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
