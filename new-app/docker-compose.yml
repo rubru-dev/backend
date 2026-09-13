@@ -58,6 +58,7 @@ services:
       - "127.0.0.1:8000:8000"
     volumes:
       - ./backend/storage:/app/storage
+      - bd_private_uploads:/app/private-storage
 
   # â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   # Next.js Frontend
@@ -92,3 +93,4 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  bd_private_uploads:

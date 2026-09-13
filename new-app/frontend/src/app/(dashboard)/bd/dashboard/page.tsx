@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { id as locId } from "date-fns/locale";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,6 +25,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { metaAdsApi, adsTargetApi } from "@/lib/api/meta-ads";
+import { apiClient } from "@/lib/api/client";
 import { formatRupiah } from "@/lib/utils";
 import type { MetaAdsCampaign } from "@/types";
 
@@ -103,7 +105,6 @@ function StatCard({
 
 export default function BdDashboardPage() {
   const now = new Date();
-  const [filterMode, setFilterMode] = useState<"monthly" | "range">("monthly");
   const [bulan, setBulan] = useState(now.getMonth() + 1);
   const [tahun, setTahun] = useState(now.getFullYear());
   const [startDate, setStartDate] = useState("");
@@ -116,7 +117,7 @@ export default function BdDashboardPage() {
   const [compareX, setCompareX] = useState("spend");
   const [compareY, setCompareY] = useState("total_leads");
 
-  const years = [now.getFullYear(), now.getFullYear() - 1];
+  const years = Array.from({ length: 10 }, (_, index) => now.getFullYear() - index);
 
   const { data: allCampaignsData } = useQuery({
     queryKey: ["/bd/meta-ads/campaigns"],
@@ -135,27 +136,35 @@ export default function BdDashboardPage() {
       platform: platform === "all" ? undefined : platform,
       campaign_id: campaignId !== "all" ? Number(campaignId) : undefined,
     };
-    if (filterMode === "range" && startDate && endDate) {
-      base.start_date = startDate;
-      base.end_date = endDate;
+    if (startDate || endDate) {
+      base.start_date = startDate || undefined;
+      base.end_date = endDate || undefined;
     } else {
       base.bulan = bulan;
       base.tahun = tahun;
     }
     return base;
-  }, [platform, campaignId, filterMode, bulan, tahun, startDate, endDate]);
+  }, [platform, campaignId, bulan, tahun, startDate, endDate]);
 
   const { data: adsDash, isLoading } = useQuery({
     queryKey: ["/bd/meta-ads/dashboard", dashParams],
     queryFn: () => metaAdsApi.getDashboard(dashParams as Parameters<typeof metaAdsApi.getDashboard>[0]),
   });
 
+  const reportParams = useMemo(() => (startDate || endDate)
+    ? { start_date: startDate || undefined, end_date: endDate || undefined }
+    : { bulan, tahun }, [startDate, endDate, bulan, tahun]);
+  const { data: reportSummary, isLoading: summaryLoading } = useQuery({
+    queryKey: ["bd-report-analytics-summary", reportParams],
+    queryFn: () => apiClient.get("/bd/report-analytics", { params: reportParams }).then((response) => response.data),
+  });
+
   // Fetch campaign detail for chart when a specific campaign is selected
   const { data: campDetail } = useQuery({
     queryKey: ["/bd/meta-ads/campaigns", campaignId, dashParams],
     queryFn: () => metaAdsApi.getCampaignDetail(Number(campaignId), {
-      start_date: filterMode === "range" && startDate ? startDate : undefined,
-      end_date: filterMode === "range" && endDate ? endDate : undefined,
+      start_date: startDate || undefined,
+      end_date: endDate || undefined,
     }),
     enabled: campaignId !== "all",
   });
@@ -163,7 +172,7 @@ export default function BdDashboardPage() {
   const { data: targetsData } = useQuery({
     queryKey: ["/bd/ads/targets", platform, bulan, tahun],
     queryFn: () => adsTargetApi.list({ platform: platform === "all" ? undefined : platform, bulan, tahun }),
-    enabled: platform !== "all" && filterMode === "monthly",
+    enabled: platform !== "all" && !startDate && !endDate,
   });
   const target = platform !== "all" ? (targetsData ?? []).find((t) => t.platform === platform) : null;
 
@@ -234,7 +243,7 @@ export default function BdDashboardPage() {
     setPdfLoading(true);
     try {
       const fmt = formatRupiah;
-      const periodLabel = filterMode === "range" && startDate && endDate
+      const periodLabel = (startDate || endDate)
         ? `${startDate} s/d ${endDate}`
         : `${MONTHS[bulan - 1]} ${tahun}`;
       const filterLabel = platform !== "all" ? platformLabel : "Semua Platform";
@@ -324,37 +333,25 @@ h1{font-size:16px;margin-bottom:4px;}
                 ))}
               </SelectContent>
             </Select>
-            {/* Filter mode toggle */}
-            <Select value={filterMode} onValueChange={(v) => setFilterMode(v as "monthly" | "range")}>
-              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+            <Select value={String(bulan)} onValueChange={(v) => setBulan(Number(v))}>
+              <SelectTrigger className="w-36"><SelectValue placeholder="Bulan" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="monthly">Per Bulan</SelectItem>
-                <SelectItem value="range">Rentang Tanggal</SelectItem>
+                {MONTHS.map((m, i) => <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>)}
               </SelectContent>
             </Select>
-            {filterMode === "monthly" ? (
-              <>
-                <Select value={String(bulan)} onValueChange={(v) => setBulan(Number(v))}>
-                  <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {MONTHS.map((m, i) => <SelectItem key={i + 1} value={String(i + 1)}>{m}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={String(tahun)} onValueChange={(v) => setTahun(Number(v))}>
-                  <SelectTrigger className="w-24"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </>
-            ) : (
-              <div className="flex items-center gap-1.5">
-                <Label className="text-xs whitespace-nowrap">Dari</Label>
-                <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 w-36 text-xs" />
-                <Label className="text-xs whitespace-nowrap">s/d</Label>
-                <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 w-36 text-xs" />
-              </div>
-            )}
+            <Select value={String(tahun)} onValueChange={(v) => setTahun(Number(v))}>
+              <SelectTrigger className="w-24"><SelectValue placeholder="Tahun" /></SelectTrigger>
+              <SelectContent>
+                {years.map((y) => <SelectItem key={y} value={String(y)}>{y}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="flex items-center gap-1.5">
+              <Label className="text-xs whitespace-nowrap">Dari</Label>
+              <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="h-8 w-36 text-xs" />
+              <Label className="text-xs whitespace-nowrap">s/d</Label>
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} className="h-8 w-36 text-xs" />
+            </div>
+            {(startDate || endDate) && <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => { setStartDate(""); setEndDate(""); }}>Reset tanggal</Button>}
           </div>
         }
       />
@@ -370,6 +367,19 @@ h1{font-size:16px;margin-bottom:4px;}
           )}
         </div>
       )}
+
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
+          <div><h2 className="text-sm font-semibold">Ringkasan empat laporan</h2><p className="text-xs text-muted-foreground">Mengikuti periode yang dipilih di atas.</p></div>
+          <Link href="/bd/report-analytics" className="text-xs font-medium text-primary hover:underline">Buka detail laporan</Link>
+        </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <Link href="/bd/report-analytics" className="rounded-lg border bg-white p-4 transition hover:border-primary/50"><p className="text-xs text-muted-foreground">Ads Detail Report</p><p className="mt-1 text-lg font-semibold">{summaryLoading ? "Memuat..." : formatRupiah(reportSummary?.ads_organik?.ads_totals?.spend ?? 0)}</p><p className="text-xs text-muted-foreground">{(reportSummary?.ads_organik?.ads ?? []).length} campaign · {Number(reportSummary?.ads_organik?.ads_totals?.result ?? 0).toLocaleString("id-ID")} result</p></Link>
+          <Link href="/bd/report-analytics" className="rounded-lg border bg-white p-4 transition hover:border-primary/50"><p className="text-xs text-muted-foreground">Social Media Detail Report</p><p className="mt-1 text-lg font-semibold">{summaryLoading ? "Memuat..." : Number(reportSummary?.ads_organik?.social_posts?.length ?? 0).toLocaleString("id-ID")} konten</p><p className="text-xs text-muted-foreground">Instagram, YouTube, dan TikTok</p></Link>
+          <Link href="/bd/report-analytics" className="rounded-lg border bg-white p-4 transition hover:border-primary/50"><p className="text-xs text-muted-foreground">Funneling Detail</p><p className="mt-1 text-lg font-semibold">{summaryLoading ? "Memuat..." : `${reportSummary?.funnel?.total_leads ?? 0} leads → ${reportSummary?.funnel?.spk ?? 0} SPK`}</p><p className="text-xs text-muted-foreground">{reportSummary?.funnel?.survey ?? 0} survey · {reportSummary?.funnel?.dp_desain ?? 0} DP desain lunas</p></Link>
+          <Link href="/bd/report-analytics" className="rounded-lg border bg-white p-4 transition hover:border-primary/50"><p className="text-xs text-muted-foreground">Closing Detail</p><p className="mt-1 text-lg font-semibold">{summaryLoading ? "Memuat..." : `${reportSummary?.closing_detail?.total_closing ?? 0} closing`}</p><p className="text-xs text-muted-foreground">{reportSummary?.closing_detail?.total_sales ?? 0} sales · {formatRupiah(reportSummary?.closing_detail?.total_nominal ?? 0)}</p></Link>
+        </div>
+      </section>
 
       {/* ── Stat cards ─────────────────────────────────────────────────────────── */}
       {isLoading ? (

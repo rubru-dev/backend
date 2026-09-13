@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Printer, BarChart3, Kanban } from "lucide-react";
+import { RefreshCw, Printer, BarChart3, Kanban, Files } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/layout/page-header";
 import { KanbanBoard } from "./kanban-board";
 import { KanbanMetrics } from "./kanban-metrics";
+import { BdKanbanFiles } from "./bd-kanban-files";
 import { bdKanbanApi } from "@/lib/api/kanban";
 import type { KanbanColumn } from "@/types";
 
@@ -222,6 +223,9 @@ export function KanbanPage() {
           <TabsTrigger value="metrics" className="flex items-center gap-1.5">
             <BarChart3 className="h-4 w-4" /> Metrics
           </TabsTrigger>
+          <TabsTrigger value="files" className="flex items-center gap-1.5">
+            <Files className="h-4 w-4" /> Upload File
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="board" className="mt-4">
@@ -234,6 +238,10 @@ export function KanbanPage() {
 
         <TabsContent value="metrics" className="mt-4">
           <KanbanMetrics />
+        </TabsContent>
+
+        <TabsContent value="files" className="mt-4">
+          <BdKanbanFiles />
         </TabsContent>
       </Tabs>
     </div>

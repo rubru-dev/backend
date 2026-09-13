@@ -22,7 +22,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
-RUN mkdir -p storage/uploads && chown -R expressjs:nodejs storage
+RUN mkdir -p storage/uploads private-storage && chown -R expressjs:nodejs storage private-storage
 
 USER expressjs
 EXPOSE 8000

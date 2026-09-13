@@ -2,224 +2,108 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Download } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Download } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const IDR = (n: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
-const num = (n: number) => new Intl.NumberFormat("id-ID").format(n || 0);
+const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
+const YEARS = Array.from({ length: 10 }, (_, i) => new Date().getFullYear() - i);
+const number = (value: unknown) => new Intl.NumberFormat("id-ID").format(Number(value ?? 0));
+const rupiah = (value: unknown) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value ?? 0));
+const date = (value?: string | null) => value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "—";
+const days = (value: unknown) => value == null ? "—" : `${number(value)} hari`;
 
-const TABS = [
-  ["all", "Semua"],
-  ["ads", "Ads dan Organik"],
-  ["rubahrumah", "Data Sales Rubahrumah + Closing RKR"],
-  ["rkr", "Data Sales Admin Produk RKR"],
-  ["golden", "Data Sales Golden + Closing Golden"],
-  ["filter-air", "Data Sales Filter Air + Closing Filter Air"],
-] as const;
-
-function MetricCard({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-lg border bg-white p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="text-xl font-semibold mt-1">{value}</p></div>;
+function Metric({ label, value, detail }: { label: string; value: string | number; detail?: string }) {
+  return <div className="rounded-lg border bg-white p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-xl font-semibold">{value}</p>{detail && <p className="mt-1 text-xs text-muted-foreground">{detail}</p>}</div>;
 }
 
-function Block({ title, children }: { title: string; children: any }) {
-  return <section className="space-y-3"><h2 className="text-lg font-semibold">{title}</h2>{children}</section>;
-}
-
-function LeadSurveyCards({ leads, survey, extra }: { leads: any; survey: any; extra?: any }) {
-  return (
-    <div className="grid md:grid-cols-4 gap-3">
-      <MetricCard label="Total Leads" value={num(leads?.total)} />
-      <MetricCard label="Total Survey" value={num(survey?.total)} />
-      <MetricCard label="Survey Approved" value={num(survey?.approved)} />
-      <MetricCard label="Survey Belum Approved" value={num(survey?.pending)} />
-      {extra && <MetricCard label={extra.label} value={extra.value} />}
-    </div>
-  );
+function DataTable({ headers, children, empty }: { headers: string[]; children: React.ReactNode; empty?: boolean }) {
+  return <div className="overflow-x-auto rounded-lg border bg-white"><table className="w-full min-w-[720px] text-sm"><thead className="bg-muted/50 text-left text-xs text-muted-foreground"><tr>{headers.map((header) => <th key={header} className="px-3 py-2 font-medium">{header}</th>)}</tr></thead><tbody>{empty ? <tr><td colSpan={headers.length} className="px-3 py-8 text-center text-muted-foreground">Belum ada data pada periode ini.</td></tr> : children}</tbody></table></div>;
 }
 
 export default function BdReportAnalyticsPage() {
-  const [activeTab, setActiveTab] = useState<(typeof TABS)[number][0]>("all");
-  const [bulan, setBulan] = useState("");
-  const [tahun, setTahun] = useState("");
+  const today = new Date();
+  const [month, setMonth] = useState("");
+  const [year, setYear] = useState(String(today.getFullYear()));
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [adsSource, setAdsSource] = useState<"actual" | "manual">("actual");
-  const [printingAll, setPrintingAll] = useState(false);
-
   const params = useMemo(() => ({
-    ...(startDate ? { start_date: startDate } : {}),
-    ...(endDate ? { end_date: endDate } : {}),
-    ...(!startDate && !endDate && bulan ? { bulan } : {}),
-    ...(!startDate && !endDate && tahun ? { tahun } : {}),
+    ...(startDate || endDate ? { start_date: startDate || undefined, end_date: endDate || undefined } : {}),
+    ...(!startDate && !endDate && month ? { bulan: month } : {}),
+    ...(!startDate && !endDate && year ? { tahun: year } : {}),
     ads_source: adsSource,
-  }), [bulan, tahun, startDate, endDate, adsSource]);
-
-  const { data, isLoading } = useQuery({
+  }), [month, year, startDate, endDate, adsSource]);
+  const { data, isLoading, isError, error } = useQuery({
     queryKey: ["bd-report-analytics", params],
-    queryFn: () => apiClient.get("/bd/report-analytics", { params }).then((r) => r.data),
+    queryFn: () => apiClient.get("/bd/report-analytics", { params }).then((response) => response.data),
   });
-
-  const ig = data?.ads_organik?.instagram ?? {};
-  const yt = data?.ads_organik?.youtube ?? {};
   const ads = data?.ads_organik?.ads ?? [];
-  const adTotals = data?.ads_organik?.ads_totals ?? ads.reduce((acc: any, a: any) => ({
-    spend: acc.spend + a.spend,
-    clicks: acc.clicks + a.clicks,
-    impressions: acc.impressions + a.impressions,
-    reach: acc.reach + a.reach,
-    result: acc.result + a.result,
-  }), { spend: 0, clicks: 0, impressions: 0, reach: 0, result: 0 });
-
-  const show = (key: typeof activeTab) => printingAll || activeTab === "all" || activeTab === key;
-
-  function downloadAllPdf() {
-    setPrintingAll(true);
-    const reset = () => {
-      setPrintingAll(false);
-      window.removeEventListener("afterprint", reset);
-    };
-    window.addEventListener("afterprint", reset);
-    requestAnimationFrame(() => requestAnimationFrame(() => window.print()));
-  }
+  const totals = data?.ads_organik?.ads_totals ?? {};
+  const social = data?.ads_organik?.social_posts ?? [];
+  const funnel = data?.funnel ?? {};
+  const funnelRows = funnel.rows ?? [];
+  const closing = data?.closing_detail ?? {};
+  const closingRows = closing.rows ?? [];
 
   return (
-    <div className="bd-report-print p-6 space-y-6">
-      <style jsx global>{`
-        @media print {
-          @page { size: A4 portrait; margin: 10mm; }
-          html, body, body > div, main {
-            height: auto !important;
-            min-height: auto !important;
-            overflow: visible !important;
-          }
-          aside, header, .print\\:hidden {
-            display: none !important;
-          }
-          .bd-report-print {
-            display: block !important;
-            width: 100% !important;
-            padding: 0 !important;
-          }
-          .bd-report-print section {
-            break-inside: auto;
-            page-break-inside: auto;
-            margin-bottom: 16px;
-          }
-          .bd-report-print .grid {
-            display: grid !important;
-          }
-        }
-      `}</style>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Report dan Analytics BD</h1>
-          <p className="text-sm text-muted-foreground">Jika filter kosong, semua data ditampilkan.</p>
-        </div>
-        <Button variant="outline" onClick={downloadAllPdf}><Download className="h-4 w-4 mr-2" /> PDF</Button>
+    <div className="space-y-5 p-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div><h1 className="text-2xl font-bold">Report dan Analytics BD</h1><p className="text-sm text-muted-foreground">Detail performa iklan, media sosial, funnel lead, dan closing sales.</p></div>
+        <Button variant="outline" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Cetak / PDF</Button>
       </div>
 
-      <div className="flex flex-wrap gap-2 items-end rounded-lg border bg-white p-3 print:hidden">
-        <div><label className="text-xs text-muted-foreground">Tanggal mulai</label><Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} /></div>
-        <div><label className="text-xs text-muted-foreground">Tanggal selesai</label><Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} /></div>
-        <div><label className="text-xs text-muted-foreground">Bulan</label><Input type="number" min={1} max={12} value={bulan} onChange={(e) => setBulan(e.target.value)} placeholder="Semua" /></div>
-        <div><label className="text-xs text-muted-foreground">Tahun</label><Input type="number" value={tahun} onChange={(e) => setTahun(e.target.value)} placeholder="Semua" /></div>
-        <div className="ml-auto flex rounded-md border bg-muted/30 p-1">
-          <button type="button" onClick={() => setAdsSource("actual")} className={`px-3 py-1.5 text-xs font-medium rounded ${adsSource === "actual" ? "bg-white shadow-sm" : "text-muted-foreground"}`}>Actual Meta</button>
-          <button type="button" onClick={() => setAdsSource("manual")} className={`px-3 py-1.5 text-xs font-medium rounded ${adsSource === "manual" ? "bg-white shadow-sm" : "text-muted-foreground"}`}>Manual</button>
-        </div>
+      <div className="flex flex-wrap items-end gap-3 rounded-lg border bg-white p-3 print:hidden">
+        <label className="space-y-1 text-xs text-muted-foreground">Tanggal mulai<Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
+        <label className="space-y-1 text-xs text-muted-foreground">Tanggal selesai<Input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} /></label>
+        <label className="space-y-1 text-xs text-muted-foreground">Bulan<select value={month} onChange={(event) => setMonth(event.target.value)} className="h-10 rounded-md border bg-background px-3 text-sm"><option value="">Semua bulan</option>{MONTHS.map((name, index) => <option key={name} value={String(index + 1)}>{name}</option>)}</select></label>
+        <label className="space-y-1 text-xs text-muted-foreground">Tahun<select value={year} onChange={(event) => setYear(event.target.value)} className="h-10 rounded-md border bg-background px-3 text-sm">{YEARS.map((value) => <option key={value} value={String(value)}>{value}</option>)}</select></label>
+        <div className="ml-auto flex rounded-md border bg-muted/30 p-1"><button type="button" onClick={() => setAdsSource("actual")} className={`rounded px-3 py-1.5 text-xs ${adsSource === "actual" ? "bg-white shadow-sm" : "text-muted-foreground"}`}>Actual Meta</button><button type="button" onClick={() => setAdsSource("manual")} className={`rounded px-3 py-1.5 text-xs ${adsSource === "manual" ? "bg-white shadow-sm" : "text-muted-foreground"}`}>Data lokal</button></div>
+        {(startDate || endDate) && <p className="w-full text-xs text-muted-foreground">Rentang tanggal aktif; filter bulan dan tahun diabaikan selama rentang tanggal digunakan.</p>}
       </div>
 
-      <div className="flex gap-1 overflow-x-auto border-b print:hidden">
-        {TABS.map(([key, label]) => (
-          <button key={key} onClick={() => setActiveTab(key)} className={`px-4 py-2 text-sm font-medium whitespace-nowrap border-b-2 -mb-px ${activeTab === key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}>
-            {label}
-          </button>
-        ))}
-      </div>
+      <Tabs defaultValue="ads">
+        <TabsList className="grid h-auto w-full grid-cols-2 md:grid-cols-4 print:hidden">
+          <TabsTrigger value="ads">Ads Detail Report</TabsTrigger>
+          <TabsTrigger value="social">Social Media Detail Report</TabsTrigger>
+          <TabsTrigger value="funnel">Funneling Detail</TabsTrigger>
+          <TabsTrigger value="closing">Closing Detail</TabsTrigger>
+        </TabsList>
+        {isLoading ? <p className="py-10 text-center text-sm text-muted-foreground">Memuat laporan...</p> : isError ? <p className="py-10 text-center text-sm text-destructive">{(error as any)?.response?.data?.detail || "Gagal memuat laporan BD."}</p> : <>
+          <TabsContent value="ads" className="space-y-4">
+            <p className="text-xs text-muted-foreground">Sumber: {data?.ads_organik?.ads_data_source === "realtime" ? "Meta Ads API" : data?.ads_organik?.ads_data_source === "manual" ? "Data lokal/manual" : "Data lokal (fallback)"}</p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5"><Metric label="Spend" value={rupiah(totals.spend)} /><Metric label="Klik" value={number(totals.clicks)} /><Metric label="Impressions" value={number(totals.impressions)} /><Metric label="Reach" value={number(totals.reach)} /><Metric label="Result" value={number(totals.result)} /></div>
+            <DataTable headers={["Campaign", "Platform", "Status", "Spend", "Impressions", "Reach", "Klik", "Result"]} empty={ads.length === 0}>{ads.map((item: any) => <tr key={item.id} className="border-t"><td className="px-3 py-2 font-medium">{item.campaign_name || "Tanpa nama"}</td><td className="px-3 py-2">{item.platform || "Meta"}</td><td className="px-3 py-2">{item.status || "—"}</td><td className="px-3 py-2">{rupiah(item.spend)}</td><td className="px-3 py-2">{number(item.impressions)}</td><td className="px-3 py-2">{number(item.reach)}</td><td className="px-3 py-2">{number(item.clicks)}</td><td className="px-3 py-2">{number(item.result)}</td></tr>)}</DataTable>
+          </TabsContent>
 
-      {isLoading ? <p className="text-sm text-muted-foreground">Memuat data...</p> : (
-        <div className="space-y-8">
-          {show("ads") && <Block title="Ads dan Organik">
-            <div className="space-y-4">
-              <div>
-                <h3 className="text-sm font-semibold mb-2">
-                  Ads <span className="text-xs font-normal text-muted-foreground">({data?.ads_organik?.ads_data_source === "realtime" ? "sync Meta API realtime" : data?.ads_organik?.ads_data_source === "manual" ? "manual tanpa token Meta" : "fallback data lokal"})</span>
-                </h3>
-                <div className="grid md:grid-cols-5 gap-3">
-                  <MetricCard label="Spend" value={IDR(adTotals.spend)} />
-                  <MetricCard label="Klik" value={num(adTotals.clicks)} />
-                  <MetricCard label="Impressions" value={num(adTotals.impressions)} />
-                  <MetricCard label="Reach" value={num(adTotals.reach)} />
-                  <MetricCard label="Result" value={num(adTotals.result)} />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold mb-2">Organik - Instagram</h3>
-                <div className="grid md:grid-cols-4 gap-3">
-                  <MetricCard label="Total View" value={num(ig.total_views)} />
-                  <MetricCard label="Total Likes" value={num(ig.total_likes)} />
-                  <MetricCard label="Total Komen" value={num(ig.total_comments)} />
-                  <MetricCard label="Total Share" value={num(ig.total_shares)} />
-                  <MetricCard label="Avg Engagement Rate" value={`${Number(ig.avg_engagement_rate || 0).toFixed(2)}%`} />
-                  <MetricCard label="Total Saves" value={num(ig.total_saves)} />
-                  <MetricCard label="Total Reach" value={num(ig.total_reach)} />
-                  <MetricCard label="Total Repost" value={num(ig.total_repost)} />
-                  <MetricCard label="Profile Visits" value={num(ig.profile_visits)} />
-                  <MetricCard label="Link Klik (Bio)" value={num(ig.link_clicks_bio)} />
-                  <MetricCard label="Total Followers" value={num(ig.total_followers)} />
-                  <MetricCard label="Watch Time (mnt)" value={num(ig.watch_time_minutes)} />
-                  <MetricCard label="Total Konten" value={num(ig.total_konten)} />
-                </div>
-              </div>
-              <div>
-                <h3 className="text-sm font-semibold mb-2">Organik - YouTube</h3>
-                <div className="grid md:grid-cols-4 gap-3">
-                  <MetricCard label="Total Views" value={num(yt.total_views)} />
-                  <MetricCard label="Total Likes" value={num(yt.total_likes)} />
-                  <MetricCard label="Total Komentar" value={num(yt.total_comments)} />
-                  <MetricCard label="Total Shares" value={num(yt.total_shares)} />
-                  <MetricCard label="Avg Engagement Rate" value={`${Number(yt.avg_engagement_rate || 0).toFixed(2)}%`} />
-                  <MetricCard label="Watch Time (mnt)" value={num(yt.watch_time_minutes)} />
-                  <MetricCard label="Total Konten" value={num(yt.total_konten)} />
-                </div>
-              </div>
-            </div>
-          </Block>}
+          <TabsContent value="social" className="space-y-4">
+            {(["Instagram", "YouTube", "TikTok"] as const).map((platform) => {
+              const rows = social.filter((post: any) => String(post.platform).toLowerCase() === platform.toLowerCase());
+              const totalViews = rows.reduce((sum: number, post: any) => sum + Number(post.views || 0), 0);
+              const totalLikes = rows.reduce((sum: number, post: any) => sum + Number(post.likes || 0), 0);
+              return <section key={platform} className="space-y-3"><div className="flex items-center justify-between"><h2 className="font-semibold">{platform}</h2><span className="text-xs text-muted-foreground">{rows.length ? `${number(rows.length)} konten` : "Placeholder — data belum tersedia"}</span></div>
+                <div className="grid gap-3 sm:grid-cols-3"><Metric label="Konten" value={number(rows.length)} /><Metric label="Views" value={number(totalViews)} /><Metric label="Likes" value={number(totalLikes)} /></div>
+                {platform === "TikTok" && rows.length === 0 ? <div className="rounded-lg border border-dashed bg-white p-5 text-sm text-muted-foreground">Belum ada data TikTok. Bagian ini siap menampilkan metrik saat data tersedia.</div> : <DataTable headers={["Tanggal", "Akun", "Konten", "Views", "Reach", "Likes", "Komentar", "Share", "Saves", "Engagement"]} empty={rows.length === 0}>{rows.map((post: any) => <tr key={`${platform}-${post.id}`} className="border-t"><td className="px-3 py-2">{date(post.tanggal)}</td><td className="px-3 py-2">{post.account_name}</td><td className="max-w-[260px] truncate px-3 py-2">{post.link_konten ? <a className="text-primary underline" href={post.link_konten} target="_blank" rel="noreferrer">{post.judul_konten}</a> : post.judul_konten}</td><td className="px-3 py-2">{number(post.views)}</td><td className="px-3 py-2">{number(post.reach)}</td><td className="px-3 py-2">{number(post.likes)}</td><td className="px-3 py-2">{number(post.comments)}</td><td className="px-3 py-2">{number(post.shares)}</td><td className="px-3 py-2">{number(post.saves)}</td><td className="px-3 py-2">{Number(post.engagement_rate || 0).toFixed(2)}%</td></tr>)}</DataTable>}</section>;
+            })}
+          </TabsContent>
 
-          {show("rubahrumah") && <Block title="Data Sales Admin Rubahrumah + Closing Rubahrumah dan RKR">
-            <div className="space-y-4">
-              <LeadSurveyCards leads={data?.sales_admin_rubahrumah?.leads} survey={data?.sales_admin_rubahrumah?.survey} />
-              <div className="grid md:grid-cols-3 gap-3">
-                <MetricCard label="Total Closing Kanban Sales" value={IDR(data?.closing_rubahrumah_rkr?.total_closing)} />
-                <MetricCard label="Total Card Closing" value={num(data?.closing_rubahrumah_rkr?.total_cards)} />
-                <MetricCard label="Kategori Payment" value={Object.entries(data?.closing_rubahrumah_rkr?.by_payment_category ?? {}).map(([k, v]) => `${k}: ${IDR(Number(v))}`).join(" | ") || "-"} />
-              </div>
-            </div>
-          </Block>}
-          {show("rkr") && <Block title="Data Sales Admin Produk RKR"><LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.rkr?.leads} survey={data?.sales_admin_rkr_mitra?.rkr?.survey} /></Block>}
-          {show("golden") && <Block title="Data Sales Admin Produk Golden + Closing Golden">
-            <div className="space-y-4">
-              <LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.golden?.leads} survey={data?.sales_admin_rkr_mitra?.golden?.survey} extra={{ label: "Kalender After Pengerjaan", value: `${num(data?.sales_admin_rkr_mitra?.golden?.pengerjaan?.total)} total / ${num(data?.sales_admin_rkr_mitra?.golden?.pengerjaan?.approved)} approved` }} />
-              <div className="grid md:grid-cols-2 gap-3">
-                <MetricCard label="Total Closing Golden" value={IDR(data?.closing_golden?.total_harga)} />
-                <MetricCard label="Invoice Golden" value={num(data?.closing_golden?.total_invoice)} />
-              </div>
-            </div>
-          </Block>}
-          {show("filter-air") && <Block title="Data Sales Admin Produk Filter Air + Closing Filter Air">
-            <div className="space-y-4">
-              <LeadSurveyCards leads={data?.sales_admin_rkr_mitra?.filter_air?.leads} survey={data?.sales_admin_rkr_mitra?.filter_air?.survey} extra={{ label: "Kalender Instalasi Filter Air", value: `${num(data?.sales_admin_rkr_mitra?.filter_air?.pengerjaan?.total)} total / ${num(data?.sales_admin_rkr_mitra?.filter_air?.pengerjaan?.approved)} approved` }} />
-              <div className="grid md:grid-cols-3 gap-3">
-                <MetricCard label="Total Closing Filter Air" value={IDR(data?.closing_filter_air?.total_harga)} />
-                <MetricCard label="Invoice Filter Air" value={num(data?.closing_filter_air?.total_invoice)} />
-                <MetricCard label="Jenis Filter Air" value={Object.entries(data?.closing_filter_air?.by_jenis ?? {}).map(([k, v]) => `${k}: ${IDR(Number(v))}`).join(" | ") || "-"} />
-              </div>
-            </div>
-          </Block>}
-        </div>
-      )}
+          <TabsContent value="funnel" className="space-y-4">
+            <p className="text-xs text-muted-foreground">Cohort berdasarkan tanggal lead masuk di Sales Admin. DP dihitung dari invoice Payment Desain berstatus Lunas dan memiliki kwitansi; SPK dihitung jika proyek tercatat dan pembayaran Payment Projek lunas mencapai Rp10.000.000.</p>
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Leads Sales Admin" value={number(funnel.total_leads)} /><Metric label="Masuk Survey" value={number(funnel.survey)} detail={`Selisih: ${number(Math.max(0, (funnel.total_leads || 0) - (funnel.survey || 0)))} lead`} /><Metric label="DP Desain Lunas" value={number(funnel.dp_desain)} detail={`Selisih dari survey: ${number(Math.max(0, (funnel.survey || 0) - (funnel.dp_desain || 0)))}`} /><Metric label="SPK Projek" value={number(funnel.spk)} detail={`Selisih dari DP desain: ${number(Math.max(0, (funnel.dp_desain || 0) - (funnel.spk || 0)))}`} /></div>
+            <div className="grid gap-3 sm:grid-cols-3"><Metric label="Lead → Survey" value={days(funnel.avg_days_lead_to_survey)} detail="Rata-rata waktu" /><Metric label="Survey → DP Desain" value={days(funnel.avg_days_survey_to_design_dp)} detail="Rata-rata waktu" /><Metric label="DP Desain → SPK" value={days(funnel.avg_days_design_to_spk)} detail="Rata-rata waktu" /></div>
+            <DataTable headers={["Lead", "Sales Admin", "Tgl. Masuk", "Survey", "DP Desain", "SPK", "Lead → Survey", "Survey → DP", "DP → SPK", "DP Projek Lunas"]} empty={funnelRows.length === 0}>{funnelRows.map((row: any) => <tr key={row.lead_id} className="border-t"><td className="px-3 py-2 font-medium">{row.nama}</td><td className="px-3 py-2">{row.sales}</td><td className="px-3 py-2">{date(row.tanggal_masuk)}</td><td className="px-3 py-2">{date(row.tanggal_survey)}</td><td className="px-3 py-2">{date(row.tanggal_dp_desain)}</td><td className="px-3 py-2">{date(row.tanggal_spk)}</td><td className="px-3 py-2">{days(row.days_lead_to_survey)}</td><td className="px-3 py-2">{days(row.days_survey_to_design_dp)}</td><td className="px-3 py-2">{days(row.days_design_to_spk)}</td><td className="px-3 py-2">{rupiah(row.dp_projek_lunas)}</td></tr>)}</DataTable>
+          </TabsContent>
+
+          <TabsContent value="closing" className="space-y-4">
+            <p className="text-xs text-muted-foreground">Closing dihitung dari kartu di kolom Closing pada Kanban Sales dalam periode yang dipilih.</p>
+            <div className="grid gap-3 sm:grid-cols-3"><Metric label="Jumlah Sales" value={number(closing.total_sales)} /><Metric label="Total Closing" value={number(closing.total_closing)} /><Metric label="Proyeksi Nominal" value={rupiah(closing.total_nominal)} /></div>
+            <DataTable headers={["Sales", "Jumlah Closing", "Proyeksi Nominal"]} empty={(closing.by_sales ?? []).length === 0}>{(closing.by_sales ?? []).map((row: any) => <tr key={row.sales} className="border-t"><td className="px-3 py-2 font-medium">{row.sales}</td><td className="px-3 py-2">{number(row.total)}</td><td className="px-3 py-2">{rupiah(row.nominal)}</td></tr>)}</DataTable>
+            <DataTable headers={["Client", "Sales", "Tanggal Closing", "Jenis", "Nominal"]} empty={closingRows.length === 0}>{closingRows.map((row: any) => <tr key={row.id} className="border-t"><td className="px-3 py-2 font-medium">{row.nama}</td><td className="px-3 py-2">{row.sales}</td><td className="px-3 py-2">{date(row.tanggal_closing)}</td><td className="px-3 py-2">{row.jenis}</td><td className="px-3 py-2">{rupiah(row.nominal)}</td></tr>)}</DataTable>
+          </TabsContent>
+        </>}
+      </Tabs>
     </div>
   );
 }

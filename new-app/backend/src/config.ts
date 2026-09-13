@@ -13,6 +13,7 @@ export const config = {
   corsOrigins: process.env.CORS_ORIGINS?.split(",").map((s) => s.trim()) ?? ["http://localhost:3000"],
   corsAllowAll: process.env.CORS_ALLOW_ALL === "true",
   storagePath: process.env.STORAGE_PATH ?? path.resolve(__dirname, "../storage"),
+  privateStoragePath: process.env.PRIVATE_STORAGE_PATH ?? path.resolve(__dirname, "../private-storage"),
   // SMTP — password SENGAJA hanya dari env, tidak pernah disimpan di database.
   smtpHost: process.env.SMTP_HOST ?? "",
   smtpPort: parseInt(process.env.SMTP_PORT ?? "465"),

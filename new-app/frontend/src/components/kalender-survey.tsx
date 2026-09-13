@@ -430,6 +430,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
   const canSchedule = useAuthStore((s) =>
     s.isSuperAdmin() || s.hasAnyRole("Head Golden", "Sales Admin Golden")
   );
+  const canCancelSchedule = useAuthStore((s) => s.isSuperAdmin());
   const currentUserName = useAuthStore((s) => s.user?.name ?? "");
   // "Tambah Survey" boleh dipakai semua role KECUALI orang Golden (Super Admin tetap boleh).
   const isGoldenUser = useAuthStore((s) =>
@@ -1914,6 +1915,20 @@ ${sections}
                           Edit jadwal
                         </Button>
                       )
+                    )}
+                    {canCancelSchedule && item.tanggal_survey && (
+                      <Button
+                        variant="ghost" size="sm"
+                        className="h-7 text-xs px-2 text-red-600 hover:bg-red-50"
+                        disabled={updateMut.isPending}
+                        onClick={() => {
+                          if (window.confirm(`Batalkan jadwal survey ${item.nama}?`)) {
+                            updateMut.mutate({ id: item.id, body: { tanggal_survey: null, jam_survey: null, pic_survey: null } });
+                          }
+                        }}
+                      >
+                        <X className="mr-1 h-3 w-3" /> Batalkan
+                      </Button>
                     )}
                     {canApprove && (!item.survey_approval_status || item.survey_approval_status === "pending") && (
                       <Button

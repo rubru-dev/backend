@@ -1,12 +1,41 @@
 import { Router, Request, Response } from "express";
+import fs from "fs";
+import path from "path";
+import multer from "multer";
+import { randomUUID } from "crypto";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
 import { deliver, sendNotifToRoles, triggerEventReminder, NOTIFY_USER_SELECT, FRONTEND_URL } from "../lib/notify";
 import { sendSurveyScheduledReminder } from "../lib/hardcodedReminderScheduler";
 import { syncInstagram, syncInstagramAccountLevel, syncYouTube } from "../lib/socialSync";
+import { config } from "../config";
 
 const router = Router();
+
+const bdKanbanFilesDir = path.resolve(config.privateStoragePath, "bd-kanban-files");
+fs.mkdirSync(bdKanbanFilesDir, { recursive: true });
+const allowedBdKanbanFiles: Record<string, string[]> = {
+  ".jpg": ["image/jpeg"], ".jpeg": ["image/jpeg"], ".png": ["image/png"],
+  ".pdf": ["application/pdf"],
+  ".ppt": ["application/vnd.ms-powerpoint", "application/octet-stream"],
+  ".pptx": ["application/vnd.openxmlformats-officedocument.presentationml.presentation", "application/octet-stream"],
+};
+const bdKanbanUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, bdKanbanFilesDir),
+    filename: (_req, file, cb) => cb(null, `${Date.now()}-${randomUUID()}${path.extname(file.originalname).toLowerCase()}`),
+  }),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!allowedBdKanbanFiles[ext]?.includes(file.mimetype)) {
+      cb(Object.assign(new Error("Format file harus JPG, JPEG, PNG, PDF, atau PPT."), { status: 400 }));
+      return;
+    }
+    cb(null, true);
+  },
+});
 
 // ── LEAD HELPERS ──────────────────────────────────────────────────────────────
 
@@ -1381,6 +1410,61 @@ async function syncOrganicAccountsForReport() {
 }
 
 // GET /bd/report-analytics - consolidated BD report sections
+router.get("/kanban/files", requirePermission("bd", "view"), async (_req: Request, res: Response) => {
+  const files = await prisma.projectDocument.findMany({
+    where: { documentable_type: "bd_kanban_file", documentable_id: BigInt(0) },
+    include: { users: { select: { name: true } } },
+    orderBy: { created_at: "desc" },
+  });
+  return res.json(files.map((file) => ({
+    id: Number(file.id), name: file.original_name || path.basename(file.file_path || "file"),
+    uploaded_by: file.users?.name ?? "-", created_at: file.created_at,
+    download_url: `/bd/kanban/files/${file.id}/download`,
+  })));
+});
+
+router.post("/kanban/files", requirePermission("bd", "create"), bdKanbanUpload.single("file"), async (req: Request, res: Response) => {
+  if (!req.file) return res.status(400).json({ detail: "Pilih file yang akan diunggah" });
+  try {
+    const relativePath = path.relative(bdKanbanFilesDir, req.file.path);
+    const saved = await prisma.projectDocument.create({
+      data: {
+        documentable_type: "bd_kanban_file", documentable_id: BigInt(0), file_path: relativePath,
+        original_name: path.basename(req.file.originalname).slice(0, 255), uploaded_by: req.user!.id,
+      },
+    });
+    return res.status(201).json({ id: Number(saved.id), name: saved.original_name });
+  } catch (error) {
+    fs.promises.unlink(req.file.path).catch(() => {});
+    throw error;
+  }
+});
+
+router.get("/kanban/files/:id/download", requirePermission("bd", "view"), async (req: Request, res: Response) => {
+  const file = await prisma.projectDocument.findFirst({
+    where: { id: BigInt(req.params.id), documentable_type: "bd_kanban_file", documentable_id: BigInt(0) },
+  });
+  if (!file?.file_path) return res.status(404).json({ detail: "File tidak ditemukan" });
+  const fullPath = path.resolve(bdKanbanFilesDir, file.file_path);
+  if (!fullPath.startsWith(`${bdKanbanFilesDir}${path.sep}`) || !fs.existsSync(fullPath)) {
+    return res.status(404).json({ detail: "File tidak ditemukan" });
+  }
+  return res.download(fullPath, file.original_name || "file");
+});
+
+router.delete("/kanban/files/:id", requirePermission("bd", "delete"), async (req: Request, res: Response) => {
+  const file = await prisma.projectDocument.findFirst({
+    where: { id: BigInt(req.params.id), documentable_type: "bd_kanban_file", documentable_id: BigInt(0) },
+  });
+  if (!file) return res.status(404).json({ detail: "File tidak ditemukan" });
+  await prisma.projectDocument.delete({ where: { id: file.id } });
+  if (file.file_path) {
+    const fullPath = path.resolve(bdKanbanFilesDir, file.file_path);
+    if (fullPath.startsWith(`${bdKanbanFilesDir}${path.sep}`)) await fs.promises.unlink(fullPath).catch(() => {});
+  }
+  return res.json({ message: "File dihapus" });
+});
+
 router.get("/report-analytics", requirePermission("bd", "view"), async (req: Request, res: Response) => {
   const bulan = req.query.bulan ? parseInt(String(req.query.bulan)) : undefined;
   const tahun = req.query.tahun ? parseInt(String(req.query.tahun)) : undefined;
@@ -1441,17 +1525,18 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
 
   const adsSource = req.query.ads_source === "manual" ? "manual" : "actual";
   const [adsReport] = await Promise.all([
-    buildRealtimeAdsReport({ ...req.query, ads_source: adsSource === "manual" ? "manual" : undefined } as any),
+    buildRealtimeAdsReport({ ...req.query, platform: "Meta", ads_source: adsSource === "manual" ? "manual" : undefined } as any),
     syncOrganicAccountsForReport(),
   ]);
 
-  const [igPosts, ytPosts, igAccounts, closingCards, closingInvoices, goldenInvoices, filterAirInvoices] = await Promise.all([
-    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["Instagram", "INSTAGRAM"] } }, ...(dateWhere("tanggal") as any) } }),
-    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["YouTube", "YOUTUBE"] } }, ...(dateWhere("tanggal") as any) } }),
+  const [igPosts, ytPosts, ttPosts, igAccounts, closingCards, closingInvoices, goldenInvoices, filterAirInvoices] = await Promise.all([
+    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["Instagram", "INSTAGRAM"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
+    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["YouTube", "YOUTUBE"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
+    prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["TikTok", "TIKTOK"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
     prisma.socialMediaAccount.findMany({ where: { platform: { in: ["Instagram", "INSTAGRAM"] } } }),
     prisma.salesKanbanCard.findMany({
       where: { column: { title: "Closing" }, ...dateWhere("created_at") },
-      include: { lead: { select: { jenis: true } } },
+      include: { lead: { select: { id: true, nama: true, salutation: true, jenis: true } }, assigned_user: { select: { id: true, name: true } } },
     }),
     prisma.invoice.findMany({ where: { kategori: { in: ["Payment Desain", "Payment Projek", "Payment RKR"] }, ...dateWhere("tanggal") } }),
     prisma.invoice.findMany({ where: { kategori: "Payment Golden", ...dateWhere("tanggal") } }),
@@ -1478,6 +1563,87 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     };
   }
 
+  // Funnel memakai cohort lead Sales Admin yang masuk pada periode terpilih.
+  // Pembayaran dihitung dari invoice berstatus Lunas dengan kwitansi, agar stage
+  // DP merepresentasikan uang diterima, bukan invoice yang baru diterbitkan.
+  const funnelLeads = await prisma.lead.findMany({
+    where: { modul: "sales-admin", ...dateWhere("tanggal_masuk") },
+    select: {
+      id: true, nama: true, salutation: true, tanggal_masuk: true, tanggal_survey: true,
+      user: { select: { name: true } },
+      invoices: {
+        where: { kategori: { in: ["Payment Desain", "Payment Projek"] }, status: "Lunas" },
+        include: { kwitansi: true }, orderBy: { tanggal: "asc" },
+      },
+      proyek_berjalans: { select: { created_at: true } },
+      proyek_interiors: { select: { created_at: true } },
+    },
+    orderBy: { tanggal_masuk: "desc" },
+  });
+  const dayDiff = (from: Date | null, to: Date | null) => {
+    if (!from || !to) return null;
+    const elapsed = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000);
+    return elapsed >= 0 ? elapsed : null;
+  };
+  const funnelRows = funnelLeads.map((lead) => {
+    const paidInvoices = lead.invoices.filter((invoice) => invoice.kwitansi);
+    const designInvoice = paidInvoices.find((invoice) => invoice.kategori === "Payment Desain");
+    const designDate = designInvoice?.kwitansi?.tanggal ?? designInvoice?.tanggal ?? null;
+    const projectInvoices = paidInvoices.filter((invoice) => invoice.kategori === "Payment Projek");
+    let projectPaid = 0;
+    let thresholdDate: Date | null = null;
+    for (const invoice of projectInvoices) {
+      projectPaid += Number(invoice.kwitansi?.jumlah_diterima ?? 0);
+      if (projectPaid >= 10_000_000) {
+        thresholdDate = invoice.kwitansi?.tanggal ?? invoice.tanggal ?? null;
+        break;
+      }
+    }
+    const projectDate = [...lead.proyek_berjalans, ...lead.proyek_interiors]
+      .map((project) => project.created_at)
+      .sort((a, b) => a.getTime() - b.getTime())[0] ?? null;
+    const spkDate = thresholdDate && projectDate
+      ? new Date(Math.max(thresholdDate.getTime(), projectDate.getTime()))
+      : null;
+    return {
+      lead_id: Number(lead.id),
+      nama: lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama,
+      sales: lead.user?.name ?? "Belum ditentukan",
+      tanggal_masuk: lead.tanggal_masuk,
+      tanggal_survey: lead.tanggal_survey,
+      tanggal_dp_desain: designDate,
+      tanggal_spk: spkDate,
+      dp_projek_lunas: projectPaid,
+      days_lead_to_survey: dayDiff(lead.tanggal_masuk, lead.tanggal_survey),
+      days_survey_to_design_dp: dayDiff(lead.tanggal_survey, designDate),
+      days_design_to_spk: dayDiff(designDate, spkDate),
+    };
+  });
+  const averageDays = (values: Array<number | null>) => {
+    const present = values.filter((value): value is number => value !== null);
+    return present.length ? Math.round(present.reduce((sum, value) => sum + value, 0) / present.length) : null;
+  };
+  const funnel = {
+    total_leads: funnelRows.length,
+    survey: funnelRows.filter((row) => row.tanggal_survey).length,
+    dp_desain: funnelRows.filter((row) => row.tanggal_dp_desain).length,
+    spk: funnelRows.filter((row) => row.tanggal_spk).length,
+    dp_projek_threshold: 10_000_000,
+    avg_days_lead_to_survey: averageDays(funnelRows.map((row) => row.days_lead_to_survey)),
+    avg_days_survey_to_design_dp: averageDays(funnelRows.map((row) => row.days_survey_to_design_dp)),
+    avg_days_design_to_spk: averageDays(funnelRows.map((row) => row.days_design_to_spk)),
+    rows: funnelRows,
+  };
+
+  const closingBySales: Record<string, { sales: string; total: number; nominal: number }> = {};
+  for (const card of closingCards) {
+    const sales = card.assigned_user?.name ?? "Belum ditugaskan";
+    const current = closingBySales[sales] ?? { sales, total: 0, nominal: 0 };
+    current.total += 1;
+    current.nominal += Number(card.projeksi_sales ?? 0);
+    closingBySales[sales] = current;
+  }
+
   const closingByJenis: Record<string, number> = {};
   for (const c of closingCards) {
     const key = c.tipe_pekerjaan || c.lead?.jenis || "Lainnya";
@@ -1497,6 +1663,14 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
       ads_range: adsReport.range,
       instagram: socialSummary(igPosts, true),
       youtube: socialSummary(ytPosts),
+      tiktok: socialSummary(ttPosts),
+      social_posts: [...igPosts, ...ytPosts, ...ttPosts].map((post) => ({
+        id: Number(post.id), platform: post.account.platform, account_name: post.account.account_name || post.account.username || "-",
+        judul_konten: post.judul_konten || "Tanpa judul", link_konten: post.link_konten, tanggal: post.tanggal,
+        views: Number(post.views), likes: post.likes, comments: post.comments, shares: post.shares, saves: post.saves,
+        reach: Number(post.reach), watch_time_minutes: Number(post.watch_time_minutes ?? 0),
+        engagement_rate: Number(post.engagement_rate ?? 0), reposts: post.reposts, data_source: post.data_source,
+      })),
     },
     sales_admin_rubahrumah: { leads: await leadStats("sales-admin"), survey: await surveyStats("sales-admin") },
     sales_admin_rkr_mitra: {
@@ -1519,6 +1693,18 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
         acc[key] = (acc[key] ?? 0) + Number(i.grand_total ?? 0);
         return acc;
       }, {}),
+    },
+    funnel,
+    closing_detail: {
+      total_sales: new Set(closingCards.flatMap((card) => card.assigned_user ? [String(card.assigned_user.id)] : [])).size,
+      total_closing: closingCards.length,
+      total_nominal: closingCards.reduce((sum, card) => sum + Number(card.projeksi_sales ?? 0), 0),
+      by_sales: Object.values(closingBySales).sort((a, b) => b.total - a.total),
+      rows: closingCards.map((card) => ({
+        id: Number(card.id), nama: card.lead?.salutation ? `${card.lead.salutation} ${card.lead.nama}` : card.lead?.nama ?? card.title,
+        sales: card.assigned_user?.name ?? "Belum ditugaskan", tanggal_closing: card.created_at,
+        jenis: card.tipe_pekerjaan || card.lead?.jenis || "-", nominal: Number(card.projeksi_sales ?? 0),
+      })),
     },
   });
 });
@@ -2693,7 +2879,7 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
   const updates: Record<string, unknown> = {};
   if (tanggal_survey !== undefined) {
     updates.tanggal_survey = tanggal_survey ? new Date(tanggal_survey) : null;
-    if (tanggal_survey) updates.rencana_survey = "Ya";
+    updates.rencana_survey = tanggal_survey ? "Ya" : "Tidak";
     // Reset approval when rescheduling
     updates.survey_approval_status = null;
     updates.survey_approved_by = null;
