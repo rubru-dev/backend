@@ -32,9 +32,9 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["BD"],
     items: [
       { label: "Dashboard BD",  href: "/bd/dashboard",  icon: "LayoutDashboard", permission: "bd.dashboard" },
+      { label: "Report dan Analytics", href: "/bd/report-analytics", icon: "BarChart2", permission: "bd.view" },
       { label: "Kanban BD",     href: "/bd/kanban",     icon: "Kanban",          permission: "bd.kanban" },
       { label: "Meta Ads",      href: "/bd/meta-ads",   icon: "TrendingUp",      permission: "bd.meta_ads" },
-      { label: "Report dan Analytics", href: "/bd/report-analytics", icon: "BarChart2", permission: "bd.view" },
     ],
   },
 
