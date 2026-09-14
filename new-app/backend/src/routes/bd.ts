@@ -1499,10 +1499,39 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
   }
   if (currentStart.getTime() > currentEnd.getTime()) return res.status(400).json({ detail: "Rentang tanggal tidak valid." });
 
-  const compareMode = req.query.compare === "last_year" ? "last_year" : "previous_period";
+  const compareStartValue = req.query.compare_start_date ? String(req.query.compare_start_date) : "";
+  const compareEndValue = req.query.compare_end_date ? String(req.query.compare_end_date) : "";
+  const compareMonth = req.query.compare_bulan ? parseInt(String(req.query.compare_bulan)) : undefined;
+  const compareYear = req.query.compare_tahun ? parseInt(String(req.query.compare_tahun)) : undefined;
+  const hasCustomComparison = Boolean(compareStartValue || compareEndValue || compareMonth || compareYear);
+  const compareMode = hasCustomComparison ? "custom" : req.query.compare === "last_year" ? "last_year" : "previous_period";
   let previousStart: Date;
   let previousEnd: Date;
-  if (compareMode === "last_year") {
+  if (hasCustomComparison) {
+    if (compareStartValue || compareEndValue) {
+      if (!compareStartValue || !compareEndValue) return res.status(400).json({ detail: "Tanggal mulai dan tanggal selesai pembanding harus diisi." });
+      const parseLocalDate = (value: string) => {
+        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+        if (!match) return null;
+        const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+        return parsed.getFullYear() === Number(match[1]) && parsed.getMonth() === Number(match[2]) - 1 && parsed.getDate() === Number(match[3]) ? parsed : null;
+      };
+      const parsedStart = parseLocalDate(compareStartValue);
+      const parsedEnd = parseLocalDate(compareEndValue);
+      if (!parsedStart || !parsedEnd) return res.status(400).json({ detail: "Format tanggal pembanding tidak valid." });
+      previousStart = startOfDay(parsedStart);
+      previousEnd = endOfDay(parsedEnd);
+    } else {
+      if (!compareYear || compareYear < 2000 || compareYear > 2100) return res.status(400).json({ detail: "Tahun pembanding tidak valid." });
+      if (compareMonth !== undefined && (compareMonth < 1 || compareMonth > 12)) return res.status(400).json({ detail: "Bulan pembanding tidak valid." });
+      previousStart = compareMonth ? new Date(compareYear, compareMonth - 1, 1) : new Date(compareYear, 0, 1);
+      const isCurrentMonth = compareMonth && compareYear === now.getFullYear() && compareMonth === now.getMonth() + 1;
+      const isCurrentYear = !compareMonth && compareYear === now.getFullYear();
+      previousEnd = isCurrentMonth || isCurrentYear
+        ? endOfDay(now)
+        : compareMonth ? endOfDay(new Date(compareYear, compareMonth, 0)) : endOfDay(new Date(compareYear, 11, 31));
+    }
+  } else if (compareMode === "last_year") {
     const shiftOneYearBack = (value: Date) => {
       const targetYear = value.getFullYear() - 1;
       const lastTargetDay = new Date(targetYear, value.getMonth() + 1, 0).getDate();
@@ -1528,6 +1557,7 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
     previousEnd = new Date(currentStart.getTime() - 1);
     previousStart = new Date(previousEnd.getTime() - duration);
   }
+  if (previousStart.getTime() > previousEnd.getTime()) return res.status(400).json({ detail: "Rentang tanggal pembanding tidak valid." });
 
   const iso = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
   const periodLabel = (start: Date, end: Date) => {

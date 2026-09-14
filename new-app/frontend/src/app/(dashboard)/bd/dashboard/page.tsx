@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ComparisonPeriodDialog, comparisonQuery, defaultComparisonPeriod } from "@/components/bd/comparison-period-dialog";
 
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const number = (value: unknown) => new Intl.NumberFormat("id-ID").format(Number(value ?? 0));
@@ -38,19 +39,20 @@ export default function BdDashboardPage() {
   const [year, setYear] = useState(String(today.getFullYear()));
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [compareMode, setCompareMode] = useState<"previous_period" | "last_year">("previous_period");
+  const [comparePeriod, setComparePeriod] = useState(defaultComparisonPeriod);
   const years = Array.from({ length: 10 }, (_, index) => today.getFullYear() - index);
   const params = useMemo(() => ({
     ...(startDate || endDate ? { start_date: startDate || undefined, end_date: endDate || undefined } : { bulan: month, tahun: year }),
     ads_source: "actual",
   }), [month, year, startDate, endDate]);
+  const compareParams = useMemo(() => comparisonQuery(comparePeriod), [comparePeriod]);
   const { data, isLoading, isError } = useQuery({
     queryKey: ["bd-dashboard-summary", params],
     queryFn: () => apiClient.get("/bd/report-analytics", { params }).then((response) => response.data),
   });
   const { data: comparison, isLoading: comparisonLoading, isError: comparisonIsError } = useQuery({
-    queryKey: ["bd-dashboard-comparison", params, compareMode],
-    queryFn: () => apiClient.get("/bd/report-analytics/comparison", { params: { ...params, compare: compareMode } }).then((response) => response.data),
+    queryKey: ["bd-dashboard-comparison", params, compareParams],
+    queryFn: () => apiClient.get("/bd/report-analytics/comparison", { params: { ...params, ...compareParams } }).then((response) => response.data),
     enabled: (!startDate && !endDate) || Boolean(startDate && endDate),
   });
 
@@ -97,7 +99,7 @@ export default function BdDashboardPage() {
         <ReportCard title="Closing Detail" description="Hasil closing dan kontribusi sales." icon={Trophy} href={reportLink("closing")}><SummaryMetric label="Total Closing" value={number(closing.total_closing)} current={currentComparison.closing?.total} previous={previousComparison.closing?.total} /><SummaryMetric label="Nilai Proyeksi" value={rupiah(closing.total_nominal)} current={currentComparison.closing?.nominal} previous={previousComparison.closing?.nominal} /><SummaryMetric label="Sales Aktif" value={number(closing.total_sales)} current={currentComparison.closing?.sales} previous={previousComparison.closing?.sales} /><SummaryMetric label="Top Sales" value={topSales} /></ReportCard>
       </div>
       <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-4 w-4" />Ringkasan Funnel</CardTitle></CardHeader><CardContent><div className="grid grid-cols-4 gap-1 sm:gap-3">{[["Leads", funnel.total_leads], ["Survey", funnel.survey], ["DP Desain", funnel.dp_desain], ["SPK", funnel.spk]].map(([label, value], index) => <div key={String(label)} className="relative"><div className="rounded-lg bg-primary/10 px-2 py-4 text-center sm:p-4"><p className="text-[10px] text-muted-foreground sm:text-xs">{label}</p><p className="text-xl font-bold sm:text-2xl">{number(value)}</p></div>{index < 3 && <ArrowRight className="absolute -right-2 top-1/2 z-10 h-4 w-4 -translate-y-1/2 rounded-full bg-background text-muted-foreground" />}</div>)}</div></CardContent></Card>
-      <section className="space-y-3"><div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-semibold">Perbandingan Periode</h2><p className="text-xs text-muted-foreground">Grafik ringkas periode aktif terhadap periode pembanding.</p></div><label className="space-y-1 text-xs text-muted-foreground">Bandingkan dengan<select className="block h-9 w-full rounded-md border bg-background px-3 text-sm sm:w-52" value={compareMode} onChange={(event) => setCompareMode(event.target.value as typeof compareMode)}><option value="previous_period">Periode sebelumnya</option><option value="last_year">Periode sama tahun lalu</option></select></label></div>
+      <section className="space-y-3"><div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-semibold">Perbandingan Periode</h2><p className="text-xs text-muted-foreground">Grafik ringkas periode aktif terhadap periode pembanding.</p></div><ComparisonPeriodDialog value={comparePeriod} onChange={setComparePeriod} className="w-full sm:w-auto sm:max-w-xs" /></div>
         {comparisonLoading ? <Skeleton className="h-64" /> : comparisonIsError ? <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">Data periode pembanding gagal dimuat.</div> : comparison ? <div className="grid gap-4 md:grid-cols-2"><ComparisonBars title="Ads Result" currentLabel={comparison.ranges.current.label} previousLabel={comparison.ranges.previous.label} data={[{ name: "Result", current: currentComparison.ads.result, previous: previousComparison.ads.result }]} /><ComparisonBars title="Social Media Reach" currentLabel={comparison.ranges.current.label} previousLabel={comparison.ranges.previous.label} data={[{ name: "Reach", current: currentComparison.social.all.reach, previous: previousComparison.social.all.reach }]} /><ComparisonBars title="Total Closing" currentLabel={comparison.ranges.current.label} previousLabel={comparison.ranges.previous.label} data={[{ name: "Closing", current: currentComparison.closing.total, previous: previousComparison.closing.total }]} /><ComparisonBars title="Perbandingan Funnel" currentLabel={comparison.ranges.current.label} previousLabel={comparison.ranges.previous.label} data={[{ name: "Leads", current: currentComparison.funnel.leads, previous: previousComparison.funnel.leads }, { name: "Survey", current: currentComparison.funnel.survey, previous: previousComparison.funnel.survey }, { name: "DP Desain", current: currentComparison.funnel.design, previous: previousComparison.funnel.design }, { name: "SPK", current: currentComparison.funnel.spk, previous: previousComparison.funnel.spk }]} /></div> : (startDate || endDate) && <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Isi tanggal mulai dan tanggal selesai untuk menampilkan perbandingan.</div>}
       </section>
     </>}

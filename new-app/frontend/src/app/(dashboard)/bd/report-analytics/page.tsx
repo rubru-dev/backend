@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ComparisonPeriodDialog, comparisonQuery, defaultComparisonPeriod } from "@/components/bd/comparison-period-dialog";
 
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const YEARS = Array.from({ length: 10 }, (_, index) => new Date().getFullYear() - index);
@@ -64,7 +65,7 @@ function ReportAnalyticsContent() {
   const [startDate, setStartDate] = useState(searchParams.get("start_date") || "");
   const [endDate, setEndDate] = useState(searchParams.get("end_date") || "");
   const [adsSource, setAdsSource] = useState<"actual" | "manual">("actual");
-  const [compareMode, setCompareMode] = useState<"previous_period" | "last_year">("previous_period");
+  const [comparePeriod, setComparePeriod] = useState(defaultComparisonPeriod);
   const [adsCompareMetric, setAdsCompareMetric] = useState("result");
   const [socialCompareMetric, setSocialCompareMetric] = useState("reach");
   const [closingCompareMetric, setClosingCompareMetric] = useState("total");
@@ -75,8 +76,9 @@ function ReportAnalyticsContent() {
     ...(startDate || endDate ? { start_date: startDate || undefined, end_date: endDate || undefined } : { bulan: month, tahun: year }),
     ads_source: adsSource,
   }), [month, year, startDate, endDate, adsSource]);
+  const compareParams = useMemo(() => comparisonQuery(comparePeriod), [comparePeriod]);
   const { data, isLoading, isError, error } = useQuery({ queryKey: ["bd-report-analytics", params], queryFn: () => apiClient.get("/bd/report-analytics", { params }).then((response) => response.data) });
-  const { data: comparison, isLoading: comparisonLoading, isError: comparisonIsError } = useQuery({ queryKey: ["bd-report-analytics-comparison", params, compareMode], queryFn: () => apiClient.get("/bd/report-analytics/comparison", { params: { ...params, compare: compareMode } }).then((response) => response.data), enabled: (!startDate && !endDate) || Boolean(startDate && endDate) });
+  const { data: comparison, isLoading: comparisonLoading, isError: comparisonIsError } = useQuery({ queryKey: ["bd-report-analytics-comparison", params, compareParams], queryFn: () => apiClient.get("/bd/report-analytics/comparison", { params: { ...params, ...compareParams } }).then((response) => response.data), enabled: (!startDate && !endDate) || Boolean(startDate && endDate) });
   const ads = data?.ads_organik?.ads ?? [];
   const totals = data?.ads_organik?.ads_totals ?? {};
   const social = data?.ads_organik?.social_posts ?? [];
@@ -107,16 +109,15 @@ function ReportAnalyticsContent() {
   const currentClosingComparison = { total: Number(closing.total_closing ?? 0), nominal: Number(closing.total_nominal ?? 0), sales: Number(closing.total_sales ?? 0) };
 
   return <div className="space-y-5">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-2xl font-bold">Report dan Analytics BD</h1><p className="text-sm text-muted-foreground">Detail keseluruhan performa pada {periodLabel}.</p></div><Button variant="outline" className="w-full sm:w-auto print:hidden" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Cetak / PDF</Button></div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-2xl font-bold">Report dan Analytics BD</h1><p className="text-sm text-muted-foreground">Detail keseluruhan performa pada {periodLabel}.</p></div><div className="flex flex-col gap-2 sm:flex-row print:hidden"><ComparisonPeriodDialog value={comparePeriod} onChange={setComparePeriod} className="w-full sm:max-w-xs" /><Button variant="outline" className="w-full sm:w-auto" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Cetak / PDF</Button></div></div>
 
-    <div className="grid gap-3 rounded-lg border bg-card p-3 sm:grid-cols-2 xl:grid-cols-6 print:hidden">
+    <div className="grid gap-3 rounded-lg border bg-card p-3 sm:grid-cols-2 xl:grid-cols-5 print:hidden">
       <label className="space-y-1 text-xs text-muted-foreground">Tanggal mulai<Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
       <label className="space-y-1 text-xs text-muted-foreground">Tanggal selesai<Input type="date" value={endDate} min={startDate || undefined} onChange={(event) => setEndDate(event.target.value)} /></label>
       <label className="space-y-1 text-xs text-muted-foreground">Bulan<select value={month} disabled={Boolean(startDate || endDate)} onChange={(event) => setMonth(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-50"><option value="">Semua bulan</option>{MONTHS.map((name, index) => <option key={name} value={String(index + 1)}>{name}</option>)}</select></label>
       <label className="space-y-1 text-xs text-muted-foreground">Tahun<select value={year} disabled={Boolean(startDate || endDate)} onChange={(event) => setYear(event.target.value)} className="h-10 w-full rounded-md border bg-background px-3 text-sm disabled:opacity-50">{YEARS.map((value) => <option key={value}>{value}</option>)}</select></label>
       <div className="flex items-end"><div className="grid h-10 w-full grid-cols-2 rounded-md border bg-muted/30 p-1"><button type="button" onClick={() => setAdsSource("actual")} className={`rounded text-xs ${adsSource === "actual" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>Actual Meta</button><button type="button" onClick={() => setAdsSource("manual")} className={`rounded text-xs ${adsSource === "manual" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>Data lokal</button></div></div>
-      <label className="space-y-1 text-xs text-muted-foreground">Bandingkan dengan<select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={compareMode} onChange={(event) => setCompareMode(event.target.value as typeof compareMode)}><option value="previous_period">Periode sebelumnya</option><option value="last_year">Periode sama tahun lalu</option></select></label>
-      {(startDate || endDate) && <div className="flex items-center justify-between sm:col-span-2 xl:col-span-6"><p className="text-xs text-muted-foreground">Rentang tanggal aktif; bulan dan tahun dinonaktifkan.</p><Button size="sm" variant="ghost" onClick={() => { setStartDate(""); setEndDate(""); }}>Reset tanggal</Button></div>}
+      {(startDate || endDate) && <div className="flex items-center justify-between sm:col-span-2 xl:col-span-5"><p className="text-xs text-muted-foreground">Rentang tanggal aktif; bulan dan tahun dinonaktifkan.</p><Button size="sm" variant="ghost" onClick={() => { setStartDate(""); setEndDate(""); }}>Reset tanggal</Button></div>}
     </div>
 
     <Tabs value={activeTab} onValueChange={changeTab}>
