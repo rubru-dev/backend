@@ -20,6 +20,9 @@ const envRemotePatterns = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   transpilePackages: ["@rubahrumah/types", "@rubahrumah/utils"],
+  async headers() {
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
+  },
   images: {
     remotePatterns: [
       { protocol: "http", hostname: "localhost", port: "8000" },

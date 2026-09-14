@@ -331,6 +331,8 @@ router.post("/kanban/carryover", async (req: Request, res: Response) => {
 // POST /kanban/cards
 router.post("/kanban/cards", async (req: Request, res: Response) => {
   const { column_id, title, description, deadline, assigned_user_id, lead_id, tipe_pekerjaan, color, urutan, projeksi_sales, created_at } = req.body;
+  const destination = await prisma.salesKanbanColumn.findUnique({ where: { id: BigInt(column_id) }, select: { title: true } });
+  if (!destination) return res.status(404).json({ detail: "Kolom tujuan tidak ditemukan" });
   const card = await prisma.salesKanbanCard.create({
     data: {
       column_id,
@@ -343,6 +345,7 @@ router.post("/kanban/cards", async (req: Request, res: Response) => {
       projeksi_sales: projeksi_sales != null ? projeksi_sales : undefined,
       color: color ?? null,
       urutan: urutan ?? 0,
+      closed_at: destination?.title.trim().toLowerCase() === "closing" ? new Date() : null,
       created_at: created_at ? new Date(created_at) : undefined,
       updated_at: created_at ? new Date(created_at) : undefined,
     },
@@ -355,7 +358,17 @@ router.patch("/kanban/cards/:id/move", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const card = await prisma.salesKanbanCard.findUnique({ where: { id } });
   if (!card) return res.status(404).json({ detail: "Card tidak ditemukan" });
-  await prisma.salesKanbanCard.update({ where: { id }, data: { column_id: req.body.column_id, urutan: req.body.position ?? 0 } });
+  const destination = await prisma.salesKanbanColumn.findUnique({ where: { id: BigInt(req.body.column_id) }, select: { title: true } });
+  if (!destination) return res.status(404).json({ detail: "Kolom tujuan tidak ditemukan" });
+  const isClosing = destination.title.trim().toLowerCase() === "closing";
+  await prisma.salesKanbanCard.update({
+    where: { id },
+    data: {
+      column_id: req.body.column_id,
+      urutan: req.body.position ?? 0,
+      closed_at: isClosing ? (card.closed_at ?? new Date()) : null,
+    },
+  });
   return res.json({ message: "Card dipindah" });
 });
 
@@ -367,6 +380,12 @@ router.patch("/kanban/cards/:id", async (req: Request, res: Response) => {
   const { column_id, title, description, deadline, assigned_user_id, tipe_pekerjaan, color, urutan, projeksi_sales } = req.body;
   const updates: Record<string, unknown> = {};
   if (column_id !== undefined) updates.column_id = column_id;
+  if (column_id !== undefined) {
+    const destination = await prisma.salesKanbanColumn.findUnique({ where: { id: BigInt(column_id) }, select: { title: true } });
+    if (!destination) return res.status(404).json({ detail: "Kolom tujuan tidak ditemukan" });
+    const isClosing = destination.title.trim().toLowerCase() === "closing";
+    updates.closed_at = isClosing ? (card.closed_at ?? new Date()) : null;
+  }
   if (title !== undefined) updates.title = title;
   if (description !== undefined) updates.description = description;
   if (deadline !== undefined) updates.deadline = deadline ? new Date(deadline) : null;

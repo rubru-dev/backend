@@ -1534,6 +1534,7 @@ model SalesKanbanCard {
   deadline              DateTime?               @db.Date
   projeksi_sales        Decimal?                @db.Decimal(15, 2)
   urutan                Int                     @default(0)
+  closed_at             DateTime?               @db.Timestamptz(6)
   created_at            DateTime                @default(now()) @db.Timestamptz(6)
   updated_at            DateTime                @default(now()) @db.Timestamptz(6)
   color                 String?                 @db.VarChar(50)
@@ -1544,6 +1545,7 @@ model SalesKanbanCard {
   labels   SalesKanbanLabel[]
 
   @@index([column_id], map: "idx_sales_kanban_cards_column")
+  @@index([closed_at], map: "idx_sales_kanban_cards_closed_at")
   @@map("sales_kanban_cards")
 }
 

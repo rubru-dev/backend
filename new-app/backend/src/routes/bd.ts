@@ -1529,13 +1529,25 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     syncOrganicAccountsForReport(),
   ]);
 
+  const currentClosingDate = dateWhere("closed_at") as any;
+  const legacyClosingDate = dateWhere("created_at") as any;
+  const closingPeriodWhere = currentClosingDate.closed_at || legacyClosingDate.created_at ? {
+    OR: [
+      { closed_at: currentClosingDate.closed_at },
+      { closed_at: null, created_at: legacyClosingDate.created_at },
+    ],
+  } : {};
+
   const [igPosts, ytPosts, ttPosts, igAccounts, closingCards, closingInvoices, goldenInvoices, filterAirInvoices] = await Promise.all([
     prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["Instagram", "INSTAGRAM"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
     prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["YouTube", "YOUTUBE"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
     prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["TikTok", "TIKTOK"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
     prisma.socialMediaAccount.findMany({ where: { platform: { in: ["Instagram", "INSTAGRAM"] } } }),
     prisma.salesKanbanCard.findMany({
-      where: { column: { title: "Closing" }, ...dateWhere("created_at") },
+      where: {
+        column: { title: "Closing" },
+        ...closingPeriodWhere,
+      },
       include: { lead: { select: { id: true, nama: true, salutation: true, jenis: true } }, assigned_user: { select: { id: true, name: true } } },
     }),
     prisma.invoice.findMany({ where: { kategori: { in: ["Payment Desain", "Payment Projek", "Payment RKR"] }, ...dateWhere("tanggal") } }),
@@ -1586,7 +1598,9 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     return elapsed >= 0 ? elapsed : null;
   };
   const funnelRows = funnelLeads.map((lead) => {
-    const paidInvoices = lead.invoices.filter((invoice) => invoice.kwitansi);
+    const paidInvoices = lead.invoices
+      .filter((invoice) => invoice.kwitansi)
+      .sort((a, b) => ((a.kwitansi?.tanggal ?? a.tanggal)?.getTime() ?? 0) - ((b.kwitansi?.tanggal ?? b.tanggal)?.getTime() ?? 0));
     const designInvoice = paidInvoices.find((invoice) => invoice.kategori === "Payment Desain");
     const designDate = designInvoice?.kwitansi?.tanggal ?? designInvoice?.tanggal ?? null;
     const projectInvoices = paidInvoices.filter((invoice) => invoice.kategori === "Payment Projek");
@@ -1623,15 +1637,31 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     const present = values.filter((value): value is number => value !== null);
     return present.length ? Math.round(present.reduce((sum, value) => sum + value, 0) / present.length) : null;
   };
+  const medianDays = (values: Array<number | null>) => {
+    const present = values.filter((value): value is number => value !== null).sort((a, b) => a - b);
+    if (!present.length) return null;
+    const middle = Math.floor(present.length / 2);
+    return present.length % 2 ? present[middle] : Math.round((present[middle - 1] + present[middle]) / 2);
+  };
+  const percentage = (value: number, base: number) => base > 0 ? Number(((value / base) * 100).toFixed(1)) : 0;
+  const surveyCount = funnelRows.filter((row) => row.tanggal_survey).length;
+  const designCount = funnelRows.filter((row) => row.tanggal_dp_desain).length;
+  const spkCount = funnelRows.filter((row) => row.tanggal_spk).length;
   const funnel = {
     total_leads: funnelRows.length,
-    survey: funnelRows.filter((row) => row.tanggal_survey).length,
-    dp_desain: funnelRows.filter((row) => row.tanggal_dp_desain).length,
-    spk: funnelRows.filter((row) => row.tanggal_spk).length,
+    survey: surveyCount,
+    dp_desain: designCount,
+    spk: spkCount,
+    conversion_lead_to_survey: percentage(surveyCount, funnelRows.length),
+    conversion_survey_to_design: percentage(designCount, surveyCount),
+    conversion_design_to_spk: percentage(spkCount, designCount),
     dp_projek_threshold: 10_000_000,
     avg_days_lead_to_survey: averageDays(funnelRows.map((row) => row.days_lead_to_survey)),
     avg_days_survey_to_design_dp: averageDays(funnelRows.map((row) => row.days_survey_to_design_dp)),
     avg_days_design_to_spk: averageDays(funnelRows.map((row) => row.days_design_to_spk)),
+    median_days_lead_to_survey: medianDays(funnelRows.map((row) => row.days_lead_to_survey)),
+    median_days_survey_to_design_dp: medianDays(funnelRows.map((row) => row.days_survey_to_design_dp)),
+    median_days_design_to_spk: medianDays(funnelRows.map((row) => row.days_design_to_spk)),
     rows: funnelRows,
   };
 
@@ -1702,7 +1732,8 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
       by_sales: Object.values(closingBySales).sort((a, b) => b.total - a.total),
       rows: closingCards.map((card) => ({
         id: Number(card.id), nama: card.lead?.salutation ? `${card.lead.salutation} ${card.lead.nama}` : card.lead?.nama ?? card.title,
-        sales: card.assigned_user?.name ?? "Belum ditugaskan", tanggal_closing: card.created_at,
+        sales: card.assigned_user?.name ?? "Belum ditugaskan", tanggal_closing: card.closed_at ?? card.created_at,
+        closing_date_source: card.closed_at ? "actual" : "legacy_created_at",
         jenis: card.tipe_pekerjaan || card.lead?.jenis || "-", nominal: Number(card.projeksi_sales ?? 0),
       })),
     },

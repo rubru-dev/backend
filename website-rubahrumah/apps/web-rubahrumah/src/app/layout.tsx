@@ -1,10 +1,11 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Maven_Pro, Montserrat } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/navbar";
 import { Footer } from "@/components/layout/footer";
 import { MascotCTA } from "@/components/ui/mascot-cta";
 import { SITE_URL } from "@/lib/site";
+import { PwaRegister } from "@/components/pwa-register";
 
 const mavenPro = Maven_Pro({
   subsets: ["latin"],
@@ -34,7 +35,12 @@ export const metadata: Metadata = {
     locale: "id_ID",
     siteName: "Rubah Rumah",
   },
+  manifest: "/manifest.webmanifest",
+  icons: { icon: "/pwa-192.png", apple: "/apple-touch-icon.png" },
+  appleWebApp: { capable: true, statusBarStyle: "default", title: "Rubah Rumah" },
 };
+
+export const viewport: Viewport = { themeColor: "#ff5a1f", viewportFit: "cover" };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -44,6 +50,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {children}
         <Footer />
         <MascotCTA />
+        <PwaRegister />
       </body>
     </html>
   );

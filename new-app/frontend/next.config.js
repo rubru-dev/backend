@@ -9,6 +9,10 @@ const nextConfig = {
 
   transpilePackages: ["@react-pdf/renderer"],
 
+  async headers() {
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
+  },
+
   // Proxy: forward /api/v1/* and /storage/* to Express.js backend
   async rewrites() {
     return [
