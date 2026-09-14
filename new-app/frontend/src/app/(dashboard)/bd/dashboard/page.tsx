@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, BarChart3, Megaphone, Share2, Target, Trophy } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,8 +16,13 @@ const number = (value: unknown) => new Intl.NumberFormat("id-ID").format(Number(
 const rupiah = (value: unknown) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(value ?? 0));
 const percent = (value: unknown) => `${Number(value ?? 0).toFixed(1)}%`;
 
-function SummaryMetric({ label, value }: { label: string; value: string | number }) {
-  return <div className="rounded-lg bg-muted/45 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold tabular-nums">{value}</p></div>;
+function SummaryMetric({ label, value, current, previous }: { label: string; value: string | number; current?: number; previous?: number }) {
+  const change = current != null && previous != null && previous !== 0 ? ((current - previous) / Math.abs(previous)) * 100 : null;
+  return <div className="rounded-lg bg-muted/45 p-3"><p className="text-xs text-muted-foreground">{label}</p><p className="mt-1 text-lg font-semibold tabular-nums">{value}</p>{change != null && <p className="mt-1 text-[11px] font-medium text-muted-foreground">{change >= 0 ? "▲" : "▼"} {Math.abs(change).toFixed(1)}% dari pembanding</p>}</div>;
+}
+
+function ComparisonBars({ title, data, currentLabel, previousLabel, formatter = number }: { title: string; data: Array<{ name: string; current: number; previous: number }>; currentLabel: string; previousLabel: string; formatter?: (value: unknown) => string }) {
+  return <Card><CardHeader className="pb-2"><CardTitle className="text-sm">{title}</CardTitle><p className="text-xs text-muted-foreground">{currentLabel} dibanding {previousLabel}</p></CardHeader><CardContent className="h-[240px] px-2 sm:px-6"><ResponsiveContainer width="100%" height="100%"><BarChart data={data} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 10 }} tickFormatter={(value) => Number(value).toLocaleString("id-ID", { notation: "compact" })} /><Tooltip formatter={(value) => formatter(value)} /><Legend wrapperStyle={{ fontSize: 11 }} /><Bar dataKey="current" name="Periode aktif" fill="#6366f1" radius={[4, 4, 0, 0]} /><Bar dataKey="previous" name="Pembanding" fill="#cbd5e1" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></CardContent></Card>;
 }
 
 function ReportCard({ title, description, icon: Icon, href, children }: { title: string; description: string; icon: React.ElementType; href: string; children: React.ReactNode }) {
@@ -32,6 +38,7 @@ export default function BdDashboardPage() {
   const [year, setYear] = useState(String(today.getFullYear()));
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  const [compareMode, setCompareMode] = useState<"previous_period" | "last_year">("previous_period");
   const years = Array.from({ length: 10 }, (_, index) => today.getFullYear() - index);
   const params = useMemo(() => ({
     ...(startDate || endDate ? { start_date: startDate || undefined, end_date: endDate || undefined } : { bulan: month, tahun: year }),
@@ -40,6 +47,11 @@ export default function BdDashboardPage() {
   const { data, isLoading, isError } = useQuery({
     queryKey: ["bd-dashboard-summary", params],
     queryFn: () => apiClient.get("/bd/report-analytics", { params }).then((response) => response.data),
+  });
+  const { data: comparison, isLoading: comparisonLoading, isError: comparisonIsError } = useQuery({
+    queryKey: ["bd-dashboard-comparison", params, compareMode],
+    queryFn: () => apiClient.get("/bd/report-analytics/comparison", { params: { ...params, compare: compareMode } }).then((response) => response.data),
+    enabled: (!startDate && !endDate) || Boolean(startDate && endDate),
   });
 
   const ads = data?.ads_organik?.ads_totals ?? {};
@@ -51,6 +63,18 @@ export default function BdDashboardPage() {
   }), { content: 0, views: 0, reach: 0, engagements: 0 });
   const funnel = data?.funnel ?? {};
   const closing = data?.closing_detail ?? {};
+  const currentComparison: any = {
+    ads: {
+      spend: Number(ads.spend ?? 0), result: Number(ads.result ?? 0), clicks: Number(ads.clicks ?? 0),
+      impressions: Number(ads.impressions ?? 0), reach: Number(ads.reach ?? 0),
+      ctr: Number(ads.impressions) ? Number(ads.clicks) / Number(ads.impressions) * 100 : 0,
+      cpl: Number(ads.result) ? Number(ads.spend) / Number(ads.result) : 0,
+    },
+    social: { all: social },
+    funnel: { leads: Number(funnel.total_leads ?? 0), survey: Number(funnel.survey ?? 0), design: Number(funnel.dp_desain ?? 0), spk: Number(funnel.spk ?? 0) },
+    closing: { total: Number(closing.total_closing ?? 0), nominal: Number(closing.total_nominal ?? 0), sales: Number(closing.total_sales ?? 0) },
+  };
+  const previousComparison = comparison?.previous ?? {};
   const topSales = closing.by_sales?.[0]?.sales ?? "Belum ada";
   const query = new URLSearchParams(startDate || endDate ? { ...(startDate ? { start_date: startDate } : {}), ...(endDate ? { end_date: endDate } : {}) } : { bulan: month, tahun: year }).toString();
   const reportLink = (tab: string) => `/bd/report-analytics?tab=${tab}&${query}`;
@@ -67,12 +91,15 @@ export default function BdDashboardPage() {
 
     {isLoading ? <div className="grid gap-4 md:grid-cols-2">{Array.from({ length: 4 }).map((_, index) => <Skeleton key={index} className="h-64" />)}</div> : isError ? <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-8 text-center text-sm text-destructive">Gagal memuat ringkasan Dashboard BD.</div> : <>
       <div className="grid gap-4 md:grid-cols-2">
-        <ReportCard title="Ads Detail Report" description="Efisiensi dan hasil iklan Meta." icon={Megaphone} href={reportLink("ads")}><SummaryMetric label="Spend" value={rupiah(ads.spend)} /><SummaryMetric label="Result" value={number(ads.result)} /><SummaryMetric label="CTR" value={percent(Number(ads.impressions) ? Number(ads.clicks) / Number(ads.impressions) * 100 : 0)} /><SummaryMetric label="CPL" value={rupiah(Number(ads.result) ? Number(ads.spend) / Number(ads.result) : 0)} /></ReportCard>
-        <ReportCard title="Social Media Detail Report" description="Jangkauan dan interaksi konten organik." icon={Share2} href={reportLink("social")}><SummaryMetric label="Konten" value={number(social.content)} /><SummaryMetric label="Views" value={number(social.views)} /><SummaryMetric label="Reach" value={number(social.reach)} /><SummaryMetric label="Interaksi" value={number(social.engagements)} /></ReportCard>
-        <ReportCard title="Funneling Detail" description="Perpindahan lead sampai menjadi SPK." icon={Target} href={reportLink("funnel")}><SummaryMetric label="Leads" value={number(funnel.total_leads)} /><SummaryMetric label="Survey" value={`${number(funnel.survey)} · ${percent(funnel.conversion_lead_to_survey)}`} /><SummaryMetric label="DP Desain" value={`${number(funnel.dp_desain)} · ${percent(funnel.conversion_survey_to_design)}`} /><SummaryMetric label="SPK" value={`${number(funnel.spk)} · ${percent(funnel.conversion_design_to_spk)}`} /></ReportCard>
-        <ReportCard title="Closing Detail" description="Hasil closing dan kontribusi sales." icon={Trophy} href={reportLink("closing")}><SummaryMetric label="Total Closing" value={number(closing.total_closing)} /><SummaryMetric label="Nilai Proyeksi" value={rupiah(closing.total_nominal)} /><SummaryMetric label="Sales Aktif" value={number(closing.total_sales)} /><SummaryMetric label="Top Sales" value={topSales} /></ReportCard>
+        <ReportCard title="Ads Detail Report" description="Efisiensi dan hasil iklan Meta." icon={Megaphone} href={reportLink("ads")}><SummaryMetric label="Spend" value={rupiah(ads.spend)} current={currentComparison.ads?.spend} previous={previousComparison.ads?.spend} /><SummaryMetric label="Result" value={number(ads.result)} current={currentComparison.ads?.result} previous={previousComparison.ads?.result} /><SummaryMetric label="CTR" value={percent(Number(ads.impressions) ? Number(ads.clicks) / Number(ads.impressions) * 100 : 0)} current={currentComparison.ads?.ctr} previous={previousComparison.ads?.ctr} /><SummaryMetric label="CPL" value={rupiah(Number(ads.result) ? Number(ads.spend) / Number(ads.result) : 0)} current={currentComparison.ads?.cpl} previous={previousComparison.ads?.cpl} /></ReportCard>
+        <ReportCard title="Social Media Detail Report" description="Jangkauan dan interaksi konten organik." icon={Share2} href={reportLink("social")}><SummaryMetric label="Konten" value={number(social.content)} current={currentComparison.social?.all?.content} previous={previousComparison.social?.all?.content} /><SummaryMetric label="Views" value={number(social.views)} current={currentComparison.social?.all?.views} previous={previousComparison.social?.all?.views} /><SummaryMetric label="Reach" value={number(social.reach)} current={currentComparison.social?.all?.reach} previous={previousComparison.social?.all?.reach} /><SummaryMetric label="Interaksi" value={number(social.engagements)} /></ReportCard>
+        <ReportCard title="Funneling Detail" description="Perpindahan lead sampai menjadi SPK." icon={Target} href={reportLink("funnel")}><SummaryMetric label="Leads" value={number(funnel.total_leads)} current={currentComparison.funnel?.leads} previous={previousComparison.funnel?.leads} /><SummaryMetric label="Survey" value={`${number(funnel.survey)} · ${percent(funnel.conversion_lead_to_survey)}`} current={currentComparison.funnel?.survey} previous={previousComparison.funnel?.survey} /><SummaryMetric label="DP Desain" value={`${number(funnel.dp_desain)} · ${percent(funnel.conversion_survey_to_design)}`} current={currentComparison.funnel?.design} previous={previousComparison.funnel?.design} /><SummaryMetric label="SPK" value={`${number(funnel.spk)} · ${percent(funnel.conversion_design_to_spk)}`} current={currentComparison.funnel?.spk} previous={previousComparison.funnel?.spk} /></ReportCard>
+        <ReportCard title="Closing Detail" description="Hasil closing dan kontribusi sales." icon={Trophy} href={reportLink("closing")}><SummaryMetric label="Total Closing" value={number(closing.total_closing)} current={currentComparison.closing?.total} previous={previousComparison.closing?.total} /><SummaryMetric label="Nilai Proyeksi" value={rupiah(closing.total_nominal)} current={currentComparison.closing?.nominal} previous={previousComparison.closing?.nominal} /><SummaryMetric label="Sales Aktif" value={number(closing.total_sales)} current={currentComparison.closing?.sales} previous={previousComparison.closing?.sales} /><SummaryMetric label="Top Sales" value={topSales} /></ReportCard>
       </div>
       <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><BarChart3 className="h-4 w-4" />Ringkasan Funnel</CardTitle></CardHeader><CardContent><div className="grid grid-cols-4 gap-1 sm:gap-3">{[["Leads", funnel.total_leads], ["Survey", funnel.survey], ["DP Desain", funnel.dp_desain], ["SPK", funnel.spk]].map(([label, value], index) => <div key={String(label)} className="relative"><div className="rounded-lg bg-primary/10 px-2 py-4 text-center sm:p-4"><p className="text-[10px] text-muted-foreground sm:text-xs">{label}</p><p className="text-xl font-bold sm:text-2xl">{number(value)}</p></div>{index < 3 && <ArrowRight className="absolute -right-2 top-1/2 z-10 h-4 w-4 -translate-y-1/2 rounded-full bg-background text-muted-foreground" />}</div>)}</div></CardContent></Card>
+      <section className="space-y-3"><div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between"><div><h2 className="font-semibold">Perbandingan Periode</h2><p className="text-xs text-muted-foreground">Grafik ringkas periode aktif terhadap periode pembanding.</p></div><label className="space-y-1 text-xs text-muted-foreground">Bandingkan dengan<select className="block h-9 w-full rounded-md border bg-background px-3 text-sm sm:w-52" value={compareMode} onChange={(event) => setCompareMode(event.target.value as typeof compareMode)}><option value="previous_period">Periode sebelumnya</option><option value="last_year">Periode sama tahun lalu</option></select></label></div>
+        {comparisonLoading ? <Skeleton className="h-64" /> : comparisonIsError ? <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-5 text-sm text-destructive">Data periode pembanding gagal dimuat.</div> : comparison ? <div className="grid gap-4 md:grid-cols-2"><ComparisonBars title="Ads Result" currentLabel={comparison.ranges.current.label} previousLabel={comparison.ranges.previous.label} data={[{ name: "Result", current: currentComparison.ads.result, previous: previousComparison.ads.result }]} /><ComparisonBars title="Social Media Reach" currentLabel={comparison.ranges.current.label} previousLabel={comparison.ranges.previous.label} data={[{ name: "Reach", current: currentComparison.social.all.reach, previous: previousComparison.social.all.reach }]} /><ComparisonBars title="Total Closing" currentLabel={comparison.ranges.current.label} previousLabel={comparison.ranges.previous.label} data={[{ name: "Closing", current: currentComparison.closing.total, previous: previousComparison.closing.total }]} /><ComparisonBars title="Perbandingan Funnel" currentLabel={comparison.ranges.current.label} previousLabel={comparison.ranges.previous.label} data={[{ name: "Leads", current: currentComparison.funnel.leads, previous: previousComparison.funnel.leads }, { name: "Survey", current: currentComparison.funnel.survey, previous: previousComparison.funnel.survey }, { name: "DP Desain", current: currentComparison.funnel.design, previous: previousComparison.funnel.design }, { name: "SPK", current: currentComparison.funnel.spk, previous: previousComparison.funnel.spk }]} /></div> : (startDate || endDate) && <div className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">Isi tanggal mulai dan tanggal selesai untuk menampilkan perbandingan.</div>}
+      </section>
     </>}
   </div>;
 }

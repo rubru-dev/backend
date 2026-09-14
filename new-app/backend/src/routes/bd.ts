@@ -1465,11 +1465,192 @@ router.delete("/kanban/files/:id", requirePermission("bd", "delete"), async (req
   return res.json({ message: "File dihapus" });
 });
 
+// GET /bd/report-analytics/comparison - agregat dua periode untuk chart.
+// Endpoint ini sengaja tidak menjalankan sync akun sosial agar chart tidak
+// menggandakan pekerjaan eksternal dari endpoint laporan utama.
+router.get("/report-analytics/comparison", requirePermission("bd", "view"), async (req: Request, res: Response) => {
+  const endOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate(), 23, 59, 59, 999);
+  const startOfDay = (value: Date) => new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  const now = new Date();
+  const month = req.query.bulan ? parseInt(String(req.query.bulan)) : undefined;
+  const year = req.query.tahun ? parseInt(String(req.query.tahun)) : now.getFullYear();
+  const requestedStart = req.query.start_date ? startOfDay(new Date(String(req.query.start_date))) : null;
+  const requestedEnd = req.query.end_date ? endOfDay(new Date(String(req.query.end_date))) : null;
+  if ((requestedStart && !requestedEnd) || (!requestedStart && requestedEnd)) {
+    return res.status(400).json({ detail: "Tanggal mulai dan tanggal selesai harus diisi untuk perbandingan." });
+  }
+
+  let currentStart: Date;
+  let currentEnd: Date;
+  let periodType: "range" | "month" | "year";
+  if (requestedStart && requestedEnd) {
+    currentStart = requestedStart;
+    currentEnd = requestedEnd;
+    periodType = "range";
+  } else if (month) {
+    currentStart = new Date(year, month - 1, 1);
+    const monthEnd = endOfDay(new Date(year, month, 0));
+    currentEnd = year === now.getFullYear() && month === now.getMonth() + 1 ? endOfDay(now) : monthEnd;
+    periodType = "month";
+  } else {
+    currentStart = new Date(year, 0, 1);
+    currentEnd = year === now.getFullYear() ? endOfDay(now) : endOfDay(new Date(year, 11, 31));
+    periodType = "year";
+  }
+  if (currentStart.getTime() > currentEnd.getTime()) return res.status(400).json({ detail: "Rentang tanggal tidak valid." });
+
+  const compareMode = req.query.compare === "last_year" ? "last_year" : "previous_period";
+  let previousStart: Date;
+  let previousEnd: Date;
+  if (compareMode === "last_year") {
+    const shiftOneYearBack = (value: Date) => {
+      const targetYear = value.getFullYear() - 1;
+      const lastTargetDay = new Date(targetYear, value.getMonth() + 1, 0).getDate();
+      return new Date(targetYear, value.getMonth(), Math.min(value.getDate(), lastTargetDay), value.getHours(), value.getMinutes(), value.getSeconds(), value.getMilliseconds());
+    };
+    previousStart = shiftOneYearBack(currentStart);
+    previousEnd = shiftOneYearBack(currentEnd);
+  } else if (periodType === "month") {
+    previousStart = new Date(currentStart.getFullYear(), currentStart.getMonth() - 1, 1);
+    const previousMonthEnd = endOfDay(new Date(currentStart.getFullYear(), currentStart.getMonth(), 0));
+    const selectedMonthEnd = endOfDay(new Date(currentStart.getFullYear(), currentStart.getMonth() + 1, 0));
+    const isPartialMonth = currentEnd.getTime() < selectedMonthEnd.getTime();
+    previousEnd = isPartialMonth
+      ? endOfDay(new Date(previousStart.getFullYear(), previousStart.getMonth(), Math.min(currentEnd.getDate(), previousMonthEnd.getDate())))
+      : previousMonthEnd;
+  } else if (periodType === "year") {
+    previousStart = new Date(currentStart.getFullYear() - 1, 0, 1);
+    previousEnd = currentEnd.getFullYear() === now.getFullYear()
+      ? endOfDay(new Date(currentStart.getFullYear() - 1, currentEnd.getMonth(), currentEnd.getDate()))
+      : endOfDay(new Date(currentStart.getFullYear() - 1, 11, 31));
+  } else {
+    const duration = currentEnd.getTime() - currentStart.getTime();
+    previousEnd = new Date(currentStart.getTime() - 1);
+    previousStart = new Date(previousEnd.getTime() - duration);
+  }
+
+  const iso = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+  const periodLabel = (start: Date, end: Date) => {
+    const formatter = new Intl.DateTimeFormat("id-ID", { day: "2-digit", month: "short", year: "numeric" });
+    return `${formatter.format(start)} – ${formatter.format(end)}`;
+  };
+  const whereDate = (field: string, start: Date, end: Date) => ({ [field]: { gte: start, lte: end } });
+  const rate = (value: number, base: number) => base > 0 ? Number(((value / base) * 100).toFixed(1)) : 0;
+
+  async function aggregatePeriod(start: Date, end: Date) {
+    const adsSource = req.query.ads_source === "manual" ? "manual" : undefined;
+    const [adsReport, posts, leads, closingCards] = await Promise.all([
+      buildRealtimeAdsReport({ start_date: iso(start), end_date: iso(end), platform: "Meta", ads_source: adsSource } as any),
+      prisma.socialMediaPostMetric.findMany({
+        where: whereDate("tanggal", start, end) as any,
+        include: { account: { select: { platform: true } } },
+      }),
+      prisma.lead.findMany({
+        where: { modul: "sales-admin", ...whereDate("tanggal_masuk", start, end) },
+        select: {
+          tanggal_survey: true,
+          invoices: {
+            where: { kategori: { in: ["Payment Desain", "Payment Projek"] }, status: "Lunas" },
+            include: { kwitansi: true },
+          },
+          proyek_berjalans: { select: { created_at: true } },
+          proyek_interiors: { select: { created_at: true } },
+        },
+      }),
+      prisma.salesKanbanCard.findMany({
+        where: {
+          column: { title: "Closing" },
+          OR: [
+            { closed_at: { gte: start, lte: end } },
+            { closed_at: null, created_at: { gte: start, lte: end } },
+          ],
+        },
+        include: { assigned_user: { select: { id: true, name: true } } },
+      }),
+    ]);
+
+    const adsTotals = adsReport.totals;
+    const ads = {
+      spend: Number(adsTotals.spend ?? 0), clicks: Number(adsTotals.clicks ?? 0),
+      impressions: Number(adsTotals.impressions ?? 0), reach: Number(adsTotals.reach ?? 0), result: Number(adsTotals.result ?? 0),
+      ctr: rate(Number(adsTotals.clicks ?? 0), Number(adsTotals.impressions ?? 0)),
+      cpm: Number(adsTotals.impressions ?? 0) ? Number(adsTotals.spend ?? 0) / Number(adsTotals.impressions) * 1000 : 0,
+      cpc: Number(adsTotals.clicks ?? 0) ? Number(adsTotals.spend ?? 0) / Number(adsTotals.clicks) : 0,
+      cpl: Number(adsTotals.result ?? 0) ? Number(adsTotals.spend ?? 0) / Number(adsTotals.result) : 0,
+    };
+
+    const summarizePosts = (items: typeof posts) => ({
+      content: items.length,
+      views: items.reduce((sum, item) => sum + Number(item.views ?? 0), 0),
+      reach: items.reduce((sum, item) => sum + Number(item.reach ?? 0), 0),
+      likes: items.reduce((sum, item) => sum + Number(item.likes ?? 0), 0),
+      comments: items.reduce((sum, item) => sum + Number(item.comments ?? 0), 0),
+      shares: items.reduce((sum, item) => sum + Number(item.shares ?? 0), 0),
+      saves: items.reduce((sum, item) => sum + Number(item.saves ?? 0), 0),
+      watch_time: items.reduce((sum, item) => sum + Number(item.watch_time_minutes ?? 0), 0),
+      engagement_rate: items.length ? Number((items.reduce((sum, item) => sum + Number(item.engagement_rate ?? 0), 0) / items.length).toFixed(2)) : 0,
+    });
+    const platformPosts = (platform: string) => posts.filter((post) => String(post.account.platform).toLowerCase() === platform.toLowerCase());
+    const social = {
+      all: summarizePosts(posts),
+      instagram: summarizePosts(platformPosts("instagram")),
+      youtube: summarizePosts(platformPosts("youtube")),
+      tiktok: summarizePosts(platformPosts("tiktok")),
+    };
+
+    let survey = 0;
+    let design = 0;
+    let spk = 0;
+    for (const lead of leads) {
+      if (lead.tanggal_survey) survey++;
+      const paid = lead.invoices.filter((invoice) => invoice.kwitansi);
+      const hasDesign = paid.some((invoice) => invoice.kategori === "Payment Desain");
+      if (hasDesign) design++;
+      const projectPaid = paid.filter((invoice) => invoice.kategori === "Payment Projek")
+        .reduce((sum, invoice) => sum + Number(invoice.kwitansi?.jumlah_diterima ?? 0), 0);
+      if (projectPaid >= 10_000_000 && (lead.proyek_berjalans.length > 0 || lead.proyek_interiors.length > 0)) spk++;
+    }
+    const funnel = {
+      leads: leads.length, survey, design, spk,
+      lead_to_survey: rate(survey, leads.length), survey_to_design: rate(design, survey), design_to_spk: rate(spk, design),
+    };
+
+    const bySales: Record<string, { sales: string; total: number; nominal: number }> = {};
+    for (const card of closingCards) {
+      const salesName = card.assigned_user?.name ?? "Belum ditugaskan";
+      const item = bySales[salesName] ?? { sales: salesName, total: 0, nominal: 0 };
+      item.total++;
+      item.nominal += Number(card.projeksi_sales ?? 0);
+      bySales[salesName] = item;
+    }
+    const closing = {
+      total: closingCards.length,
+      nominal: closingCards.reduce((sum, card) => sum + Number(card.projeksi_sales ?? 0), 0),
+      sales: new Set(closingCards.flatMap((card) => card.assigned_user ? [String(card.assigned_user.id)] : [])).size,
+      by_sales: Object.values(bySales).sort((a, b) => b.total - a.total),
+    };
+    return { ads, social, funnel, closing };
+  }
+
+  // Nilai periode aktif sudah dikirim endpoint laporan utama. Di sini cukup
+  // hitung periode pembanding agar insight Meta dan query DB aktif tidak diulang.
+  const previous = await aggregatePeriod(previousStart, previousEnd);
+  return res.json({
+    compare_mode: compareMode,
+    ranges: {
+      current: { start: iso(currentStart), end: iso(currentEnd), label: periodLabel(currentStart, currentEnd) },
+      previous: { start: iso(previousStart), end: iso(previousEnd), label: periodLabel(previousStart, previousEnd) },
+    },
+    previous,
+  });
+});
+
 router.get("/report-analytics", requirePermission("bd", "view"), async (req: Request, res: Response) => {
   const bulan = req.query.bulan ? parseInt(String(req.query.bulan)) : undefined;
   const tahun = req.query.tahun ? parseInt(String(req.query.tahun)) : undefined;
   const start = req.query.start_date ? new Date(String(req.query.start_date)) : undefined;
   const end = req.query.end_date ? new Date(String(req.query.end_date)) : undefined;
+  const reportNow = new Date();
   if (end) end.setHours(23, 59, 59, 999);
 
   function dateWhere(field = "created_at") {
@@ -1477,10 +1658,15 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     if (start || end) where[field] = { ...(start ? { gte: start } : {}), ...(end ? { lte: end } : {}) };
     else if (bulan && tahun) {
       const s = new Date(tahun, bulan - 1, 1);
-      const e = new Date(tahun, bulan, 0, 23, 59, 59, 999);
+      const e = tahun === reportNow.getFullYear() && bulan === reportNow.getMonth() + 1
+        ? new Date(reportNow.getFullYear(), reportNow.getMonth(), reportNow.getDate(), 23, 59, 59, 999)
+        : new Date(tahun, bulan, 0, 23, 59, 59, 999);
       where[field] = { gte: s, lte: e };
     } else if (tahun) {
-      where[field] = { gte: new Date(tahun, 0, 1), lte: new Date(tahun, 11, 31, 23, 59, 59, 999) };
+      const e = tahun === reportNow.getFullYear()
+        ? new Date(reportNow.getFullYear(), reportNow.getMonth(), reportNow.getDate(), 23, 59, 59, 999)
+        : new Date(tahun, 11, 31, 23, 59, 59, 999);
+      where[field] = { gte: new Date(tahun, 0, 1), lte: e };
     }
     return where;
   }
@@ -1524,8 +1710,14 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
   }
 
   const adsSource = req.query.ads_source === "manual" ? "manual" : "actual";
+  const adsQuery: Request["query"] = { ...req.query };
+  if (!start && !end && tahun === reportNow.getFullYear() && (!bulan || bulan === reportNow.getMonth() + 1)) {
+    const localIso = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+    adsQuery.start_date = bulan ? `${tahun}-${String(bulan).padStart(2, "0")}-01` : `${tahun}-01-01`;
+    adsQuery.end_date = localIso(reportNow);
+  }
   const [adsReport] = await Promise.all([
-    buildRealtimeAdsReport({ ...req.query, platform: "Meta", ads_source: adsSource === "manual" ? "manual" : undefined } as any),
+    buildRealtimeAdsReport({ ...adsQuery, platform: "Meta", ads_source: adsSource === "manual" ? "manual" : undefined } as any),
     syncOrganicAccountsForReport(),
   ]);
 
