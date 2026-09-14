@@ -1499,23 +1499,56 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
   }
   if (currentStart.getTime() > currentEnd.getTime()) return res.status(400).json({ detail: "Rentang tanggal tidak valid." });
 
+  const parseLocalDate = (value: string) => {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+    if (!match) return null;
+    const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+    return parsed.getFullYear() === Number(match[1]) && parsed.getMonth() === Number(match[2]) - 1 && parsed.getDate() === Number(match[3]) ? parsed : null;
+  };
+  const resolveCustomPeriod = (prefix: "a" | "b") => {
+    const type = String(req.query[`compare_${prefix}_type`] ?? "");
+    const yearValue = parseInt(String(req.query[`compare_${prefix}_tahun`] ?? ""));
+    if (type === "range") {
+      const startValue = parseLocalDate(String(req.query[`compare_${prefix}_start_date`] ?? ""));
+      const endValue = parseLocalDate(String(req.query[`compare_${prefix}_end_date`] ?? ""));
+      if (!startValue || !endValue) return { detail: `Rentang tanggal Periode ${prefix.toUpperCase()} tidak valid.` };
+      return { start: startOfDay(startValue), end: endOfDay(endValue) };
+    }
+    if (!Number.isInteger(yearValue) || yearValue < 2000 || yearValue > 2100) return { detail: `Tahun Periode ${prefix.toUpperCase()} tidak valid.` };
+    if (type === "month") {
+      const monthValue = parseInt(String(req.query[`compare_${prefix}_bulan`] ?? ""));
+      if (!Number.isInteger(monthValue) || monthValue < 1 || monthValue > 12) return { detail: `Bulan Periode ${prefix.toUpperCase()} tidak valid.` };
+      const isCurrentMonth = yearValue === now.getFullYear() && monthValue === now.getMonth() + 1;
+      return { start: new Date(yearValue, monthValue - 1, 1), end: isCurrentMonth ? endOfDay(now) : endOfDay(new Date(yearValue, monthValue, 0)) };
+    }
+    if (type === "year") {
+      const isCurrentYear = yearValue === now.getFullYear();
+      return { start: new Date(yearValue, 0, 1), end: isCurrentYear ? endOfDay(now) : endOfDay(new Date(yearValue, 11, 31)) };
+    }
+    return { detail: `Jenis Periode ${prefix.toUpperCase()} tidak valid.` };
+  };
+
+  const isCustomPair = req.query.compare === "custom_pair";
   const compareStartValue = req.query.compare_start_date ? String(req.query.compare_start_date) : "";
   const compareEndValue = req.query.compare_end_date ? String(req.query.compare_end_date) : "";
   const compareMonth = req.query.compare_bulan ? parseInt(String(req.query.compare_bulan)) : undefined;
   const compareYear = req.query.compare_tahun ? parseInt(String(req.query.compare_tahun)) : undefined;
   const hasCustomComparison = Boolean(compareStartValue || compareEndValue || compareMonth || compareYear);
-  const compareMode = hasCustomComparison ? "custom" : req.query.compare === "last_year" ? "last_year" : "previous_period";
+  const compareMode = isCustomPair ? "custom_pair" : hasCustomComparison ? "custom" : req.query.compare === "last_year" ? "last_year" : "previous_period";
   let previousStart: Date;
   let previousEnd: Date;
-  if (hasCustomComparison) {
+  if (isCustomPair) {
+    const periodA = resolveCustomPeriod("a");
+    const periodB = resolveCustomPeriod("b");
+    if ("detail" in periodA) return res.status(400).json({ detail: periodA.detail });
+    if ("detail" in periodB) return res.status(400).json({ detail: periodB.detail });
+    currentStart = periodA.start;
+    currentEnd = periodA.end;
+    previousStart = periodB.start;
+    previousEnd = periodB.end;
+  } else if (hasCustomComparison) {
     if (compareStartValue || compareEndValue) {
       if (!compareStartValue || !compareEndValue) return res.status(400).json({ detail: "Tanggal mulai dan tanggal selesai pembanding harus diisi." });
-      const parseLocalDate = (value: string) => {
-        const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-        if (!match) return null;
-        const parsed = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
-        return parsed.getFullYear() === Number(match[1]) && parsed.getMonth() === Number(match[2]) - 1 && parsed.getDate() === Number(match[3]) ? parsed : null;
-      };
       const parsedStart = parseLocalDate(compareStartValue);
       const parsedEnd = parseLocalDate(compareEndValue);
       if (!parsedStart || !parsedEnd) return res.status(400).json({ detail: "Format tanggal pembanding tidak valid." });
@@ -1557,7 +1590,8 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
     previousEnd = new Date(currentStart.getTime() - 1);
     previousStart = new Date(previousEnd.getTime() - duration);
   }
-  if (previousStart.getTime() > previousEnd.getTime()) return res.status(400).json({ detail: "Rentang tanggal pembanding tidak valid." });
+  if (currentStart.getTime() > currentEnd.getTime()) return res.status(400).json({ detail: "Rentang Periode A tidak valid." });
+  if (previousStart.getTime() > previousEnd.getTime()) return res.status(400).json({ detail: "Rentang Periode B tidak valid." });
 
   const iso = (value: Date) => `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
   const periodLabel = (start: Date, end: Date) => {
@@ -1662,15 +1696,17 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
     return { ads, social, funnel, closing };
   }
 
-  // Nilai periode aktif sudah dikirim endpoint laporan utama. Di sini cukup
-  // hitung periode pembanding agar insight Meta dan query DB aktif tidak diulang.
-  const previous = await aggregatePeriod(previousStart, previousEnd);
+  const [current, previous] = await Promise.all([
+    aggregatePeriod(currentStart, currentEnd),
+    aggregatePeriod(previousStart, previousEnd),
+  ]);
   return res.json({
     compare_mode: compareMode,
     ranges: {
       current: { start: iso(currentStart), end: iso(currentEnd), label: periodLabel(currentStart, currentEnd) },
       previous: { start: iso(previousStart), end: iso(previousEnd), label: periodLabel(previousStart, previousEnd) },
     },
+    current,
     previous,
   });
 });
