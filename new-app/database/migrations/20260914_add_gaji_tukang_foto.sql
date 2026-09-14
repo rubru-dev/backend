@@ -1,0 +1,2 @@
+ALTER TABLE gaji_tukangs
+  ADD COLUMN IF NOT EXISTS foto TEXT;

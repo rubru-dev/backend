@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { pdf } from "@react-pdf/renderer";
@@ -895,15 +895,25 @@ export function RappSipilView({
   projekNama,
   projekLokasi,
   api = sipilApi,
+  readOnly = false,
+  liveSync = false,
 }: {
   termins: TerminInfo[];
   projekNama: string | null;
   projekLokasi: string | null;
   api?: RappApi;
+  readOnly?: boolean;
+  liveSync?: boolean;
 }) {
   const qc = useQueryClient();
   const [selectedTerminId, setSelectedTerminId] = useState<string>(termins[0]?.id ?? "");
   const [collapsedKategoris, setCollapsedKategoris] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    if (!termins.some((t) => t.id === selectedTerminId)) {
+      setSelectedTerminId(termins[0]?.id ?? "");
+    }
+  }, [termins, selectedTerminId]);
 
   // Dialogs
   const [addKategoriDialog, setAddKategoriDialog] = useState<"material" | "vendor" | null>(null);
@@ -934,6 +944,8 @@ export function RappSipilView({
     queryFn: () => api.getRapp(selectedTerminId),
     enabled: !!selectedTerminId,
     retry: false,
+    refetchInterval: liveSync ? 30_000 : false,
+    refetchIntervalInBackground: false,
   });
 
   function inv() { qc.invalidateQueries({ queryKey: rKey }); }
@@ -1207,7 +1219,7 @@ export function RappSipilView({
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className={`p-4 space-y-6 ${readOnly ? "[&_button:not([data-rapp-readonly-allowed])]:hidden" : ""}`}>
       {/* Termin selector + actions */}
       <div className="flex items-center gap-3 flex-wrap">
         <span className="text-sm font-medium text-muted-foreground shrink-0">Pilih Termin:</span>
@@ -1215,6 +1227,7 @@ export function RappSipilView({
           {termins.map((t) => (
             <button
               key={t.id}
+              data-rapp-readonly-allowed={readOnly ? "true" : undefined}
               onClick={() => setSelectedTerminId(t.id)}
               className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${selectedTerminId === t.id ? "bg-teal-600 text-white shadow-sm" : "bg-muted hover:bg-muted/80 text-foreground"}`}
             >
@@ -1224,7 +1237,7 @@ export function RappSipilView({
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2 ml-auto">
+        {!readOnly && <div className="flex items-center gap-2 ml-auto">
           {/* Hidden file inputs */}
           <input
             ref={csvInputRef}
@@ -1299,7 +1312,7 @@ export function RappSipilView({
               : <FileDown className="h-3.5 w-3.5 mr-1.5" />}
             {pdfLoading ? "Generating..." : "PDF RAPP"}
           </Button>
-        </div>
+        </div>}
       </div>
 
       {isLoading && <div className="text-sm text-muted-foreground py-4">Memuat RAPP...</div>}
@@ -1338,7 +1351,7 @@ export function RappSipilView({
                 <div key={kat.id} className="border rounded-lg overflow-hidden">
                   {/* Kategori header */}
                   <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border-b">
-                    <button onClick={() => toggleKat(kat.id)} className="flex items-center gap-1.5 flex-1 text-left">
+                    <button data-rapp-readonly-allowed={readOnly ? "true" : undefined} onClick={() => toggleKat(kat.id)} className="flex items-center gap-1.5 flex-1 text-left">
                       {collapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                       {editKategoriId === kat.id ? (
                         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
@@ -1512,7 +1525,7 @@ export function RappSipilView({
               return (
                 <div key={kat.id} className="border rounded-lg overflow-hidden">
                   <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border-b">
-                    <button onClick={() => toggleKat(`v-${kat.id}`)} className="flex items-center gap-1.5 flex-1 text-left">
+                    <button data-rapp-readonly-allowed={readOnly ? "true" : undefined} onClick={() => toggleKat(`v-${kat.id}`)} className="flex items-center gap-1.5 flex-1 text-left">
                       {collapsed ? <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />}
                       {editKategoriId === `v-${kat.id}` ? (
                         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>

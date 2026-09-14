@@ -2247,7 +2247,7 @@ router.get("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: Re
     }),
     prisma.projekCashflow.findMany({
       where: { adm_finance_project_id: pid, adm_finance_termin_id: tid },
-      include: { pr: { include: { items: true } } },
+      include: { pr: { include: { items: true } }, gaji_tukang: { select: { foto: true } } },
       orderBy: [{ tanggal: "asc" }, { id: "asc" }],
     }),
   ]);
@@ -2257,7 +2257,7 @@ router.get("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: Re
   const totalDeposit = depositAwalSigned + totalDepositTambahan;
   const totalDebit = items.reduce((s, c) => s + Number(c.debit), 0);
   return res.json({
-    items: items.map((c) => ({ id: c.id, tanggal: c.tanggal, no_pr: c.no_pr, keterangan: c.keterangan, debit: Number(c.debit), projek_pr_id: c.projek_pr_id ? Number(c.projek_pr_id) : null, nota_image: c.nota_image || null })),
+    items: items.map((c) => ({ id: c.id, tanggal: c.tanggal, no_pr: c.no_pr, keterangan: c.keterangan, debit: Number(c.debit), projek_pr_id: c.projek_pr_id ? Number(c.projek_pr_id) : null, nota_image: c.nota_image || c.gaji_tukang?.foto || null })),
     summary: { total_deposit: totalDeposit, total_debit: totalDebit, sisa: totalDeposit - totalDebit },
   });
 });
@@ -2781,7 +2781,7 @@ router.get("/adm-projek/:id/tukang/gajian", async (req: Request, res: Response) 
   return res.json(gajians.map((g) => ({
     id: g.id, tanggal_mulai: g.tanggal_mulai, tanggal_selesai: g.tanggal_selesai,
     bulan: g.bulan, tahun: g.tahun,
-    total_hari_kerja: g.total_hari_kerja, total_gaji: Number(g.total_gaji),
+    total_hari_kerja: g.total_hari_kerja, total_gaji: Number(g.total_gaji), foto: g.foto,
     kwitansi_dibuat: g.kwitansis.length > 0,
     hf_signature: g.hf_signature, hf_signed_at: g.hf_signed_at,
     hf_name: g.hf_signed_by ? (hfNameById.get(String(g.hf_signed_by)) ?? null) : null,
@@ -2803,7 +2803,7 @@ router.get("/adm-projek/:id/tukang/gajian", async (req: Request, res: Response) 
 // POST /finance/adm-projek/:id/tukang/gajian — create weekly payroll
 router.post("/adm-projek/:id/tukang/gajian", async (req: Request, res: Response) => {
   const pid = BigInt(req.params.id);
-  const { tanggal_mulai, tanggal_selesai, items = [] } = req.body;
+  const { tanggal_mulai, tanggal_selesai, items = [], foto } = req.body;
   if (!tanggal_mulai || !tanggal_selesai) return res.status(400).json({ detail: "Periode wajib diisi" });
 
   const startDate = new Date(tanggal_mulai);
@@ -2866,6 +2866,7 @@ router.post("/adm-projek/:id/tukang/gajian", async (req: Request, res: Response)
       tanggal_selesai: endDate,
       total_hari_kerja: totalHariKerja,
       total_gaji: totalGaji,
+      foto: saveBase64Image(foto, "tukang-gajian"),
       created_by: req.user!.id,
       items: { create: itemsData },
     },

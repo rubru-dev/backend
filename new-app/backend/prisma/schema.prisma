@@ -581,6 +581,7 @@ model GajiTukang {
   tanggal_selesai        DateTime?               @db.Date
   total_hari_kerja       Int                     @default(0)
   total_gaji             Decimal                 @default(0) @db.Decimal(15, 2)
+  foto                   String?                 @db.Text
   created_by             BigInt?
   af_signed_by           BigInt?
   af_signed_at           DateTime?               @db.Timestamptz(6)

@@ -850,6 +850,7 @@ CREATE TABLE gaji_tukangs (
     tahun                  INTEGER,
     total_hari_kerja       INTEGER NOT NULL DEFAULT 0,
     total_gaji             NUMERIC(15,2) NOT NULL DEFAULT 0,
+    foto                   TEXT,
     created_by             BIGINT REFERENCES users(id) ON DELETE SET NULL,
     created_at             TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at             TIMESTAMPTZ NOT NULL DEFAULT NOW()

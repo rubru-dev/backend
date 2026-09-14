@@ -24,6 +24,8 @@ import {
 import { pdf } from "@react-pdf/renderer";
 import dynamic from "next/dynamic";
 import { SignatureDialog } from "@/components/signature-dialog";
+import { RappSipilView } from "@/components/rapp-sipil";
+import { sipilApi } from "@/lib/api/content";
 
 const CashflowTerminPDF = dynamic(() => import("@/components/cashflow-termin-pdf"), { ssr: false });
 const CashflowOverviewPDF = dynamic(() => import("@/components/cashflow-overview-pdf"), { ssr: false });
@@ -35,6 +37,73 @@ const SuratJalanPDF = dynamic(() => import("@/components/surat-jalan-pdf"), { ss
 
 function formatRp(val: number | string) {
   return "Rp " + (Number(val) || 0).toLocaleString("id-ID");
+}
+
+function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanId?: number; proyekNama: string; tab: "termin" | "rapp" }) {
+  const { data: project, isLoading, isError } = useQuery({
+    queryKey: ["finance-sipil-source", proyekBerjalanId],
+    queryFn: () => sipilApi.getProjek(String(proyekBerjalanId)),
+    enabled: !!proyekBerjalanId,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+    retry: false,
+  });
+
+  if (!proyekBerjalanId) {
+    return <p className="py-10 text-center text-sm text-muted-foreground">Hubungkan proyek Finance ke proyek sipil melalui pengaturan proyek untuk menampilkan {tab === "rapp" ? "RAPP" : "daftar termin"}.</p>;
+  }
+  if (isLoading) return <p className="py-10 text-center text-sm text-muted-foreground">Memuat data proyek sipil...</p>;
+  if (isError || !project) return <p className="py-10 text-center text-sm text-destructive">Data proyek sipil tidak dapat dimuat.</p>;
+
+  const termins: any[] = project.termins ?? [];
+  if (tab === "rapp") {
+    return <RappSipilView
+      termins={termins.map((t: any) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama }))}
+      projekNama={project.nama_proyek ?? proyekNama}
+      projekLokasi={project.lokasi ?? null}
+      readOnly
+      liveSync
+    />;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        Data ditampilkan langsung dari proyek sipil tertaut dan diperbarui otomatis.
+      </div>
+      {termins.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">Belum ada termin pada proyek sipil ini.</p> : (
+        <div className="space-y-3">
+          {termins.map((termin: any) => (
+            <section key={termin.id} className="overflow-hidden rounded-lg border">
+              <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-50 px-4 py-3">
+                <div className="font-semibold text-sm">{termin.nama ?? `Termin ${termin.urutan}`}</div>
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>{termin.tanggal_mulai ? new Date(termin.tanggal_mulai).toLocaleDateString("id-ID") : "—"} – {termin.tanggal_selesai ? new Date(termin.tanggal_selesai).toLocaleDateString("id-ID") : "—"}</span>
+                  <Badge variant="outline">{termin.progress ?? 0}% · {termin.tasks_selesai ?? 0}/{termin.jumlah_task ?? 0} selesai</Badge>
+                </div>
+              </div>
+              <Table>
+                <TableHeader><TableRow>
+                  <TableHead className="w-10">#</TableHead><TableHead>Nama Pekerjaan</TableHead><TableHead>Mulai</TableHead><TableHead>Selesai</TableHead><TableHead>PIC</TableHead><TableHead>Status</TableHead>
+                </TableRow></TableHeader>
+                <TableBody>
+                  {(termin.tasks ?? []).map((task: any, index: number) => (
+                    <TableRow key={task.id}>
+                      <TableCell>{index + 1}</TableCell><TableCell className="font-medium">{task.nama_pekerjaan || "—"}</TableCell>
+                      <TableCell>{task.tanggal_mulai ? new Date(task.tanggal_mulai).toLocaleDateString("id-ID") : "—"}</TableCell>
+                      <TableCell>{task.tanggal_selesai ? new Date(task.tanggal_selesai).toLocaleDateString("id-ID") : "—"}</TableCell>
+                      <TableCell>{task.pic?.nama ?? "—"}</TableCell><TableCell><Badge variant="outline">{task.status ?? "Belum Mulai"}</Badge></TableCell>
+                    </TableRow>
+                  ))}
+                  {(termin.tasks ?? []).length === 0 && <TableRow><TableCell colSpan={6} className="py-6 text-center text-muted-foreground">Belum ada pekerjaan di termin ini.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </section>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 const today = new Date().toISOString().split("T")[0];
@@ -989,7 +1058,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                   <TableHead>Nama Toko</TableHead>
                   <TableHead>Tanggal</TableHead>
                   <TableHead className="text-right text-red-600">Jumlah</TableHead>
-                  <TableHead className="w-16">Nota</TableHead>
+                  <TableHead className="w-20">Foto / Nota</TableHead>
                   <TableHead className="w-8" />
                 </TableRow>
               </TableHeader>
@@ -1012,7 +1081,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                     <TableCell className="text-right font-medium text-red-600">{formatRp(it.debit)}</TableCell>
                     <TableCell>
                       {it.nota_image ? (
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-blue-600" onClick={() => setViewNotaDialog(it.nota_image)}>
+                        <Button variant="ghost" size="sm" className="h-7 px-2 text-blue-600" onClick={() => setViewNotaDialog(storageUrl(it.nota_image))}>
                           <Eye className="h-3.5 w-3.5 mr-1" /> Lihat
                         </Button>
                       ) : <span className="text-xs text-muted-foreground">—</span>}
@@ -2883,6 +2952,8 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
 
   // ── Gajian ──────────────────────────────────────────────────────────────────
   const [openGajian, setOpenGajian] = useState(false);
+  const [gajianFoto, setGajianFoto] = useState<string | null>(null);
+  const [viewGajianFoto, setViewGajianFoto] = useState<string | null>(null);
   const [gajianPeriode, setGajianPeriode] = useState({ mulai: today, selesai: today });
   const [gajianItems, setGajianItems] = useState<Array<{ tukang_id: string; tukang_name: string; hari_kerja: number; daily_rate: number; kasbon_dipotong: number; kasbon_tersedia: number }>>([]);
   const [deleteGajianTarget, setDeleteGajianTarget] = useState<any | null>(null);
@@ -2896,7 +2967,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
 
   const createGajianMut = useMutation({
     mutationFn: (d: any) => admApi.createGajian(proyekId, d),
-    onSuccess: () => { toast.success("Gajian diproses & kwitansi dibuat"); qc.invalidateQueries({ queryKey: ["tukang-gajian", proyekId] }); qc.invalidateQueries({ queryKey: ["tukang-kwitansi", proyekId] }); qc.invalidateQueries({ queryKey: ["tukang-kasbon", proyekId] }); setOpenGajian(false); setGajianItems([]); },
+    onSuccess: () => { toast.success("Gajian diproses & kwitansi dibuat"); qc.invalidateQueries({ queryKey: ["tukang-gajian", proyekId] }); qc.invalidateQueries({ queryKey: ["tukang-kwitansi", proyekId] }); qc.invalidateQueries({ queryKey: ["tukang-kasbon", proyekId] }); setOpenGajian(false); setGajianItems([]); setGajianFoto(null); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
   const delGajianMut = useMutation({
@@ -2939,6 +3010,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
       kasbon_dipotong: pendingPerTukang.get(String(r.id)) ?? 0,
       kasbon_tersedia: pendingPerTukang.get(String(r.id)) ?? 0,
     })));
+    setGajianFoto(null);
     setOpenGajian(true);
   }
 
@@ -3202,6 +3274,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
                 <div className="flex items-center gap-1.5 flex-wrap justify-end">
                   <span className="font-bold text-sm mr-1">{formatRp(g.total_gaji)}</span>
                   {g.kwitansi_dibuat && <Badge variant="outline" className="text-green-600 border-green-300 text-xs"><Receipt className="h-3 w-3 mr-1" /> Kwitansi</Badge>}
+                  {g.foto && <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setViewGajianFoto(storageUrl(g.foto))}><Eye className="h-3 w-3 mr-1" /> Foto Bukti</Button>}
                   {/* TTD Head Finance */}
                   {g.hf_signature
                     ? <Badge variant="outline" className="text-green-600 border-green-300 text-xs gap-1"><CheckCircle className="h-3 w-3" /> HF</Badge>
@@ -3384,7 +3457,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
       </Dialog>
 
       {/* ── Proses Gajian Dialog ── */}
-      <Dialog open={openGajian} onOpenChange={setOpenGajian}>
+      <Dialog open={openGajian} onOpenChange={(open) => { setOpenGajian(open); if (!open) setGajianFoto(null); }}>
         <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Proses Gajian Mingguan</DialogTitle></DialogHeader>
           <div className="space-y-4">
@@ -3395,6 +3468,32 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
             <Button variant="outline" size="sm" onClick={autoFillHariKerja}>
               <CheckCircle className="h-3.5 w-3.5 mr-1" /> Auto-isi Hari Kerja dari Absen Disetujui
             </Button>
+            <div className="space-y-1.5">
+              <Label>Foto Bukti Gajian (opsional)</Label>
+              {gajianFoto ? (
+                <div className="flex items-start gap-3 rounded-md border p-2">
+                  <img src={gajianFoto} alt="Pratinjau foto bukti gajian" className="h-24 w-32 rounded border object-cover" />
+                  <Button type="button" variant="ghost" size="sm" className="text-destructive" onClick={() => setGajianFoto(null)}><Trash2 className="mr-1 h-3.5 w-3.5" /> Hapus Foto</Button>
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed p-3 text-sm text-muted-foreground hover:border-orange-400 hover:bg-orange-50">
+                  <Upload className="h-4 w-4" /> Pilih foto bukti gajian
+                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 8 * 1024 * 1024) {
+                      toast.error("Foto maksimal 8MB");
+                      e.target.value = "";
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => setGajianFoto(ev.target?.result as string);
+                    reader.readAsDataURL(file);
+                    e.target.value = "";
+                  }} />
+                </label>
+              )}
+            </div>
             <Table>
               <TableHeader><TableRow>
                 <TableHead>Tukang</TableHead><TableHead className="text-right">Hari</TableHead>
@@ -3433,9 +3532,9 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
                 Total: {formatRp(gajianItems.reduce((s, i) => s + Math.max(0, i.hari_kerja * i.daily_rate - i.kasbon_dipotong), 0))}
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setOpenGajian(false)}>Batal</Button>
+                <Button variant="outline" onClick={() => { setOpenGajian(false); setGajianFoto(null); }}>Batal</Button>
                 <Button disabled={createGajianMut.isPending || !gajianPeriode.mulai}
-                  onClick={() => createGajianMut.mutate({ tanggal_mulai: gajianPeriode.mulai, tanggal_selesai: gajianPeriode.selesai, items: gajianItems })}>
+                  onClick={() => createGajianMut.mutate({ tanggal_mulai: gajianPeriode.mulai, tanggal_selesai: gajianPeriode.selesai, items: gajianItems, foto: gajianFoto })}>
                   {createGajianMut.isPending ? "Memproses..." : "Proses Gajian"}
                 </Button>
               </div>
@@ -3449,6 +3548,13 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
         <DialogContent className="max-w-sm">
           <DialogHeader><DialogTitle>Foto Absensi</DialogTitle></DialogHeader>
           {viewAbsenFoto && <img src={viewAbsenFoto} alt="foto absen" className="w-full rounded-lg object-contain max-h-96" />}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!viewGajianFoto} onOpenChange={() => setViewGajianFoto(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader><DialogTitle>Foto Bukti Gajian</DialogTitle></DialogHeader>
+          {viewGajianFoto && <img src={viewGajianFoto} alt="Foto bukti gajian" className="w-full max-h-[70vh] object-contain rounded" />}
         </DialogContent>
       </Dialog>
 
@@ -3647,6 +3753,14 @@ export default function AdministrasiProjekPage() {
             <TabsTrigger value="dokumentasi" className="flex items-center gap-1 text-xs">
               <Images className="h-3.5 w-3.5" /> Dokumentasi
             </TabsTrigger>
+            {String(selectedProyek.jenis ?? "").toLowerCase() === "sipil" && <>
+              <TabsTrigger value="sipil-termin" className="flex items-center gap-1 text-xs">
+                <ClipboardList className="h-3.5 w-3.5" /> Termin
+              </TabsTrigger>
+              <TabsTrigger value="sipil-rapp" className="flex items-center gap-1 text-xs">
+                <Package className="h-3.5 w-3.5" /> RAPP
+              </TabsTrigger>
+            </>}
           </TabsList>
 
           <Card className="mt-4">
@@ -3658,6 +3772,10 @@ export default function AdministrasiProjekPage() {
               <TabsContent value="surat-jalan"><SuratJalanTab proyekId={selectedProyek.id} proyekNama={selectedProyek.nama_proyek || ""} /></TabsContent>
               <TabsContent value="tukang"><TukangTab proyekId={selectedProyek.id} proyekNama={selectedProyek.nama_proyek || ""} proyekKlien={selectedProyek.klien || ""} /></TabsContent>
               <TabsContent value="dokumentasi"><DokumentasiTab proyekId={selectedProyek.id} proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} proyekJenis={selectedProyek.jenis} /></TabsContent>
+              {String(selectedProyek.jenis ?? "").toLowerCase() === "sipil" && <>
+                <TabsContent value="sipil-termin"><SipilSourceTab proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} proyekNama={selectedProyek.nama_proyek || ""} tab="termin" /></TabsContent>
+                <TabsContent value="sipil-rapp"><SipilSourceTab proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} proyekNama={selectedProyek.nama_proyek || ""} tab="rapp" /></TabsContent>
+              </>}
             </CardContent>
           </Card>
         </Tabs>
