@@ -952,16 +952,17 @@ function ProyekTab() {
                 </button>
                 {isExpanded && (
                   <div className="border-t">
-                    <div className={cn("grid gap-0 text-xs font-medium text-gray-400 px-4 py-2 bg-gray-50 border-b", isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto]" : "grid-cols-[auto_1fr_auto_auto_auto]")}>
+                    <div className={cn("grid gap-0 text-xs font-medium text-gray-400 px-4 py-2 bg-gray-50 border-b", isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[auto_1fr_auto_auto_auto_auto]")}>
                       <span className="w-16">Tipe</span>
                       <span>Item</span>
                       <span className="text-right w-32 pr-2">Nilai</span>
                       <span className="text-center w-28">Status Invoice</span>
                       <span className="text-right w-32">Terbayar</span>
+                      <span className="text-right w-32">Sisa</span>
                       {isAdmin && <span className="w-8" />}
                     </div>
                     {r.items.map((item) => (
-                      <div key={item.rab_item_id} className={cn("grid gap-0 items-center px-4 py-2.5 border-b last:border-0 hover:bg-gray-50/50", isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto]" : "grid-cols-[auto_1fr_auto_auto_auto]")}>
+                      <div key={item.rab_item_id} className={cn("grid gap-0 items-center px-4 py-2.5 border-b last:border-0 hover:bg-gray-50/50", isAdmin ? "grid-cols-[auto_1fr_auto_auto_auto_auto_auto]" : "grid-cols-[auto_1fr_auto_auto_auto_auto]")}>
                         <span className={cn(
                           "inline-flex px-2 py-0.5 rounded-full text-xs font-medium w-16 justify-center",
                           item.tipe === "penambahan" ? "bg-orange-100 text-orange-700" : "bg-teal-100 text-teal-700"
@@ -976,6 +977,9 @@ function ProyekTab() {
                         <div className="w-28 flex justify-center"><InvoiceStatusBadge status={item.invoice_status} /></div>
                         <span className={cn("text-sm tabular-nums text-right w-32 font-medium", item.terbayar > 0 ? "text-green-700" : "text-gray-300")}>
                           {item.terbayar > 0 ? IDR(item.terbayar) : "—"}
+                        </span>
+                        <span className={cn("text-sm tabular-nums text-right w-32 font-semibold", item.nilai - item.terbayar > 0 ? "text-red-600" : "text-green-600")}>
+                          {IDR(Math.max(0, item.nilai - item.terbayar))}
                         </span>
                         {isAdmin && (
                           <div className="w-8 flex justify-center">

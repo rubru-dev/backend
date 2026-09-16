@@ -3407,95 +3407,85 @@ router.get("/leads/:leadId/rab-items", requirePermission("finance", "view"), asy
   })));
 });
 
-// GET /finance/ar-tagihan-projek — Tagihan projek sipil berdasarkan invoice Payment Projek
+// GET /finance/ar-tagihan-projek — AR proyek Finance dari RAB Termin Sipil + actual invoice
 router.get("/ar-tagihan-projek", requirePermission("finance", "ar"), async (_req: Request, res: Response) => {
-  const invoices = await prisma.invoice.findMany({
-    where: { kategori: "Payment Projek", lead_id: { not: null } },
+  // Finance project yang sudah ditautkan ke proyek Sipil menjadi daftar utama,
+  // sehingga proyek tetap tampil walaupun invoice belum dibuat atau belum lunas.
+  const financeProjects = await prisma.admFinanceProject.findMany({
+    where: { proyek_berjalan_id: { not: null } },
+    select: {
+      id: true, proyek_berjalan_id: true, nama_proyek: true, klien: true,
+      proyek_berjalan: {
+        select: { id: true, lead_id: true, nama_proyek: true, lead: { select: { nama: true } }, rab_items: { orderBy: { urutan: "asc" } } },
+      },
+    },
+    orderBy: { id: "desc" },
+  });
+  if (financeProjects.length === 0) return res.json([]);
+
+  const leadIds = [...new Set(financeProjects.map((p) => p.proyek_berjalan?.lead_id).filter((id): id is bigint => !!id))];
+  const invoices = leadIds.length > 0 ? await prisma.invoice.findMany({
+    where: { kategori: "Payment Projek", lead_id: { in: leadIds } },
     select: {
       id: true, lead_id: true, rab_item_id: true, status: true, tanggal: true,
-      lead: { select: { nama: true } },
       kwitansi: { select: { jumlah_diterima: true } },
     },
     orderBy: { created_at: "asc" },
-  });
+  }) : [];
 
-  if (invoices.length === 0) return res.json([]);
-
-  const leadIds = [...new Set(invoices.map((i) => i.lead_id!))];
-
-  const projeksList = await prisma.proyekBerjalan.findMany({
-    where: { lead_id: { in: leadIds } },
-    select: {
-      id: true, lead_id: true, nama_proyek: true,
-      rab_items: { orderBy: { urutan: "asc" } },
-    },
-  });
-
-  const projekByLead = new Map(projeksList.map((p) => [String(p.lead_id), p]));
-
-  const invByRabItem = new Map<string, typeof invoices[0]>();
-  for (const inv of invoices) {
-    if (inv.rab_item_id) invByRabItem.set(String(inv.rab_item_id), inv);
+  const projectsByLead = new Map<string, number>();
+  for (const p of financeProjects) {
+    const leadId = p.proyek_berjalan?.lead_id;
+    if (leadId) projectsByLead.set(String(leadId), (projectsByLead.get(String(leadId)) ?? 0) + 1);
   }
-
   const projekOverrides = await prisma.arOverride.findMany({ where: { tab_type: "projek", lead_id: { in: leadIds } } });
   const projekOverrideMap = new Map(projekOverrides.map((o) => [o.lead_id.toString(), o]));
-
-  // Item-level overrides
-  const allRabItemIds = projeksList.flatMap((p) => p.rab_items.map((ri) => ri.id));
-  const itemOverrides = allRabItemIds.length > 0
-    ? await prisma.arItemOverride.findMany({ where: { rab_item_id: { in: allRabItemIds } } })
-    : [];
+  const allRabItemIds = financeProjects.flatMap((p) => (p.proyek_berjalan?.rab_items ?? []).map((ri) => ri.id));
+  const itemOverrides = allRabItemIds.length > 0 ? await prisma.arItemOverride.findMany({ where: { rab_item_id: { in: allRabItemIds } } }) : [];
   const itemOverrideMap = new Map(itemOverrides.map((o) => [o.rab_item_id.toString(), o]));
 
-  const rows = leadIds.map((leadId) => {
-    const leadInvs = invoices.filter((i) => String(i.lead_id) === String(leadId));
-    const proyek = projekByLead.get(String(leadId));
-    const nama_client = leadInvs[0]?.lead?.nama ?? "-";
+  const rows = financeProjects.map((fp) => {
+    const proyek = fp.proyek_berjalan;
+    const leadId = proyek?.lead_id ?? null;
+    const leadInvs = leadId ? invoices.filter((i) => String(i.lead_id) === String(leadId)) : [];
     const rabItems = proyek?.rab_items ?? [];
-
     const itemsData = rabItems.map((ri) => {
-      const inv = invByRabItem.get(String(ri.id));
-      const rawTerbayar = inv?.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0;
+      const itemInvs = leadInvs.filter((inv) => String(inv.rab_item_id) === String(ri.id));
+      const latestInv = itemInvs[itemInvs.length - 1];
+      const rawTerbayar = itemInvs.reduce((sum, inv) => sum + (inv.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0), 0);
       const ov = itemOverrideMap.get(ri.id.toString());
-      const nilai = ov ? parseFloat(String(ov.tagihan)) : parseFloat(String(ri.nilai));
-      const terbayar = ov ? parseFloat(String(ov.terbayar)) : rawTerbayar;
       return {
-        rab_item_id: Number(ri.id),
-        label: ri.label,
-        nilai,
-        tipe: ri.tipe,
-        invoice_id: inv ? Number(inv.id) : null,
-        invoice_status: inv?.status ?? null,
-        terbayar,
-        has_item_override: !!ov,
+        rab_item_id: Number(ri.id), label: ri.label,
+        nilai: ov ? parseFloat(String(ov.tagihan)) : parseFloat(String(ri.nilai)), tipe: ri.tipe,
+        invoice_id: latestInv ? Number(latestInv.id) : null, invoice_status: latestInv?.status ?? null,
+        terbayar: ov ? parseFloat(String(ov.terbayar)) : rawTerbayar, has_item_override: !!ov,
       };
     });
-
     const mainItems = itemsData.filter((i) => i.tipe === "main");
     const penambahanItems = itemsData.filter((i) => i.tipe === "penambahan");
     const total_rab = mainItems.reduce((s, i) => s + i.nilai, 0);
     const total_penambahan = penambahanItems.reduce((s, i) => s + i.nilai, 0);
-    const total_terbayar = itemsData.reduce((s, i) => s + i.terbayar, 0);
-    const outstanding = Math.max(0, total_rab + total_penambahan - total_terbayar);
-
-    const firstDate = leadInvs[0]?.tanggal;
-    const ov = projekOverrideMap.get(leadId.toString());
+    const matchedPayment = itemsData.reduce((s, i) => s + i.terbayar, 0);
+    // Invoice tanpa rab_item_id tetap dihitung bila lead hanya memiliki satu proyek.
+    const itemInvoiceIds = new Set(rabItems.map((ri) => String(ri.id)));
+    const unallocatedPayment = projectsByLead.get(String(leadId)) === 1
+      ? leadInvs.filter((inv) => !inv.rab_item_id || !itemInvoiceIds.has(String(inv.rab_item_id)))
+        .reduce((s, inv) => s + (inv.status === "Lunas" ? parseFloat(String(inv.kwitansi?.jumlah_diterima ?? 0)) : 0), 0)
+      : 0;
+    const total_terbayar = matchedPayment + unallocatedPayment;
+    const automaticOutstanding = Math.max(0, total_rab + total_penambahan - total_terbayar);
+    const ov = leadId ? projekOverrideMap.get(leadId.toString()) : undefined;
     return {
-      lead_id: Number(leadId),
-      nama_client,
-      nama_proyek: proyek?.nama_proyek ?? null,
-      items: itemsData,
-      total_rab: ov ? parseFloat(String(ov.tagihan)) : total_rab,
+      project_id: Number(fp.id), lead_id: leadId ? Number(leadId) : Number(fp.id),
+      nama_client: proyek?.lead?.nama ?? fp.klien ?? "-", nama_proyek: proyek?.nama_proyek ?? fp.nama_proyek ?? null,
+      items: itemsData, total_rab: ov ? parseFloat(String(ov.tagihan)) : total_rab,
       total_penambahan: ov ? 0 : total_penambahan,
       total_terbayar: ov ? parseFloat(String(ov.terbayar)) : total_terbayar,
-      outstanding: ov ? parseFloat(String(ov.outstanding)) : outstanding,
-      tanggal_pertama: firstDate ? new Date(firstDate).toISOString().split("T")[0] : null,
-      deadline: ov?.deadline ? new Date(ov.deadline).toISOString().split("T")[0] : null,
-      has_override: !!ov,
+      outstanding: ov ? parseFloat(String(ov.outstanding)) : automaticOutstanding,
+      tanggal_pertama: leadInvs[0]?.tanggal ? new Date(leadInvs[0].tanggal).toISOString().split("T")[0] : null,
+      deadline: ov?.deadline ? new Date(ov.deadline).toISOString().split("T")[0] : null, has_override: !!ov,
     };
   });
-
   return res.json(rows);
 });
 

@@ -2,7 +2,7 @@
 import { getLogoBase64 } from "@/lib/get-logo";
 
 import { useState, useRef } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { storageUrl } from "@/lib/storage-url";
@@ -91,6 +91,45 @@ function RappFinanceSummary({ termins, proyekNama, proyekLokasi }: { termins: an
   );
 }
 
+function RappMaterialSummaryByTermin({ proyekBerjalanId }: { proyekBerjalanId?: number }) {
+  const { data: project, isLoading } = useQuery({
+    queryKey: ["finance-pr-rapp-termins", proyekBerjalanId],
+    queryFn: () => sipilApi.getProjek(String(proyekBerjalanId)),
+    enabled: !!proyekBerjalanId,
+    retry: false,
+  });
+  const termins: any[] = project?.termins ?? [];
+  const rappQueries = useQueries({
+    queries: termins.map((termin: any) => ({
+      queryKey: ["finance-pr-rapp-material", termin.id],
+      queryFn: () => sipilApi.getRapp(String(termin.id)),
+      enabled: !!termin.id,
+      retry: false,
+    })),
+  });
+
+  if (!proyekBerjalanId || isLoading || termins.length === 0) return null;
+  return (
+    <div className="rounded-lg border bg-white overflow-hidden">
+      <div className="px-4 py-3 bg-slate-50 border-b">
+        <h3 className="font-semibold text-sm">Ringkasan Biaya Material Bangunan per Termin</h3>
+        <p className="text-xs text-muted-foreground mt-0.5">Sumber: RAPP proyek Sipil tertaut</p>
+      </div>
+      <Table>
+        <TableHeader><TableRow><TableHead>Termin</TableHead><TableHead className="text-right">Biaya Material Bangunan</TableHead></TableRow></TableHeader>
+        <TableBody>
+          {termins.map((termin: any, index: number) => {
+            const rapp = rappQueries[index]?.data;
+            const total = (rapp?.material_kategoris ?? []).reduce((sum: number, kategori: any) =>
+              sum + (kategori.items ?? []).reduce((s: number, item: any) => s + Number(item.jumlah ?? 0), 0), 0);
+            return <TableRow key={termin.id}><TableCell className="font-medium">{termin.nama ?? `Termin ${termin.urutan}`}</TableCell><TableCell className="text-right font-semibold">{formatRp(total)}</TableCell></TableRow>;
+          })}
+        </TableBody>
+      </Table>
+    </div>
+  );
+}
+
 function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanId?: number; proyekNama: string; tab: "termin" | "rapp" }) {
   const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin());
   const qc = useQueryClient();
@@ -161,12 +200,19 @@ function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanI
     if (!isSuperAdmin) {
       return <RappFinanceSummary termins={termins} proyekNama={project.nama_proyek ?? proyekNama} proyekLokasi={project.lokasi ?? null} />;
     }
-    return <RappSipilView
-      termins={termins.map((t: any) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama }))}
-      projekNama={project.nama_proyek ?? proyekNama}
-      projekLokasi={project.lokasi ?? null}
-      liveSync
-    />;
+    return <div className="space-y-3">
+      <div className="flex justify-end">
+        <Button size="sm" variant="outline" onClick={() => addTermin.mutate({ nama: `Termin ${termins.length + 1}`, tanggal_mulai: null, tanggal_selesai: null })} disabled={addTermin.isPending}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> {addTermin.isPending ? "Menyimpan..." : "Tambah Termin"}
+        </Button>
+      </div>
+      <RappSipilView
+        termins={termins.map((t: any) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama }))}
+        projekNama={project.nama_proyek ?? proyekNama}
+        projekLokasi={project.lokasi ?? null}
+        liveSync
+      />
+    </div>;
   }
 
   return (
@@ -1920,6 +1966,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
 
   return (
     <div className="space-y-3">
+      <RappMaterialSummaryByTermin proyekBerjalanId={proyekBerjalanId} />
       <div className="flex justify-end">
         <Button size="sm" onClick={() => setOpen(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Buat PR
@@ -3879,6 +3926,9 @@ export default function AdministrasiProjekPage() {
             <TabsTrigger value="pr" className="flex items-center gap-1 text-xs">
               <ClipboardList className="h-3.5 w-3.5" /> Cashflow Projek
             </TabsTrigger>
+            <TabsTrigger value="finance-termin" className="flex items-center gap-1 text-xs">
+              <Wallet className="h-3.5 w-3.5" /> $ Termin
+            </TabsTrigger>
             <TabsTrigger value="dokumen" className="flex items-center gap-1 text-xs">
               <Upload className="h-3.5 w-3.5" /> Upload Dokumen
             </TabsTrigger>
@@ -3904,6 +3954,7 @@ export default function AdministrasiProjekPage() {
           <Card className="mt-4">
             <CardContent className="pt-4">
               <TabsContent value="cashflow"><CashflowTab proyekId={selectedProyek.id} /></TabsContent>
+              <TabsContent value="finance-termin"><CashflowTab proyekId={selectedProyek.id} /></TabsContent>
 
               <TabsContent value="pr"><PRTab proyekId={selectedProyek.id} proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} /></TabsContent>
               <TabsContent value="dokumen"><UploadDokumenTab proyekId={selectedProyek.id} /></TabsContent>
