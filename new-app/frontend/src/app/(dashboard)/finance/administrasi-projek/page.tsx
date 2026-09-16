@@ -40,6 +40,15 @@ function formatRp(val: number | string) {
 }
 
 function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanId?: number; proyekNama: string; tab: "termin" | "rapp" }) {
+  const qc = useQueryClient();
+  const [terminDialog, setTerminDialog] = useState(false);
+  const [editTermin, setEditTermin] = useState<any | null>(null);
+  const [terminForm, setTerminForm] = useState({ nama: "", tanggal_mulai: "", tanggal_selesai: "" });
+  const [taskDialog, setTaskDialog] = useState(false);
+  const [editTask, setEditTask] = useState<any | null>(null);
+  const [taskTermin, setTaskTermin] = useState<any | null>(null);
+  const [taskForm, setTaskForm] = useState({ nama_pekerjaan: "", tanggal_mulai: "", tanggal_selesai: "", status: "Belum Mulai", pic: "" });
+
   const { data: project, isLoading, isError } = useQuery({
     queryKey: ["finance-sipil-source", proyekBerjalanId],
     queryFn: () => sipilApi.getProjek(String(proyekBerjalanId)),
@@ -47,6 +56,45 @@ function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanI
     refetchInterval: 30_000,
     refetchIntervalInBackground: false,
     retry: false,
+  });
+
+  const { data: employees = [] } = useQuery<any[]>({
+    queryKey: ["finance-sipil-employees"],
+    queryFn: () => sipilApi.listEmployees(),
+    enabled: !!proyekBerjalanId && tab === "termin",
+    staleTime: 5 * 60_000,
+  });
+
+  const invalidateProject = () => qc.invalidateQueries({ queryKey: ["finance-sipil-source", proyekBerjalanId] });
+  const addTermin = useMutation({
+    mutationFn: (data: any) => sipilApi.addTermin(String(proyekBerjalanId), data),
+    onSuccess: () => { toast.success("Termin ditambahkan"); invalidateProject(); setTerminDialog(false); setTerminForm({ nama: "", tanggal_mulai: "", tanggal_selesai: "" }); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menambahkan termin"),
+  });
+  const updateTermin = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => sipilApi.updateTermin(id, data),
+    onSuccess: () => { toast.success("Termin diupdate"); invalidateProject(); setTerminDialog(false); setEditTermin(null); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal mengupdate termin"),
+  });
+  const deleteTermin = useMutation({
+    mutationFn: (id: string) => sipilApi.deleteTermin(id),
+    onSuccess: () => { toast.success("Termin dihapus"); invalidateProject(); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menghapus termin"),
+  });
+  const addTask = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => sipilApi.addTask(id, data),
+    onSuccess: () => { toast.success("Pekerjaan ditambahkan"); invalidateProject(); setTaskDialog(false); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menambahkan pekerjaan"),
+  });
+  const updateTask = useMutation({
+    mutationFn: ({ id, data }: { id: string; data: any }) => sipilApi.updateTask(id, data),
+    onSuccess: () => { toast.success("Pekerjaan diupdate"); invalidateProject(); setTaskDialog(false); setEditTask(null); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal mengupdate pekerjaan"),
+  });
+  const deleteTask = useMutation({
+    mutationFn: (id: string) => sipilApi.deleteTask(id),
+    onSuccess: () => { toast.success("Pekerjaan dihapus"); invalidateProject(); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menghapus pekerjaan"),
   });
 
   if (!proyekBerjalanId) {
@@ -61,15 +109,17 @@ function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanI
       termins={termins.map((t: any) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama }))}
       projekNama={project.nama_proyek ?? proyekNama}
       projekLokasi={project.lokasi ?? null}
-      readOnly
       liveSync
     />;
   }
 
   return (
     <div className="space-y-3">
-      <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-        Data ditampilkan langsung dari proyek sipil tertaut dan diperbarui otomatis.
+      <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        <span>Data tersimpan langsung ke proyek Sipil tertaut.</span>
+        <Button size="sm" className="h-7 text-xs" onClick={() => { setEditTermin(null); setTerminForm({ nama: "", tanggal_mulai: "", tanggal_selesai: "" }); setTerminDialog(true); }}>
+          <Plus className="mr-1 h-3.5 w-3.5" /> Tambah Termin
+        </Button>
       </div>
       {termins.length === 0 ? <p className="py-10 text-center text-sm text-muted-foreground">Belum ada termin pada proyek sipil ini.</p> : (
         <div className="space-y-3">
@@ -80,11 +130,16 @@ function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanI
                 <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                   <span>{termin.tanggal_mulai ? new Date(termin.tanggal_mulai).toLocaleDateString("id-ID") : "—"} – {termin.tanggal_selesai ? new Date(termin.tanggal_selesai).toLocaleDateString("id-ID") : "—"}</span>
                   <Badge variant="outline">{termin.progress ?? 0}% · {termin.tasks_selesai ?? 0}/{termin.jumlah_task ?? 0} selesai</Badge>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditTermin(termin); setTerminForm({ nama: termin.nama ?? "", tanggal_mulai: termin.tanggal_mulai ?? "", tanggal_selesai: termin.tanggal_selesai ?? "" }); setTerminDialog(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (window.confirm("Hapus termin dan semua pekerjaannya?")) deleteTermin.mutate(String(termin.id)); }}><Trash2 className="h-3.5 w-3.5" /></Button>
                 </div>
+              </div>
+              <div className="flex justify-end border-b px-4 py-2">
+                <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setEditTask(null); setTaskTermin(termin); setTaskForm({ nama_pekerjaan: "", tanggal_mulai: "", tanggal_selesai: "", status: "Belum Mulai", pic: "" }); setTaskDialog(true); }}><Plus className="mr-1 h-3.5 w-3.5" /> Pekerjaan</Button>
               </div>
               <Table>
                 <TableHeader><TableRow>
-                  <TableHead className="w-10">#</TableHead><TableHead>Nama Pekerjaan</TableHead><TableHead>Mulai</TableHead><TableHead>Selesai</TableHead><TableHead>PIC</TableHead><TableHead>Status</TableHead>
+                  <TableHead className="w-10">#</TableHead><TableHead>Nama Pekerjaan</TableHead><TableHead>Mulai</TableHead><TableHead>Selesai</TableHead><TableHead>PIC</TableHead><TableHead>Status</TableHead><TableHead className="text-right">Aksi</TableHead>
                 </TableRow></TableHeader>
                 <TableBody>
                   {(termin.tasks ?? []).map((task: any, index: number) => (
@@ -93,15 +148,42 @@ function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanI
                       <TableCell>{task.tanggal_mulai ? new Date(task.tanggal_mulai).toLocaleDateString("id-ID") : "—"}</TableCell>
                       <TableCell>{task.tanggal_selesai ? new Date(task.tanggal_selesai).toLocaleDateString("id-ID") : "—"}</TableCell>
                       <TableCell>{task.pic?.nama ?? "—"}</TableCell><TableCell><Badge variant="outline">{task.status ?? "Belum Mulai"}</Badge></TableCell>
+                      <TableCell className="text-right">
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => { setEditTask(task); setTaskTermin(termin); setTaskForm({ nama_pekerjaan: task.nama_pekerjaan ?? "", tanggal_mulai: task.tanggal_mulai ?? "", tanggal_selesai: task.tanggal_selesai ?? "", status: task.status ?? "Belum Mulai", pic: task.pic?.id ? String(task.pic.id) : "" }); setTaskDialog(true); }}><Pencil className="h-3.5 w-3.5" /></Button>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => { if (window.confirm("Hapus pekerjaan ini?")) deleteTask.mutate(String(task.id)); }}><Trash2 className="h-3.5 w-3.5" /></Button>
+                      </TableCell>
                     </TableRow>
                   ))}
-                  {(termin.tasks ?? []).length === 0 && <TableRow><TableCell colSpan={6} className="py-6 text-center text-muted-foreground">Belum ada pekerjaan di termin ini.</TableCell></TableRow>}
+                  {(termin.tasks ?? []).length === 0 && <TableRow><TableCell colSpan={7} className="py-6 text-center text-muted-foreground">Belum ada pekerjaan di termin ini.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </section>
           ))}
         </div>
       )}
+
+      <Dialog open={terminDialog} onOpenChange={setTerminDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{editTermin ? "Edit Termin" : "Tambah Termin"}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Nama Termin</Label><Input value={terminForm.nama} onChange={(e) => setTerminForm({ ...terminForm, nama: e.target.value })} placeholder="Contoh: Termin 1" /></div>
+            <div className="grid grid-cols-2 gap-3"><div><Label>Tanggal Mulai</Label><Input type="date" value={terminForm.tanggal_mulai} onChange={(e) => setTerminForm({ ...terminForm, tanggal_mulai: e.target.value })} /></div><div><Label>Tanggal Selesai</Label><Input type="date" value={terminForm.tanggal_selesai} onChange={(e) => setTerminForm({ ...terminForm, tanggal_selesai: e.target.value })} /></div></div>
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setTerminDialog(false)}>Batal</Button><Button disabled={!terminForm.nama.trim() || addTermin.isPending || updateTermin.isPending} onClick={() => editTermin ? updateTermin.mutate({ id: String(editTermin.id), data: { nama: terminForm.nama.trim(), tanggal_mulai: terminForm.tanggal_mulai || null, tanggal_selesai: terminForm.tanggal_selesai || null } }) : addTermin.mutate({ nama: terminForm.nama.trim(), tanggal_mulai: terminForm.tanggal_mulai || null, tanggal_selesai: terminForm.tanggal_selesai || null })}>{addTermin.isPending || updateTermin.isPending ? "Menyimpan..." : "Simpan"}</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={taskDialog} onOpenChange={setTaskDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader><DialogTitle>{editTask ? "Edit Pekerjaan" : "Tambah Pekerjaan"}{taskTermin && <span className="ml-2 text-sm font-normal text-muted-foreground">— {taskTermin.nama ?? `Termin ${taskTermin.urutan}`}</span>}</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div><Label>Nama Pekerjaan</Label><Input value={taskForm.nama_pekerjaan} onChange={(e) => setTaskForm({ ...taskForm, nama_pekerjaan: e.target.value })} placeholder="Nama pekerjaan" /></div>
+            <div className="grid grid-cols-2 gap-3"><div><Label>Tanggal Mulai</Label><Input type="date" value={taskForm.tanggal_mulai} onChange={(e) => setTaskForm({ ...taskForm, tanggal_mulai: e.target.value })} /></div><div><Label>Tanggal Selesai</Label><Input type="date" value={taskForm.tanggal_selesai} onChange={(e) => setTaskForm({ ...taskForm, tanggal_selesai: e.target.value })} /></div></div>
+            <div className="grid grid-cols-2 gap-3"><div><Label>Status</Label><select className="w-full rounded-md border px-3 py-2 text-sm" value={taskForm.status} onChange={(e) => setTaskForm({ ...taskForm, status: e.target.value })}><option>Belum Mulai</option><option>Proses</option><option>Selesai</option></select></div><div><Label>PIC</Label><select className="w-full rounded-md border px-3 py-2 text-sm" value={taskForm.pic} onChange={(e) => setTaskForm({ ...taskForm, pic: e.target.value })}><option value="">— Pilih PIC —</option>{employees.map((e: any) => <option key={e.id} value={String(e.id)}>{e.nama ?? e.name}</option>)}</select></div></div>
+            <div className="flex justify-end gap-2"><Button variant="outline" onClick={() => setTaskDialog(false)}>Batal</Button><Button disabled={!taskForm.nama_pekerjaan.trim() || addTask.isPending || updateTask.isPending} onClick={() => { const payload = { nama_pekerjaan: taskForm.nama_pekerjaan.trim(), tanggal_mulai: taskForm.tanggal_mulai || null, tanggal_selesai: taskForm.tanggal_selesai || null, status: taskForm.status, pic: taskForm.pic || null }; editTask ? updateTask.mutate({ id: String(editTask.id), data: payload }) : taskTermin && addTask.mutate({ id: String(taskTermin.id), data: payload }); }}>{addTask.isPending || updateTask.isPending ? "Menyimpan..." : "Simpan"}</Button></div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

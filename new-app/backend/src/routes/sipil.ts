@@ -5,7 +5,7 @@ import path from "path";
 import fs from "fs";
 import { config } from "../config";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { requirePermission, requireRole } from "../middleware/requireRole";
+import { requireAnyPermission, requirePermission, requireRole } from "../middleware/requireRole";
 
 const router = Router();
 
@@ -265,7 +265,7 @@ router.delete("/projeks/:id", async (req: Request, res: Response) => {
 });
 
 // POST /projeks/:id/termins
-router.post("/projeks/:id/termins", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
+router.post("/projeks/:id/termins", requireAnyPermission("projek_sipil.termin", "finance.edit"), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
   const p = await prisma.proyekBerjalan.findUnique({ where: { id: proyekId } });
   if (!p) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
@@ -298,7 +298,7 @@ router.post("/projeks/:id/termins", requirePermission("projek_sipil", "termin"),
 });
 
 // PATCH /termins/:id
-router.patch("/termins/:id", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
+router.patch("/termins/:id", requireAnyPermission("projek_sipil.termin", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const t = await prisma.proyekBerjalanTermin.findUnique({
     where: { id },
@@ -333,7 +333,7 @@ router.patch("/termins/:id", requirePermission("projek_sipil", "termin"), async 
 });
 
 // DELETE /termins/:id
-router.delete("/termins/:id", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
+router.delete("/termins/:id", requireAnyPermission("projek_sipil.termin", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const t = await prisma.proyekBerjalanTermin.findUnique({ where: { id } });
   if (!t) return res.status(404).json({ detail: "Termin tidak ditemukan" });
@@ -342,7 +342,7 @@ router.delete("/termins/:id", requirePermission("projek_sipil", "termin"), async
 });
 
 // POST /termins/:id/tasks
-router.post("/termins/:id/tasks", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
+router.post("/termins/:id/tasks", requireAnyPermission("projek_sipil.termin", "finance.edit"), async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
   const t = await prisma.proyekBerjalanTermin.findUnique({ where: { id: terminId } });
   if (!t) return res.status(404).json({ detail: "Termin tidak ditemukan" });
@@ -370,7 +370,7 @@ router.post("/termins/:id/tasks", requirePermission("projek_sipil", "termin"), a
 });
 
 // PATCH /tasks/:id
-router.patch("/tasks/:id", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
+router.patch("/tasks/:id", requireAnyPermission("projek_sipil.termin", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const task = await prisma.proyekBerjalanTask.findUnique({
     where: { id },
@@ -409,7 +409,7 @@ router.patch("/tasks/:id", requirePermission("projek_sipil", "termin"), async (r
 });
 
 // DELETE /tasks/:id
-router.delete("/tasks/:id", requirePermission("projek_sipil", "termin"), async (req: Request, res: Response) => {
+router.delete("/tasks/:id", requireAnyPermission("projek_sipil.termin", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const task = await prisma.proyekBerjalanTask.findUnique({ where: { id } });
   if (!task) return res.status(404).json({ detail: "Pekerjaan tidak ditemukan" });
@@ -490,7 +490,7 @@ router.get("/termins/:id/rapp", async (req: Request, res: Response) => {
 });
 
 // POST /termins/:id/rapp/material-kategori
-router.post("/termins/:id/rapp/material-kategori", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.post("/termins/:id/rapp/material-kategori", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
   const { kode, nama } = req.body;
   const last = await prisma.rappMaterialKategori.findFirst({
@@ -504,7 +504,7 @@ router.post("/termins/:id/rapp/material-kategori", requirePermission("projek_sip
 });
 
 // PATCH /rapp/material-kategori/:id
-router.patch("/rapp/material-kategori/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.patch("/rapp/material-kategori/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { kode, nama } = req.body;
   const updates: Record<string, unknown> = {};
@@ -515,14 +515,14 @@ router.patch("/rapp/material-kategori/:id", requirePermission("projek_sipil", "r
 });
 
 // DELETE /rapp/material-kategori/:id
-router.delete("/rapp/material-kategori/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.delete("/rapp/material-kategori/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappMaterialKategori.delete({ where: { id } });
   return res.json({ message: "OK" });
 });
 
 // POST /rapp/material-kategori/:id/items
-router.post("/rapp/material-kategori/:id/items", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.post("/rapp/material-kategori/:id/items", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const kategoriId = BigInt(req.params.id);
   const { material, vol, sat, harga_satuan } = req.body;
   const last = await prisma.rappMaterialItem.findFirst({
@@ -547,7 +547,7 @@ router.post("/rapp/material-kategori/:id/items", requirePermission("projek_sipil
 });
 
 // PATCH /rapp/material-items/:id
-router.patch("/rapp/material-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.patch("/rapp/material-items/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { material, vol, sat, harga_satuan } = req.body;
   const updates: Record<string, unknown> = {};
@@ -566,14 +566,14 @@ router.patch("/rapp/material-items/:id", requirePermission("projek_sipil", "rapp
 });
 
 // DELETE /rapp/material-items/:id
-router.delete("/rapp/material-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.delete("/rapp/material-items/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappMaterialItem.delete({ where: { id } });
   return res.json({ message: "OK" });
 });
 
 // POST /termins/:id/rapp/sipil-items
-router.post("/termins/:id/rapp/sipil-items", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.post("/termins/:id/rapp/sipil-items", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
   const { nama, vol, sat, harga_satuan, keterangan, jumlah } = req.body;
   const last = await prisma.rappSipilItem.findFirst({
@@ -599,7 +599,7 @@ router.post("/termins/:id/rapp/sipil-items", requirePermission("projek_sipil", "
 });
 
 // PATCH /rapp/sipil-items/:id
-router.patch("/rapp/sipil-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.patch("/rapp/sipil-items/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { nama, vol, sat, harga_satuan, keterangan, jumlah } = req.body;
   const updates: Record<string, unknown> = {};
@@ -621,14 +621,14 @@ router.patch("/rapp/sipil-items/:id", requirePermission("projek_sipil", "rapp"),
 });
 
 // DELETE /rapp/sipil-items/:id
-router.delete("/rapp/sipil-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.delete("/rapp/sipil-items/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappSipilItem.delete({ where: { id } });
   return res.json({ message: "OK" });
 });
 
 // POST /termins/:id/rapp/vendor-kategori
-router.post("/termins/:id/rapp/vendor-kategori", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.post("/termins/:id/rapp/vendor-kategori", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
   const { nama } = req.body;
   const last = await prisma.rappVendorKategori.findFirst({
@@ -642,7 +642,7 @@ router.post("/termins/:id/rapp/vendor-kategori", requirePermission("projek_sipil
 });
 
 // PATCH /rapp/vendor-kategori/:id
-router.patch("/rapp/vendor-kategori/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.patch("/rapp/vendor-kategori/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { nama } = req.body;
   if (nama !== undefined) await prisma.rappVendorKategori.update({ where: { id }, data: { nama } });
@@ -650,14 +650,14 @@ router.patch("/rapp/vendor-kategori/:id", requirePermission("projek_sipil", "rap
 });
 
 // DELETE /rapp/vendor-kategori/:id
-router.delete("/rapp/vendor-kategori/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.delete("/rapp/vendor-kategori/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappVendorKategori.delete({ where: { id } });
   return res.json({ message: "OK" });
 });
 
 // POST /rapp/vendor-kategori/:id/items
-router.post("/rapp/vendor-kategori/:id/items", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.post("/rapp/vendor-kategori/:id/items", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const kategoriId = BigInt(req.params.id);
   const { nama, vol, sat, harga_satuan } = req.body;
   const last = await prisma.rappVendorItem.findFirst({
@@ -681,7 +681,7 @@ router.post("/rapp/vendor-kategori/:id/items", requirePermission("projek_sipil",
 });
 
 // PATCH /rapp/vendor-items/:id
-router.patch("/rapp/vendor-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.patch("/rapp/vendor-items/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { nama, vol, sat, harga_satuan } = req.body;
   const updates: Record<string, unknown> = {};
@@ -700,7 +700,7 @@ router.patch("/rapp/vendor-items/:id", requirePermission("projek_sipil", "rapp")
 });
 
 // DELETE /rapp/vendor-items/:id
-router.delete("/rapp/vendor-items/:id", requirePermission("projek_sipil", "rapp"), async (req: Request, res: Response) => {
+router.delete("/rapp/vendor-items/:id", requireAnyPermission("projek_sipil.rapp", "finance.edit"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   await prisma.rappVendorItem.delete({ where: { id } });
   return res.json({ message: "OK" });
