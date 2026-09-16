@@ -1864,7 +1864,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
   const [prSigDialog, setPrSigDialog] = useState<{ open: boolean; prId: number | null }>({ open: false, prId: null });
   const [prPage, setPrPage] = useState(0);
   const [editPrPage, setEditPrPage] = useState(0);
-  type PRItem = { mode: "manual" | "rapp"; nama_item: string; satuan: string; qty: number; harga_perkiraan: number; diskon_harga_satuan: number; rapp_qty?: number; rapp_harga?: number };
+  type PRItem = { mode: "manual" | "rapp"; nama_item: string; satuan: string; qty: number; harga_perkiraan: number; diskon_harga_satuan: number; rapp_qty?: number; rapp_harga?: number; termin_id?: number; termin_nama?: string; kategori_nama?: string; rapp_key?: string };
   const emptyItem = (): PRItem => ({ mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0, diskon_harga_satuan: 0 });
   const emptyForm = { tanggal: today, nama_toko: "", items: [emptyItem()], diskon_harga_keseluruhan: 0 };
   const [form, setForm] = useState<{ tanggal: string; nama_toko: string; items: PRItem[]; diskon_harga_keseluruhan: number }>(emptyForm);
@@ -1940,6 +1940,8 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
         diskon_harga_satuan: Number(it.diskon_harga_satuan) || 0,
         rapp_qty: it.rapp_qty != null ? Number(it.rapp_qty) : undefined,
         rapp_harga: it.rapp_harga != null ? Number(it.rapp_harga) : undefined,
+        termin_id: it.termin_id != null ? Number(it.termin_id) : undefined,
+        termin_nama: it.termin?.nama ?? (it.termin?.urutan != null ? `Termin ${it.termin.urutan}` : undefined),
       })),
     });
     setEditPRId(pr.id);
@@ -1963,6 +1965,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
           is_from_rapp: it.mode === "rapp",
           rapp_qty: it.rapp_qty ?? null,
           rapp_harga: it.rapp_harga ?? null,
+          termin_id: it.termin_id ?? null,
         })),
       },
     });
@@ -1979,7 +1982,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
     setForm((prev) => ({
       ...prev,
       items: prev.items.map((item, i) => i === idx
-        ? { mode: "rapp" as const, nama_item: it.nama_item, satuan: it.satuan || "", qty: it.qty || 1, harga_perkiraan: it.harga || 0, diskon_harga_satuan: 0, rapp_qty: it.qty, rapp_harga: it.harga }
+        ? { mode: "rapp" as const, nama_item: it.nama_item, satuan: it.satuan || "", qty: it.qty || 1, harga_perkiraan: it.harga || 0, diskon_harga_satuan: 0, rapp_qty: it.qty, rapp_harga: it.harga, termin_id: it.termin_id, termin_nama: it.termin_nama, kategori_nama: it.kategori_nama, rapp_key: it.rapp_key }
         : item
       ),
     }));
@@ -2198,9 +2201,9 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                               <div>
                                 <Label className="text-xs">Pilih Item dari RAPP</Label>
                                 <Select
-                                  value={it.nama_item || ""}
+                                  value={it.rapp_key || ""}
                                   onValueChange={(v) => {
-                                    const found = (rappItems as any[]).find((r) => r.nama_item === v);
+                                    const found = (rappItems as any[]).find((r) => (r.rapp_key || r.nama_item) === v);
                                     if (found) pickRappItem(idx, found);
                                   }}
                                 >
@@ -2211,8 +2214,8 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                                     {(rappItems as any[]).length === 0
                                       ? <SelectItem value="__none__" disabled>Belum ada item RAPP</SelectItem>
                                       : (rappItems as any[]).map((r: any, ri: number) => (
-                                          <SelectItem key={ri} value={r.nama_item}>
-                                            {r.nama_item} — {r.satuan} | Qty: {r.qty} | {formatRp(r.harga)}
+                                          <SelectItem key={r.rapp_key || ri} value={r.rapp_key || r.nama_item}>
+                                            {r.termin_nama} / {r.kategori_nama} / {r.nama_item} — {r.satuan} | Qty: {r.qty} | {formatRp(r.harga)}
                                           </SelectItem>
                                         ))
                                     }
@@ -2318,6 +2321,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                   is_from_rapp: it.mode === "rapp",
                   rapp_qty: it.rapp_qty ?? null,
                   rapp_harga: it.rapp_harga ?? null,
+                  termin_id: it.termin_id ?? null,
                 })),
               })}>
                 {addMut.isPending ? "Menyimpan..." : "Buat PR"}
@@ -2361,6 +2365,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                             {it.nama_item}
                             {it.is_from_rapp && <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-300">RAPP</Badge>}
                           </div>
+                          {it.is_from_rapp && it.termin && <div className="text-[10px] text-muted-foreground">{it.termin.nama ?? `Termin ${it.termin.urutan}`}</div>}
                         </TableCell>
                         <TableCell>{it.satuan || "—"}</TableCell>
                         <TableCell className="text-right">
@@ -2504,10 +2509,10 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                             {it.mode === "rapp" && (
                               <div>
                                 <Label className="text-xs">Pilih Item dari RAPP</Label>
-                                <Select value={it.nama_item || ""} onValueChange={(v) => {
-                                  const found = (rappItems as any[]).find((r) => r.nama_item === v);
+                                 <Select value={it.rapp_key || ""} onValueChange={(v) => {
+                                   const found = (rappItems as any[]).find((r) => (r.rapp_key || r.nama_item) === v);
                                   if (found) setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx
-                                    ? { mode: "rapp" as const, nama_item: found.nama_item, satuan: found.satuan || "", qty: found.qty || 1, harga_perkiraan: found.harga || 0, diskon_harga_satuan: 0, rapp_qty: found.qty, rapp_harga: found.harga }
+                                     ? { mode: "rapp" as const, nama_item: found.nama_item, satuan: found.satuan || "", qty: found.qty || 1, harga_perkiraan: found.harga || 0, diskon_harga_satuan: 0, rapp_qty: found.qty, rapp_harga: found.harga, termin_id: found.termin_id, termin_nama: found.termin_nama, kategori_nama: found.kategori_nama, rapp_key: found.rapp_key }
                                     : x) });
                                 }}>
                                   <SelectTrigger className="h-8 text-sm"><SelectValue placeholder="— Pilih item RAPP —" /></SelectTrigger>
@@ -2515,7 +2520,7 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                                     {(rappItems as any[]).length === 0
                                       ? <SelectItem value="__none__" disabled>Belum ada item RAPP</SelectItem>
                                       : (rappItems as any[]).map((r: any, ri: number) => (
-                                          <SelectItem key={ri} value={r.nama_item}>{r.nama_item} — {r.satuan} | Qty: {r.qty} | {formatRp(r.harga)}</SelectItem>
+                                          <SelectItem key={r.rapp_key || ri} value={r.rapp_key || r.nama_item}>{r.termin_nama} / {r.kategori_nama} / {r.nama_item} — {r.satuan} | Qty: {r.qty} | {formatRp(r.harga)}</SelectItem>
                                         ))}
                                   </SelectContent>
                                 </Select>

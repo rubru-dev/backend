@@ -1698,11 +1698,21 @@ router.get('/adm-projek/:id/rapp-items', async (req, res) => {
   for (const t of termins) {
     for (const k of t.rapp_material_kategoris) {
       for (const it of k.items) {
-        result.push({ nama_item: it.material, satuan: it.sat, qty: Number(it.vol), harga: Number(it.harga_satuan) });
+        result.push({
+          rapp_key: `material:${t.id}:${k.id}:${it.id}`,
+          nama_item: it.material, satuan: it.sat, qty: Number(it.vol), harga: Number(it.harga_satuan),
+          termin_id: Number(t.id), termin_nama: t.nama ?? `Termin ${t.urutan}`,
+          kategori_id: Number(k.id), kategori_nama: k.nama,
+        });
       }
     }
     for (const it of t.rapp_sipil_items) {
-      result.push({ nama_item: it.nama, satuan: it.sat, qty: Number(it.vol ?? 0), harga: Number(it.harga_satuan ?? 0) });
+      result.push({
+        rapp_key: `sipil:${t.id}:${it.id}`,
+        nama_item: it.nama, satuan: it.sat, qty: Number(it.vol ?? 0), harga: Number(it.harga_satuan ?? 0),
+        termin_id: Number(t.id), termin_nama: t.nama ?? `Termin ${t.urutan}`,
+        kategori_id: null, kategori_nama: "Item Sipil",
+      });
     }
   }
   return res.json(result);
@@ -1862,7 +1872,7 @@ router.get("/adm-projek/:id/pr", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const items = await prisma.projekPR.findMany({
     where: { adm_finance_project_id: id },
-    include: { items: true },
+    include: { items: { include: { termin: true } } },
     orderBy: { id: "desc" },
   });
   return res.json(items);
@@ -1895,6 +1905,7 @@ router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
           harga_perkiraan: Number(it.harga_perkiraan) || 0,
           diskon_harga_satuan: Number(it.diskon_harga_satuan) || 0,
           is_from_rapp: !!it.is_from_rapp,
+          termin_id: it.termin_id != null ? BigInt(it.termin_id) : null,
           rapp_qty: it.rapp_qty != null ? Number(it.rapp_qty) : null,
           rapp_harga: it.rapp_harga != null ? Number(it.rapp_harga) : null,
         })),
@@ -1935,12 +1946,13 @@ router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
           harga_perkiraan: Number(it.harga_perkiraan) || 0,
           diskon_harga_satuan: Number(it.diskon_harga_satuan) || 0,
           is_from_rapp: !!it.is_from_rapp,
+          termin_id: it.termin_id != null ? BigInt(it.termin_id) : null,
           rapp_qty: it.rapp_qty != null ? Number(it.rapp_qty) : null,
           rapp_harga: it.rapp_harga != null ? Number(it.rapp_harga) : null,
         })),
       },
     },
-    include: { items: true },
+    include: { items: { include: { termin: true } } },
   });
   return res.json({ message: "PR diperbarui", data: pr });
 });
