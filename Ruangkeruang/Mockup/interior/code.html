@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="id"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><title>Ruangkeruang</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&amp;family=Sora:wght@500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior-y: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { width: 8px; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-tertiary": "#ffffff", "surface": "#ffffff", "surface-container-low": "#f6f3ee", "on-tertiary-fixed-variant": "#484645", "surface-container-highest": "#e5e2dd", "on-primary-fixed": "#360f00", "on-secondary-fixed": "#390c00", "outline-variant": "#e0c0b2", "tertiary": "#605e5c", "error-container": "#ffdad6", "on-error-container": "#93000a", "outline": "#8c7166", "inverse-on-surface": "#f3f0eb", "primary-fixed": "#ffdbcd", "primary-fixed-dim": "#ffb595", "tertiary-container": "#979492", "primary-container": "#f36b21", "error": "#ba1a1a", "secondary-fixed-dim": "#ffb59c", "surface-container": "#f0ede8", "on-surface": "#1c1c19", "on-surface-variant": "#594238", "surface-container-high": "#eae8e3", "surface-bright": "#ffffff", "tertiary-fixed-dim": "#cac6c4", "surface-tint": "#a23f00", "on-primary-container": "#521c00", "inverse-surface": "#31302d", "on-error": "#ffffff", "background": "#ffffff", "surface-dim": "#dcdad5", "secondary": "#ab3600", "inverse-primary": "#ffb595", "on-secondary-container": "#611b00", "secondary-fixed": "#ffdbcf", "primary": "#a23f00", "surface-container-lowest": "#ffffff", "on-secondary": "#ffffff", "on-primary": "#ffffff", "surface-variant": "#e5e2dd", "on-tertiary-fixed": "#1c1b1a", "on-secondary-fixed-variant": "#822700", "on-primary-fixed-variant": "#7c2e00", "on-background": "#1c1c19", "tertiary-fixed": "#e6e2df", "secondary-container": "#ff6e38", "on-tertiary-container": "#2e2d2c" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "space-xs": "0.25rem", "margin": "4rem", "space-xl": "2.5rem", "gutter-mobile": "1rem", "space-sm": "0.5rem", "margin-mobile": "1.25rem", "space-md": "1rem", "gutter": "1.5rem" }, "fontFamily": { "body-default": ["Manrope"], "label-tag": ["Sora"], "headline-section": ["Sora"], "display-hero-mobile": ["Sora"], "body-lead": ["Manrope"], "label-button": ["Sora"], "display-hero": ["Sora"], "headline-subsection": ["Sora"], "headline-section-mobile": ["Sora"], "title-card": ["Sora"], "label-eyebrow": ["Sora"], "body-compact": ["Manrope"] }, "fontSize": { "body-default": ["15px", { "lineHeight": "24px", "fontWeight": "400" }], "label-tag": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "headline-section": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "display-hero-mobile": ["44px", { "lineHeight": "50px", "letterSpacing": "-0.025em", "fontWeight": "700" }], "body-lead": ["17px", { "lineHeight": "28px", "fontWeight": "400" }], "label-button": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }], "display-hero": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.03em", "fontWeight": "700" }], "headline-subsection": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "headline-section-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "title-card": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.005em", "fontWeight": "600" }], "label-eyebrow": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "700" }], "body-compact": ["13px", { "lineHeight": "20px", "fontWeight": "400" }] } } } }</script></head><body class="bg-surface font-body-default text-body-default text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/90 backdrop-blur-md border-b border-surface-variant"><div class="h-20 max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex items-center justify-between"><div class="flex items-center gap-space-md"><a class="font-label-button text-label-button text-on-surface tracking-wider font-bold" data-path="home" href="#">Ruangkeruang</a></div><nav class="hidden lg:flex items-center gap-space-lg" data-active-classes="text-primary font-bold"><a aria-current="page" class="transition-colors duration-200 text-primary font-bold" data-path="home" href="#">Home</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="interior" href="#">Interior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="eksterior" href="#">Eksterior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="portfolio" href="#">Portfolio</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="cara-pemesanan" href="#">Cara Pemesanan</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="kontak" href="#">Kontak</a></nav><div class="flex items-center gap-space-md"><a class="hidden sm:inline-flex items-center justify-center bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-space-lg py-space-sm rounded-xl transition-colors duration-200 shadow-sm" data-path="konsultasi" href="#">Konsultasi</a></div></div></header><main class="w-full pt-10 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- HERO SECTION -->
+<section class="relative w-full overflow-hidden bg-surface">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin pt-space-lg md:pt-space-xl pb-space-xl">
+<div class="relative w-full rounded-2xl overflow-hidden min-h-[580px] md:min-h-[640px] flex items-end shadow-md">
+<!-- Background Image -->
+<img class="absolute inset-0 w-full h-full object-cover" data-alt="Ultra-luxury architectural Indonesian open concept kitchen and living space, seamless natural daylight flooding through large floor-to-ceiling glass doors, warm tropical teak wood finishes paired with honed white marble island, flush integrated cabinetry, understated modern terracotta accents, high resolution interior photography, magazine editorial quality" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAPPJJfDsOy8Cdbtn03JuU5cp4iuC7pbfugsC6WJAZMjbFsLpLi4iGSNDbcTuPFjkYiNFRZu631ziedusbV4FcQa6vlcl9VuNlP5SUFfyZP_M9O3EhwUK_WCVcDIyaoLYdrUAaW_YsdqUK2EprdCQ0TKIZYxQ5rbVMZq2OD9Rj1fbK1cXFHb2XRAbmkZiiYuHL_t5Hj4ID5_OC1mw9-XpUaPaqaGYFAOHMk3GiatDdy8znN9bIcBRusLQ"/>
+<!-- Editorial Scrim Overlay -->
+<div class="absolute inset-0 bg-gradient-to-t from-inverse-surface/90 via-inverse-surface/40 to-transparent"></div>
+<!-- Hero Content Overlay -->
+<div class="relative z-10 p-space-lg md:p-space-xl max-w-3xl flex flex-col gap-space-sm text-surface-container-lowest">
+<div class="inline-flex items-center gap-space-xs self-start bg-primary-container text-on-primary px-3 py-1 rounded-full">
+<span class="w-2 h-2 rounded-full bg-surface-container-lowest animate-pulse"></span>
+<span class="font-label-tag text-label-tag tracking-wider">INTERIOR CUSTOM</span>
+</div>
+<h1 class="font-display-hero text-headline-section md:text-display-hero text-surface-container-lowest leading-tight">
+            Interior yang Dibuat untuk Ruang Anda.
+          </h1>
+<p class="font-body-lead text-body-lead text-surface-container-high max-w-xl">
+            Custom furniture yang menyesuaikan ukuran, fungsi dan gaya arsitektur Anda.
+          </p>
+<div class="flex flex-wrap items-center gap-space-md pt-space-sm">
+<a class="inline-flex items-center gap-space-xs bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-6 py-3.5 rounded-xl transition-all duration-200 shadow-sm hover:scale-[1.02]" href="https://wa.me/6281289001234" rel="noopener" target="_blank">
+<span>Konsultasi Interior</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+<a class="inline-flex items-center gap-space-xs text-surface-container-lowest hover:text-primary-fixed-dim font-label-button text-label-button px-4 py-3.5 transition-colors" href="#kategori">
+<span>Eksplorasi Kategori</span>
+<span class="material-symbols-outlined text-[18px]">arrow_downward</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- INTERIOR CATEGORIES (Asymmetrical Editorial Mosaic) -->
+<section class="w-full bg-surface-container-lowest py-space-xl" id="kategori">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex flex-col gap-space-xl">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-md">
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-eyebrow text-label-eyebrow text-primary">Katalog Spasial</span>
+<h2 class="font-headline-section text-headline-section text-on-surface">Kategori Interior Utama</h2>
+</div>
+<p class="font-body-default text-body-default text-tertiary max-w-md">
+          Sistem modular terintegrasi diproduksi presisi dengan standar workshop modern.
+        </p>
+</div>
+<!-- Asymmetrical Row 1: 7 Col + 5 Col -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-stretch">
+<!-- Kitchen Set (7 Col) -->
+<a class="group lg:col-span-7 bg-surface-container-low rounded-2xl overflow-hidden p-space-md md:p-space-lg flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1" href="#kitchen-set">
+<div class="w-full h-80 md:h-96 rounded-xl overflow-hidden relative mb-space-md">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Editorial photograph of modern minimalist kitchen island with honed terrazzo counter, dark walnut tambour panels, matte black tapware, subtle under-cabinet ambient lighting, Indonesian luxury house context" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCanpJK2t1HDsQ0dd0TuE79IVKOQ77CCUc8FAn_YBZZ_TBiz1gWh74IJ-yo7lhatcaOW0zWwk_Vakg99ab7YZ8qVLz_Xj6mdh6-bC3OMySf3hGzss4HGjIwTpDaH-QSfnvS4EtjyEQXnIkObIn247Vb8T4TavUKhH3Vherw2Y5N4d2vbvws8e95bm55D0wnjW8i8lfOSOa33HGe9KSyiEJqYOMFKBrrVNkV5lYMvehF3pkW4-Js_jPigQ"/>
+<span class="absolute top-3 left-3 bg-surface-container-lowest/90 backdrop-blur-md font-label-tag text-label-tag text-on-surface px-3 py-1 rounded-md">
+              01 / Dapur
+            </span>
+</div>
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-sm">
+<div class="flex flex-col gap-space-xs max-w-md">
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary transition-colors">Kitchen Set</h3>
+<p class="font-body-default text-body-default text-tertiary">Dapur ergonomis dengan storage terorganisir dan material tahan lembap berspesifikasi tinggi.</p>
+</div>
+<span class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary group-hover:translate-x-1 transition-transform">
+              Lihat Detail <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</span>
+</div>
+</a>
+<!-- Living Room (5 Col) -->
+<a class="group lg:col-span-5 bg-surface-container-low rounded-2xl overflow-hidden p-space-md md:p-space-lg flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1" href="#living-room">
+<div class="w-full h-80 md:h-96 rounded-xl overflow-hidden relative mb-space-md">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Bespoke architectural floating TV credenza with acoustic slat wood paneling, warm concealed 3000K LED glow, curated travertine vases, modern living space interior photography" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB66MhYavRK39dsLrioYm1cd4JVzjvoMhSGa35yYR9my8RTyuLz4ClvunwlgrIlKyYRlwsR9apZP5vJ-FX-GWu4m2JR7chqCDzCB_4uiWoe0d0gShJf-5YSLiDsFkryVg3C-TUXjCKqOGFXMDPdJJ9Z1MCfGqscae9XFDYiVTznRQkFY_a1ERpii6iuuxpO12NeEMsL2i3nqK8TpDoLaYQRRXURGwR-H1bm_w9CFSBH0mpO8aO4KyD2pg"/>
+<span class="absolute top-3 left-3 bg-surface-container-lowest/90 backdrop-blur-md font-label-tag text-label-tag text-on-surface px-3 py-1 rounded-md">
+              02 / Ruang Keluarga
+            </span>
+</div>
+<div class="flex flex-col gap-space-sm">
+<div class="flex flex-col gap-space-xs">
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary transition-colors">Living Room</h3>
+<p class="font-body-default text-body-default text-tertiary">Backdrop TV gantung, credenza, dan wall panel terintegrasi pencahayaan aksen.</p>
+</div>
+<span class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary group-hover:translate-x-1 transition-transform">
+              Lihat Detail <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</span>
+</div>
+</a>
+</div>
+<!-- Asymmetrical Row 2: Inverted 5 Col + 7 Col -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-stretch">
+<!-- Bedroom (5 Col) -->
+<a class="group lg:col-span-5 bg-surface-container-low rounded-2xl overflow-hidden p-space-md md:p-space-lg flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1" href="#bedroom">
+<div class="w-full h-80 md:h-96 rounded-xl overflow-hidden relative mb-space-md">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Luxury modern master bedroom with custom platform bed, built-in smoked glass wardrobe closet, minimalist floating nightstand with architectural lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtQ6bSt1B6JrpYwKYWPht2hh7wpd0m8JXbwCmIh-BvcQ9hI_pY4qCzWFpdXls0X0FHNpNUzp34qOkZKH6vwv7HH6HYCJr_N1-Bj90I3cG6LcgFn8G-3ls67uole_piU51D9PAXC1vSjpr2U2PMwSLjDA8O5QHK2FPcx6u3BHg9ton7lkQ8tAjRmJLFk3XUlS3tNUhCFIIfTh4vmR09lY3KHzQluJZUZ6xJPY8h2M3HuGjsdgTGlQUJbA"/>
+<span class="absolute top-3 left-3 bg-surface-container-lowest/90 backdrop-blur-md font-label-tag text-label-tag text-on-surface px-3 py-1 rounded-md">
+              03 / Kamar Tidur
+            </span>
+</div>
+<div class="flex flex-col gap-space-sm">
+<div class="flex flex-col gap-space-xs">
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary transition-colors">Bedroom</h3>
+<p class="font-body-default text-body-default text-tertiary">Ranjang platform tersembunyi, walk-in closet kaca smoke, dan meja rias custom.</p>
+</div>
+<span class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary group-hover:translate-x-1 transition-transform">
+              Lihat Detail <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</span>
+</div>
+</a>
+<!-- Custom Interior (7 Col) -->
+<a class="group lg:col-span-7 bg-surface-container-low rounded-2xl overflow-hidden p-space-md md:p-space-lg flex flex-col justify-between transition-all duration-300 hover:shadow-xl hover:-translate-y-1" href="#custom-interior">
+<div class="w-full h-80 md:h-96 rounded-xl overflow-hidden relative mb-space-md">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Architectural custom under-stair storage integration, clean oak paneling, pull-out shoe racks and hidden coat room beneath cantilevered concrete floating staircase" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDEmd2-ywwVgvDorbAtgOGurSHdie-F3kLxiIDvKR-EJXVwsFeQVs3V4wNP8hzdBU2XCoeICoFAgOThN4Ae_y1nDo0_vc3YYazRORzs5IDT6C7Vy7EGaR332KSBb16HWPTWoXVutQv593wgYmAwRHUWNXARKWnVR8WBGCI_kMDMmDUfSCpZPvkR_lMyMSLOoha3oahofZOZeJ4dDFOxkSjyPTVisU4dw7jts3oqnUc9yoyCytyBBLm8-A"/>
+<span class="absolute top-3 left-3 bg-surface-container-lowest/90 backdrop-blur-md font-label-tag text-label-tag text-on-surface px-3 py-1 rounded-md">
+              04 / Solusi Khusus
+            </span>
+</div>
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-sm">
+<div class="flex flex-col gap-space-xs max-w-md">
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary transition-colors">Custom Interior</h3>
+<p class="font-body-default text-body-default text-tertiary">Solusi ruang spesifik: lemari bawah tangga, meja kerja terintegrasi, dan partisi akustik.</p>
+</div>
+<span class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary group-hover:translate-x-1 transition-transform">
+              Lihat Detail <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</span>
+</div>
+</a>
+</div>
+</div>
+</section>
+<!-- KITCHEN SET (Image-Led Deep Dive) -->
+<section class="w-full bg-surface py-space-xl" id="kitchen-set">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex flex-col gap-space-lg">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary">Fokus Desain 01</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface">Kitchen Set</h2>
+<p class="font-body-lead text-body-lead text-tertiary max-w-xl">
+          Layout, storage dan finishing disesuaikan dengan alur memasak dan kebutuhan dapur harian Anda.
+        </p>
+</div>
+<!-- 3-Column Editorial Photography Showcase -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-lg pt-space-sm">
+<!-- Item 1 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300">
+<div class="h-80 overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Close up architectural detail of luxury kitchen island table with white quartz slab waterfall edge, matte black cabinetry, and Blum soft-close drawer detail" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBRWtSlS6JKxUYhynjV7I9iWMh4_FWjTe-TBSyxC-wU1VRlqMkZGyYmzc0FK6reKeyfU4WmAPw5ISQmX8q3D6adxQ0sr3VHrqkVal9GIhVtmbLa6SJHtj4S96PmU9ZO5E2bUyhUk86ZvbwAstz7dQ7aUNFIq1Sc1gyMpmo4cUpfDn2-1xW8RGhLv46W6vP2SLzQ287p21z1_DZs--cevXGaRwipuTcN3KkU9sXGzPYQOBAfNMjCVTQlMA"/>
+<span class="absolute bottom-3 left-3 bg-inverse-surface/80 backdrop-blur-sm text-surface-container-lowest text-label-tag font-label-tag px-2.5 py-1 rounded">
+              Quartz &amp; Anti-Fingerprint
+            </span>
+</div>
+<div class="p-space-md flex flex-col gap-space-xs">
+<h3 class="font-title-card text-title-card text-on-surface">Island Table &amp; Wet Kitchen</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Quartz slab non-porous, finishing HPL anti-sidik jari, dan engsel Blum Blumotion.</p>
+</div>
+</div>
+<!-- Item 2 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300">
+<div class="h-80 overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Compact modern kitchen cabinetry with intelligent spice pull-out storage, continuous flush LED linear lighting under top cabinets, contemporary urban apartment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXvNDTaGVVJ2wWoc5FqftGk4Hw3BqNU8HqwM6gqaAjIxqn0oo52nF3WgMTXhlqmMRRkodc5feBA9QsEK_IbjtZugARq9-XWhYFv8PbHWFJnRvZYt45zLz2zOUrZiA8r6q_QHFCGuGf_825oYBO0GulmXJQxiHsh3r_-gRO_P1KDfh6ZyB07bUqns5twHya5y9O8jEjh_9t-NOiLqLu_Wet76kaY4LTwP9vZhtr-D95ZmU3p89Uzb4QhA"/>
+<span class="absolute bottom-3 left-3 bg-inverse-surface/80 backdrop-blur-sm text-surface-container-lowest text-label-tag font-label-tag px-2.5 py-1 rounded">
+              Modular Compact
+            </span>
+</div>
+<div class="p-space-md flex flex-col gap-space-xs">
+<h3 class="font-title-card text-title-card text-on-surface">Compact Modular Kitchen</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Rak bumbu pull-out ergonomis, pencahayaan LED tersembunyi, dan tata letak efisien.</p>
+</div>
+</div>
+<!-- Item 3 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300">
+<div class="h-80 overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Dry pantry bar cabinet with warm white oak veneer, fluted reed glass door panels, integrated wine bottle chiller, ambient warm backlight" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD6xLjg-m8R35XZjx7TpnKkokFTfZdKH6FgKAySKFeDcfIUqqP0oiPV6_JsLS-FkNm8gkZNXozw5fq0IXbMplZhCD2Xa9qJcHwD4VcHaRHSvH2dgd7kX3fHdod4x582-lwTA8lPmc5xM5Npe1P2ldrxqg81Skgj-ZtqzYcnsCuBqgQ0qiu0IZ7qHDP92o63t9yGuHXmfFmLLsOHShqFZ3RGcQNFuaIV7EcjFOxWhOJA2i8Lk3m2vI3BcQ"/>
+<span class="absolute bottom-3 left-3 bg-inverse-surface/80 backdrop-blur-sm text-surface-container-lowest text-label-tag font-label-tag px-2.5 py-1 rounded">
+              Veneer &amp; Fluted Glass
+            </span>
+</div>
+<div class="p-space-md flex flex-col gap-space-xs">
+<h3 class="font-title-card text-title-card text-on-surface">Pantry &amp; Breakfast Bar</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Sentuhan natural oak veneer, lemari pendingin tertanam, dan pintu kaca bertekstur.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- LIVING ROOM (Lifestyle Photography Grid) -->
+<section class="w-full bg-surface-container-lowest py-space-xl" id="living-room">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex flex-col gap-space-lg">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-sm">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary">Fokus Desain 02</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface">Living Room</h2>
+</div>
+<p class="font-body-default text-body-default text-tertiary">
+          Fokus pada kerapian visual, manajemen kabel tersembunyi, dan integrasi material dinding.
+        </p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-space-md">
+<!-- Card 1 -->
+<div class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Modern Indonesian living room with seamless wall mounted television panel, zero visible wiring conduits, and low profile floating teak credenza" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC4IfZafN3Di-S83HZJrUI6Gx5-exXWE7RxrSAm6xpF7eG2ro7lHLMyUHkb1dycHkZT_beb90wpFIt2rrlkRF4WWWN7bFZWmLUEOZN229zHY-DcVcnbPsnz6nVg_ZmYeInXGzoqCqvSZ_kSG_2bALrMyerFfz1ATUaIir0FK1W_8MrKgWNw-le03Mo_hPHivDT8Tcn9dbVgXxaDpgf-alo7Y0nEqsT_-qrGAlj3d8hbatQ8P4_DDSzBIw"/>
+</div>
+<div class="p-space-md flex flex-col gap-1">
+<h4 class="font-title-card text-title-card text-on-surface">TV Cabinet &amp; Credenza</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Sistem wire management bebas kabel berantakan.</p>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Architectural open shelving unit with integrated warm 3000K LED strip illumination showcasing ceramic artifacts and art books in a modern home" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBaOhJK4e31s7cgw_PUv-LeCRh2ZCHYRq4vvL_3wd7NRL4PVslyECHUUE_ZXfuNHPrfY_887Rqy0Ds-84EN1SztbFmAQpUfVYi0BPWDyuwg9-7azYuK7Kg3WpiesAQKt_1UyatlkBru3Hu0fJxdvp_LwpLW4yiv1BKHRD0Cdgx2vUCnGXaJA5ac9U-JJwwOPfUD4xvJWjvXob0U547WOsBIMj5mrBwM8Pg_8aHAM9ihs9zHbeytaf8YeQ"/>
+</div>
+<div class="p-space-md flex flex-col gap-1">
+<h4 class="font-title-card text-title-card text-on-surface">Display Shelving</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Pencahayaan recessed warm 3000K tersembunyi.</p>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Minimalist living room console with flush push-to-open flat panel doors and concealed compartments for audio visual equipment" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoajfOJ6G9ABwdEZ5U_84Oa6beGzvqka6Mv538HwYRqyvfSyRdScRw1LU94_NIu77BKO301trAGsKVreNYJHB4N7d0u7f3yiQY8acKxV8zqKIB-4TwZrKom4IGm5awUwIRKHkU0RiQI4w0Szgipkhxo9DycNWt3pMIFrVjr9GhuOD1MKYZ2Y3GpG-anU-D17jleddB0LkW9fnjYHRFTP1YUJ_52Bajp4FWVcdehGI6oLHG8taH-71mFw"/>
+</div>
+<div class="p-space-md flex flex-col gap-1">
+<h4 class="font-title-card text-title-card text-on-surface">Hidden Compartments</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Pintu sentuh push-to-open tanpa handle menonjol.</p>
+</div>
+</div>
+<!-- Card 4 -->
+<div class="group bg-surface-container-low rounded-xl overflow-hidden flex flex-col shadow-sm hover:shadow-md transition-all">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Architectural wood slat accent wall paneling in dark stained teak with subtle charcoal metal perimeter edge in a luxury living pavilion" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCcPJcjgTkjMAGsi3nPSpuS-rDcQP_v9TUwndppDnFptuUhnJFHQoWj-zYF2StecKc62Sh8BUASyfv8ycfbmUL0pd66-s4r7QTeBnN5rkloihboA4ytfWVXxqvM-zFnFdKwgaVqMyKePrftkwTQ20d1sH9biFgWirqnvOZQGlxY_mXs7cecDmrdHdkY7PGd7nJxQ8uMucI2HtSevcpAHvF-Sx7hdjDUx6eHQ4B_k-Iw-2ORV8IAP95lcA"/>
+</div>
+<div class="p-space-md flex flex-col gap-1">
+<h4 class="font-title-card text-title-card text-on-surface">Fluted Wall Panel</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Tekstur kisi kayu presisi dengan aksen border tipis.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- BEDROOM (Editorial Image Grid) -->
+<section class="w-full bg-surface py-space-xl" id="bedroom">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex flex-col gap-space-lg">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary">Fokus Desain 03</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface">Bedroom</h2>
+<p class="font-body-lead text-body-lead text-tertiary max-w-xl">
+          Suasana personal yang tenang melalui harmoni tekstil, pencahayaan lembut, dan penyimpanan tertata rapi.
+        </p>
+</div>
+<!-- Asymmetrical 5-Element Editorial Grid -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-space-md">
+<!-- Item 1: Large Featured Walk-in (7 cols) -->
+<div class="group md:col-span-7 bg-surface-container-lowest rounded-2xl overflow-hidden p-space-md flex flex-col justify-between shadow-sm hover:shadow-lg transition-all">
+<div class="h-96 w-full rounded-xl overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Walk-in closet with floor-to-ceiling smoked glass doors, dark graphite frame, sensor-activated linear lighting, dedicated shoe and bag display shelving" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDqSCGdM760J6dPkPO64s6zxMXPawqdsq_cHRQ_RFJJ1NuH81nZgnE0OH11yGYqwBFaRmOvsc7mcyHhjJb3wpl_Y0Jhx9L_EKwfKKiUntZQcbKwxVAvDkR7czKmnWgWr-f2q3jMaMccvXQaAnKXMxh9Q5aYKbanaensMYiB1v3VMBDy7YHta3e1k0XTc-Q_iQ_MkuUoY7H64fFFjQVu4Gq1SrFh9uHVz5kQWDG9pKYHYWawm2nWAI1aJQ"/>
+</div>
+<div class="pt-space-md flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface">Walk-in Closet &amp; Wardrobe</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Pintu kaca smoke dengan sensor gerak otomatis.</p>
+</div>
+<span class="font-label-tag text-label-tag bg-surface-container px-3 py-1 rounded-md text-on-surface">Custom Glass</span>
+</div>
+</div>
+<!-- Item 2: Bed Platform (5 cols) -->
+<div class="group md:col-span-5 bg-surface-container-lowest rounded-2xl overflow-hidden p-space-md flex flex-col justify-between shadow-sm hover:shadow-lg transition-all">
+<div class="h-96 w-full rounded-xl overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Custom platform bed frame with integrated upholstered fabric headboard, floating oak bedside nightstands, and soft floor-wash LED lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBDeX7CKsfo5PgOXojYe1xHih9DilRTDLejJwuO8vsbfzF8NbA1fjB7fKNY-MEvBrD3ru6reRorsLKHq05mGhhzNZNPqsCPwTUhkvTo2pfiZJUAj8ZeWI35CksjiOrydxJmbKMcuNIqjsmUyyAnEG8gojOhAfYdCWRX3AcnIapBFtdmkcnfPb6DLKgO_uxwVSFqaWe7S1Lt5Z3AVmh8SQ2PgOOA7aeEHq2Aq_fVUA_IfKAv8CFBvy7Tvg"/>
+</div>
+<div class="pt-space-md flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface">Bed Frame Platform</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Headboard terintegrasi dengan floating nightstand.</p>
+</div>
+<span class="font-label-tag text-label-tag bg-surface-container px-3 py-1 rounded-md text-on-surface">Modular Bed</span>
+</div>
+</div>
+<!-- Item 3: Vanity (4 cols) -->
+<div class="group md:col-span-4 bg-surface-container-lowest rounded-2xl overflow-hidden p-space-md flex flex-col justify-between shadow-sm hover:shadow-lg transition-all">
+<div class="h-72 w-full rounded-xl overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Custom vanity dressing table with halo backlit arch mirror, fluted wood drawer fronts, and brass handles in a high-end bedroom suite" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDBMcFbbUSDP4V3YEHKtdN3tgKhWFf01hO1E40_qnsS34bF2TqG2dEHhcM9apFBuB0n3a-W9jsWMv4KZ5O2x5vjfFQ1MXBmJuxwCGFbt-ryKpQFtDjPu9ypGUuv98g2dSIQ8qn64b2VRi0S3SY54mXv9Ej5-CiHH3U8at93kUu_CYuLv3-rHKQTEXy_umueiaC3neAxZs2Qf2N6x9gc7GwnezQvbzMpseoJUT6RRAXe7Mw6ZVgsbLU5nQ"/>
+</div>
+<div class="pt-space-sm">
+<h4 class="font-title-card text-title-card text-on-surface">Meja Rias / Vanity</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Cermin backlit perimeter &amp; laci velvet.</p>
+</div>
+</div>
+<!-- Item 4: Storage Headboard (4 cols) -->
+<div class="group md:col-span-4 bg-surface-container-lowest rounded-2xl overflow-hidden p-space-md flex flex-col justify-between shadow-sm hover:shadow-lg transition-all">
+<div class="h-72 w-full rounded-xl overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Smart bedroom headboard with concealed flip-up charging compartments, integrated reading spotlights, and minimalist warm wood paneling" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB3evuuir9VFMeQ7fs0YiUUtImETngXPFvB3nGGzIW0jgyqfNWbQSVzh41Z6grXjrTZ0rFcLkwof-_ZWzlOaMkH9QIw0N5F160GAHJKh992qfYHR_yj7NM961H2Nnb7xHkSw6XqXBRlO-07XAsryBJXvqzTwP1hF_inHrzZ4qmsjYIJD_q-joIJ40Srf0IYFFLCT995JJBvf5lR0jwgC7OPjsfUcvMOU_rWaLXv1BEYMoxG3BLy9AWSVQ"/>
+</div>
+<div class="pt-space-sm">
+<h4 class="font-title-card text-title-card text-on-surface">Storage Headboard</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Kompartemen cas tersembunyi &amp; reading lamp.</p>
+</div>
+</div>
+<!-- Item 5: Bedroom Study Desk (4 cols) -->
+<div class="group md:col-span-4 bg-surface-container-lowest rounded-2xl overflow-hidden p-space-md flex flex-col justify-between shadow-sm hover:shadow-lg transition-all">
+<div class="h-72 w-full rounded-xl overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Built-in bedroom work desk seamlessly transitioning into wardrobe system, cantilevered desktop in light oak with minimalist task lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAq_6lBei4-9dTIzm3jwx40IGV0VJ4B2XDqmxnXJ7FsbVmhMRwnwpanXDo8cRjY_DXcbQS79SHZ3ZDV2labdAzIswpwKo_l4mDD8DS7Z_BmpFW-HlZ0UEINKk5K2xY-HZHfUNZWN1kotiJcWTkWwHOvE0o5VID9HozEkwISMvtQFN8xhrVQG7lJgSLbMvSb4oZPNElQ11UBaARbhGMHYW-7Jluivp0UqaCoV8IXwZ4Ys94qBNdcirbpcQ"/>
+</div>
+<div class="pt-space-sm">
+<h4 class="font-title-card text-title-card text-on-surface">Integrated Study Desk</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Meja kerja sudut menyatu dengan lemari utama.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CUSTOM INTERIOR (Specific Architectural Solutions) -->
+<section class="w-full bg-surface-container-lowest py-space-xl" id="custom-interior">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex flex-col gap-space-lg">
+<div class="flex flex-col gap-space-xs">
+<div class="flex items-center gap-space-xs">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary">Fokus Desain 04</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface">Custom Interior</h2>
+<p class="font-body-lead text-body-lead text-tertiary max-w-xl">
+          Furniture custom untuk kebutuhan ruang yang lebih spesifik dan denah yang unik.
+        </p>
+</div>
+<!-- 5 Card Solution Grid -->
+<div class="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-space-md">
+<!-- 1: Under-Stair Cabinet -->
+<div class="group bg-surface-container-low rounded-xl p-3 flex flex-col gap-3 transition-all hover:bg-surface-container hover:shadow-md">
+<div class="h-48 w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Clever under-stair cabinetry with pull-out shoe drawers, coat hanger, and sloped flush panels under modern staircase" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAtVGaUuUv9YWoICizANEffr2jy_MLilkFUvlcy_bU2Rrhbq__UbEAALkxCOze6mjjEblraoBaPYKBKeXl8GzMZq0-xye3bOJ_Owa8f879LS37T8Xo38hvYwSffE62vu0a2YrKUMaD6dJRcz1RM2JGs0ZrKEDewr36_F5SIlSJY-u-Ddxnu861l83uF8sQ-L-Jkn87AMvH66KT4lEHuw_bq1ZlMOxjRWKzEcimZneD2mUCQnk_ZcOhdvQ"/>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-tag text-label-tag text-primary">Solusi Celah</span>
+<h4 class="font-title-card text-[17px] leading-tight text-on-surface">Under-Stair Cabinet</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Pemanfaatan ruang tangga presisi.</p>
+</div>
+</div>
+<!-- 2: Workspace -->
+<div class="group bg-surface-container-low rounded-xl p-3 flex flex-col gap-3 transition-all hover:bg-surface-container hover:shadow-md">
+<div class="h-48 w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Custom built-in home office workstation with acoustic back panel, floating shelves, hidden power strip trunking, clean wood finish" src="https://lh3.googleusercontent.com/aida-public/AB6AXuABNeXhsnRJCvgBOyh59FQn3RZniP5_6PyoEFLG4YCe3OV3doTfjbFjy62Ovf4YAVowDqI7fy7NDTeruqUnEgD1sRnBb1XiKz30jFh_IPSIA9FFisEgDlpaeIjvDX3HB5bBuyg9cK_Usx_rhQQNmLhMc3Q5pvaqV92MHpMksW594Zc02twLHo5LxprsM29Eio_aBQNjzx5Kq9Tfvnij7T4C6BK1VNxbQh2mMymGC97QmO3gX1i2mEhgbQ"/>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-tag text-label-tag text-primary">Ergonomi Kerja</span>
+<h4 class="font-title-card text-[17px] leading-tight text-on-surface">Home Workspace</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Meja kerja terpadu kabel rapi.</p>
+</div>
+</div>
+<!-- 3: Display Cabinet -->
+<div class="group bg-surface-container-low rounded-xl p-3 flex flex-col gap-3 transition-all hover:bg-surface-container hover:shadow-md">
+<div class="h-48 w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Custom glass display showcase cabinet for architectural scale models and art collectibles with recessed mini spotlighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAK5bTp3kIHs9cYmgn_DInlseQAXK-MinADrHPlsSCZAXau-iB0cp5khU_tSrBePJ_3_EIO1xiTSfVSABolUp_mfiabWJS5AAfOC8ZoJiqQx0aiUqQLTpeDTl0U3OcG27XwQEpbiR184f_5c2Xhq8gOOhx1MoFUrc-nZcIwmwEtsrQsjfJPYPAchhq0ux2GnhwW0aSYKwiH6gsr8Rr1zzvv3VSCb3Ai6OS21CN51JGxQIFtjlRYtW8Dqg"/>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-tag text-label-tag text-primary">Koleksi Seni</span>
+<h4 class="font-title-card text-[17px] leading-tight text-on-surface">Display Cabinet</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Rak pajangan kaca proteksi debu.</p>
+</div>
+</div>
+<!-- 4: Bench Daybed -->
+<div class="group bg-surface-container-low rounded-xl p-3 flex flex-col gap-3 transition-all hover:bg-surface-container hover:shadow-md">
+<div class="h-48 w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Built-in window daybed seat with deep pull-out storage drawers beneath comfortable linen upholstered cushions overlooking garden" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_dSTGfADj9AqgSfSpTxz48HPnApY5evImKMr_n0jlsr072Kxpo6iZp9L2MhqK85fbQz2zIloxv-RwDvRaHgxyNn1ogQOl_4V-dqw1bCRLMB70Hada-aksSYwStM9x7IV-I-_uNcl2BUdLE6-bywE1qHmNIjWP2S2l7dxcjCO_nsQsJHo0_fiafkPAtAbjRwif8C54DOnMTq7HSphi1IuWzahKtYMCFm6Ep6bovH7Cvf9DbyBZrrf0XQ"/>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-tag text-label-tag text-primary">Sudut Santai</span>
+<h4 class="font-title-card text-[17px] leading-tight text-on-surface">Bench &amp; Daybed</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Storage rahasia di bawah tempat duduk.</p>
+</div>
+</div>
+<!-- 5: Room Partition -->
+<div class="group bg-surface-container-low rounded-xl p-3 flex flex-col gap-3 transition-all hover:bg-surface-container hover:shadow-md">
+<div class="h-48 w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Architectural vertical teak wood screen divider separating living room and dining room while maintaining open daylight flow" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWTPaqPZFCt6yi8QWr-DSARg5gPvEQjbnzHo_YJnn7jjNc8k7sku5wUM2LZNNyWwUS2VaQo6ygxgxWJefetAKf3_S5aLMFJO-_Xtaxo0RM4aYLdW9I5kI97ITfjMxcOgqGVRNWdJ3rFblyau0lqpHocmkzaATOuQOINkCpqQFieCbLTeoJEQ1s8TE0bTInqC4IpoWfPRPnhFS7mT4wOrP2WkZqdHgiiWGKYjgS76q0GT1-jFnDWKHHag"/>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-tag text-label-tag text-primary">Pemisah Ruang</span>
+<h4 class="font-title-card text-[17px] leading-tight text-on-surface">Room Partition</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Partisi kisi kayu estetik &amp; bernapas.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- MATERIAL DETAIL (Tactile Close-Up Macro Grid) -->
+<section class="w-full bg-surface-container-high py-space-xl">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex flex-col gap-space-lg">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-sm">
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-eyebrow text-label-eyebrow text-primary">Presisi Material</span>
+<h2 class="font-headline-section text-headline-section text-on-surface">Material yang Tepat untuk Setiap Detail.</h2>
+</div>
+<p class="font-body-default text-body-default text-tertiary">
+          Standar fabrikasi tahan lama, anti gores, dan hardware bersertifikasi internasional.
+        </p>
+</div>
+<!-- 5 Macro Swatch Tiles -->
+<div class="grid grid-cols-2 md:grid-cols-5 gap-space-md">
+<!-- Swatch 1 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-sm flex flex-col gap-space-sm shadow-sm">
+<div class="aspect-square w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Macro close up of natural quarter sawn white oak veneer with tactile open wood pores, soft warm lighting, architectural material swatch" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBj_1A7d7YH-pvAmk_oZN4kpegWJAEESJG8zApl5y5kM_D0hMCsZBhRu-XD0Y8KMQ-MWZuTnbxjdgwJY1Ee49JJEu33nCEt1P4aMSnLpnkAMCk7v4qP-r9TZOP2wzxrWX1cTNi5SacCDKCcNbMfkepqntqg7Uufiby5FFzv9PqNBzlLTwSFtt1S-tQzb9aJD3JWuC4AVjmuHyfMdNqvWxK4Wa0jMItsQRucj2eSSrGVZb-ImFf-XnTpcA"/>
+</div>
+<div class="flex flex-col">
+<span class="font-title-card text-[15px] font-semibold text-on-surface">Wood Textures</span>
+<span class="font-body-compact text-body-compact text-tertiary">Natural Teak &amp; Oak Veneer</span>
+</div>
+</div>
+<!-- Swatch 2 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-sm flex flex-col gap-space-sm shadow-sm">
+<div class="aspect-square w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Macro close up swatch of super matte anti-scratch anti-fingerprint charcoal HPL sheet with pristine edge banding" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAwA1VPR4IGzKnc6x15EJnjLhGYPz1qGxweocsyM9w1I6nsEXc9BibCctGynZvIK2SBZm9GvNzmwCC_Ujf4Yd5Di7Q_MF-nD-_tAdqSf2pNhAA99h5UFZKCd-pyoEDQai5Bxm93Ow2QnG4PVZJiHQAYJtAKI2PT3OliRGiI7656dx2PEBOobdWXKkXuE0D7eRpPQD20hqw0vt4M_UfI54FrEw9DZaYXKZV2LvjjHcRWDJohdMiBSGQdCA"/>
+</div>
+<div class="flex flex-col">
+<span class="font-title-card text-[15px] font-semibold text-on-surface">Premium HPL</span>
+<span class="font-body-compact text-body-compact text-tertiary">Anti-Scratch Matte Finish</span>
+</div>
+</div>
+<!-- Swatch 3 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-sm flex flex-col gap-space-sm shadow-sm">
+<div class="aspect-square w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Macro photo of brushed stainless steel Blum Blumotion hydraulic soft close drawer slide mechanism, German engineering precision" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBB49glkTECFxj3ZzJJ0ysqPETDNvocm_IugXVjH_E0I3jiP2yaEJiLyRlOBXt631BlSSTzxeYi3xAsLtpmGqldsH7d-HZRe367qjrGBziI6uvpuEqpnp8bWrb1SXCa8DSWYlhlNQo5J--U0OlpTVILgPlam4MFKgwW_w6DS1KdpHDrDmJm-9LAlpqRmeFKb0x16Ua2TnEMTf-1AB3MA_w1hnl7WloO8SUOip1ARA6SJzMQ3_jszEP1PA"/>
+</div>
+<div class="flex flex-col">
+<span class="font-title-card text-[15px] font-semibold text-on-surface">Precision Hardware</span>
+<span class="font-body-compact text-body-compact text-tertiary">Blum Soft-Close Runners</span>
+</div>
+</div>
+<!-- Swatch 4 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-sm flex flex-col gap-space-sm shadow-sm">
+<div class="aspect-square w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Macro detail of architectural ribbed fluted glass with subtle bronze tint reflecting clean daylight in modern interior setting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuASVpAH6Q9oGUVgkZqGDUP6sYEwGqfce7MxMaOhW8a-YIjqOaq1rWaVZh_THkJapmbLS7PzfdwAxxWFInLmK5FEYzHOwe3cHzfoXASl7_Is72PtUcrxdXaQ1Eyn319TkGNJicxajpDSKq88ubxc1lLvoEnEw0q2q_bmoC5-UR1qWONriOhe53v9sJpM5yOGaOmepD9d-0U5kAUxdIByNtjPyCJZlAhFJjeAGRh7i4qFc_mFRhc7AXBC-g"/>
+</div>
+<div class="flex flex-col">
+<span class="font-title-card text-[15px] font-semibold text-on-surface">Architectural Glass</span>
+<span class="font-body-compact text-body-compact text-tertiary">Fluted &amp; Smoked Glass</span>
+</div>
+</div>
+<!-- Swatch 5 -->
+<div class="bg-surface-container-lowest rounded-xl p-space-sm flex flex-col gap-space-sm shadow-sm col-span-2 md:col-span-1">
+<div class="aspect-square w-full rounded-lg overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Macro detail of hairline anodized matte black aluminum profile with solid brushed brass joinery accent" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAqRlJnsQwvv8g0ZaE3OF0KzBcTPvLdeBhUCLmzEzsbH5O4_UmCnrI4CZoJoQMVeAUfxV8-PSnF8c5o4HaydqaobKcFNE4wJcLFUq_gxvzU07cyoOBf1EVVku2CbZ0qUk_tG1j4kOxf3ifwXp9n-n9Lp-t2ijTgq8jkBkTWjsBMa4ke8TH7jsZ0IFod_tVS_xQ6ziMDQITD1IlwhGvVR_QalpbgQaKD9QNWfy1XpIo0O2PA_54bo0fjKw"/>
+</div>
+<div class="flex flex-col">
+<span class="font-title-card text-[15px] font-semibold text-on-surface">Metal Profiles</span>
+<span class="font-body-compact text-body-compact text-tertiary">Black Hairline &amp; Brass</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- INTERIOR PROJECTS (Featured Built Works) -->
+<section class="w-full bg-surface py-space-xl">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex flex-col gap-space-xl">
+<div class="flex flex-col md:flex-row md:items-end justify-between gap-space-sm">
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-eyebrow text-label-eyebrow text-primary">Dokumentasi Lapangan</span>
+<h2 class="font-headline-section text-headline-section text-on-surface">Interior Projects</h2>
+</div>
+<p class="font-body-default text-body-default text-tertiary">
+          Hasil pengerjaan nyata tim workshop di berbagai residensial terkemuka.
+        </p>
+</div>
+<!-- 4 Prominent Portfolio Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
+<!-- Project 1 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
+<div class="h-80 md:h-96 overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Completed residential project Cilandak Jakarta Selatan, contemporary living room with bespoke wall panels, floating credenza, and custom indirect ceiling lighting" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD82NdRmIovctX7HHNLTMHRhnl73JA6hELitPWCHzLmq1mE7qy3Bnz5Vt2G4V8WlL2JAVOM65RYx9LUmr_S5t-W46DDfhD2uWDf-utYZV9PweULsDMCHnrgNr9dij_SHArGgqiUkyDZI-Q03G7UkBF6X2W8GgZeyotlD5R9RSzlAZX8QCnCUNyb-_sojbDOljZ7d_E-_AKiRNTtCK7j23f02fRqVAHNHGaQgscokrn4oz19IEfKRaK9WQ"/>
+<span class="absolute top-4 right-4 bg-surface-container-lowest/95 font-label-tag text-label-tag px-3 py-1 rounded-full text-on-surface">
+              Living Room
+            </span>
+</div>
+<div class="p-space-lg flex items-center justify-between">
+<div class="flex flex-col gap-1">
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary transition-colors">Cilandak Contemporary Living</h3>
+<div class="flex items-center gap-1 text-tertiary font-body-compact text-body-compact">
+<span class="material-symbols-outlined text-[16px]">location_on</span>
+<span>Jakarta Selatan</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Project 2 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
+<div class="h-80 md:h-96 overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Completed modern luxury kitchen set in Dharmawangsa Jakarta, quartzite island with waterfall edge, warm walnut veneer upper cabinets, high-end built-in appliances" src="https://lh3.googleusercontent.com/aida-public/AB6AXuANzj4JcEqbiR-fB3GdxpTJdrsq_m1HxwAkYxEcxD2Poc4EsUbGKVOHI3bCX2yQMR1PBlAXjg1dbzWwlUc7IYDicNAxFRrYaNWN77ZmuXP_kSZJMPRSLErUxbnRadEGP0tJgJ3oegkYsqPPKZ7wdP9z726VFE6xzlNGQz4ws-HpgxJuOyiSFVY86yF6hLlnu5HoSwlT3M41uN8_gKzxQCa4OFvvoZ3Ab_LCCRVvgSI8fqIyLSTs7LovLA"/>
+<span class="absolute top-4 right-4 bg-surface-container-lowest/95 font-label-tag text-label-tag px-3 py-1 rounded-full text-on-surface">
+              Kitchen Set
+            </span>
+</div>
+<div class="p-space-lg flex items-center justify-between">
+<div class="flex flex-col gap-1">
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary transition-colors">Dharmawangsa Minimalist Kitchen</h3>
+<div class="flex items-center gap-1 text-tertiary font-body-compact text-body-compact">
+<span class="material-symbols-outlined text-[16px]">location_on</span>
+<span>Jakarta Selatan</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Project 3 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
+<div class="h-80 md:h-96 overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Luxury master bedroom suite project in Menteng, bespoke platform bed with integrated headboard, walk in closet with tinted smoke glass doors" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBS1jIeRltWo1S0haRFtiXLPv--Wk-xytxO0yVBGHh97-3AXECDHInbAIUb10BuORvjZ_xC9OjY6ff25G__5E2BZgqIucekBbM96T4B1UcqtXrnhNJQG-lV6n95bxytBxJlNTBaAZGRfYK_2DTg0q1faXEWcOqGMmspPSo3wdU1c0bIpIDsoxR0Tn66FwuOH7HOHq5YzNVmL9X7ZjcJlbZIwvXEMV_3K8DVbfIhkEuMYSSqBSLDIdpQaA"/>
+<span class="absolute top-4 right-4 bg-surface-container-lowest/95 font-label-tag text-label-tag px-3 py-1 rounded-full text-on-surface">
+              Bedroom Suite
+            </span>
+</div>
+<div class="p-space-lg flex items-center justify-between">
+<div class="flex flex-col gap-1">
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary transition-colors">Menteng Master Suite</h3>
+<div class="flex items-center gap-1 text-tertiary font-body-compact text-body-compact">
+<span class="material-symbols-outlined text-[16px]">location_on</span>
+<span>Jakarta Pusat</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</div>
+</div>
+</div>
+<!-- Project 4 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300">
+<div class="h-80 md:h-96 overflow-hidden relative">
+<img class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" data-alt="Custom breakfast pantry and under-stair wine storage in modern cluster house BSD City Tangerang, architectural fluted glass and matte black finishes" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDtr5SbANl1dzFt9wRFoLnz5xw6WB6ISGr-_tUd6KMk3Bxy65VeK0LJx4pqftH-RVNWJPabgJEW3JDiKY8qZHAPlqZMgbrEyvIQlMch7ENyr483KliOKVBKID4ZSM9Piq-az0Odmpjt1xW2h1FgLVVG2CHEKItj0uQmVjCba7IsY_UHCG_QP-66Q5AOsEpcJIMFLaziMA7GbpKOWyjwfpPiTAABxMFvVLPQwRqISMpQOgLiH-JBcVousw"/>
+<span class="absolute top-4 right-4 bg-surface-container-lowest/95 font-label-tag text-label-tag px-3 py-1 rounded-full text-on-surface">
+              Custom Interior
+            </span>
+</div>
+<div class="p-space-lg flex items-center justify-between">
+<div class="flex flex-col gap-1">
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary transition-colors">BSD City Modular Pantry</h3>
+<div class="flex items-center gap-1 text-tertiary font-body-compact text-body-compact">
+<span class="material-symbols-outlined text-[16px]">location_on</span>
+<span>Tangerang Selatan</span>
+</div>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center text-on-surface group-hover:bg-primary group-hover:text-on-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">arrow_forward</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Centered Portfolio Link -->
+<div class="flex justify-center pt-space-sm">
+<a class="inline-flex items-center gap-space-xs font-label-button text-label-button bg-surface-container-low hover:bg-surface-container-highest text-on-surface px-8 py-3.5 rounded-xl transition-colors" data-path="portfolio" href="#">
+<span>Lihat Semua Portfolio</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</section>
+<!-- FINAL CTA (Impactful Banner) -->
+<section class="w-full bg-surface-container-lowest py-space-xl">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<div class="relative rounded-3xl overflow-hidden min-h-[440px] flex items-center justify-center text-center p-space-lg md:p-space-xl shadow-lg">
+<!-- Background Image -->
+<img class="absolute inset-0 w-full h-full object-cover" data-alt="Panoramic perspective of warm architectural modern interior living space, rich teak wood ceiling, diffused warm afternoon light, Ruangkeruang craftsmanship atmosphere" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAgL3t4Z38LZHpKa-uYx1bJvL_WgATuEBgSHJMjua9zjJd8q0rQNkpA7FJOef5KlzUZt50rWhHprUkDPvEuBCIV5lNFZywBLIVyDsLwBDKa3X0LyAFJahW9QwmlpjfbXkIBvT9GGadrIvYHXzgd5aJFLA-u3siHJBjVbvYbr0MnyX3p8WxZg0iDwM0jrOp_3TFL4y69Zl91rNxbVAld7OpLxFOKWWgNH8TzjTcjK70Rp5p0u2PpNFmkdw"/>
+<!-- Dark Scrim Overlay -->
+<div class="absolute inset-0 bg-inverse-surface/85 backdrop-blur-[2px]"></div>
+<!-- Banner Content -->
+<div class="relative z-10 max-w-2xl flex flex-col items-center gap-space-md text-surface-container-lowest">
+<div class="inline-flex items-center gap-space-xs bg-surface-container-lowest/10 backdrop-blur-md px-3 py-1 rounded-full text-primary-fixed-dim">
+<span class="material-symbols-outlined text-[16px]">architecture</span>
+<span class="font-label-tag text-label-tag tracking-wider">WORKSHOP LANGSUNG</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-surface-container-lowest leading-tight">
+            Mulai Rancang Interior Anda.
+          </h2>
+<p class="font-body-lead text-body-lead text-surface-container-high max-w-lg">
+            Konsultasikan denah dan kebutuhan furniture custom bersama tim workshop dan desainer Ruangkeruang.
+          </p>
+<div class="flex flex-wrap items-center justify-center gap-space-md pt-space-xs">
+<a class="inline-flex items-center gap-space-xs bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-7 py-4 rounded-xl transition-all duration-200 shadow-md hover:scale-105" href="https://wa.me/6281289001234" rel="noopener" target="_blank">
+<span>Konsultasi Interior</span>
+<span class="material-symbols-outlined text-[18px]">chat</span>
+</a>
+<div class="inline-flex items-center gap-space-xs bg-surface-container-lowest/10 backdrop-blur-md px-5 py-3.5 rounded-xl text-surface-container-lowest font-body-compact text-body-compact">
+<span class="material-symbols-outlined text-primary-fixed text-[18px]">verified</span>
+<span>Survei Lokasi &amp; 3D Modeling</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div></main><footer class="w-full bg-inverse-surface text-inverse-on-surface border-t border-inverse-surface"><div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-space-xl"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-space-xl pb-space-xl border-b border-tertiary-container/30"><div class="lg:col-span-1 flex flex-col gap-space-sm"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-primary-fixed text-[28px]">architecture</span><span class="font-headline-subsection text-title-card text-on-primary font-bold tracking-tight">Ruangkeruang</span></div><p class="font-body-compact text-body-compact text-tertiary-fixed-dim leading-relaxed">Studio desain interior &amp; workshop pengerjaan eksterior custom presisi berskala arsitektural.</p><div class="pt-space-sm"><a class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary-fixed hover:text-primary-fixed-dim transition-colors" href="https://wa.me/6281289001234" rel="noopener" target="_blank"><span class="material-symbols-outlined text-[18px]">chat</span>WhatsApp Studio Direct</a></div></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Interior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Kitchen Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Living Room Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Bedroom Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Interior</li><li class="hover:text-on-primary transition-colors cursor-pointer">Built-in Furniture</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Eksterior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Modern Canopy</li><li class="hover:text-on-primary transition-colors cursor-pointer">Pagar Minimalis</li><li class="hover:text-on-primary transition-colors cursor-pointer">Railing Tangga &amp; Balkon</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Metalwork</li><li class="hover:text-on-primary transition-colors cursor-pointer">Facade Cladding</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Perusahaan &amp; Proses</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Portfolio Proyek</li><li class="hover:text-on-primary transition-colors cursor-pointer">Cara Pemesanan</li><li class="hover:text-on-primary transition-colors cursor-pointer">Estimasi Biaya</li><li class="hover:text-on-primary transition-colors cursor-pointer">Workshop &amp; Fabrikasi</li><li class="hover:text-on-primary transition-colors cursor-pointer">Material Library</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Kontak</h3><div class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><p>Workshop Jabodetabek, Indonesia</p><p class="text-on-primary">WhatsApp: +62 812-8900-1234</p><p>Instagram: @ruangkeruang.build</p><p>Email: halo@ruangkeruang.id</p></div></div></div><div class="pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-sm text-tertiary-fixed-dim font-body-compact text-body-compact"><div>© 2025 Ruangkeruang. All rights reserved. Engineering &amp; Build.</div><div class="flex items-center gap-space-md"><a class="hover:text-on-primary transition-colors" href="#">Syarat &amp; Ketentuan</a><a class="hover:text-on-primary transition-colors" href="#">Kebijakan Privasi</a></div></div></div></footer><script src="../mockup.js"></script></body></html>

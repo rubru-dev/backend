@@ -114,6 +114,7 @@ async function main() {
     { name: "content.target",           module: "content", label: "Tab: Target Metrik Sosmed" },
     // Copy Writer sub-menus
     { name: "copy_writer.dashboard_sosmed", module: "copy_writer", label: "Sub-menu: Dashboard Sosmed Copy Writer" },
+    { name: "copy_writer.timelines",       module: "copy_writer", label: "Sub-menu: Timeline Konten Copy Writer" },
     { name: "copy_writer.laporan_harian",   module: "copy_writer", label: "Sub-menu: Laporan Harian Copy Writer" },
     // Sales Admin sub-menus
     { name: "sales_admin.kanban",        module: "sales_admin", label: "Sub-menu: Kanban Admin" },
@@ -286,7 +287,7 @@ async function main() {
       "absen.submit", ...TUTORIAL_PERMS,
     ],
     "Copy Writer": [
-      "copy_writer.dashboard_sosmed","copy_writer.laporan_harian",
+      "copy_writer.dashboard_sosmed","copy_writer.timelines","copy_writer.laporan_harian",
       "absen.submit", ...TUTORIAL_PERMS,
     ],
     "Sales Admin": [

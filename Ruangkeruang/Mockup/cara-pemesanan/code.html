@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="id"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><title>Ruangkeruang</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&amp;family=Sora:wght@500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior-y: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { width: 8px; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-tertiary": "#ffffff", "surface": "#ffffff", "surface-container-low": "#f6f3ee", "on-tertiary-fixed-variant": "#484645", "surface-container-highest": "#e5e2dd", "on-primary-fixed": "#360f00", "on-secondary-fixed": "#390c00", "outline-variant": "#e0c0b2", "tertiary": "#605e5c", "error-container": "#ffdad6", "on-error-container": "#93000a", "outline": "#8c7166", "inverse-on-surface": "#f3f0eb", "primary-fixed": "#ffdbcd", "primary-fixed-dim": "#ffb595", "tertiary-container": "#979492", "primary-container": "#f36b21", "error": "#ba1a1a", "secondary-fixed-dim": "#ffb59c", "surface-container": "#f0ede8", "on-surface": "#1c1c19", "on-surface-variant": "#594238", "surface-container-high": "#eae8e3", "surface-bright": "#ffffff", "tertiary-fixed-dim": "#cac6c4", "surface-tint": "#a23f00", "on-primary-container": "#521c00", "inverse-surface": "#31302d", "on-error": "#ffffff", "background": "#ffffff", "surface-dim": "#dcdad5", "secondary": "#ab3600", "inverse-primary": "#ffb595", "on-secondary-container": "#611b00", "secondary-fixed": "#ffdbcf", "primary": "#a23f00", "surface-container-lowest": "#ffffff", "on-secondary": "#ffffff", "on-primary": "#ffffff", "surface-variant": "#e5e2dd", "on-tertiary-fixed": "#1c1b1a", "on-secondary-fixed-variant": "#822700", "on-primary-fixed-variant": "#7c2e00", "on-background": "#1c1c19", "tertiary-fixed": "#e6e2df", "secondary-container": "#ff6e38", "on-tertiary-container": "#2e2d2c" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "space-xs": "0.25rem", "margin": "4rem", "space-xl": "2.5rem", "gutter-mobile": "1rem", "space-sm": "0.5rem", "margin-mobile": "1.25rem", "space-md": "1rem", "gutter": "1.5rem" }, "fontFamily": { "body-default": ["Manrope"], "label-tag": ["Sora"], "headline-section": ["Sora"], "display-hero-mobile": ["Sora"], "body-lead": ["Manrope"], "label-button": ["Sora"], "display-hero": ["Sora"], "headline-subsection": ["Sora"], "headline-section-mobile": ["Sora"], "title-card": ["Sora"], "label-eyebrow": ["Sora"], "body-compact": ["Manrope"] }, "fontSize": { "body-default": ["15px", { "lineHeight": "24px", "fontWeight": "400" }], "label-tag": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "headline-section": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "display-hero-mobile": ["44px", { "lineHeight": "50px", "letterSpacing": "-0.025em", "fontWeight": "700" }], "body-lead": ["17px", { "lineHeight": "28px", "fontWeight": "400" }], "label-button": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }], "display-hero": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.03em", "fontWeight": "700" }], "headline-subsection": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "headline-section-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "title-card": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.005em", "fontWeight": "600" }], "label-eyebrow": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "700" }], "body-compact": ["13px", { "lineHeight": "20px", "fontWeight": "400" }] } } } }</script></head><body class="bg-surface font-body-default text-body-default text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/90 backdrop-blur-md border-b border-surface-variant"><div class="h-20 max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex items-center justify-between"><div class="flex items-center gap-space-md"><a class="font-label-button text-label-button text-on-surface tracking-wider font-bold" data-path="home" href="#">Ruangkeruang</a></div><nav class="hidden lg:flex items-center gap-space-lg" data-active-classes="text-primary font-bold"><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="home" href="#">Home</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="interior" href="#">Interior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="eksterior" href="#">Eksterior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="portfolio" href="#">Portfolio</a><a aria-current="page" class="transition-colors duration-200 text-primary font-bold" data-path="cara-pemesanan" href="#">Cara Pemesanan</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="kontak" href="#">Kontak</a></nav><div class="flex items-center gap-space-md"><a class="hidden sm:inline-flex items-center justify-center bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-space-lg py-space-sm rounded-xl transition-colors duration-200 shadow-sm" data-path="konsultasi" href="#">Konsultasi</a></div></div></header><main class="w-full pt-10 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- 1. HERO SECTION -->
+<section class="relative overflow-hidden bg-surface pt-12 pb-16 md:pt-20 md:pb-24">
+<!-- Subtle architectural drafting grid accent in background -->
+<div class="absolute inset-0 pointer-events-none opacity-40 bg-[radial-gradient(#8c7166_0.75px,transparent_0.75px)] [background-size:24px_24px]"></div>
+<div class="relative max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<div class="max-w-3xl flex flex-col items-start">
+<!-- Orange Badge -->
+<div class="inline-flex items-center gap-space-xs px-3 py-1.5 rounded-full bg-surface-container border border-outline-variant/50 mb-6 shadow-sm">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-wider">CARA PEMESANAN</span>
+</div>
+<!-- Headline -->
+<h1 class="font-headline-section text-headline-section text-on-surface tracking-tight mb-4 max-w-2xl">
+          Dari Konsultasi Hingga Terpasang.
+        </h1>
+<!-- Short Subtitle -->
+<p class="font-body-lead text-body-lead text-on-surface-variant mb-8 max-w-xl">
+          Proses sederhana untuk mewujudkan kebutuhan interior dan eksterior Anda dengan presisi arsitektural.
+        </p>
+<!-- CTA Buttons -->
+<div class="flex flex-wrap items-center gap-space-md">
+<a class="inline-flex items-center justify-center gap-2 bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-6 py-3.5 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-98" href="https://wa.me/6281289001234" rel="noopener" target="_blank">
+<span>Mulai Konsultasi</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+<a class="inline-flex items-center justify-center gap-2 bg-surface-container-lowest hover:bg-surface-container border border-outline-variant/60 text-on-surface font-label-button text-label-button px-6 py-3.5 rounded-xl transition-all duration-200" href="#alur-kerja">
+<span>Lihat Alur Kerja</span>
+<span class="material-symbols-outlined text-[18px]">south</span>
+</a>
+</div>
+</div>
+<!-- Trust Indicators Bar -->
+<div class="mt-16 pt-8 border-t border-surface-container-highest grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+<div class="flex items-center gap-3.5 p-4 rounded-xl bg-surface-container-lowest/60 border border-outline-variant/30">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary-container shrink-0">
+<span class="material-symbols-outlined text-[20px]">forum</span>
+</div>
+<div>
+<div class="font-label-button text-body-compact text-on-surface font-semibold">Konsultasi &amp; Estimasi</div>
+<div class="font-body-compact text-[12px] text-tertiary">Gratis tanpa komitmen awal</div>
+</div>
+</div>
+<div class="flex items-center gap-3.5 p-4 rounded-xl bg-surface-container-lowest/60 border border-outline-variant/30">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary-container shrink-0">
+<span class="material-symbols-outlined text-[20px]">square_foot</span>
+</div>
+<div>
+<div class="font-label-button text-body-compact text-on-surface font-semibold">Survey Laser Meter</div>
+<div class="font-body-compact text-[12px] text-tertiary">Presisi digital sub-milimeter</div>
+</div>
+</div>
+<div class="flex items-center gap-3.5 p-4 rounded-xl bg-surface-container-lowest/60 border border-outline-variant/30">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary-container shrink-0">
+<span class="material-symbols-outlined text-[20px]">receipt_long</span>
+</div>
+<div>
+<div class="font-label-button text-body-compact text-on-surface font-semibold">RAB Transparan</div>
+<div class="font-body-compact text-[12px] text-tertiary">Tanpa biaya terselubung</div>
+</div>
+</div>
+<div class="flex items-center gap-3.5 p-4 rounded-xl bg-surface-container-lowest/60 border border-outline-variant/30">
+<div class="w-10 h-10 rounded-lg bg-surface-container flex items-center justify-center text-primary-container shrink-0">
+<span class="material-symbols-outlined text-[20px]">verified</span>
+</div>
+<div>
+<div class="font-label-button text-body-compact text-on-surface font-semibold">Garansi Resmi</div>
+<div class="font-body-compact text-[12px] text-tertiary">Proteksi purnajual terjamin</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 2. PROCESS TIMELINE SECTION -->
+<section class="py-16 md:py-24 bg-surface-container-low scroll-mt-20" id="alur-kerja">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Section Header -->
+<div class="max-w-2xl mb-16">
+<div class="inline-flex items-center gap-space-xs px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant/40 mb-3">
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-wider">ALUR KERJA</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface tracking-tight mb-3">
+          6 Langkah Realisasi Proyek
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant">
+          Proses yang terstruktur dan transparan dari konsep hingga serah terima di lokasi.
+        </p>
+</div>
+<!-- Timeline Items Grid / Stack -->
+<div class="space-y-12">
+<!-- STEP 01 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 md:p-8 hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<div class="lg:col-span-5 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-3 mb-4">
+<span class="font-display-hero text-headline-section font-bold text-primary tracking-tighter">1</span>
+<div class="h-0.5 flex-1 bg-outline-variant/30"></div>
+</div>
+<h3 class="font-headline-subsection text-headline-subsection text-on-surface mb-2">Konsultasi</h3>
+<p class="font-body-lead text-body-default text-on-surface-variant mb-6">
+                  Diskusikan kebutuhan, referensi dan budget bersama tim desainer kami.
+                </p>
+</div>
+<div class="flex flex-wrap gap-2 pt-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Gratis via WhatsApp / Studio
+                </span>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Estimasi Kasar Cepat
+                </span>
+</div>
+</div>
+<div class="lg:col-span-7">
+<div class="overflow-hidden rounded-xl h-64 md:h-80 w-full relative">
+<img class="w-full h-full object-cover transition-transform duration-500 hover:scale-105" data-alt="Interior architect consulting with clients over a table with floor plan drawings, material finish samples, fabric swatches and digital tablet showing contemporary minimalist room designs, natural morning window light, high architectural realism with warm earth tones." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA7bjIWAb7M6e10ns1JddrxBouaPb8CBbEAP4Q6RT-kVW-osvTPyjOB8bvyOHa24aObrGcbsubRd1GTfoK0j44nkdsTy2pmDOL_LuXQmdvqQgQW_Xnjb2lquDLPl04UXxmZXVyfwZZKczahVN5OcqkjLIEQ4n3YDrjn7-_Go1rEIhC1nfns60AxSXX3V9AvQX4D6Gi1m_ehS5AYc2xu3ljtED7Z9x4DSEKPZwxpRUP5DkUHKisRIiFMzg"/>
+</div>
+</div>
+</div>
+</div>
+<!-- STEP 02 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 md:p-8 hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<div class="lg:col-span-5 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-3 mb-4">
+<span class="font-display-hero text-headline-section font-bold text-primary tracking-tighter">2</span>
+<div class="h-0.5 flex-1 bg-outline-variant/30"></div>
+</div>
+<h3 class="font-headline-subsection text-headline-subsection text-on-surface mb-2">Survey Lokasi</h3>
+<p class="font-body-lead text-body-default text-on-surface-variant mb-6">
+                  Pengukuran presisi dan pengecekan kondisi arsitektural di lokasi secara langsung.
+                </p>
+</div>
+<div class="flex flex-wrap gap-2 pt-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Presisi Digital Laser Meter
+                </span>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Analisis Dinding &amp; Utilitas
+                </span>
+</div>
+</div>
+<div class="lg:col-span-7 order-last lg:order-last">
+<div class="overflow-hidden rounded-xl h-64 md:h-80 w-full relative">
+<img class="w-full h-full object-cover transition-transform duration-500 hover:scale-105" data-alt="Architect engineer using digital red beam laser measure device against bare concrete wall and modern window frame in high-ceiling residential room, architectural site survey, clipboard with elevation notes, clean geometric perspective." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAs13BawMmrLaXNQc6uvyHDEUNQ4iHSboSlqo6D12F_VGOVMI2Xy7znSeD-44IPen_yHyEmKTtOBMnaSzbGcDDOxiUYCl3gN-j5mJ-oh2ocRHf2-ZIiKiqo7OF4mxT3abNUGwKJ2xm_b9mxCPHujdrSFFVs4UkJri_JgPGj1Ulj2eDgXN52JsiKLoripaxGvqKsvccGntQS_nYIKsQxSW5twipwBsGOAjYPervDumhMvdDHT-HP-K36xQ"/>
+</div>
+</div>
+</div>
+</div>
+<!-- STEP 03 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 md:p-8 hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<div class="lg:col-span-5 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-3 mb-4">
+<span class="font-display-hero text-headline-section font-bold text-primary tracking-tighter">3</span>
+<div class="h-0.5 flex-1 bg-outline-variant/30"></div>
+</div>
+<h3 class="font-headline-subsection text-headline-subsection text-on-surface mb-2">Desain &amp; Penawaran</h3>
+<p class="font-body-lead text-body-default text-on-surface-variant mb-6">
+                  Konsep visualisasi 3D realistis, pemilihan material, dan estimasi pekerjaan detail.
+                </p>
+</div>
+<div class="flex flex-wrap gap-2 pt-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Visualisasi 3D Fotorealistik
+                </span>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Rincian RAB Material Transparan
+                </span>
+</div>
+</div>
+<div class="lg:col-span-7">
+<div class="overflow-hidden rounded-xl h-64 md:h-80 w-full relative">
+<img class="w-full h-full object-cover transition-transform duration-500 hover:scale-105" data-alt="High quality architectural 3D rendering of kitchen cabinetry with natural oak finishes and matte black accents, placed next to tangible material board with marble stone, fluted glass, and brushed brass fixtures, soft architectural lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDrYwyQwVknN47ubC02ZPzJ9xBKKPvGjBxHthwMdAs20ml9OJ_62aFRe2Zt8Ddmvw8-nrS9HWUivORE5zZkESgORAyjFOtnhAV9akfRzcCis00y6VDVrrESqDsxP4Dm1dHNALeFqpjEeWRmHHVSbLKfTwEy-VqotBYiEfWPGigAascK8IdWCM1WIMHofGfuoUxnoFeCXrQq41QmlZzys2AcR8jy9AJ4WLoXE2B1MVZoXvuZBhLHmrZPoQ"/>
+</div>
+</div>
+</div>
+</div>
+<!-- STEP 04 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 md:p-8 hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<div class="lg:col-span-5 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-3 mb-4">
+<span class="font-display-hero text-headline-section font-bold text-primary tracking-tighter">4</span>
+<div class="h-0.5 flex-1 bg-outline-variant/30"></div>
+</div>
+<h3 class="font-headline-subsection text-headline-subsection text-on-surface mb-2">Produksi Fabrikasi</h3>
+<p class="font-body-lead text-body-default text-on-surface-variant mb-6">
+                  Proses pengerjaan kabinet kayu dan fabrikasi besi baja di workshop mandiri berstandar tinggi.
+                </p>
+</div>
+<div class="flex flex-wrap gap-2 pt-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Workshop Mandiri
+                </span>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Toleransi Presisi Sub-milimeter
+                </span>
+</div>
+</div>
+<div class="lg:col-span-7">
+<div class="overflow-hidden rounded-xl h-64 md:h-80 w-full relative">
+<img class="w-full h-full object-cover transition-transform duration-500 hover:scale-105" data-alt="Modern precision woodworking and custom steel fabrication studio, craftsman carefully assembling clean architectural joinery cabinets with CNC routed edges, warm dust motes in studio lighting, industrial bespoke craft." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCUynZecJtso7tIt-PmsYhePfRVwT0SE6IKEVk0602Cnlnj8GSRWzCgKTKidLiMLjMUYrDE9W1LYIKtYbluer-1VkO7E3KC1CJiJQRrbKoxkeXF8H7ZH_Je6yWjbLFYC-0RWvYVv_PweQ4wfQ2uCZvbPfKY0McOwOBek-X8Z1Yk6pq664a7442J51d9aUf1G7GYXB37hdDeNN1THNZC9idTqrIqfKE7GmR4X5dmsTc3loNPEZ6WZ_c9JQ"/>
+</div>
+</div>
+</div>
+</div>
+<!-- STEP 05 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 md:p-8 hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<div class="lg:col-span-5 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-3 mb-4">
+<span class="font-display-hero text-headline-section font-bold text-primary tracking-tighter">05</span>
+<div class="h-0.5 flex-1 bg-outline-variant/30"></div>
+</div>
+<h3 class="font-headline-subsection text-headline-subsection text-on-surface mb-2">Instalasi Lapangan</h3>
+<p class="font-body-lead text-body-default text-on-surface-variant mb-6">
+                  Pemasangan rapi langsung di lokasi oleh tim teknisi bersertifikasi dengan proteksi area kerja.
+                </p>
+</div>
+<div class="flex flex-wrap gap-2 pt-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Tim Fabrikasi Sendiri
+                </span>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Protokol Kebersihan &amp; Proteksi Lantai
+                </span>
+</div>
+</div>
+<div class="lg:col-span-7">
+<div class="overflow-hidden rounded-xl h-64 md:h-80 w-full relative">
+<img class="w-full h-full object-cover transition-transform duration-500 hover:scale-105" data-alt="On site residential interior fitting process, technician aligning floating wall storage units with protective floor mats and tidy workspace, clean interior room with minimalist modern architectural details." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC9qelfXlZkv91uAjwFxCOJHfRLpQF-ktzfme-31a5KoA_OOpDb_YRnDUXBWym7x-WIIvXrQUYZ_2sCOzDkmZ4KYm9eN16mIlJkiVuT5TJfqKNVAYn8NvUuDOIEWN4IQPjy1lPT0--qWgu45lr19z25YjvnxiqTOLiq62IOZlINHe3alqOtafYOLMP08E8S2RUJq4T6RbcBZ-Oe0yri6fpEaskLGDg7X5_3j-4WH7f3vMR6T8kPbH0OYQ"/>
+</div>
+</div>
+</div>
+</div>
+<!-- STEP 06 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 md:p-8 hover:border-primary/40 transition-all duration-300 shadow-sm hover:shadow-md">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center">
+<div class="lg:col-span-5 flex flex-col justify-between">
+<div>
+<div class="flex items-center gap-3 mb-4">
+<span class="font-display-hero text-headline-section font-bold text-primary tracking-tighter">06</span>
+<div class="h-0.5 flex-1 bg-outline-variant/30"></div>
+</div>
+<h3 class="font-headline-subsection text-headline-subsection text-on-surface mb-2">Serah Terima &amp; Garansi</h3>
+<p class="font-body-lead text-body-default text-on-surface-variant mb-6">
+                  Pengecekan kualitas akhir (QC) bersama klien dan penyerahan sertifikat garansi resmi.
+                </p>
+</div>
+<div class="flex flex-wrap gap-2 pt-2">
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Checklist QC Berlapis
+                </span>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-surface-container text-on-surface font-label-tag text-label-tag border border-outline-variant/30">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+                  Penerbitan Sertifikat Garansi
+                </span>
+</div>
+</div>
+<div class="lg:col-span-7">
+<div class="overflow-hidden rounded-xl h-64 md:h-80 w-full relative">
+<img class="w-full h-full object-cover transition-transform duration-500 hover:scale-105" data-alt="Finished pristine architectural interior living room and custom built-in cabinetry, warm indirect LED linear lighting, perfectly installed seamless woodwork, client handover moment with premium completion folder on the counter." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDa2Y733xVFgq1WWLx6DPUXz660s4miHu4xYiZ20F7ayEes7l63I0dIwYw6MKZKBOPYVwYpOJHbUxvqclDB5JxW2VaUhBeq_MBkgHYW_Kuk_cpBUPu6qUZb52HyND35uMhCZPqCizrQ86KTG4W3oofN2EZkGd_k-pFStXuSEJJXsxyfj9qI6AeQnhrjJCG5JxHgH7nXkVxdxuYYB3nGtn11wtmh7KMhRY4mUSHWaTgDZFP-fuu4MAYiow"/>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 3. WHAT TO PREPARE SECTION -->
+<section class="py-16 md:py-24 bg-surface">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Header -->
+<div class="max-w-2xl mb-12">
+<div class="inline-flex items-center gap-space-xs px-3 py-1 rounded-full bg-surface-container border border-outline-variant/40 mb-3">
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-wider">PERSIAPAN AWAL</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface tracking-tight mb-3">
+          Hal Sederhana yang Perlu Disiapkan
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant">
+          Cukup beberapa informasi awal untuk mempercepat estimasi dan rekomendasi desain yang akurat.
+        </p>
+</div>
+<!-- 4 Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 flex flex-col justify-between hover:shadow-md transition-all">
+<div>
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-primary-container mb-6">
+<span class="material-symbols-outlined text-[24px]">photo_camera</span>
+</div>
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1 tracking-wider">ITEM 01</div>
+<h3 class="font-title-card text-title-card text-on-surface mb-2">Foto Ruangan</h3>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Foto atau video singkat area yang ingin dikerjakan dari beberapa sudut pandang.
+            </p>
+</div>
+<div class="mt-6 pt-4 border-t border-outline-variant/20 flex items-center text-tertiary font-body-compact text-[12px] gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">check_circle</span>
+            Membantu analisis tata letak
+          </div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 flex flex-col justify-between hover:shadow-md transition-all">
+<div>
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-primary-container mb-6">
+<span class="material-symbols-outlined text-[24px]">straighten</span>
+</div>
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1 tracking-wider">ITEM 02</div>
+<h3 class="font-title-card text-title-card text-on-surface mb-2">Ukuran Perkiraan</h3>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Dimensi kasar (panjang × lebar × tinggi) atau denah jika sudah tersedia.
+            </p>
+</div>
+<div class="mt-6 pt-4 border-t border-outline-variant/20 flex items-center text-tertiary font-body-compact text-[12px] gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">check_circle</span>
+            Untuk estimasi volume kasar
+          </div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 flex flex-col justify-between hover:shadow-md transition-all">
+<div>
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-primary-container mb-6">
+<span class="material-symbols-outlined text-[24px]">style</span>
+</div>
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1 tracking-wider">ITEM 03</div>
+<h3 class="font-title-card text-title-card text-on-surface mb-2">Referensi Desain</h3>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Contoh foto dari Pinterest, Instagram, atau portfolio kami yang Anda sukai.
+            </p>
+</div>
+<div class="mt-6 pt-4 border-t border-outline-variant/20 flex items-center text-tertiary font-body-compact text-[12px] gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">check_circle</span>
+            Menyamakan preferensi visual
+          </div>
+</div>
+<!-- Card 4 -->
+<div class="bg-surface-container-lowest border border-outline-variant/40 rounded-2xl p-6 flex flex-col justify-between hover:shadow-md transition-all">
+<div>
+<div class="w-12 h-12 rounded-xl bg-surface-container flex items-center justify-center text-primary-container mb-6">
+<span class="material-symbols-outlined text-[24px]">payments</span>
+</div>
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1 tracking-wider">ITEM 04</div>
+<h3 class="font-title-card text-title-card text-on-surface mb-2">Budget Perkiraan</h3>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Kisaran alokasi dana agar kami dapat mengusulkan material dan sistem yang paling tepat.
+            </p>
+</div>
+<div class="mt-6 pt-4 border-t border-outline-variant/20 flex items-center text-tertiary font-body-compact text-[12px] gap-1.5">
+<span class="material-symbols-outlined text-[16px] text-primary">check_circle</span>
+            Rekomendasi opsi material optimal
+          </div>
+</div>
+</div>
+</div>
+</section>
+<!-- 4. FAQ ACCORDION SECTION -->
+<section class="py-16 md:py-24 bg-surface-container-low">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-12">
+<!-- FAQ Title Column -->
+<div class="lg:col-span-4 flex flex-col justify-between">
+<div>
+<div class="inline-flex items-center gap-space-xs px-3 py-1 rounded-full bg-surface-container-high border border-outline-variant/40 mb-3">
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-wider">TANYA JAWAB</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface tracking-tight mb-3">
+              Pertanyaan yang Sering Diajukan
+            </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant mb-6">
+              Jawaban transparan seputar proses kerja, biaya, spesifikasi material, dan garansi proyek kami.
+            </p>
+</div>
+<div class="p-6 rounded-2xl bg-surface-container-lowest border border-outline-variant/40 hidden lg:block">
+<div class="font-title-card text-title-card text-on-surface mb-1">Butuh info lain?</div>
+<p class="font-body-compact text-body-compact text-on-surface-variant mb-4">
+              Tim konsultan kami siap berdiskusi langsung dan menjawab pertanyaan teknis Anda.
+            </p>
+<a class="inline-flex items-center gap-2 text-primary font-label-button text-label-button hover:underline" href="https://wa.me/6281289001234" rel="noopener" target="_blank">
+<span>Chat WhatsApp Studio</span>
+<span class="material-symbols-outlined text-[16px]">arrow_forward</span>
+</a>
+</div>
+</div>
+<!-- Accordion Items Column -->
+<div class="lg:col-span-8 flex flex-col gap-4" id="faq-container">
+<!-- FAQ 1 -->
+<div class="faq-item rounded-xl bg-surface-container-lowest border border-outline-variant/40 overflow-hidden transition-colors">
+<button aria-expanded="true" class="faq-toggle w-full p-6 text-left flex items-center justify-between gap-4 focus:outline-none" type="button">
+<span class="font-title-card text-title-card text-on-surface">Apakah survey lokasi dikenakan biaya?</span>
+<span class="faq-icon material-symbols-outlined text-primary text-[24px] shrink-0 transition-transform duration-200 rotate-180">expand_more</span>
+</button>
+<div class="faq-content px-6 pb-6 pt-0 block">
+<p class="font-body-default text-body-default text-on-surface-variant leading-relaxed">
+                Untuk wilayah Jabodetabek, survey lokasi perdana dan pengukuran detail laser meter tidak dipungut biaya (gratis) setelah estimasi awal disetujui.
+              </p>
+</div>
+</div>
+<!-- FAQ 2 -->
+<div class="faq-item rounded-xl bg-surface-container-lowest border border-outline-variant/40 overflow-hidden transition-colors">
+<button aria-expanded="false" class="faq-toggle w-full p-6 text-left flex items-center justify-between gap-4 focus:outline-none" type="button">
+<span class="font-title-card text-title-card text-on-surface">Apakah desain bisa 100% custom sesuai keinginan?</span>
+<span class="faq-icon material-symbols-outlined text-on-surface-variant text-[24px] shrink-0 transition-transform duration-200">expand_more</span>
+</button>
+<div class="faq-content px-6 pb-6 pt-0 hidden">
+<p class="font-body-default text-body-default text-on-surface-variant leading-relaxed">
+                Ya, seluruh pengerjaan interior dan eksterior kami bersifat bespoke (custom). Kami merancang dan memfabrikasi sesuai ukuran ruangan aktual, fungsi spesifik, dan preferensi estetika Anda.
+              </p>
+</div>
+</div>
+<!-- FAQ 3 -->
+<div class="faq-item rounded-xl bg-surface-container-lowest border border-outline-variant/40 overflow-hidden transition-colors">
+<button aria-expanded="false" class="faq-toggle w-full p-6 text-left flex items-center justify-between gap-4 focus:outline-none" type="button">
+<span class="font-title-card text-title-card text-on-surface">Berapa lama estimasi waktu pengerjaan proyek?</span>
+<span class="faq-icon material-symbols-outlined text-on-surface-variant text-[24px] shrink-0 transition-transform duration-200">expand_more</span>
+</button>
+<div class="faq-content px-6 pb-6 pt-0 hidden">
+<p class="font-body-default text-body-default text-on-surface-variant leading-relaxed">
+                Durasi fabrikasi workshop berkisar 3–5 minggu tergantung kompleksitas dan volume pekerjaan. Instalasi di lokasi umumnya membutuhkan 3–7 hari kerja agar tidak mengganggu aktivitas hunian Anda.
+              </p>
+</div>
+</div>
+<!-- FAQ 4 -->
+<div class="faq-item rounded-xl bg-surface-container-lowest border border-outline-variant/40 overflow-hidden transition-colors">
+<button aria-expanded="false" class="faq-toggle w-full p-6 text-left flex items-center justify-between gap-4 focus:outline-none" type="button">
+<span class="font-title-card text-title-card text-on-surface">Bagaimana sistem perhitungan harga dan pembayaran?</span>
+<span class="faq-icon material-symbols-outlined text-on-surface-variant text-[24px] shrink-0 transition-transform duration-200">expand_more</span>
+</button>
+<div class="faq-content px-6 pb-6 pt-0 hidden">
+<p class="font-body-default text-body-default text-on-surface-variant leading-relaxed">
+                Harga dihitung secara transparan berdasarkan volume pekerjaan dan spesifikasi material pilihan (tanpa mark-up tersembunyi). Sistem pembayaran bertahap (termin) sesuai progres pengerjaan yang terverifikasi.
+              </p>
+</div>
+</div>
+<!-- FAQ 5 -->
+<div class="faq-item rounded-xl bg-surface-container-lowest border border-outline-variant/40 overflow-hidden transition-colors">
+<button aria-expanded="false" class="faq-toggle w-full p-6 text-left flex items-center justify-between gap-4 focus:outline-none" type="button">
+<span class="font-title-card text-title-card text-on-surface">Apakah spesifikasi material bisa disesuaikan dengan budget?</span>
+<span class="faq-icon material-symbols-outlined text-on-surface-variant text-[24px] shrink-0 transition-transform duration-200">expand_more</span>
+</button>
+<div class="faq-content px-6 pb-6 pt-0 hidden">
+<p class="font-body-default text-body-default text-on-surface-variant leading-relaxed">
+                Tentu. Tim desainer dan estimator kami akan memberikan beberapa opsi kombinasi material dan hardware (misal: HPL vs natural veneer, quartz vs solid surface) agar hasil optimal sesuai rencana anggaran Anda.
+              </p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 5. FINAL CTA BANNER -->
+<section class="py-16 md:py-20 bg-surface">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<div class="relative overflow-hidden rounded-3xl bg-surface-container border border-outline-variant/50 p-8 md:p-14">
+<!-- Soft ambient background highlight -->
+<div class="absolute -right-20 -top-20 w-96 h-96 rounded-full bg-primary-fixed-dim/30 blur-3xl pointer-events-none"></div>
+<div class="relative z-10 max-w-2xl">
+<div class="inline-flex items-center gap-space-xs px-3 py-1 rounded-full bg-surface-container-lowest border border-outline-variant/40 mb-4">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-wider">MULAI PROYEK ANDA</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface tracking-tight mb-3">
+            Siap Memulai?
+          </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant mb-8">
+            Konsultasikan denah dan kebutuhan Anda bersama tim kami. Dapatkan perkiraan biaya dan jadwal survey tanpa komitmen awal.
+          </p>
+<div class="flex flex-wrap items-center gap-space-md mb-8">
+<a class="inline-flex items-center justify-center gap-2 bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-7 py-4 rounded-xl transition-all duration-200 shadow-sm hover:shadow-md active:scale-98" href="https://wa.me/6281289001234" rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[20px]">chat</span>
+<span>Konsultasi Sekarang</span>
+</a>
+<a class="inline-flex items-center justify-center gap-2 bg-surface-container-lowest hover:bg-surface-container-high border border-outline-variant/60 text-on-surface font-label-button text-label-button px-7 py-4 rounded-xl transition-all duration-200" href="https://wa.me/6281289001234?text=Halo%20Kreasi%20Ruang,%20saya%20ingin%20jadwalkan%20survey%20lokasi." rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[20px]">calendar_month</span>
+<span>Jadwalkan Survey Lokasi</span>
+</a>
+</div>
+<div class="flex items-center gap-2 text-tertiary font-body-compact text-body-compact">
+<span class="material-symbols-outlined text-[16px] text-primary">schedule</span>
+<span>WhatsApp: +62 812-8900-1234 • Respon Cepat Setiap Hari (08.00 - 20.00 WIB)</span>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- Vanilla JS for Interactive Accordion -->
+<script>
+    document.querySelectorAll('.faq-toggle').forEach(button => {
+      button.addEventListener('click', () => {
+        const item = button.closest('.faq-item');
+        const content = item.querySelector('.faq-content');
+        const icon = item.querySelector('.faq-icon');
+        const isExpanded = button.getAttribute('aria-expanded') === 'true';
+
+        // Close all other items for a clean accordion effect
+        document.querySelectorAll('.faq-item').forEach(otherItem => {
+          if (otherItem !== item) {
+            const otherBtn = otherItem.querySelector('.faq-toggle');
+            const otherContent = otherItem.querySelector('.faq-content');
+            const otherIcon = otherItem.querySelector('.faq-icon');
+            otherBtn.setAttribute('aria-expanded', 'false');
+            otherContent.classList.add('hidden');
+            otherContent.classList.remove('block');
+            otherIcon.classList.remove('rotate-180', 'text-primary');
+            otherIcon.classList.add('text-on-surface-variant');
+          }
+        });
+
+        // Toggle clicked item
+        if (isExpanded) {
+          button.setAttribute('aria-expanded', 'false');
+          content.classList.add('hidden');
+          content.classList.remove('block');
+          icon.classList.remove('rotate-180', 'text-primary');
+          icon.classList.add('text-on-surface-variant');
+        } else {
+          button.setAttribute('aria-expanded', 'true');
+          content.classList.remove('hidden');
+          content.classList.add('block');
+          icon.classList.add('rotate-180', 'text-primary');
+          icon.classList.remove('text-on-surface-variant');
+        }
+      });
+    });
+  </script>
+</div></main><footer class="w-full bg-inverse-surface text-inverse-on-surface border-t border-inverse-surface"><div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-space-xl"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-space-xl pb-space-xl border-b border-tertiary-container/30"><div class="lg:col-span-1 flex flex-col gap-space-sm"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-primary-fixed text-[28px]">architecture</span><span class="font-headline-subsection text-title-card text-on-primary font-bold tracking-tight">Ruangkeruang</span></div><p class="font-body-compact text-body-compact text-tertiary-fixed-dim leading-relaxed">Studio desain interior &amp; workshop pengerjaan eksterior custom presisi berskala arsitektural.</p><div class="pt-space-sm"><a class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary-fixed hover:text-primary-fixed-dim transition-colors" href="https://wa.me/6281289001234" rel="noopener" target="_blank"><span class="material-symbols-outlined text-[18px]">chat</span>WhatsApp Studio Direct</a></div></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Interior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Kitchen Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Living Room Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Bedroom Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Interior</li><li class="hover:text-on-primary transition-colors cursor-pointer">Built-in Furniture</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Eksterior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Modern Canopy</li><li class="hover:text-on-primary transition-colors cursor-pointer">Pagar Minimalis</li><li class="hover:text-on-primary transition-colors cursor-pointer">Railing Tangga &amp; Balkon</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Metalwork</li><li class="hover:text-on-primary transition-colors cursor-pointer">Facade Cladding</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Perusahaan &amp; Proses</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Portfolio Proyek</li><li class="hover:text-on-primary transition-colors cursor-pointer">Cara Pemesanan</li><li class="hover:text-on-primary transition-colors cursor-pointer">Estimasi Biaya</li><li class="hover:text-on-primary transition-colors cursor-pointer">Workshop &amp; Fabrikasi</li><li class="hover:text-on-primary transition-colors cursor-pointer">Material Library</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Kontak</h3><div class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><p>Workshop Jabodetabek, Indonesia</p><p class="text-on-primary">WhatsApp: +62 812-8900-1234</p><p>Instagram: @ruangkeruang.build</p><p>Email: halo@ruangkeruang.id</p></div></div></div><div class="pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-sm text-tertiary-fixed-dim font-body-compact text-body-compact"><div>© 2025 Ruangkeruang. All rights reserved. Engineering &amp; Build.</div><div class="flex items-center gap-space-md"><a class="hover:text-on-primary transition-colors" href="#">Syarat &amp; Ketentuan</a><a class="hover:text-on-primary transition-colors" href="#">Kebijakan Privasi</a></div></div></div></footer><script src="../mockup.js"></script></body></html>

@@ -301,6 +301,7 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "copy_writer.edit", module: "copy_writer", label: "Edit Copy Writer" },
   { name: "copy_writer.delete", module: "copy_writer", label: "Hapus Copy Writer" },
   { name: "copy_writer.dashboard_sosmed", module: "copy_writer", label: "Sub-menu: Dashboard Sosmed Copy Writer" },
+  { name: "copy_writer.timelines", module: "copy_writer", label: "Sub-menu: Timeline Konten Copy Writer" },
   { name: "copy_writer.laporan_harian", module: "copy_writer", label: "Sub-menu: Laporan Harian Copy Writer" },
   { name: "telemarketing.view",          module: "telemarketing", label: "Lihat Sales Admin Product dan Mitra" },
   { name: "telemarketing.create",        module: "telemarketing", label: "Buat Sales Admin Product dan Mitra" },

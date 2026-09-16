@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="id"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><title>Ruangkeruang</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&amp;family=Sora:wght@500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior-y: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { width: 8px; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-tertiary": "#ffffff", "surface": "#ffffff", "surface-container-low": "#f6f3ee", "on-tertiary-fixed-variant": "#484645", "surface-container-highest": "#e5e2dd", "on-primary-fixed": "#360f00", "on-secondary-fixed": "#390c00", "outline-variant": "#e0c0b2", "tertiary": "#605e5c", "error-container": "#ffdad6", "on-error-container": "#93000a", "outline": "#8c7166", "inverse-on-surface": "#f3f0eb", "primary-fixed": "#ffdbcd", "primary-fixed-dim": "#ffb595", "tertiary-container": "#979492", "primary-container": "#f36b21", "error": "#ba1a1a", "secondary-fixed-dim": "#ffb59c", "surface-container": "#f0ede8", "on-surface": "#1c1c19", "on-surface-variant": "#594238", "surface-container-high": "#eae8e3", "surface-bright": "#ffffff", "tertiary-fixed-dim": "#cac6c4", "surface-tint": "#a23f00", "on-primary-container": "#521c00", "inverse-surface": "#31302d", "on-error": "#ffffff", "background": "#ffffff", "surface-dim": "#dcdad5", "secondary": "#ab3600", "inverse-primary": "#ffb595", "on-secondary-container": "#611b00", "secondary-fixed": "#ffdbcf", "primary": "#a23f00", "surface-container-lowest": "#ffffff", "on-secondary": "#ffffff", "on-primary": "#ffffff", "surface-variant": "#e5e2dd", "on-tertiary-fixed": "#1c1b1a", "on-secondary-fixed-variant": "#822700", "on-primary-fixed-variant": "#7c2e00", "on-background": "#1c1c19", "tertiary-fixed": "#e6e2df", "secondary-container": "#ff6e38", "on-tertiary-container": "#2e2d2c" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "space-xs": "0.25rem", "margin": "4rem", "space-xl": "2.5rem", "gutter-mobile": "1rem", "space-sm": "0.5rem", "margin-mobile": "1.25rem", "space-md": "1rem", "gutter": "1.5rem" }, "fontFamily": { "body-default": ["Manrope"], "label-tag": ["Sora"], "headline-section": ["Sora"], "display-hero-mobile": ["Sora"], "body-lead": ["Manrope"], "label-button": ["Sora"], "display-hero": ["Sora"], "headline-subsection": ["Sora"], "headline-section-mobile": ["Sora"], "title-card": ["Sora"], "label-eyebrow": ["Sora"], "body-compact": ["Manrope"] }, "fontSize": { "body-default": ["15px", { "lineHeight": "24px", "fontWeight": "400" }], "label-tag": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "headline-section": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "display-hero-mobile": ["44px", { "lineHeight": "50px", "letterSpacing": "-0.025em", "fontWeight": "700" }], "body-lead": ["17px", { "lineHeight": "28px", "fontWeight": "400" }], "label-button": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }], "display-hero": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.03em", "fontWeight": "700" }], "headline-subsection": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "headline-section-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "title-card": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.005em", "fontWeight": "600" }], "label-eyebrow": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "700" }], "body-compact": ["13px", { "lineHeight": "20px", "fontWeight": "400" }] } } } }</script></head><body class="bg-surface font-body-default text-body-default text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/90 backdrop-blur-md border-b border-surface-variant"><div class="h-20 max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex items-center justify-between"><div class="flex items-center gap-space-md"><a class="font-label-button text-label-button text-on-surface tracking-wider font-bold" data-path="home" href="#">Ruangkeruang</a></div><nav class="hidden lg:flex items-center gap-space-lg" data-active-classes="text-primary font-bold"><a aria-current="page" class="transition-colors duration-200 text-primary font-bold" data-path="home" href="#">Home</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="interior" href="#">Interior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="eksterior" href="#">Eksterior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="portfolio" href="#">Portfolio</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="cara-pemesanan" href="#">Cara Pemesanan</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="kontak" href="#">Kontak</a></nav><div class="flex items-center gap-space-md"><a class="hidden sm:inline-flex items-center justify-center bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-space-lg py-space-sm rounded-xl transition-colors duration-200 shadow-sm" data-path="konsultasi" href="#">Konsultasi</a></div></div></header><main class="w-full pt-10 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- Nav Active State Sync -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const activeNav = document.querySelector('nav a[data-path="portfolio"]');
+      if (activeNav) {
+        document.querySelectorAll('nav a').forEach(el => el.classList.remove('text-primary', 'font-bold'));
+        activeNav.classList.add('text-primary', 'font-bold');
+      }
+    });
+  </script>
+<!-- Hero Section -->
+<section class="w-full bg-surface py-space-xl lg:py-space-xl">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex flex-col items-start">
+<div class="flex items-center gap-space-xs mb-space-sm">
+<span class="w-2 h-2 rounded-full bg-primary-container inline-block"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container tracking-widest">PORTFOLIO</span>
+</div>
+<div class="flex flex-col md:flex-row md:items-end justify-between w-full gap-space-md">
+<h1 class="font-display-hero text-headline-section md:text-display-hero text-on-surface tracking-tight max-w-2xl">
+          Pekerjaan Kami.
+        </h1>
+<p class="font-body-lead text-body-lead text-on-surface-variant max-w-md pb-1">
+          Interior dan eksterior custom presisi arsitektural yang telah kami wujudkan dengan disiplin material.
+        </p>
+</div>
+<div class="w-full h-px bg-surface-variant mt-space-lg"></div>
+</div>
+</section>
+<!-- Filter Controls Section -->
+<section class="w-full bg-surface pb-space-lg sticky top-20 z-30 bg-surface/95 backdrop-blur-md">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<div class="flex items-center gap-space-xs overflow-x-auto no-scrollbar py-space-xs" id="filter-container">
+<button class="portfolio-filter-btn px- space-md py-space-xs px-space-md rounded-xl font-label-button text-label-button transition-all duration-200 bg-primary-container text-on-primary shadow-sm whitespace-nowrap" data-filter="all">
+          Semua
+        </button>
+<button class="portfolio-filter-btn px-space-md py-space-xs rounded-xl font-label-button text-label-button transition-all duration-200 bg-surface-container text-on-surface-variant hover:bg-surface-container-high whitespace-nowrap" data-filter="interior">
+          Interior
+        </button>
+<button class="portfolio-filter-btn px-space-md py-space-xs rounded-xl font-label-button text-label-button transition-all duration-200 bg-surface-container text-on-surface-variant hover:bg-surface-container-high whitespace-nowrap" data-filter="kitchen">
+          Kitchen
+        </button>
+<button class="portfolio-filter-btn px-space-md py-space-xs rounded-xl font-label-button text-label-button transition-all duration-200 bg-surface-container text-on-surface-variant hover:bg-surface-container-high whitespace-nowrap" data-filter="living-room">
+          Living Room
+        </button>
+<button class="portfolio-filter-btn px-space-md py-space-xs rounded-xl font-label-button text-label-button transition-all duration-200 bg-surface-container text-on-surface-variant hover:bg-surface-container-high whitespace-nowrap" data-filter="bedroom">
+          Bedroom
+        </button>
+<button class="portfolio-filter-btn px-space-md py-space-xs rounded-xl font-label-button text-label-button transition-all duration-200 bg-surface-container text-on-surface-variant hover:bg-surface-container-high whitespace-nowrap" data-filter="canopy">
+          Canopy
+        </button>
+<button class="portfolio-filter-btn px-space-md py-space-xs rounded-xl font-label-button text-label-button transition-all duration-200 bg-surface-container text-on-surface-variant hover:bg-surface-container-high whitespace-nowrap" data-filter="pagar">
+          Pagar
+        </button>
+<button class="portfolio-filter-btn px-space-md py-space-xs rounded-xl font-label-button text-label-button transition-all duration-200 bg-surface-container text-on-surface-variant hover:bg-surface-container-high whitespace-nowrap" data-filter="railing">
+          Railing
+        </button>
+<button class="portfolio-filter-btn px-space-md py-space-xs rounded-xl font-label-button text-label-button transition-all duration-200 bg-surface-container text-on-surface-variant hover:bg-surface-container-high whitespace-nowrap" data-filter="metalwork">
+          Metalwork
+        </button>
+</div>
+</div>
+</section>
+<!-- Editorial Project Mosaic Showcase -->
+<section class="w-full bg-surface pb-space-xl">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- 12-Column Responsive Grid with Varied Spans for Editorial Rhythm -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-gutter" id="project-grid">
+<!-- Card 1: Large Feature (8 Cols) - Kitchen -->
+<article class="project-item cursor-pointer lg:col-span-8 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="kitchen interior">
+<div class="relative w-full h-[380px] lg:h-[480px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="High-end modern Indonesian kitchen with warm natural oak cabinetry, honed white quartz island, seamless fluted paneling, warm 3000K recessed architectural downlighting, minimalist brushed bronze tapware, architectural photography, hyper-clean daylight aesthetic" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC28O7R2PNpnCwqzM0bxkx7LcUwyMNwRog9h5eWgqw4zPy8sHq1JrvBLmg-kj5UP1d0TDkGxNS-ATX_I-avEFVWyjkdB2CS34HTaRvzqEOzhH3ElzdWqFIETcXtPk_FepPZICj9qJzxMeUKD3yMno2xvfK2_4TE4SaDMaDv9XJqPCu4mYYqz0-3uwIaolp6B7gQ33-kyRR3m-EHh-MmW9twffwIfKVVoVHFvlts9emdF2zb_XEYlCmsOQ"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Kitchen Set</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Warm Minimal Kitchen</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Bekasi • Natural White Oak &amp; Quartz</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 2: Vertical Card (4 Cols) - Canopy -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="canopy">
+<div class="relative w-full h-[380px] lg:h-[480px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Architectural modern cantilever steel canopy with black powder-coated I-beam rafters and laminated tempered glass roofing on a Jakarta Selatan luxury residence facade, clean tropical daylight, sharp shadows, linear geometry" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCJRl6j-hLcIhDNnTimPUtCBMZ1SrYtnpzwe_MO7tUu9x8XVYIMH6HbxoqZmkEvEmjXKDAGCXYeHhburwMRCkWqtDeluz_iIAgDFTKdh9Qvwjh0yIP54QXFcFyujyRNbOU9LqjPeUXUkAPzwr0S6O1z2LTfbMI4UF0-OvZI_YXx4QFdNL8SY8b0HmACcF6EVlEHuXu_JY17tqov0g0QfTfIBzCRWMHxZv7Iu4VzbaQxcKA_hGoMwOKhaQ"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Canopy</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Minimalist Steel Canopy</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Jakarta Selatan • Powder-Coated WF Beam</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 3: Standard (4 Cols) - Bedroom -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="bedroom interior">
+<div class="relative w-full h-[320px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Bespoke floor-to-ceiling modern wardrobe with smoked glass inserts, integrated concealed LED channel lighting, dark walnut woodwork, Japandi architectural interior, Tangerang bedroom sanctuary" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAP6CBk6HDk1C2STyr5qIH0Ec2Cs4hjL7UiJEGt5_851xtoFJMkumW7rj-jzHGTPaI9kGBCS2tiFGkOZYwwGDOZFRtMRhpOjt3C2GV-5Es1t1MP4hIoR1NUgCX5LuA-CW646AVHS5lYUAtqq8jfkHdVs96HW4Zd17yzhf1S8Fb3eUopQGDEjVQvlrxjfdpM2xlv3ZvE08XloRFDdJd12gjrVI122aPlxl7TCC9-8rzwoXikRjugdpxcoA"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Bedroom</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Modern Bedroom Storage</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Tangerang • Smoked Glass &amp; Walnut</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 4: Standard (4 Cols) - Living Room -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="living-room interior">
+<div class="relative w-full h-[320px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Contemporary living room fluted oak credenza media console with micro-cement backdrop wall and soft acoustic slatted wooden dividers, warm diffuse daylight, BSD City residential architecture" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD4xDv2Z6ToTIol1Bh4rj_JW4FAL7NVj525qXkzMl6MsNkmjqPxHVyeli8evNcBeMWrR0gpiGrVfoJ6-cUU0ru6TiB0thPh5E8kwSeJ3wJzubSJcj-RYeGYehF3AumB9XcoSw7WRXx4FjMO8g7ni11POSY_x-6z3jASf9QRsVdVdmvD7Gswq_3V3rrSeU6Yc-0_R-AJDxszXaOaQ-170P3VR4cIDDr0pKn7cMqwD9uw-1CJ9Ldo-Ri2yQ"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Living Room</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Fluted Oak Credenza</h3>
+<p class="font-body-compact text-body-compact text-tertiary">BSD City • Solid White Oak &amp; Microcement</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 5: Standard (4 Cols) - Pagar -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="pagar">
+<div class="relative w-full h-[320px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Pondok Indah luxury residence modern automated sliding gate combining matte carbon black galvanized steel with teak wood plastic composite vertical louvers, sharp linear minimalist composition" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRA2Wq0KANUB2Z5WGB1e9mStUXVqRfXBN0dkLxbJIjTX42PbQ42-NWxMvsd24gCDQZK7wV6Ic5SEDgMEfau86FqCNmKh-0pGeGJvDn9vnjXHN2wVAVKeIWroEiS0MlgeERrE5seW_hQdnGihZBsSF_mDu-_I21EYMyEMmYwCUOhZFuTuSxlGx9SpSH3L7A8OHZsLtlzJMl22IkKHmqwC9J4l60DS7BZ7CQ3hBy8PRp0vilM4ySkbHdlw"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Pagar</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Laser-Cut Sliding Gate</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Pondok Indah • Steel &amp; WPC Louver</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 6: Portrait Card (5 Cols) - Railing -->
+<article class="project-item cursor-pointer lg:col-span-5 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="railing">
+<div class="relative w-full h-[400px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="High precision tempered glass balcony railing with satin finish stainless steel base shoe profile and tropical Merbau hardwood top handrail, looking out over lush Indonesian garden greenery, Kebayoran Baru" src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_QiKApijLgitdeCgZeCtZ70Ey_WzxHc-ebFZeN0391Ct9naIjA0-LRbUczvQanWs0XhDKGF0b66BRgNXk3rxJdc3NeHwxcUyscXPZXK6o5Uiba6Rsy0u3Cvg0HSwlL4vPKLDzoJUHXJv2SlEBNqmdlikMJQI_rbt3mr6q5GwBBqXw0oHZbdLi3mu6TKJHPRtj18fBg5FeKo5rz70Qx_4CEuxRRV0cfjMWIaJR7YWy9yM4m7KDpSCDtg"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Railing</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Tempered Glass Railing</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Kebayoran Baru • 12mm Glass &amp; Hardwood</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 7: Wide Span (7 Cols) - Metalwork -->
+<article class="project-item cursor-pointer lg:col-span-7 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="metalwork">
+<div class="relative w-full h-[400px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Custom structural steel mezzanine loft studio with floating open-tread staircase, matte graphite black finish, teak steps, architectural interior conversion in Bandung hillside residence" src="https://lh3.googleusercontent.com/aida-public/AB6AXuD0hOukELAx-eV4KFEhcwyIQZAZu7oxtcRrhX0fN2dfbUIeGKaUojeNoG_sYMuVjJ61DOl7TUwEevRWtb4RFM9-_HigNTwt1UFR9lyXtSOQv3l1a6WMtsD7szsNBvcGlb72zsrghwkkkTS-CuMryBO4PZUYZOJaIaE7FO5HlzpFKPqii17SnRxYeTakeydW__s6Y1jcanInqPoTDSDgLj_AGkVP80-N9l862kSyMy_R_zppBglrDUX5Cg"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Metalwork</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Steel Mezzanine &amp; Staircase</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Bandung • Heavy H-Beam &amp; Teak Tread</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 8: Standard (4 Cols) - Kitchen -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="kitchen interior">
+<div class="relative w-full h-[320px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Ultra-compact high-efficiency urban kitchen with Caesarstone countertops, concealed induction cooktop, matte sage lacquer cabinets, brass recessed handles, Kelapa Gading townhome" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA66mkQxes2JOXw6vFhlX_l6Rw1zlfiGTsuKLG1tI9jOtmgNaGxamn2Vd4dKruBbM4Msg_v288Yr5gFzkjMt9zXxWqYXX-lGV3AC2v_fHxy_mf04s6OozlwPlO8iKX0PBEnM8qM7I9Hx6uOhWeAnTXWNHc14TOoaVpdcgQBZWvbkQpiOUfjIvHZJlA3CjqkuLvblqxpLF-NO-b3ci_-0JGR2lVcfqa1uAetO-u_EN6bHDFGk6R8ZV8zQg"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Kitchen Set</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Compact Island &amp; Wet Kitchen</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Kelapa Gading • Solid Surface &amp; Sage Duco</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 9: Standard (4 Cols) - Canopy -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="canopy">
+<div class="relative w-full h-[320px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Cantilever carport shelter with dark grey solar control glass, integrated gutter drainage, slim profile steel pillars, modern home in Bintaro Jaya" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA3LFgZDuPXRBLNculDyApF7-mIN4_QZKDgAKJ5-2i6Zz1uIKAX1CNccjdpSFrUR5x-kqp1Y25Q0qy_ZllBVwyavEzFMtCMW15S2DBjStVyRX0ykVPTJEfl5x_EFP4ncwSR6bQn-Vt-99i1QORIrbgqTJNHW0lR_-9whciUPjhEeZCV7LCGwEzadhsaQkIX7T2Cp_FMS2rrPZfKI4zJnlpkZsT-8jjj3orxtp6dndrSA4X2R8LycPEZuw"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Canopy</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Cantilever Carport Shelter</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Bintaro Jaya • Solar Tork Glass &amp; Steel</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 10: Standard (4 Cols) - Metalwork -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="metalwork">
+<div class="relative w-full h-[320px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Perforated parametric metal facade screen shading sunlight over contemporary concrete residence in Menteng, soft tropical morning light casts geometric shadow patterns" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8UtGX5qAy75MQC8IFwSV4IbP5oOxCnrIYWAgormparWCbmPID_56iI5uhPObiZZIPQuRiC0YcVJpTXXqCSecZhAtxcKwYPvbLrMN658oocCli0qOsCw4aq129UPsh2v23J5GYxXaopbEoZjwsPZfQIGjQdzIoRHTLChjJh0V9Ip7DMXO_G8mSk5kmz4z8u3L9B9pcJhZqmSCqx6bLOyZOsBt0EaDhmjT0LZfW7qnSpksa0Fu9DU9Xng"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Metalwork</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Sun-Shading Steel Facade</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Menteng • Perforated Aluminum Panels</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 11: Landscape Card (6 Cols) - Bedroom -->
+<article class="project-item cursor-pointer lg:col-span-6 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="bedroom interior">
+<div class="relative w-full h-[340px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Master suite bed frame with seamless backlit linen headboard panel, floating bedside tables in dark stained ash wood, minimal warm lighting, Puri Indah modern penthouse" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCG_NXzO5MkdSFM-U6y0ISE3C8lC28pfum7-eIYgU9Qm_hCJdgFstzlI-5B0dq1hNWHXgnxUZLRzW5t0YQ9PAO4_N8PtUzaLAPAVlff3AhkINy8MUgZifpk0ZC5SUpXG10j9bKmzUOL99-iT-JrazxbnuPOUrklbRx_abX-HEnoVdU0WbHEAVoIzagbfZbUBWCJCU3PC6oWbAkeJzpPddWKG6byKEiC50GX2OtxOrLBGq8rMW09DWplCw"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Bedroom</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Master Suite Bed Frame</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Puri Indah • Stained Ash &amp; Texturized Fabric</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 12: Landscape Card (6 Cols) - Pagar -->
+<article class="project-item cursor-pointer lg:col-span-6 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="pagar">
+<div class="relative w-full h-[340px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Minimalist hollow steel swing gate with matte sand-textured black electrostatic coating and integrated cast-concrete mail drop pillar, modern home in Depok" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBTjztoQaYXuLudvPi9IReHY3awEa5HxhiZSYLEcwUKiP_4oiWvX-sx_Z1dLpQJVDxNEvCyjuTIgXLXvF3ZxDKdxP9SmxP5aWz6zMbKF-YgKGzwdd2LCj3hyr_t3GFbasXdKYPrbb2HCxP4TWpWGVlPret5OChIL6WD-7p659bphH8HpQW672UCFqWoOAqGHsZKkr8JIl03hDQniaM9OUXTpsL9g9YDU01mPC8JSNRp8n0eoflViqp3Rw"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Pagar</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Minimalist Hollow Steel Gate</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Depok • Electrostatic Powder Coat</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 13: Standard (4 Cols) - Railing -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="railing">
+<div class="relative w-full h-[300px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Interior cantilevered staircase with frameless 15mm clear tempered glass railing and custom recessed LED warm lighting into teak wood steps, Cinere modern home" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCBnYRa6-CjptP0tbp1Qkmy8I7M17diqP6_vKRbGX2OH3eAkUny3yw6TXdAktHQwvw2q-oNi00TPI2xgbVDv9gXtbm58RHlykNspGL4zGxWWeZIsRD0K9TpyaTQY9ClVpavDsA-xBlq8iFrgfb0kjika0uWkhSou4VgvXvchnPUDhD5m1Se4pbHoPaIpY8WPup-n1VDqKri45NSuMP3sia5ltRxOvfiHnuJfEFhw-H4CEVJ9CXqbVdIWQ"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Railing</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Frameless Glass Stair Railing</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Cinere • Structural Glass &amp; Teak</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 14: Standard (4 Cols) - Living Room -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="living-room interior">
+<div class="relative w-full h-[300px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Floating custom TV wall unit with Italian porcelain slab backdrop, matte charcoal low cabinet, concealed media wiring, Pantai Indah Kapuk luxury villa interior" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAocem6dUaAQxSi0JqTVW_W5tj0JwfkxXR4YKwRDccYu7D1mB5smM92GmFhO-gwbCt9F4lnSdLK4XHTwdb-sNqCnI9YhLxFlwNH3lL9cI4tyxX-S85FKfbUh-7euoV_XUkIntkzmwUHqET7Hufr1yZjBFYfcqaAcdvAX3yig2NDaIzu5nLrou_705hJ8Q9cH4elIfo4TOHpZL8QpSy7D2Ow4PeG4uwqtLxAxLlUr4xbWrrIc0Q87K0S9Q"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Living Room</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Floating TV Panel &amp; Cabinet</h3>
+<p class="font-body-compact text-body-compact text-tertiary">PIK • Porcelain Slab &amp; Dark HPL</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+<!-- Card 15: Standard (4 Cols) - Interior Custom -->
+<article class="project-item cursor-pointer lg:col-span-4 group bg-surface-container-lowest rounded-[18px] p-4 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between" data-path="portofolio-detail" role="link" tabindex="0" data-category="interior">
+<div class="relative w-full h-[300px] overflow-hidden rounded-[14px]">
+<img class="w-full h-full object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]" data-alt="Custom fitted under-stairs cabinetry with push-to-open pull-out shoe organizers and hidden luggage storage clad in light birch plywood, architectural precision, Serpong house" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCVDCemXFEHd3akwCt5kkQwKq59jA96eKqcBMCA4ljT_x8HcNJdCHVgS-Dz_9ORyrEwmtX-YFDXJ3PyVxcaqwcUlba5Do6Ns3wyQI2RfVi02BWNUJ3VseZuQktgjFlqefgLcJYHBQyy-6berWIPpvgfBRpFUhqpPH18LiiwBpFLpO1wia755OYp-aaSmB6FsMd3SGwegpsZ9fgJU4pHBQnr2c3ly2cJMVhBZvDnMWy_NQqjLjzNQioIBg"/>
+<div class="absolute top-4 left-4">
+<span class="bg-surface-container-lowest/90 backdrop-blur-md px-3 py-1 rounded-lg font-label-tag text-label-tag text-on-surface">Interior Custom</span>
+</div>
+</div>
+<div class="pt-4 pb-2 px-2 flex items-center justify-between">
+<div>
+<h3 class="font-title-card text-title-card text-on-surface group-hover:text-primary-container transition-colors">Under-Stair Cabinetry</h3>
+<p class="font-body-compact text-body-compact text-tertiary">Serpong • Birch Plywood &amp; Blum Hardware</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center group-hover:bg-primary-container group-hover:text-on-primary transition-all">
+<span class="material-symbols-outlined text-[20px]">arrow_outward</span>
+</div>
+</div>
+</article>
+</div>
+<!-- Load More Action -->
+<div class="mt-space-xl flex justify-center">
+<button class="inline-flex items-center gap-space-sm px-space-lg py-3 rounded-xl bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors font-label-button text-label-button" id="load-more-btn">
+<span>Lihat Proyek Lainnya</span>
+<span class="material-symbols-outlined text-[18px]">south</span>
+</button>
+</div>
+</div>
+</section>
+<!-- Architectural Metric Strip -->
+<section class="w-full bg-surface-container-low py-space-xl">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<div class="grid grid-cols-2 md:grid-cols-4 gap-space-lg">
+<div class="flex flex-col">
+<span class="font-headline-section text-headline-section text-on-surface font-bold">180+</span>
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary mt-1">Proyek Terselesaikan</span>
+<p class="font-body-compact text-body-compact text-on-surface-variant mt-2">Interior &amp; workshop eksterior sejak 2019.</p>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-section text-headline-section text-on-surface font-bold">99.4%</span>
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary mt-1">Presisi Fabrikasi</span>
+<p class="font-body-compact text-body-compact text-on-surface-variant mt-2">Toleransi laser-cut &amp; perakitan sub-milimeter.</p>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-section text-headline-section text-on-surface font-bold">3 Thn</span>
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary mt-1">Garansi Konstruksi</span>
+<p class="font-body-compact text-body-compact text-on-surface-variant mt-2">Jaminan integritas struktural baja &amp; engsel.</p>
+</div>
+<div class="flex flex-col">
+<span class="font-headline-section text-headline-section text-on-surface font-bold">1 Workshop</span>
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary mt-1">Fabrikasi Sendiri</span>
+<p class="font-body-compact text-body-compact text-on-surface-variant mt-2">Bukan perantara atau makelar konstruksi.</p>
+</div>
+</div>
+</div>
+</section>
+<div class="w-full flex justify-center mt-space-xl"><a class="inline-flex items-center gap-space-xs bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-space-xl py-3 rounded-xl transition-all shadow-sm" data-path="portofolio-detail" href="#"><span>Open Studi Kasus Kitchen Set</span><span class="material-symbols-outlined text-[18px]">north_east</span></a></div><!-- Final Call to Action Section -->
+<section class="w-full bg-surface py-space-xl">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<div class="bg-surface-container-lowest rounded-[24px] p-space-lg md:p-space-xl shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-space-lg relative overflow-hidden">
+<!-- Subtle orange accent marker -->
+<div class="absolute -top-10 -right-10 w-48 h-48 rounded-full bg-primary-fixed/30 blur-3xl pointer-events-none"></div>
+<div class="max-w-xl flex flex-col gap-space-xs z-10">
+<div class="inline-flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container tracking-wider">DISKUSI PROYEK</span>
+</div>
+<h2 class="font-headline-section text-headline-section text-on-surface tracking-tight">
+            Punya Proyek yang Ingin Dibuat?
+          </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant">
+            Konsultasikan detail denah ruang, estimasi biaya material, dan jadwalkan survey presisi workshop langsung ke lokasi Anda.
+          </p>
+</div>
+<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-space-sm z-10">
+<a class="h-12 px-6 rounded-xl bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button transition-colors duration-200 inline-flex items-center justify-center gap-2 shadow-sm whitespace-nowrap" href="https://wa.me/6281289001234" rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[18px]">chat</span>
+<span>Konsultasi Sekarang</span>
+</a>
+<a class="h-12 px-6 rounded-xl bg-surface-container hover:bg-surface-container-high text-on-surface font-label-button text-label-button transition-colors duration-200 inline-flex items-center justify-center gap-2 whitespace-nowrap" data-path="konsultasi" href="#">
+<span class="material-symbols-outlined text-[18px]">calendar_today</span>
+<span>Jadwalkan Survey Lokasi</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- Lightweight Filter & Interaction Script -->
+<script>
+    (function() {
+      const filterBtns = document.querySelectorAll('.portfolio-filter-btn');
+      const projectItems = document.querySelectorAll('.project-item');
+      const loadMoreBtn = document.getElementById('load-more-btn');
+
+      filterBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+          // Reset styles
+          filterBtns.forEach(b => {
+            b.classList.remove('bg-primary-container', 'text-on-primary', 'shadow-sm');
+            b.classList.add('bg-surface-container', 'text-on-surface-variant');
+          });
+
+          // Activate clicked button
+          btn.classList.remove('bg-surface-container', 'text-on-surface-variant');
+          btn.classList.add('bg-primary-container', 'text-on-primary', 'shadow-sm');
+
+          const filterValue = btn.getAttribute('data-filter');
+
+          projectItems.forEach(item => {
+            const categories = item.getAttribute('data-category') || '';
+            if (filterValue === 'all' || categories.split(' ').includes(filterValue)) {
+              item.style.display = '';
+              item.style.opacity = '1';
+            } else {
+              item.style.display = 'none';
+              item.style.opacity = '0';
+            }
+          });
+        });
+      });
+
+      if (loadMoreBtn) {
+        loadMoreBtn.addEventListener('click', () => {
+          loadMoreBtn.innerText = 'Semua Proyek Ditampilkan';
+          loadMoreBtn.disabled = true;
+          loadMoreBtn.classList.add('opacity-50', 'cursor-default');
+        });
+      }
+    })();
+  </script>
+</div></main><footer class="w-full bg-inverse-surface text-inverse-on-surface border-t border-inverse-surface"><div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-space-xl"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-space-xl pb-space-xl border-b border-tertiary-container/30"><div class="lg:col-span-1 flex flex-col gap-space-sm"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-primary-fixed text-[28px]">architecture</span><span class="font-headline-subsection text-title-card text-on-primary font-bold tracking-tight">Ruangkeruang</span></div><p class="font-body-compact text-body-compact text-tertiary-fixed-dim leading-relaxed">Studio desain interior &amp; workshop pengerjaan eksterior custom presisi berskala arsitektural.</p><div class="pt-space-sm"><a class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary-fixed hover:text-primary-fixed-dim transition-colors" href="https://wa.me/6281289001234" rel="noopener" target="_blank"><span class="material-symbols-outlined text-[18px]">chat</span>WhatsApp Studio Direct</a></div></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Interior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Kitchen Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Living Room Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Bedroom Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Interior</li><li class="hover:text-on-primary transition-colors cursor-pointer">Built-in Furniture</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Eksterior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Modern Canopy</li><li class="hover:text-on-primary transition-colors cursor-pointer">Pagar Minimalis</li><li class="hover:text-on-primary transition-colors cursor-pointer">Railing Tangga &amp; Balkon</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Metalwork</li><li class="hover:text-on-primary transition-colors cursor-pointer">Facade Cladding</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Perusahaan &amp; Proses</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Portfolio Proyek</li><li class="hover:text-on-primary transition-colors cursor-pointer">Cara Pemesanan</li><li class="hover:text-on-primary transition-colors cursor-pointer">Estimasi Biaya</li><li class="hover:text-on-primary transition-colors cursor-pointer">Workshop &amp; Fabrikasi</li><li class="hover:text-on-primary transition-colors cursor-pointer">Material Library</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Kontak</h3><div class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><p>Workshop Jabodetabek, Indonesia</p><p class="text-on-primary">WhatsApp: +62 812-8900-1234</p><p>Instagram: @ruangkeruang.build</p><p>Email: halo@ruangkeruang.id</p></div></div></div><div class="pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-sm text-tertiary-fixed-dim font-body-compact text-body-compact"><div>© 2025 Ruangkeruang. All rights reserved. Engineering &amp; Build.</div><div class="flex items-center gap-space-md"><a class="hover:text-on-primary transition-colors" href="#">Syarat &amp; Ketentuan</a><a class="hover:text-on-primary transition-colors" href="#">Kebijakan Privasi</a></div></div></div></footer><script src="../mockup.js"></script></body></html>

@@ -1,0 +1,734 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="id"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><title>Ruangkeruang</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&amp;family=Sora:wght@500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior-y: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { width: 8px; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-tertiary": "#ffffff", "surface": "#ffffff", "surface-container-low": "#f6f3ee", "on-tertiary-fixed-variant": "#484645", "surface-container-highest": "#e5e2dd", "on-primary-fixed": "#360f00", "on-secondary-fixed": "#390c00", "outline-variant": "#e0c0b2", "tertiary": "#605e5c", "error-container": "#ffdad6", "on-error-container": "#93000a", "outline": "#8c7166", "inverse-on-surface": "#f3f0eb", "primary-fixed": "#ffdbcd", "primary-fixed-dim": "#ffb595", "tertiary-container": "#979492", "primary-container": "#f36b21", "error": "#ba1a1a", "secondary-fixed-dim": "#ffb59c", "surface-container": "#f0ede8", "on-surface": "#1c1c19", "on-surface-variant": "#594238", "surface-container-high": "#eae8e3", "surface-bright": "#ffffff", "tertiary-fixed-dim": "#cac6c4", "surface-tint": "#a23f00", "on-primary-container": "#521c00", "inverse-surface": "#31302d", "on-error": "#ffffff", "background": "#ffffff", "surface-dim": "#dcdad5", "secondary": "#ab3600", "inverse-primary": "#ffb595", "on-secondary-container": "#611b00", "secondary-fixed": "#ffdbcf", "primary": "#a23f00", "surface-container-lowest": "#ffffff", "on-secondary": "#ffffff", "on-primary": "#ffffff", "surface-variant": "#e5e2dd", "on-tertiary-fixed": "#1c1b1a", "on-secondary-fixed-variant": "#822700", "on-primary-fixed-variant": "#7c2e00", "on-background": "#1c1c19", "tertiary-fixed": "#e6e2df", "secondary-container": "#ff6e38", "on-tertiary-container": "#2e2d2c" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "space-xs": "0.25rem", "margin": "4rem", "space-xl": "2.5rem", "gutter-mobile": "1rem", "space-sm": "0.5rem", "margin-mobile": "1.25rem", "space-md": "1rem", "gutter": "1.5rem" }, "fontFamily": { "body-default": ["Manrope"], "label-tag": ["Sora"], "headline-section": ["Sora"], "display-hero-mobile": ["Sora"], "body-lead": ["Manrope"], "label-button": ["Sora"], "display-hero": ["Sora"], "headline-subsection": ["Sora"], "headline-section-mobile": ["Sora"], "title-card": ["Sora"], "label-eyebrow": ["Sora"], "body-compact": ["Manrope"] }, "fontSize": { "body-default": ["15px", { "lineHeight": "24px", "fontWeight": "400" }], "label-tag": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "headline-section": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "display-hero-mobile": ["44px", { "lineHeight": "50px", "letterSpacing": "-0.025em", "fontWeight": "700" }], "body-lead": ["17px", { "lineHeight": "28px", "fontWeight": "400" }], "label-button": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }], "display-hero": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.03em", "fontWeight": "700" }], "headline-subsection": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "headline-section-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "title-card": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.005em", "fontWeight": "600" }], "label-eyebrow": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "700" }], "body-compact": ["13px", { "lineHeight": "20px", "fontWeight": "400" }] } } } }</script></head><body class="bg-surface font-body-default text-body-default text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/90 backdrop-blur-md border-b border-surface-variant"><div class="h-20 max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex items-center justify-between"><div class="flex items-center gap-space-md"><a class="font-label-button text-label-button text-on-surface tracking-wider font-bold" data-path="home" href="#">Ruangkeruang</a></div><nav class="hidden lg:flex items-center gap-space-lg" data-active-classes="text-primary font-bold"><a aria-current="page" class="transition-colors duration-200 text-primary font-bold" data-path="home" href="#">Home</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="interior" href="#">Interior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="eksterior" href="#">Eksterior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="portfolio" href="#">Portfolio</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="cara-pemesanan" href="#">Cara Pemesanan</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="kontak" href="#">Kontak</a></nav><div class="flex items-center gap-space-md"><a class="hidden sm:inline-flex items-center justify-center bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-space-lg py-space-sm rounded-xl transition-colors duration-200 shadow-sm" data-path="konsultasi" href="#">Konsultasi</a></div></div></header><main class="w-full pt-10 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- HERO SECTION -->
+<section class="relative w-full -mt-20 overflow-hidden bg-inverse-surface">
+<!-- Hero Background Image & Architectural Scrim -->
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-60" data-alt="High-end modern Indonesian tropical architectural residence exterior featuring a cantilevered black powder-coated steel canopy with tinted glass, integrated concealed LED channel lighting, minimalist dark slatted perimeter gate with warm teak accents, lush monstera and tropical foliage, warm sunset ambient glow, architectural photography style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCdg-VdautC3Cqb-tpEOV3_r2mR7cABzBCq2qsyt8t4OxMUDshaM3KjgVlq8XBytI8mxJpeK9vmkjCMfLMg44Nfkq_y2mn_10_LEjCmvRIVE6Tdy7TCo1tvErn5iIKpr3YmGtB75glH7XzdLUezs74tckuvaiMrnP0mADnTDsDs-IJdUSfR7upB4h2kLHVP8iReU4H0DSbX7Hs2e3NlHjXhQZoZQcVyiU3wly2Hilu5EIDTWTaW2NJx7g"/>
+<div class="absolute inset-0 bg-gradient-to-t from-inverse-surface via-inverse-surface/60 to-transparent"></div>
+<div class="absolute inset-0 bg-gradient-to-r from-inverse-surface/80 via-transparent to-transparent"></div>
+</div>
+<!-- Hero Content Container -->
+<div class="relative z-10 max-w-[1440px] mx-auto px-margin-mobile md:px-margin pt-36 pb-20 md:pb-28 flex flex-col justify-end min-h-[92vh]">
+<div class="max-w-3xl flex flex-col items-start gap-space-md">
+<!-- Eyebrow Pill -->
+<div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-lowest/15 backdrop-blur-md">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary-fixed tracking-widest">Exterior &amp; Metalwork Studio</span>
+</div>
+<!-- Headline -->
+<h1 class="font-display-hero text-display-hero-mobile md:text-display-hero text-on-primary tracking-tight font-bold">
+          Eksterior yang Kuat, Rapi dan Menyatu dengan Bangunan.
+        </h1>
+<!-- Short Description -->
+<p class="font-body-lead text-body-lead text-surface-container-high max-w-2xl">
+          Canopy arsitektural, pagar modern, railing presisi, dan fabrikasi besi custom dengan standar struktural workshop mandiri bergaransi.
+        </p>
+<!-- CTA Buttons -->
+<div class="flex flex-wrap items-center gap-space-md pt-space-sm">
+<a class="inline-flex items-center justify-center gap-2 bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-space-lg py-3.5 rounded-xl transition-all duration-200 shadow-lg" href="https://wa.me/6281289001234?text=Halo%20Kreasi%20Ruang,%20saya%20ingin%20konsultasi%20proyek%20eksterior%20dan%20besi." rel="noopener" target="_blank">
+<span>Konsultasi Exterior</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+<a class="inline-flex items-center justify-center gap-2 bg-surface-container-lowest/90 hover:bg-surface-container-lowest text-on-surface font-label-button text-label-button px-space-lg py-3.5 rounded-xl transition-all duration-200 backdrop-blur-sm shadow-sm" href="#kategori">
+<span>Jelajahi Kategori</span>
+<span class="material-symbols-outlined text-[18px]">arrow_downward</span>
+</a>
+</div>
+</div>
+<!-- Architectural Spec Badges Strip -->
+<div class="mt-16 pt-8 grid grid-cols-1 sm:grid-cols-3 gap-space-md">
+<div class="flex items-center gap-3.5 bg-surface-container-lowest/10 backdrop-blur-md p-4 rounded-xl">
+<div class="w-10 h-10 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary-fixed">
+<span class="material-symbols-outlined text-[22px]">verified</span>
+</div>
+<div>
+<div class="font-title-card text-[15px] font-bold text-on-primary leading-tight">Garansi Rangka 12 Bln</div>
+<div class="font-body-compact text-body-compact text-tertiary-fixed-dim">Jaminan deformasi &amp; sambungan</div>
+</div>
+</div>
+<div class="flex items-center gap-3.5 bg-surface-container-lowest/10 backdrop-blur-md p-4 rounded-xl">
+<div class="w-10 h-10 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary-fixed">
+<span class="material-symbols-outlined text-[22px]">shield</span>
+</div>
+<div>
+<div class="font-title-card text-[15px] font-bold text-on-primary leading-tight">Besi Hollow SNI &amp; Anti-Karat</div>
+<div class="font-body-compact text-body-compact text-tertiary-fixed-dim">Treatment primer zinc chromate</div>
+</div>
+</div>
+<div class="flex items-center gap-3.5 bg-surface-container-lowest/10 backdrop-blur-md p-4 rounded-xl">
+<div class="w-10 h-10 rounded-lg bg-primary-container/20 flex items-center justify-center text-primary-fixed">
+<span class="material-symbols-outlined text-[22px]">precision_manufacturing</span>
+</div>
+<div>
+<div class="font-title-card text-[15px] font-bold text-on-primary leading-tight">Workshop Las Presisi</div>
+<div class="font-body-compact text-body-compact text-tertiary-fixed-dim">Pengelasan MIG/TIG terak bersih</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- 4 SERVICE CATEGORIES -->
+<section class="w-full py-24 bg-surface scroll-mt-20" id="kategori">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Section Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+<div class="max-w-2xl">
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-widest block mb-2">KATEGORI EKSTERIOR</span>
+<h2 class="font-headline-section text-headline-section-mobile md:text-headline-section text-on-surface font-bold tracking-tight">
+            Solusi Metalwork &amp; Fabrikasi Presisi
+          </h2>
+</div>
+<p class="font-body-default text-body-default text-on-surface-variant max-w-md">
+          Dirancang terintegrasi dengan struktur bangunan utama, mengutamakan durabilitas terhadap cuaca tropis ekstrem.
+        </p>
+</div>
+<!-- Asymmetrical 4 Cards Bento Grid -->
+<div class="grid grid-cols-1 md:grid-cols-12 gap-6">
+<!-- Card 1: Canopy (Large 7 cols) -->
+<div class="md:col-span-7 group bg-surface-container-lowest rounded-2xl p-4 md:p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-sm">
+<div class="overflow-hidden rounded-xl h-72 md:h-80 relative mb-6">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Cantilevered minimalist residential carport canopy made of Wide Flange steel beams and clear tempered laminated glass with hidden box gutters and architectural downspouts against a contemporary white facade." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBCCUI2CxkcMuluTlUYvp19yXlWyoMbu3Lj6zanIWPevRQfTalmKkHg04t8BhPRtWJHlYkE-rtR_y5zlc16SWG1Y18bPeFQN1uD5CFZnDYBrrslOG7PHYIioa7Z2nvWa_g1-BOsvO7wTTlWcJuzjLemMr4Pux83hGr6jzV02uwvJGOAciC1Uj19IsVPkEdUD-JEdMvHc8ujpXTGQpXsZD3nPbpyAxFIgHgWaEmaQv8TG8kV4Lm2u6GadA"/>
+<div class="absolute top-4 left-4 bg-surface-container-lowest/90 backdrop-blur-sm px-3 py-1 rounded-md text-label-tag font-label-tag text-on-surface">
+              01 / CANOPY
+            </div>
+</div>
+<div class="flex flex-col gap-2">
+<h3 class="font-title-card text-title-card text-on-surface font-bold">Canopy Arsitektural</h3>
+<p class="font-body-default text-body-default text-on-surface-variant line-clamp-2">
+              Canopy kaca tempered, solarflat polikarbonat solid, dan atap alderon dengan struktur besi WF serta hollow tebal berstandar teknik.
+            </p>
+<div class="pt-3">
+<a class="inline-flex items-center gap-1.5 font-label-button text-label-button text-primary hover:text-secondary font-semibold transition-colors" href="#canopy-detail">
+<span>Lihat Detail Spesifikasi</span>
+<span class="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+<!-- Card 2: Pagar (5 cols) -->
+<div class="md:col-span-5 group bg-surface-container-lowest rounded-2xl p-4 md:p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-sm">
+<div class="overflow-hidden rounded-xl h-72 md:h-80 relative mb-6">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Modern architectural sliding gate combining dark charcoal matte powder-coated steel vertical slats and teak wood-plastic composite slats on a smooth concrete driveway." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnprt2ukoSesjPZqooEAInX_EnIj6oFBbKZFOd5b1bm9zuZdNm3h2FTqtNU_0YqrvTFmKPnX9WgeBhrk6mRhO6ScJN6jD8mAXGWDPGN_kOMve5OWID_I5efK1eK0392dDJYErcni290ZAxFymsqcQNIb77uI74MI9Bm7veNtBPuHeoirvo9_KgZm2K5Y9o3dsEeNlH96PLkq-Qh8z74kYFck2lMJ9LYsWgx7vUoG0qn5zCugVZVGRsdA"/>
+<div class="absolute top-4 left-4 bg-surface-container-lowest/90 backdrop-blur-sm px-3 py-1 rounded-md text-label-tag font-label-tag text-on-surface">
+              02 / PAGAR
+            </div>
+</div>
+<div class="flex flex-col gap-2">
+<h3 class="font-title-card text-title-card text-on-surface font-bold">Pagar &amp; Gerbang Hunian</h3>
+<p class="font-body-default text-body-default text-on-surface-variant line-clamp-2">
+              Pagar sliding dan swing minimalis dengan finishing powder coating oven, rel bearing stainless, dan aksen Wood Composite (WPC).
+            </p>
+<div class="pt-3">
+<a class="inline-flex items-center gap-1.5 font-label-button text-label-button text-primary hover:text-secondary font-semibold transition-colors" href="#pagar-detail">
+<span>Lihat Detail Spesifikasi</span>
+<span class="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+<!-- Card 3: Railing (5 cols) -->
+<div class="md:col-span-5 group bg-surface-container-lowest rounded-2xl p-4 md:p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-sm">
+<div class="overflow-hidden rounded-xl h-72 md:h-80 relative mb-6">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Architectural exterior balcony and outdoor staircase railing with slim vertical matte black steel spindles and natural teak handrail overlooking a landscaped courtyard." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAnm-i3jRLvOgTaZUNYyM9vFP6mqXbWZONDSMROX3KUC2ZSWSYMvtmI4q2c_ShPrZ4kIeWFLJWhs7r8cBHvp0qEncPhd6iw4WsGB3zx3D2VNmMwUon_wfkRPVs0TznC9iqYUf5sduLWSVG1PKDBKjXQA4ecg023QjwJJrlW7DkuJ9m5iLL2Wln1qVQG1objuUgdgI35-pyAnmEoB1Fa94NMN9b1cvDla71gCiUVgsdhgtBOChXU6i-9ew"/>
+<div class="absolute top-4 left-4 bg-surface-container-lowest/90 backdrop-blur-sm px-3 py-1 rounded-md text-label-tag font-label-tag text-on-surface">
+              03 / RAILING
+            </div>
+</div>
+<div class="flex flex-col gap-2">
+<h3 class="font-title-card text-title-card text-on-surface font-bold">Railing Tangga &amp; Balkon</h3>
+<p class="font-body-default text-body-default text-on-surface-variant line-clamp-2">
+              Railing balkon kaca tempered frameless, kisi vertikal minimalis, dan handrail kayu solid dengan sambungan las rata tanpa cacat.
+            </p>
+<div class="pt-3">
+<a class="inline-flex items-center gap-1.5 font-label-button text-label-button text-primary hover:text-secondary font-semibold transition-colors" href="#railing-detail">
+<span>Lihat Detail Spesifikasi</span>
+<span class="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+<!-- Card 4: Custom Metalwork (7 cols) -->
+<div class="md:col-span-7 group bg-surface-container-lowest rounded-2xl p-4 md:p-6 flex flex-col justify-between transition-all duration-300 hover:-translate-y-1 shadow-sm">
+<div class="overflow-hidden rounded-xl h-72 md:h-80 relative mb-6">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Industrial architectural steel mezzanine structural frame with integrated open-riser steel staircase, safety balustrade, and modern architectural louvers in a double-height residential pavilion." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC3hnzqb_W37_tyY_jnfMawM64KPZIvXBDyhl3rPMqHxNTai-0kz9sIn3PjyLC1bA91x7QYcBNpLwsf99Q0ZhFPJ99nLwF76hMTPWoiJoGSe1CBuWvHQ8TwP9k6xXtB7_9ctWHfgTKcwYObgMNu2p-jTmJgczqZheeiQA3d-lk_KFiPrIWUgW12OIj9bKPBRJM4lF_x-4TXeQ0U4DHPXLAxWPo5H6CgK2k30gkz7x0YJhqfabILRe2NHg"/>
+<div class="absolute top-4 left-4 bg-surface-container-lowest/90 backdrop-blur-sm px-3 py-1 rounded-md text-label-tag font-label-tag text-on-surface">
+              04 / CUSTOM METALWORK
+            </div>
+</div>
+<div class="flex flex-col gap-2">
+<h3 class="font-title-card text-title-card text-on-surface font-bold">Custom Metalwork &amp; Rangka</h3>
+<p class="font-body-default text-body-default text-on-surface-variant line-clamp-2">
+              Rangka struktural mezanin, partisi kisi sun-shading fasad, dinding partisi kaca grid besi, hingga detail rak gantung custom.
+            </p>
+<div class="pt-3">
+<a class="inline-flex items-center gap-1.5 font-label-button text-label-button text-primary hover:text-secondary font-semibold transition-colors" href="#custom-detail">
+<span>Lihat Detail Spesifikasi</span>
+<span class="material-symbols-outlined text-[16px] transition-transform group-hover:translate-x-1">arrow_forward</span>
+</a>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CANOPY SHOWCASE -->
+<section class="w-full py-20 bg-surface-container-low scroll-mt-20" id="canopy-detail">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Kicker & Intro -->
+<div class="flex flex-col max-w-2xl mb-14">
+<div class="flex items-center gap-2 mb-2">
+<span class="font-label-eyebrow text-label-eyebrow text-primary"># FOKUS DESAIN 01</span>
+<span class="w-1 h-1 rounded-full bg-outline"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">CANOPY</span>
+</div>
+<h2 class="font-headline-section text-headline-section-mobile md:text-headline-section text-on-surface font-bold tracking-tight">
+          Canopy Arsitektural
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant mt-3">
+          Perlindungan maksimal dengan estetika minimalis, talang air tersembunyi, dan perhitungan beban struktur yang presisi serta kokoh.
+        </p>
+</div>
+<!-- 3 Canopy Projects -->
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+<!-- Project A -->
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden flex flex-col shadow-sm transition-all duration-300 hover:-translate-y-1">
+<div class="h-64 overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="Contemporary carport with laminated tempered glass canopy supported by massive dark grey Wide Flange steel beams with seamless hidden rainwater drainage and integrated ambient linear LED strips." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXFk67Wgf7XijRcqlXMQZm8poCMM0Kv1cUBPT6Nbv3IhaMmGoUjpcn3oAbLxhKC4c04lsM-s34yZVFaX8Q4uuxnZ3FqJiPWH6BvWc-A-4a6iDdo9O10qicWMTuhkXCOvzS0_Uoed-r-KubWZmOC4NHVF45oIYF1h-jJXi38oLOa_CJ4CZP80Ce-E0QXkk_sDlhryLBFsy-IWpUtWYU4W5NY0Sp9DkmdBfHnZ94iCup4gdfUtg7EYiyVQ"/>
+<span class="absolute bottom-3 right-3 bg-inverse-surface/80 text-inverse-on-surface font-label-tag text-label-tag px-2.5 py-1 rounded">WF 150 + Glass 10mm</span>
+</div>
+<div class="p-6 flex flex-col flex-grow justify-between">
+<div>
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+                Canopy Kaca Tempered Laminated &amp; Besi WF
+              </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+                Carport modern bentang lebar dengan pencahayaan LED strip tersembunyi dan sistem talang box tertutup anti-tumpah.
+              </p>
+</div>
+<ul class="pt-4 space-y-2 font-body-compact text-body-compact text-on-surface-variant">
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Kaca Laminated Tempered 5+5mm Anti-Pecah Berhamburan</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Balok Wide Flange (WF) Baja Struktural Terkalkulasi</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Talang Dalam Plat Galvanis 2mm Anti-Remban</span>
+</li>
+</ul>
+</div>
+</div>
+<!-- Project B -->
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden flex flex-col shadow-sm transition-all duration-300 hover:-translate-y-1">
+<div class="h-64 overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="Modern terrace canopy featuring solid solarflat polycarbonate roof panels over a clean matte black galvanized hollow frame with soft natural diffused daylight." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDJ4cV6A9JAC5wZNZo07SOAIyr7Z_mOGblPVckY-Z2oEm_ZikXJUMJAHq4avMTo0kmoWd_7Nq-vkTx8KOlbFoCrD9bu20Bk9RgZuV1-SewHRzDO83bXpcDOU0JyDoGEHaXPAnUXn-JA03WXHfpOpzFiB2o27sS-PuN0LLFgOqjzZ-W8ryP1KYKoi27W71o8vUREYKEhT_K92gevK5CRxI-xyyChNkO_4F3SyJyRxpHek2dLbzWJfRChtg"/>
+<span class="absolute bottom-3 right-3 bg-inverse-surface/80 text-inverse-on-surface font-label-tag text-label-tag px-2.5 py-1 rounded">Solarflat 3mm Solid</span>
+</div>
+<div class="p-6 flex flex-col flex-grow justify-between">
+<div>
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+                Canopy Atap Solarflat &amp; Hollow Galvanis
+              </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+                Peneduh teras semi-transparan dengan difusi cahaya lembut, peredam panas UV, dan rangka hollow anti-karat ganda.
+              </p>
+</div>
+<ul class="pt-4 space-y-2 font-body-compact text-body-compact text-on-surface-variant">
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Polikarbonat Solid Solarflat 3mm Tahan Benturan UV</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Rangka Hollow Galvanis 50x100mm Tebal 2.0mm SNI</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Sistem Jepit Karet EPDM Anti-Bocor Bebas Sealant Rapuh</span>
+</li>
+</ul>
+</div>
+</div>
+<!-- Project C -->
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden flex flex-col shadow-sm transition-all duration-300 hover:-translate-y-1">
+<div class="h-64 overflow-hidden relative">
+<img class="w-full h-full object-cover" data-alt="Side-walkway canopy of a tropical modern house with alternating steel louver fins and frosted tempered glass offering optimal airflow and architectural sun screening." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDNS0FSlfdHHEas45XGzWtpUvRRnFUUeat-iBVkp7Abn0R4DbBHeoV3jnjpXHM-7zZbL5RLNGXIWKegqyiIXnygNjN3sB-3NewAHHL0CmZ-bBRk660MctQvW40418b13xBZrQGB0gOmIYkPVfQejY91oSCPvjCTKZJN1A4qwtZyX9TCvlUmDiQ5z_8lC3wUsHViYOqsHvN_gmpvs5dpqmpu581bd7ddcQI5Q9-gUDPm-PLhoEKPNMKa2Q"/>
+<span class="absolute bottom-3 right-3 bg-inverse-surface/80 text-inverse-on-surface font-label-tag text-label-tag px-2.5 py-1 rounded">Frosted + Kisi Besi</span>
+</div>
+<div class="p-6 flex flex-col flex-grow justify-between">
+<div>
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+                Canopy Rangka Kisi Besi &amp; Kaca Frosted
+              </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+                Desain kanopi lorong samping rumah tropis dengan sirkulasi udara optimal dan bayangan ritmis garis arsitektural.
+              </p>
+</div>
+<ul class="pt-4 space-y-2 font-body-compact text-body-compact text-on-surface-variant">
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Kisi-kisi Louver Besi Jarak Presisi Sun-Shading</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Kaca Tempered Sandblast / Frosted Privasi Maksimal</span>
+</li>
+<li class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">check_circle</span>
+<span>Finishing Cat Oven Powder Coating Tekstur Pasir Kasar</span>
+</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- PAGAR SHOWCASE -->
+<section class="w-full py-20 bg-surface scroll-mt-20" id="pagar-detail">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Kicker & Intro -->
+<div class="flex flex-col max-w-2xl mb-14">
+<div class="flex items-center gap-2 mb-2">
+<span class="font-label-eyebrow text-label-eyebrow text-primary"># FOKUS DESAIN 02</span>
+<span class="w-1 h-1 rounded-full bg-outline"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">PAGAR</span>
+</div>
+<h2 class="font-headline-section text-headline-section-mobile md:text-headline-section text-on-surface font-bold tracking-tight">
+          Pagar &amp; Gerbang Hunian
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant mt-3">
+          Pintu masuk yang memberi rasa aman, presisi rel roda bearing stainless, dan keselarasan visual elegan dengan fasade hunian Anda.
+        </p>
+</div>
+<!-- 3 Pagar Showcase Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm flex flex-col">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" data-alt="Motorized automatic modern sliding gate made of weather-resistant composite teak wood slats set in a heavy-duty matte charcoal powder-coated steel frame." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA8p_2-CyFhMMUEqGEmgoJsix-8vNdBTYXFWoD4GNUL8mPjrJSA2uQ8jtV0pV3cxveOU7uxFuBSnijNWHpSQfj8JpZWOg_2L1rGx3XyndPDeUG5g06Tqy0ZdRYwR9NpPudqwDul5UCxwM1KX1_af-0Qp2Vgjamir30TL-bNA4MTvAY2nemUjbUGXdSgQTq76nloWAK8Xm6hBE3LOcj6CJ8lIvULEaNvcKynYF0WKUoxUxxJIXWjV4mo1A"/>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Sliding Gate Otomatis &amp; Wood Composite (WPC)
+            </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+              Pagar geser rel tanam stainless steel dengan panel kayu sintetis tahan cuaca, rayap, dan anti-lapuk hingga belasan tahun.
+            </p>
+<div class="mt-auto pt-3 flex flex-wrap gap-2">
+<span class="bg-surface-container px-2.5 py-1 rounded text-label-tag font-label-tag text-on-surface">Auto Motor Support</span>
+<span class="bg-surface-container px-2.5 py-1 rounded text-label-tag font-label-tag text-on-surface">Stainless 304 Rail</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm flex flex-col">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" data-alt="Sophisticated modern gate featuring precision laser-cut perforated steel sheets with geometric patterns, integrated matte black door pull, and discreet privacy backing." src="https://lh3.googleusercontent.com/aida-public/AB6AXuB6A05mgVQqhujpc_XmtI6b6nNibeJY7DP7A2AeMs8X7pb9giFrq_-UNk2I4ArolRos8FOWi082f-h8rqNnln3YuZLyEi96vgvvyXJvBllv8ahBhi3uosHUxGqgGqrrBkKR21K2zeidPOW2KLfVrdQ9R3XcuIawicpY4XcWNZeoWNlyIbABkNaJWl27eqOXlqBZJ13Zjc6BMDJw_x0rrQMMawZXqbklxdLN0tAGESqduKDB_iH-_0dvrA"/>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Pagar Plat Perforated &amp; Laser-Cut
+            </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+              Aksen modern bermotif geometris presisi tinggi, ventilasi udara optimal sekaligus menjaga privasi area dalam carport.
+            </p>
+<div class="mt-auto pt-3 flex flex-wrap gap-2">
+<span class="bg-surface-container px-2.5 py-1 rounded text-label-tag font-label-tag text-on-surface">Laser-Cut 2.5mm</span>
+<span class="bg-surface-container px-2.5 py-1 rounded text-label-tag font-label-tag text-on-surface">Powder Coat Sand</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm flex flex-col">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" data-alt="Ultra minimalist swing gate with alternating slim steel flat bars and hollow sections, recessed flush latch handle, and hidden heavy duty pivot hinges." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAn7Dw8Z1itjsDD-UnNEcNQFgD7dQeVIyjTdUW82BzIKaQSFdPQws9-myBBPUMfxwiAieMvu81bEtMoiZDDyF6tJMdbAoLlJRYnJITs1W-DS1oNIWwHd4HHLAPLujFdfLdhOCm_GlkC8SOlo-KW6Fc3AfCqTeqyqkVtA69DgTA5DonuZyV4G8S3uuAZf3HFliUTSmZAFOfy41jcQ5zFGexN9-uiriqzOEAD1IMyehDfdbCwupHrOibH5w"/>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Gerbang Kombinasi Besi Hollow &amp; Plat Strip
+            </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+              Detail sambungan bersih, handle tanam tersembunyi rapi, serta engsel bearing bubut heavy-duty yang ringan dibuka tutup.
+            </p>
+<div class="mt-auto pt-3 flex flex-wrap gap-2">
+<span class="bg-surface-container px-2.5 py-1 rounded text-label-tag font-label-tag text-on-surface">Engsel Bubut HD</span>
+<span class="bg-surface-container px-2.5 py-1 rounded text-label-tag font-label-tag text-on-surface">Kunci Digital Ready</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- RAILING SHOWCASE -->
+<section class="w-full py-20 bg-surface-container-low scroll-mt-20" id="railing-detail">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Kicker & Intro -->
+<div class="flex flex-col max-w-2xl mb-14">
+<div class="flex items-center gap-2 mb-2">
+<span class="font-label-eyebrow text-label-eyebrow text-primary"># FOKUS DESAIN 03</span>
+<span class="w-1 h-1 rounded-full bg-outline"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">RAILING</span>
+</div>
+<h2 class="font-headline-section text-headline-section-mobile md:text-headline-section text-on-surface font-bold tracking-tight">
+          Railing Tangga &amp; Balkon
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant mt-3">
+          Keamanan struktural tanpa menghalangi pandangan ruang, sambungan las halus tanpa tonjolan tajam yang nyaman digenggam.
+        </p>
+</div>
+<!-- 3 Railing Cards -->
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm flex flex-col">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" data-alt="Clear frameless tempered glass exterior balcony railing supported by heavy duty stainless steel 304 floor spigots overlooking a lush garden." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCxp7XU0hcD1OeJDFUfa3jvWBU2GX5xs0HiH0XdmGo26LL0rU_tdraOxh9oN9nVndI-Yi97GfO35NJQVX0Fn5vnwMn9cPvaj_ASnJYQIwaDVUaTeKp51r5dmndjqCS0vRs3M55KgJMuI-SfcVXgkM5Ckw4fXcLHGrhBXpPvDyroI05PlZZwzHSFOm1XDqLNpXHJ0zzCOKr9r2xp0pmrPBhorzFgje6TEC40edpwU1Od4-8fgNY40KMXig"/>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Railing Balkon Kaca Frameless
+            </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+              Kaca tempered tebal 12mm dengan spigot stainless 304 solid anti-karat untuk visibilitas terbuka tanpa batas pandang.
+            </p>
+<div class="mt-auto pt-3 text-body-compact font-body-compact text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">verified</span>
+<span>Beban Uji Angin &amp; Benturan Standar SNI</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm flex flex-col">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" data-alt="Modern exterior terrace railing with slim vertical black iron spindles spaced evenly at 10cm, creating sleek rhythmic shadows on the terrace floor." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBoN_B3JMzn3Xb9J4m6yfW88KEDHBDLcEDUqOpx8mrm7IWWioLLXUB7xVp2HVRaQCww_nEl0nORH0maWHXdyez39YhLmwTMz-_LZg0z2RKs5nghUuG4FwK50OujpU4Wm670qYowMgoHU8bIIRzmUoIftY-LaNyhcWxkgDjHVmBHcdcB3vrWiemwN9qegmBDBGzxa-cujlLgBpsga1aNV8AaVoFN_i3lLOKP6QjO-I4gcL8peGhViE_yAw"/>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Railing Kisi Vertikal Hitam Doff
+            </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+              Garis vertikal ramping dengan jarak aman standar arsitektur 10cm, aman untuk anak-anak dengan estetika minimalis tegas.
+            </p>
+<div class="mt-auto pt-3 text-body-compact font-body-compact text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">verified</span>
+<span>Finishing Powder Coating Matte Anti-Scratch</span>
+</div>
+</div>
+</div>
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm flex flex-col">
+<div class="h-64 overflow-hidden">
+<img class="w-full h-full object-cover transition-transform duration-300 hover:scale-105" data-alt="Contemporary outdoor architectural staircase with steel structure and solid teak wood handrail with integrated underside LED lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAdy2ggTmQ2MP1FEdpFSgYCRZ_Vw6ElaktdopdtNd6dSWiATwAFCsSrGzcgd41pCj90Pz_1tX0uSqmX4XEZ1Lb55nyEbTGtV_ClZRssf1VCyINwWeiCedlIfih9HNIUJufYqLjW-rQbHHvct_3aUwDRpIp6ZUnswqPZOZnImUofnBfY8hBphGFzHnKEXVrRd0aCbuOTz-vx0iIolfB4fQOX7cusvJuFpahG203UDDpPTzRU9sQXip6JxA"/>
+</div>
+<div class="p-6 flex flex-col flex-grow">
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Railing Industrial &amp; Handrail Kayu Jati
+            </h4>
+<p class="font-body-default text-body-default text-on-surface-variant mb-4">
+              Sentuhan material kayu jati solid oven anti-muai pada puncak kerangka baja kokoh, menghadirkan kenyamanan sentuhan tangan.
+            </p>
+<div class="mt-auto pt-3 text-body-compact font-body-compact text-on-surface-variant flex items-center gap-2">
+<span class="material-symbols-outlined text-primary text-[18px]">verified</span>
+<span>Kayu Jati Perhutani Grade A Weather-Sealed</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CUSTOM METALWORK SHOWCASE -->
+<section class="w-full py-20 bg-surface scroll-mt-20" id="custom-detail">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Kicker & Intro -->
+<div class="flex flex-col max-w-2xl mb-14">
+<div class="flex items-center gap-2 mb-2">
+<span class="font-label-eyebrow text-label-eyebrow text-primary"># FOKUS DESAIN 04</span>
+<span class="w-1 h-1 rounded-full bg-outline"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">CUSTOM METALWORK</span>
+</div>
+<h2 class="font-headline-section text-headline-section-mobile md:text-headline-section text-on-surface font-bold tracking-tight">
+          Pekerjaan Besi &amp; Rangka Custom
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant mt-3">
+          Fabrikasi khusus untuk struktur mezanin, partisi fasad kisi-kisi, dan detail arsitektural non-standar yang membutuhkan ketelitian tinggi.
+        </p>
+</div>
+<!-- 4 Showcase Items (2x2 Grid) -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<div class="flex flex-col sm:flex-row bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">
+<div class="sm:w-1/2 h-56 sm:h-auto overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Custom structural residential mezzanine with heavy duty steel beams and spiral metal staircase in modern open plan interior." src="https://lh3.googleusercontent.com/aida-public/AB6AXuA36xGouVzIpZJPR4el3gjnj00UR1bq8a0E7sLRmMEoXQ2Ao-vHvTwv55ohIrof5TGsm6r3t107avM7wHhTOcQLEkD0deBZ4E4WqRDJYr-KwEG3zDkeYiFhaWIroSL8reUxqlxLDORgNK28bLNn3JAqewfRzHWsk-P5mUdQCCMoPMQR82kRBTrql7R3FvGhB08ODOcvWxRR25vo5QSqXbQ1rsAudzawC4QCPwr0q4ivIy3yq5iZkrm8bQ"/>
+</div>
+<div class="sm:w-1/2 p-6 flex flex-col justify-center">
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1">STRUKTUR INDOOR/OUTDOOR</div>
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">Mezanin &amp; Tangga Putar</h4>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Optimalisasi ruang vertikal dengan kalkulasi beban hidup (live load) aman dan tangga akses hemat tempat.
+            </p>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">
+<div class="sm:w-1/2 h-56 sm:h-auto overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Architectural modern facade louver screen made of powder coated aluminum and steel slats on a two story villa exterior." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBznQS6kHTWxPMapeHjOrCXZ3IVt1oN-VDrFwh8vfEDC6B91kvtz_NolpQJV1ANNjCYF9QUIJAPMQgKVsS8IBG-S30TQVrcqyrusLhf9TV1yUAWDyRh-rk3cfy1b5pZTOWrYJgIcY5X-iZBelb4pjHqDNmyLLwQ027Hx5wh_bZZx6YEZzmXUGTyisUnM4RGmHW02F9CQWs5I9psgTJF6gTJl4PCt7h-6DjIH5f119F4klBycidk5HiL9A"/>
+</div>
+<div class="sm:w-1/2 p-6 flex flex-col justify-center">
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1">FACADE ARCHITECTURE</div>
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">Partisi Fasad Sun-Shading</h4>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Kisi-kisi fasade penahan panas matahari langsung yang memperkuat identitas arsitektural tropis kontemporer.
+            </p>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">
+<div class="sm:w-1/2 h-56 sm:h-auto overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Black steel framed glass wall partition with industrial grid design separating outdoor patio from indoor living area." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAyTS7S3T3JwHJ_E0tw2fM06bIpdul_Dstahp_Eq_z6X-w0V1z_FolzDNi0Jg9patvyRKLeW3ejTxdfvL4Wn7vqhA2-AyOyd_p7_oBC0yB6vSZ1J3lZwEoUc3JKbq1HSqZnfnBdUJXoDCRAJlfUmieH047agGsqef6w-rfXIPqGRpUnx9yoFxhyOE1at0MFzhFx2n83IJlIvHbtYCBotZZag1b56y0WWBd-X97djgN_YzEW8Y_Akbh__Q"/>
+</div>
+<div class="sm:w-1/2 p-6 flex flex-col justify-center">
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1">GRID GLASS SYSTEM</div>
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">Dinding Kaca Steel Partition</h4>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Rangka profil besi presisi untuk sekat kaca industrial studio maupun akses teras taman belakang.
+            </p>
+</div>
+</div>
+<div class="flex flex-col sm:flex-row bg-surface-container-lowest rounded-2xl overflow-hidden shadow-sm">
+<div class="sm:w-1/2 h-56 sm:h-auto overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Suspended custom metal open shelving rack and ceiling storage frame in matte black finish with recessed lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDqk_Ye2hwxSONv2_fsFUZU4103A1bQaHxNqNSjNMgXEdnsuU2WMr_TCStLTAljQlSh0MI5_JIhGXGXxd4yopLum0NouMGiskCOA4fILS3HeQUZCffrocIvkzT0R35VwDMNji-RY8Exd0Gmua2V0jYnB2VfQvOmLkiMS1ztWatgweKBwoVjREDc7Y0WoJK3wEmsNEVe7Rdk9oioTR0T_1gCL6_q2dLL1SnhZbFg2u4-IBn7vUTdLKXIzg"/>
+</div>
+<div class="sm:w-1/2 p-6 flex flex-col justify-center">
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1">BESPOKE FABRICATION</div>
+<h4 class="font-title-card text-title-card text-on-surface font-bold mb-2">Rak Gantung &amp; Display Metal</h4>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Pekerjaan besi custom interior-eksterior untuk display komersial, rak gantung dapur, atau kanopi tanaman rambat.
+            </p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- CRAFTSMANSHIP & PROSES DETAIL -->
+<section class="w-full py-24 bg-surface-container-low">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Header -->
+<div class="flex flex-col max-w-2xl mb-16">
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-widest block mb-2">STANDAR WORKSHOP &amp; KEAHLIAN</span>
+<h2 class="font-headline-section text-headline-section-mobile md:text-headline-section text-on-surface font-bold tracking-tight">
+          Dibuat dengan Detail.
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant mt-3">
+          Dari pengelasan presisi MIG/TIG, pembersihan terak menyeluruh, proteksi zinc chromate, hingga oven powder coating tahan cuaca.
+        </p>
+</div>
+<!-- 4 Technical Craftsmanship Cards -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+<!-- Photo 1 -->
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden p-3 shadow-sm flex flex-col">
+<div class="h-52 rounded-xl overflow-hidden mb-4">
+<img class="w-full h-full object-cover" data-alt="Close-up macro shot of clean, rhythmic TIG welding seam on high-grade structural steel beam with smooth molten metal ripples and no slag defects." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAp3uoBLp__J2U8WDkfuTZfr1KXY81Bi7-7RxNkftCCMLJyaEOmw-qw-Igc3Oa-dI3eFcr3_YP0oGMcIU_aMhxDKTYOz92OAoSSrLbNhge6i4ZmVfomh8bV8rqkYpHYkE22j2dO3fml67jeKAvpE2jFiFuYYacfbzebpGYnRo3OAnf5vIiwbCGx8NUIGD6fVbQgmQkA9Y4jFiXxHeZRhypV7udQgOQP5RZIsF3gU00RIhGlzZ9cmgRwVw"/>
+</div>
+<div class="px-2 pb-2">
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1">01 / WELDING PRECISION</div>
+<h4 class="font-title-card text-[18px] text-on-surface font-bold mb-1">Pengelasan Presisi MIG/TIG</h4>
+<p class="font-body-compact text-body-compact text-on-surface-variant">
+              Sambungan las rata, rapat, dan dihaluskan tanpa meninggalkan lubang porositas atau tonjolan tajam.
+            </p>
+</div>
+</div>
+<!-- Photo 2 -->
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden p-3 shadow-sm flex flex-col">
+<div class="h-52 rounded-xl overflow-hidden mb-4">
+<img class="w-full h-full object-cover" data-alt="Industrial steel primer application process showing clean zinc chromate and epoxy anti-rust protective coating layers applied to steel framing." src="https://lh3.googleusercontent.com/aida-public/AB6AXuByqNNHJCbBARMBdRhEiqe6b6Mw5YXTjjeWEDqzbsBg9cwFiFy4aEPboXC1EysxvjbfifrQaKHi-4ZsLjnImj476BjSF9QDZ6-dKAH_gmd-4kIYCvLpGgUnG8yXz7LTugO4LUEqzl4X3m0hBsN8t8uNFDDiiRYe9mm1Qz0C7YG0RmWJvgvFvsILAO0Iqwhy3EkneclidGgwRZAldQI0e02sVJ1j-Bdhcbx1Hi9bn8mN6TLkbPlwgPSvDw"/>
+</div>
+<div class="px-2 pb-2">
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1">02 / ANTI-CORROSION</div>
+<h4 class="font-title-card text-[18px] text-on-surface font-bold mb-1">Treatment Anti-Karat Multi-Lapis</h4>
+<p class="font-body-compact text-body-compact text-on-surface-variant">
+              Pembersihan kimiawi dan aplikasi cat dasar epoxy zinc chromate untuk ketahanan terhadap kelembapan tinggi.
+            </p>
+</div>
+</div>
+<!-- Photo 3 -->
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden p-3 shadow-sm flex flex-col">
+<div class="h-52 rounded-xl overflow-hidden mb-4">
+<img class="w-full h-full object-cover" data-alt="Detailed surface texture of matte black fine-sand architectural powder coating on steel sheet showing zero drips, scratch resistance, and uniform finish." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAKY9O76Zlvlm4hOmlPSaaNjz9hB1_mJTFu3ZcdB2e3Y9cqBoZLM_0jRUdR5Xp5-BV7qxICI36F6VOuc_AQvCfguYPtXBRViScMtdquXgSPh9wRg_yLR0vPdHiDB-CfdW-8ygGjytZfp6a_MXSRkvDfxQxhp9TEmpePqsKOqxQgOto8aXukleYBuZ2_yX6yJO7CjV9nBxiB0YsqMCeZPr9uWv4L6KQUfcfD4Ye4-Ho_r9FtbcDjTjDPIw"/>
+</div>
+<div class="px-2 pb-2">
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1">03 / FINISHING QUALITY</div>
+<h4 class="font-title-card text-[18px] text-on-surface font-bold mb-1">Powder Coating Oven Tahan Gores</h4>
+<p class="font-body-compact text-body-compact text-on-surface-variant">
+              Pemanasan oven 200°C menghasilkan lapisan cat elastis yang tidak mudah retak, memudar, atau terkelupas oleh UV.
+            </p>
+</div>
+</div>
+<!-- Photo 4 -->
+<div class="bg-surface-container-lowest rounded-2xl overflow-hidden p-3 shadow-sm flex flex-col">
+<div class="h-52 rounded-xl overflow-hidden mb-4">
+<img class="w-full h-full object-cover" data-alt="Construction site close-up of heavy-duty dynabolt anchors securely fastening a structural steel base plate into solid reinforced concrete foundation." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCpa2jKPxHFZ4WJsf9Y4JieaL7IDtU-rw5wM7ZiEO1Npg-BXJ1cCcK92efLzUAbkaQ6vlXl8hNR9i_oT5MQUGKB_UIW-xkQND88stCZ48IRTb_pj0rN3FXA_inKoDtmFM2_ofnKl_iroa3bryNOfyXq8RneE2SedyvqjhuOTudWoWVXAix8xMsvJW9G0bZGNHzYATVWxr7n6m9GjJmU39-ekYR-VbF23sRnYF1FdDGaicGERKw7PwoqsA"/>
+</div>
+<div class="px-2 pb-2">
+<div class="font-label-eyebrow text-label-eyebrow text-primary mb-1">04 / STRUCTURAL ANCHOR</div>
+<h4 class="font-title-card text-[18px] text-on-surface font-bold mb-1">Angkur Dynabolt Heavy-Duty</h4>
+<p class="font-body-compact text-body-compact text-on-surface-variant">
+              Penanaman rangka ke struktur beton bertulang dengan dynabolt tersertifikasi untuk menahan beban tarik angin.
+            </p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<!-- EXTERIOR PROJECTS (PORTFOLIO GRID) -->
+<section class="w-full py-24 bg-surface">
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<!-- Section Header -->
+<div class="flex flex-col md:flex-row md:items-end justify-between mb-16 gap-6">
+<div>
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-widest block mb-2">DOKUMENTASI LAPANGAN</span>
+<h2 class="font-headline-section text-headline-section-mobile md:text-headline-section text-on-surface font-bold tracking-tight">
+            Exterior Projects
+          </h2>
+</div>
+<a class="hidden md:inline-flex items-center gap-2 font-label-button text-label-button text-primary hover:text-secondary font-semibold transition-colors" data-path="portfolio" href="#">
+<span>Lihat Semua Portfolio Eksterior</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+</div>
+<!-- 4 Large Architectural Cards Grid -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<!-- Project 1 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden p-4 shadow-sm transition-all duration-300 hover:-translate-y-1">
+<div class="h-80 rounded-xl overflow-hidden relative mb-5">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Modern house facade in Kebayoran Baru featuring a Wide Flange steel canopy with laminated glass and matching minimal black gate." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBt1TVNFxAjQZ2dRAXvkp5D-u9ZszMKxlZmuirCkkWAqZQHGGUbYINUwe-I_lgN_S_XQvz2mmpIQGWHUDa5eDavk5efpJSEEygfm1j2U1O5kfcGl1PT942P92KQ3HZQUmMtx7JJ4ZuwkW_wWAAzXaBMtc2ZL1-t2_C8Wem4SCQ9GmTOMpI64GSM8tKoljp-sWbQll9c4vOBvWMB3QbRgBd0-CsD7gHfmvzYFTH_j50XO49_TDFHeNmgIA"/>
+<div class="absolute top-4 left-4 bg-inverse-surface/80 text-inverse-on-surface text-label-tag font-label-tag px-3 py-1 rounded backdrop-blur-sm">
+              Exterior Build
+            </div>
+</div>
+<div class="px-2">
+<div class="flex items-center gap-3 text-body-compact font-body-compact text-tertiary mb-1">
+<span>Jakarta Selatan</span>
+<span>•</span>
+<span>Selesai 2024</span>
+</div>
+<h3 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Canopy Besi WF &amp; Pagar Minimalis , Kebayoran Baru
+            </h3>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Pengerjaan kanopi carport bentang 6.5 meter tanpa tiang tengah, dipadukan gerbang rel sliding otomatis dan kisi WPC.
+            </p>
+</div>
+</div>
+<!-- Project 2 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden p-4 shadow-sm transition-all duration-300 hover:-translate-y-1">
+<div class="h-80 rounded-xl overflow-hidden relative mb-5">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="BSD City luxury residence showing cantilevered tempered glass canopy integrated seamlessly with outdoor terrace mezzanine and spiral stair." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDebFu8u4RCQPPBOpXFruVyiX2Jl-MeOmY4u1hkTa7ErDFOkFFNx5uf58djMliWHwCpLF3e3JCTK2PyxjYANvLrnWXLMMfdXAMKE6YaHUGP6T_EUIP7Xb9iKR6TF6qn4zPyGj8sMCIOkIP9oGynM6CkHgTf4WBhrRWW4Rl0-w59_optnMPlWB2Et_qMdIfLulSRlASZ3V-mUfUdm7x1M-tA179fa40NWxU05V_Cce0YNppRE5SOc39rWQ"/>
+<div class="absolute top-4 left-4 bg-inverse-surface/80 text-inverse-on-surface text-label-tag font-label-tag px-3 py-1 rounded backdrop-blur-sm">
+              Canopy &amp; Structure
+            </div>
+</div>
+<div class="px-2">
+<div class="flex items-center gap-3 text-body-compact font-body-compact text-tertiary mb-1">
+<span>Tangerang Selatan</span>
+<span>•</span>
+<span>Selesai 2024</span>
+</div>
+<h3 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Modern Tempered Glass Canopy &amp; Mezzanine , BSD City
+            </h3>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Struktur mezanin outdoor terhubung kanopi kaca laminated dengan saluran pipa buang tertanam rapi di dalam pilar beton.
+            </p>
+</div>
+</div>
+<!-- Project 3 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden p-4 shadow-sm transition-all duration-300 hover:-translate-y-1">
+<div class="h-80 rounded-xl overflow-hidden relative mb-5">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Pondok Indah modern mansion showing bespoke laser cut perforated gate and matching 2nd floor balcony glass railings." src="https://lh3.googleusercontent.com/aida-public/AB6AXuD20GOtjran0vthuYcNBSzsBEIyPNZ_I5nbiS1hda5_UqZReFWdqvEE8hXsWqiqDBCS5PU4BmFdAdoDeOol6nYlnlmXHb8CtAbAehrvcwhfOWup8CXhQyQG2RdWPprj-Ra9hUMCBeobo3WatpFV-TZhxoItsVsKrIP3692Re9fGqqv5DhO3ix1nuzF3_vEuiuI5EEHyl10cBC35e7-fGLbJYEQx9gsxChpt9lbrEtRemSFCdd1VSoMrIw"/>
+<div class="absolute top-4 left-4 bg-inverse-surface/80 text-inverse-on-surface text-label-tag font-label-tag px-3 py-1 rounded backdrop-blur-sm">
+              Pagar &amp; Railing
+            </div>
+</div>
+<div class="px-2">
+<div class="flex items-center gap-3 text-body-compact font-body-compact text-tertiary mb-1">
+<span>Jakarta Selatan</span>
+<span>•</span>
+<span>Selesai 2024</span>
+</div>
+<h3 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Laser-Cut Gate &amp; Balcony Railing , Pondok Indah
+            </h3>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Fabrikasi plat laser cut motif khusus arsitek dengan finishing dua warna dan railing balkon kaca tempered 12mm.
+            </p>
+</div>
+</div>
+<!-- Project 4 -->
+<div class="group bg-surface-container-lowest rounded-2xl overflow-hidden p-4 shadow-sm transition-all duration-300 hover:-translate-y-1">
+<div class="h-80 rounded-xl overflow-hidden relative mb-5">
+<img class="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" data-alt="Menteng heritage-modern pavilion with custom architectural steel screen louvers and carport shelter structure." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCjsCaSAivqphmtpOYZDJXxY2v01L8e1qRuwgV7tEtE-C0I03xzvfw93Q5sUbeWI1YdIEBUvvuDgVsD_E-n1KJBSwbothAvX2fA7YjljxEtY8rDDYG1x0Ce7JBfggz0VNiAJHs0jJ75FGUf48yB_r14dv5WDqnt9dnIjNnPj8vPeiRFyRCp83DbVq0vpie5q3_koueHi9MPiWHpy_o1_XB0Zy3K16CGhV5dzlRXqeXu-q0weUbhI9fcBQ"/>
+<div class="absolute top-4 left-4 bg-inverse-surface/80 text-inverse-on-surface text-label-tag font-label-tag px-3 py-1 rounded backdrop-blur-sm">
+              Custom Metalwork
+            </div>
+</div>
+<div class="px-2">
+<div class="flex items-center gap-3 text-body-compact font-body-compact text-tertiary mb-1">
+<span>Jakarta Pusat</span>
+<span>•</span>
+<span>Selesai 2023</span>
+</div>
+<h3 class="font-title-card text-title-card text-on-surface font-bold mb-2">
+              Fasad Kisi Besi &amp; Carport Shelter , Menteng
+            </h3>
+<p class="font-body-default text-body-default text-on-surface-variant">
+              Penyelarasan kisi fasad ventilasi horizontal dengan struktur carport shelter minimalis pelindung tiga kendaraan.
+            </p>
+</div>
+</div>
+</div>
+<!-- Mobile Portfolio Link -->
+<div class="mt-10 text-center md:hidden">
+<a class="inline-flex items-center justify-center gap-2 w-full bg-surface-container py-3.5 rounded-xl font-label-button text-label-button text-on-surface" data-path="portfolio" href="#">
+<span>Lihat Semua Portfolio Eksterior</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+</div>
+</div>
+</section>
+<!-- FINAL CTA SECTION -->
+<section class="relative w-full py-24 bg-inverse-surface overflow-hidden">
+<!-- Ambient Backdrop Image -->
+<div class="absolute inset-0 z-0">
+<img class="w-full h-full object-cover opacity-25" data-alt="Atmospheric architectural workshop background with warm sparks, precision fabrication steel machinery, and completed architectural metal frames in soft ambient tungsten lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCYTEXvreQ9_-Huu4MzvEiZSmRruVatEweMjRZPbyOzlkiQwi_yDn1dx6u_5SgeYh98pEA6qr-BMK7XgjTBpiWojk5pDbSfFF0NUEMP8_pDk7y5JfY_17ygMBUZ2CcJWB3y0qPYXlN4FKPBa5ISxht1qehrB5mGUlcOnDzcnGIPwSJvg60q1H-8lZ8iYBCa8xOK9FO0CQmkcXLqNCEjXGMhT-_Dx-rZKYliSxuehxKZO46o5JlhbMt-uw"/>
+<div class="absolute inset-0 bg-gradient-to-r from-inverse-surface via-inverse-surface/95 to-inverse-surface/85"></div>
+</div>
+<div class="relative z-10 max-w-[1440px] mx-auto px-margin-mobile md:px-margin">
+<div class="max-w-3xl flex flex-col items-start gap-space-md">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-fixed tracking-widest">KONSULTASI &amp; SURVEY</span>
+<h2 class="font-display-hero text-headline-section-mobile md:text-headline-section text-on-primary font-bold tracking-tight">
+          Punya Rencana untuk Area Exterior?
+        </h2>
+<p class="font-body-lead text-body-lead text-tertiary-fixed max-w-2xl">
+          Konsultasikan desain canopy, pagar, atau pekerjaan besi custom Anda bersama tim engineer dan workshop Ruangkeruang. Kami siap lakukan survey lokasi dan perhitungan anggaran detail.
+        </p>
+<div class="flex flex-wrap items-center gap-space-md pt-4">
+<a class="inline-flex items-center justify-center gap-2 bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-8 py-4 rounded-xl transition-all duration-200 shadow-lg" href="https://wa.me/6281289001234?text=Halo%20Kreasi%20Ruang,%20saya%20ingin%20konsultasi%20proyek%20eksterior." rel="noopener" target="_blank">
+<span>Konsultasi Exterior</span>
+<span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+<a class="inline-flex items-center justify-center gap-2 bg-transparent hover:bg-surface-container-lowest/10 text-on-primary font-label-button text-label-button px-8 py-4 rounded-xl transition-all duration-200" href="https://wa.me/6281289001234?text=Halo%20Kreasi%20Ruang,%20saya%20ingin%20menjadwalkan%20survey%20lokasi%20proyek%20eksterior." rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[20px]">calendar_month</span>
+<span>Jadwalkan Survey Lokasi</span>
+</a>
+</div>
+</div>
+</div>
+</section>
+<!-- Client-side navigation active state synchronization -->
+<script>
+    (function() {
+      // Mark "Eksterior" as active in the persistent App Shell header
+      const links = document.querySelectorAll('header nav a[data-path="eksterior"]');
+      links.forEach(link => {
+        link.classList.remove('text-on-surface-variant');
+        link.classList.add('text-primary', 'font-bold');
+      });
+    })();
+  </script>
+</div></main><footer class="w-full bg-inverse-surface text-inverse-on-surface border-t border-inverse-surface"><div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-space-xl"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-space-xl pb-space-xl border-b border-tertiary-container/30"><div class="lg:col-span-1 flex flex-col gap-space-sm"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-primary-fixed text-[28px]">architecture</span><span class="font-headline-subsection text-title-card text-on-primary font-bold tracking-tight">Ruangkeruang</span></div><p class="font-body-compact text-body-compact text-tertiary-fixed-dim leading-relaxed">Studio desain interior &amp; workshop pengerjaan eksterior custom presisi berskala arsitektural.</p><div class="pt-space-sm"><a class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary-fixed hover:text-primary-fixed-dim transition-colors" href="https://wa.me/6281289001234" rel="noopener" target="_blank"><span class="material-symbols-outlined text-[18px]">chat</span>WhatsApp Studio Direct</a></div></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Interior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Kitchen Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Living Room Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Bedroom Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Interior</li><li class="hover:text-on-primary transition-colors cursor-pointer">Built-in Furniture</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Eksterior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Modern Canopy</li><li class="hover:text-on-primary transition-colors cursor-pointer">Pagar Minimalis</li><li class="hover:text-on-primary transition-colors cursor-pointer">Railing Tangga &amp; Balkon</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Metalwork</li><li class="hover:text-on-primary transition-colors cursor-pointer">Facade Cladding</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Perusahaan &amp; Proses</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Portfolio Proyek</li><li class="hover:text-on-primary transition-colors cursor-pointer">Cara Pemesanan</li><li class="hover:text-on-primary transition-colors cursor-pointer">Estimasi Biaya</li><li class="hover:text-on-primary transition-colors cursor-pointer">Workshop &amp; Fabrikasi</li><li class="hover:text-on-primary transition-colors cursor-pointer">Material Library</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Kontak</h3><div class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><p>Workshop Jabodetabek, Indonesia</p><p class="text-on-primary">WhatsApp: +62 812-8900-1234</p><p>Instagram: @ruangkeruang.build</p><p>Email: halo@ruangkeruang.id</p></div></div></div><div class="pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-sm text-tertiary-fixed-dim font-body-compact text-body-compact"><div>© 2025 Ruangkeruang. All rights reserved. Engineering &amp; Build.</div><div class="flex items-center gap-space-md"><a class="hover:text-on-primary transition-colors" href="#">Syarat &amp; Ketentuan</a><a class="hover:text-on-primary transition-colors" href="#">Kebijakan Privasi</a></div></div></div></footer><script src="../mockup.js"></script></body></html>

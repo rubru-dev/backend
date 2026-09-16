@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+
+<html class="scroll-smooth" lang="id"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/><title>Ruangkeruang</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600&amp;family=Sora:wght@500;600;700&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><style>@layer base { html, body { margin: 0; padding: 0; } body { overscroll-behavior-y: auto; overflow-y: auto; -webkit-overflow-scrolling: touch; } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { width: 8px; }</style><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { "colors": { "on-tertiary": "#ffffff", "surface": "#ffffff", "surface-container-low": "#f6f3ee", "on-tertiary-fixed-variant": "#484645", "surface-container-highest": "#e5e2dd", "on-primary-fixed": "#360f00", "on-secondary-fixed": "#390c00", "outline-variant": "#e0c0b2", "tertiary": "#605e5c", "error-container": "#ffdad6", "on-error-container": "#93000a", "outline": "#8c7166", "inverse-on-surface": "#f3f0eb", "primary-fixed": "#ffdbcd", "primary-fixed-dim": "#ffb595", "tertiary-container": "#979492", "primary-container": "#f36b21", "error": "#ba1a1a", "secondary-fixed-dim": "#ffb59c", "surface-container": "#f0ede8", "on-surface": "#1c1c19", "on-surface-variant": "#594238", "surface-container-high": "#eae8e3", "surface-bright": "#ffffff", "tertiary-fixed-dim": "#cac6c4", "surface-tint": "#a23f00", "on-primary-container": "#521c00", "inverse-surface": "#31302d", "on-error": "#ffffff", "background": "#ffffff", "surface-dim": "#dcdad5", "secondary": "#ab3600", "inverse-primary": "#ffb595", "on-secondary-container": "#611b00", "secondary-fixed": "#ffdbcf", "primary": "#a23f00", "surface-container-lowest": "#ffffff", "on-secondary": "#ffffff", "on-primary": "#ffffff", "surface-variant": "#e5e2dd", "on-tertiary-fixed": "#1c1b1a", "on-secondary-fixed-variant": "#822700", "on-primary-fixed-variant": "#7c2e00", "on-background": "#1c1c19", "tertiary-fixed": "#e6e2df", "secondary-container": "#ff6e38", "on-tertiary-container": "#2e2d2c" }, "borderRadius": { "DEFAULT": "0.25rem", "lg": "0.5rem", "xl": "0.75rem", "full": "9999px" }, "spacing": { "space-lg": "1.5rem", "space-xs": "0.25rem", "margin": "4rem", "space-xl": "2.5rem", "gutter-mobile": "1rem", "space-sm": "0.5rem", "margin-mobile": "1.25rem", "space-md": "1rem", "gutter": "1.5rem" }, "fontFamily": { "body-default": ["Manrope"], "label-tag": ["Sora"], "headline-section": ["Sora"], "display-hero-mobile": ["Sora"], "body-lead": ["Manrope"], "label-button": ["Sora"], "display-hero": ["Sora"], "headline-subsection": ["Sora"], "headline-section-mobile": ["Sora"], "title-card": ["Sora"], "label-eyebrow": ["Sora"], "body-compact": ["Manrope"] }, "fontSize": { "body-default": ["15px", { "lineHeight": "24px", "fontWeight": "400" }], "label-tag": ["12px", { "lineHeight": "16px", "letterSpacing": "0.02em", "fontWeight": "600" }], "headline-section": ["40px", { "lineHeight": "48px", "letterSpacing": "-0.02em", "fontWeight": "600" }], "display-hero-mobile": ["44px", { "lineHeight": "50px", "letterSpacing": "-0.025em", "fontWeight": "700" }], "body-lead": ["17px", { "lineHeight": "28px", "fontWeight": "400" }], "label-button": ["14px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600" }], "display-hero": ["64px", { "lineHeight": "72px", "letterSpacing": "-0.03em", "fontWeight": "700" }], "headline-subsection": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "600" }], "headline-section-mobile": ["30px", { "lineHeight": "38px", "letterSpacing": "-0.015em", "fontWeight": "600" }], "title-card": ["20px", { "lineHeight": "28px", "letterSpacing": "-0.005em", "fontWeight": "600" }], "label-eyebrow": ["12px", { "lineHeight": "16px", "letterSpacing": "0.08em", "fontWeight": "700" }], "body-compact": ["13px", { "lineHeight": "20px", "fontWeight": "400" }] } } } }</script></head><body class="bg-surface font-body-default text-body-default text-on-surface antialiased"><header class="fixed top-0 left-0 right-0 z-50 bg-surface-container-lowest/90 backdrop-blur-md border-b border-surface-variant"><div class="h-20 max-w-[1440px] mx-auto px-margin-mobile md:px-margin flex items-center justify-between"><div class="flex items-center gap-space-md"><a class="font-label-button text-label-button text-on-surface tracking-wider font-bold" data-path="home" href="#">Ruangkeruang</a></div><nav class="hidden lg:flex items-center gap-space-lg" data-active-classes="text-primary font-bold"><a aria-current="page" class="transition-colors duration-200 text-primary font-bold" data-path="home" href="#">Home</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="interior" href="#">Interior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="eksterior" href="#">Eksterior</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="portfolio" href="#">Portfolio</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="cara-pemesanan" href="#">Cara Pemesanan</a><a class="font-label-button text-label-button text-on-surface-variant hover:text-on-surface transition-colors duration-200" data-path="kontak" href="#">Kontak</a></nav><div class="flex items-center gap-space-md"><a class="hidden sm:inline-flex items-center justify-center bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-space-lg py-space-sm rounded-xl transition-colors duration-200 shadow-sm" data-path="konsultasi" href="#">Konsultasi</a></div></div></header><main class="w-full pt-10 bg-surface min-h-screen"><div class="flex flex-col w-full">
+<!-- Top Progress Bar for Case Study Reading Indicator -->
+<div class="sticky top-20 z-40 w-full bg-surface-container-high h-[2px]">
+<div class="h-full bg-primary-container transition-all duration-150" id="read-progress" style="width: 0%;"></div>
+</div>
+<!-- Main Container -->
+<div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-space-lg md:py-space-xl flex flex-col gap-space-xl w-full">
+<!-- 1. PROJECT HEADER -->
+<header class="flex flex-col gap-space-md">
+<!-- Breadcrumbs & Meta Controls -->
+<div class="flex flex-wrap items-center justify-between gap-space-sm">
+<nav aria-label="Breadcrumb" class="flex items-center gap-space-xs font-label-tag text-label-tag text-tertiary">
+<a class="hover:text-primary transition-colors flex items-center gap-1" data-path="portfolio" href="#">
+<span class="material-symbols-outlined text-[16px]">arrow_back</span>
+            Portfolio
+          </a>
+<span class="text-tertiary-container">/</span>
+<a class="hover:text-primary transition-colors" data-path="interior" href="#">Interior</a>
+<span class="text-tertiary-container">/</span>
+<span class="text-on-surface font-semibold">Warm Minimal Kitchen</span>
+</nav>
+<div class="flex items-center gap-space-sm">
+<button class="inline-flex items-center gap-space-xs px-space-md py-1.5 rounded-full bg-surface-container text-on-surface hover:bg-surface-container-high transition-colors font-label-button text-body-compact cursor-pointer" id="share-btn" onclick="navigator.clipboard.writeText(window.location.href); alert('Tautan proyek berhasil disalin.');">
+<span class="material-symbols-outlined text-[16px] text-primary-container">share</span>
+            Bagikan Proyek
+          </button>
+<span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-surface-container-low text-primary-container font-label-tag text-label-tag font-semibold">
+<span class="w-2 h-2 rounded-full bg-primary-container animate-pulse"></span>
+            Selesai Fabrikasi 2024
+          </span>
+</div>
+</div>
+<!-- Architectural Project Title & Intro Meta -->
+<div class="flex flex-col lg:flex-row lg:items-end justify-between gap-space-md pt-space-xs pb-space-sm">
+<div class="max-w-3xl">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container tracking-widest block mb-2">Architectural Case Study 014</span>
+<h1 class="font-display-hero text-headline-section md:text-display-hero text-on-surface font-bold tracking-tight leading-none">
+            Warm Minimal Kitchen
+          </h1>
+</div>
+<p class="font-body-lead text-body-lead text-tertiary max-w-md lg:text-right">
+          Integrasi island monolith silestone quartz dengan kabinet white oak berperekat presisi milimeter.
+        </p>
+</div>
+<!-- Specification Badges Grid -->
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-space-sm pt-space-xs">
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col gap-1">
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">Lokasi</span>
+<span class="font-title-card text-body-default font-semibold text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary-container text-[18px]">location_on</span>
+            Bekasi, Jawa Barat
+          </span>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col gap-1">
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">Kategori</span>
+<span class="font-title-card text-body-default font-semibold text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary-container text-[18px]">kitchen</span>
+            Kitchen Set &amp; Island
+          </span>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col gap-1">
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">Tipologi</span>
+<span class="font-title-card text-body-default font-semibold text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary-container text-[18px]">home_work</span>
+            Residential Private
+          </span>
+</div>
+<div class="p-space-md rounded-xl bg-surface-container-lowest shadow-sm flex flex-col gap-1">
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">Dimensi Skala</span>
+<span class="font-title-card text-body-default font-semibold text-on-surface flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary-container text-[18px]">square_foot</span>
+            3.8 m × 4.2 m
+          </span>
+</div>
+</div>
+</header>
+<!-- 2. HERO IMAGE -->
+<section class="relative w-full rounded-[22px] overflow-hidden shadow-md bg-surface-container-high">
+<div class="aspect-[16/10] md:aspect-[21/9] w-full relative">
+<img class="w-full h-full object-cover" data-alt="Editorial architectural photo of a luxurious warm minimal kitchen. Natural white oak floor-to-ceiling cabinetry, pristine white Silestone quartz kitchen island with dramatic waterfall edge, built-in induction stove, sleek matte black faucet, and slim linear LED pendant suspended overhead. Gentle morning daylight streaming in through black framed floor-to-ceiling windows on polished concrete floors, perfectly balanced terracotta ceramic accents, magazine composition, ultra realistic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAp4W6NsYCaMriH6Uj1PSUPaOFqWuPjHIpbHhFAeaFNE6isBlS2J4amGwF0oNftOMEUtPYJRs-0M9R3kYqyXEnKHINhz7CD2r58slNdKBsfaF-QzU3Bki3fSQR88BTuhnTgz_3SFzhpgX2HbomcePX02REeSQBkKh4MYhebH8xH7abbRvUUdoASM0dNslBmv9bcfu86QHXF8os6LCtCkOLG0Guj9BHyKCDjEDcjypAf-Ba1Y7RLO-fRKQ"/>
+<div class="absolute inset-0 bg-gradient-to-t from-on-surface/80 via-transparent to-transparent"></div>
+<div class="absolute bottom-6 left-6 right-6 flex flex-col md:flex-row items-start md:items-end justify-between gap-space-sm text-surface-container-lowest">
+<div class="max-w-xl">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-on-surface/60 backdrop-blur-md mb-2">
+<span class="material-symbols-outlined text-primary-fixed text-[16px]">verified</span>
+<span class="font-label-tag text-label-tag tracking-wider text-primary-fixed">Arsitektural Serah Terima</span>
+</div>
+<p class="font-headline-subsection text-title-card md:text-headline-subsection font-semibold text-white tracking-tight leading-snug">
+              Pengerjaan Full Interior Dapur &amp; Meja Island , Hunian Residensial Bekasi
+            </p>
+</div>
+<div class="hidden sm:flex items-center gap-3 text-tertiary-fixed font-body-compact text-body-compact bg-on-surface/40 backdrop-blur-md px-4 py-2 rounded-xl">
+<span>ISO 9001 Workshop Standard</span>
+<span class="w-1 h-1 rounded-full bg-primary-container"></span>
+<span>Garansi Hardware 5 Tahun</span>
+</div>
+</div>
+</div>
+</section>
+<!-- 3. PROJECT OVERVIEW & SPECIFICATION TABLE -->
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-start pt-space-md">
+<!-- Left Column: Story -->
+<div class="lg:col-span-5 flex flex-col gap-space-md">
+<div class="flex items-center gap-2">
+<span class="w-8 h-[2px] bg-primary-container"></span>
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container tracking-widest">Naratif Ruang</span>
+</div>
+<h2 class="font-headline-section text-headline-subsection md:text-headline-section font-semibold text-on-surface tracking-tight leading-tight">
+          Keseimbangan fungsi kuliner komunal dan kehangatan material kayu solid.
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant leading-relaxed">
+          Transformasi ruang dapur terbuka yang menggabungkan fungsi persiapan masakan harian dengan estetika komunal hunian modern. Dirancang dengan pendekatan warm minimalist, mengutamakan alur kerja ergonomis, sirkulasi udara optimal, serta penataan kabinet tersembunyi berpresisi milimeter.
+        </p>
+<div class="pt-space-sm flex items-center gap-6">
+<div>
+<div class="font-display-hero text-headline-section font-bold text-primary-container leading-none">0.2<span class="text-body-default font-normal text-tertiary">mm</span></div>
+<div class="font-label-tag text-label-tag text-tertiary mt-1">Toleransi Nat Sambungan</div>
+</div>
+<div class="w-[1px] h-12 bg-surface-container-high"></div>
+<div>
+<div class="font-display-hero text-headline-section font-bold text-on-surface leading-none">100<span class="text-body-default font-normal text-tertiary">%</span></div>
+<div class="font-label-tag text-label-tag text-tertiary mt-1">Food-Grade PU Matte</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Specs Matrix Table -->
+<div class="lg:col-span-7 bg-surface-container-low p-space-lg md:p-space-xl rounded-[20px] shadow-sm flex flex-col gap-space-md">
+<div class="flex items-center justify-between pb-space-sm border-b border-surface-container-highest">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-primary-container">inventory_2</span>
+<span class="font-headline-subsection text-title-card font-semibold text-on-surface">Spesifikasi Material &amp; Fabrikasi</span>
+</div>
+<span class="font-label-tag text-label-tag text-tertiary">Ref: KR-INT-2024-BKS</span>
+</div>
+<dl class="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-6 text-body-default">
+<div class="flex flex-col">
+<dt class="font-label-eyebrow text-label-eyebrow text-tertiary mb-0.5">Lokasi Proyek</dt>
+<dd class="font-title-card text-body-default font-semibold text-on-surface">Summarecon Bekasi, Klaster Morizen</dd>
+</div>
+<div class="flex flex-col">
+<dt class="font-label-eyebrow text-label-eyebrow text-tertiary mb-0.5">Kategori Pengerjaan</dt>
+<dd class="font-title-card text-body-default font-semibold text-on-surface">Kitchen Set, Island Table, Pantry</dd>
+</div>
+<div class="flex flex-col sm:col-span-2">
+<dt class="font-label-eyebrow text-label-eyebrow text-tertiary mb-0.5">Material Utama Substrat</dt>
+<dd class="font-title-card text-body-default font-semibold text-on-surface">Solid White Oak, Natural Oak Veneer Grade A, Silestone Quartz Calacatta Gold</dd>
+</div>
+<div class="flex flex-col">
+<dt class="font-label-eyebrow text-label-eyebrow text-tertiary mb-0.5">Hardware &amp; Runner</dt>
+<dd class="font-title-card text-body-default font-semibold text-on-surface">Blum Tandembox Intivo &amp; Aventos Lift System</dd>
+</div>
+<div class="flex flex-col">
+<dt class="font-label-eyebrow text-label-eyebrow text-tertiary mb-0.5">Coating &amp; Proteksi</dt>
+<dd class="font-title-card text-body-default font-semibold text-on-surface">Natural Matte PU Coating (Food-grade &amp; Anti Air)</dd>
+</div>
+<div class="flex flex-col">
+<dt class="font-label-eyebrow text-label-eyebrow text-tertiary mb-0.5">Durasi Pengerjaan</dt>
+<dd class="font-title-card text-body-default font-semibold text-on-surface">5 Minggu (Fabrikasi Studio &amp; Instalasi On-site)</dd>
+</div>
+<div class="flex flex-col">
+<dt class="font-label-eyebrow text-label-eyebrow text-tertiary mb-0.5">Tahun Penyelesaian</dt>
+<dd class="font-title-card text-body-default font-semibold text-on-surface">Kuartal 3, 2024</dd>
+</div>
+</dl>
+</div>
+</section>
+<!-- 4. PROJECT GALLERY (Editorial Architectural Rhythms) -->
+<section class="flex flex-col gap-space-xl pt-space-lg">
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container tracking-widest">Galeri Visual</span>
+<h2 class="font-headline-section text-headline-subsection md:text-headline-section font-semibold text-on-surface tracking-tight">
+          Eksplorasi Sudut Pandang Arsitektural
+        </h2>
+</div>
+<!-- Spread A: Cinematic Full Width Shot -->
+<figure class="flex flex-col gap-2 group">
+<div class="w-full aspect-[16/9] md:aspect-[21/9] rounded-[20px] overflow-hidden bg-surface-container-high shadow-sm">
+<img class="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out" data-alt="Wide panoramic interior shot of an open-plan warm minimalist kitchen seamlessly connected to the dining space. Polished light concrete floors, ribbed oak wood slats wrapping around the dining wall, custom linear wooden dining table with Scandinavian chairs, white quartz kitchen island in foreground, warm ambient 3000K recessed lighting, architectural composition, soft natural sunlight." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCRXoBHckHrBX3SYRtDqbFOzjxr1uzNkY4mRKs2Qex1tlAcIMSfYKat3Vf80TPX7DZ72qZ1pgM2kOP2cl-VgqAHP-kRht20LfXNYGL9p-7IOlFEWtZKh0cV2Nc3WFffBx94FkVhjDhw-YjUcz9GGoH546BMDbtH3cBHemttIJFu7nT0VAYtk7z7iR7548rhNRFuYi_yLmDMnd3pCtiSsbYSwAwPLqyMd6CFQBR1sySKEzG7b_U6m1Ytmg"/>
+</div>
+<figcaption class="flex items-center justify-between text-body-compact font-body-compact text-tertiary px-2">
+<span>01. Kontinuitas visual antara zona persiapan kuliner dan area santap santai keluarga.</span>
+<span class="font-label-tag text-label-tag">Perspektif Terbuka</span>
+</figcaption>
+</figure>
+<!-- Spread B: 2-Column Side-by-Side Detail -->
+<div class="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
+<figure class="flex flex-col gap-2 group">
+<div class="w-full aspect-[4/3] rounded-[20px] overflow-hidden bg-surface-container-high shadow-sm">
+<img class="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out" data-alt="Macro architectural photography of a kitchen island countertop in pristine matte white quartz with flush-mounted minimalist induction cooktop, seamless integrated pop-up motorized black electrical socket tower, fluted natural oak bar stool with bouclé seat cushion in background, warm directional natural lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhJW5NXWR5dENUdy-uYR-PfB2rtlMzjdV7-jZh7yhmwwzfDB6T8nQUqiek4AcrHPpl5aCMDoBFDofClvwj-dNadSCBfE20Ixki39B4qVYGA_RUSoihjwUltPZpUIu3seoJnQ_5ejIyWwVqdYe0DW9s31WlNltpNhx_hMMi8zKEWUjCH2BgRBRy0NKMYh49RjjRYjgHGXOyWc9eUjZ-ZgrpxO9rAoWXjdwulxkjViDR-l5k48wBHmNXtQ"/>
+</div>
+<figcaption class="flex items-center justify-between text-body-compact font-body-compact text-tertiary px-2">
+<span>02. Island counter: induksi tanam rata silestone &amp; soket tersembunyi.</span>
+<span class="font-label-tag text-label-tag">Detail Island</span>
+</figcaption>
+</figure>
+<figure class="flex flex-col gap-2 group">
+<div class="w-full aspect-[4/3] rounded-[20px] overflow-hidden bg-surface-container-high shadow-sm">
+<img class="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out" data-alt="Tall bespoke pantry cabinetry in natural oak veneer with built-in smoked tempered glass dual-zone wine cooler refrigerator, pull-out Blum tandem spice rack system open to display organized glass spice jars, internal warm vertical LED strip accent lighting, clean editorial architectural style." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDW3nKw4J12ryO1izE7YIr-fmg9w1cMwg5le2k1W7Y3Q6E-Q81QnciHIWZQmaqCsq_jrkwmeaYzKBOoV4S18WhTVeNTIUacPgwYVUjQ9Fwqo93EkbzKtvuuAD1gVQPpJ_5HlWvzec3lg27gYUbtA_eKlVYfT3eq5_J24D35V2xGuFrugCTy1lwkcPkWH5h006xRcZKy3m-z8qc_qNH8Q9f0B5UigUUEyIS_IEslNksvyeRmA-gnkcLxNQ"/>
+</div>
+<figcaption class="flex items-center justify-between text-body-compact font-body-compact text-tertiary px-2">
+<span>03. Pantry set dengan lemari pendingin anggur smoked glass dan rak bumbu tarik.</span>
+<span class="font-label-tag text-label-tag">Pantry Storage</span>
+</figcaption>
+</figure>
+</div>
+<!-- Spread C: Asymmetrical Layout (40% Portrait + 60% Landscape) -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-space-lg items-stretch">
+<figure class="lg:col-span-5 flex flex-col gap-2 group">
+<div class="w-full h-full min-h-[380px] lg:min-h-[500px] rounded-[20px] overflow-hidden bg-surface-container-high shadow-sm">
+<img class="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out" data-alt="Vertical portrait shot of floor-to-ceiling kitchen appliance tower cabinetry crafted from vertical grain white oak with flush-mounted matte black integrated combi-steam oven and microwave, handleless touch-to-open upper cabinets, warm subtle strip light glowing underneath base plinth." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC53cD1v-lAS_rsmQevmTbqS8OtZdCtBoLeTPrI9ctQFdKYVDZ03ksanpsfNrql9NNrgtHS5FgBGGKYwopXVfSDWSErwO9aq5nP99759Fj6W5OxN3VAlF0MvLKagx6G6XQPlrllPZoTNcu1nAvcG3Ecm8Q2TBbQwVc9VH8yAc0wORPq16prRb3gm1mB2-I41w3oE1Qw4gvihsdO20Y9ZM-6GIYEiDEZpqx0FpUfIB6tRKAy-z1hM5o7uQ"/>
+</div>
+<figcaption class="text-body-compact font-body-compact text-tertiary px-2">
+            04. Menara appliance tanam presisi rata permukaan pintu kabinet.
+          </figcaption>
+</figure>
+<figure class="lg:col-span-7 flex flex-col gap-2 group">
+<div class="w-full h-full min-h-[380px] lg:min-h-[500px] rounded-[20px] overflow-hidden bg-surface-container-high shadow-sm">
+<img class="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out" data-alt="Editorial close up shot of a warm kitchen breakfast corner during sunny morning hours. White quartz countertop meeting vertical subway micro-tile backsplash with clean zero-grout junction, warm 3000K recessed continuous LED profile under overhead oak cabinets, artisan ceramic teapot, terracotta mug with steaming espresso, minimal styling." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBlwq0ukH2nu-2QUCPKRsBaDskD_Qtc0goUwy8_c6ItJEC8Qt_SO1d6yjDZC2-WTJHvSd-aigb9xUt67uG6dG7fhVGsLP1tMGgc7_SW-wVjpn8_S2yp_8kN2muWEOpWgnJFrs0LRhD5zbwoqRICMoqPmrZsh2zaIFdkeg972opRjo8ZUeiBK3siCOYouftnONmsizYlLZ9dDt5FZveQlUyYAsMDYJNGzng4qToCaoPGzbozNMNyUwC2cQ"/>
+</div>
+<figcaption class="text-body-compact font-body-compact text-tertiary px-2">
+            05. Pencahayaan linier 3000K tersembunyi menyinari tekstur backsplash micro-tile artisan.
+          </figcaption>
+</figure>
+</div>
+<!-- Spread D: Full-Width Evening Atmosphere -->
+<figure class="flex flex-col gap-2 group">
+<div class="w-full aspect-[16/9] md:aspect-[21/9] rounded-[20px] overflow-hidden bg-surface-container-high shadow-sm">
+<img class="w-full h-full object-cover group-hover:scale-[1.01] transition-transform duration-500 ease-out" data-alt="Full architectural twilight shot of the warm minimalist kitchen in evening lighting mood. Multi-layered 3000K warm architectural illumination glowing from kickboard toe-kicks, island pendant line, and internal glass cabinets. Dark dusky sky visible outside the expansive glass windows creating an atmospheric, cozy, luxurious ambiance." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCP2zCWZywng2c0LoJ2wLFypfNUCkKDakJhr9y_7gZ6RPKjFitN5R-dU2McDu8LE12bhMIoqHhL4ydw57bWJ4EVyoVhFWj3GVtNvRCR4RQz07FAQSHKUl2Y6m8CddPHKKKftRL65nv5jkCmh1tv2jD6lMJTJcnzosBNQPYnnaw3zDJ7owhkddjptq91dRDpA_pw2W6ZlRlpb1vaPi0HGNw7-Cbm7s73gKQak0om0SzbZnkhPyViatTNGw"/>
+</div>
+<figcaption class="flex items-center justify-between text-body-compact font-body-compact text-tertiary px-2">
+<span>06. Suasana malam dengan hierarki pencahayaan tiga lapis (ambient, task, dan focal accent).</span>
+<span class="font-label-tag text-label-tag">Skenario Malam (3000K)</span>
+</figcaption>
+</figure>
+</section>
+<!-- 5. CHALLENGE / SOLUTION -->
+<section class="grid grid-cols-1 md:grid-cols-2 gap-space-lg pt-space-lg">
+<!-- Challenge Card -->
+<div class="p-space-lg md:p-space-xl rounded-[22px] bg-surface-container-low flex flex-col justify-between shadow-sm relative overflow-hidden">
+<div class="flex flex-col gap-space-md relative z-10">
+<div class="flex items-center justify-between">
+<span class="font-label-eyebrow text-label-eyebrow text-primary tracking-wider">Kondisi Lapangan</span>
+<span class="font-display-hero text-headline-section font-bold text-outline-variant/60">Mulai</span>
+</div>
+<h3 class="font-headline-subsection text-headline-subsection font-semibold text-on-surface">
+            Tantangan Ruang &amp; Struktur
+          </h3>
+<p class="font-body-default text-body-default text-on-surface-variant leading-relaxed">
+            Ruang eksisting memiliki kolom struktur masif di sudut tengah serta keterbatasan bukaan ventilasi alami. Diperlukan layout cerdas agar alur segitiga kerja (sink-kompor-kulkas) tetap efisien tanpa memotong kapasitas storage.
+          </p>
+</div>
+<div class="pt-space-md flex items-center gap-2 text-tertiary font-body-compact text-body-compact border-t border-surface-container-highest mt-6">
+<span class="material-symbols-outlined text-[18px] text-error">warning</span>
+<span>Hambatan struktur kolom beton ± 45×45 cm</span>
+</div>
+</div>
+<!-- Solution Card -->
+<div class="p-space-lg md:p-space-xl rounded-[22px] bg-surface-container-lowest flex flex-col justify-between shadow-sm relative overflow-hidden">
+<div class="flex flex-col gap-space-md relative z-10">
+<div class="flex items-center justify-between">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container tracking-wider">Engineering Output</span>
+<span class="font-display-hero text-headline-section font-bold text-primary-fixed-dim">Ukur</span>
+</div>
+<h3 class="font-headline-subsection text-headline-subsection font-semibold text-on-surface">
+            Solusi Fabrikasi &amp; Desain
+          </h3>
+<p class="font-body-default text-body-default text-on-surface-variant leading-relaxed">
+            Merancang kabinet custom berprofil L yang mengkamuflase kolom struktural menjadi concealed utility cabinet. Meja island diposisikan sebagai pusat sirkulasi dengan built-in downdraft exhaust untuk memastikan ventilasi optimal tanpa tudung hisap gantung yang berat.
+          </p>
+</div>
+<div class="pt-space-md flex items-center gap-2 text-primary font-body-compact text-body-compact border-t border-surface-container-high mt-6">
+<span class="material-symbols-outlined text-[18px] text-primary-container">check_circle</span>
+<span>Efisiensi alur segitiga kuliner tercapai 100% ergonomis</span>
+</div>
+</div>
+</section>
+<!-- 6. DETAILS SECTION ("Detail.") -->
+<section class="flex flex-col gap-space-lg pt-space-lg">
+<div class="flex flex-col gap-space-xs">
+<span class="inline-flex self-start items-center gap-1.5 px-3 py-1 rounded-full bg-primary-fixed text-on-primary-fixed font-label-tag text-label-tag font-semibold">
+<span class="w-1.5 h-1.5 rounded-full bg-primary-container"></span>
+          PRESISI FABRIKASI
+        </span>
+<h2 class="font-headline-section text-headline-section font-semibold text-on-surface tracking-tight">
+          Detail.
+        </h2>
+<p class="font-body-lead text-body-lead text-tertiary max-w-xl">
+          Eksplorasi mikro keandalan pertukangan interior kayu dan perakitan mekanis kami.
+        </p>
+</div>
+<!-- Detail Grid of 6 Precision Macro Cards -->
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-space-lg">
+<!-- 1. Mitre Edge -->
+<div class="bg-surface-container-lowest rounded-[18px] p-4 shadow-sm flex flex-col gap-space-sm group">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Extreme macro close-up of a seamless 45 degree mitre joint edge on a white Silestone quartz kitchen island waterfall edge, zero visible seam lines, impeccable craftsmanship, soft natural raking light highlighting the matte polished stone finish." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDUsALxoLW6MbpFC2248BPOQd-Ok8H3B2ZmI5bfAabkVNu_WrabO6IDVhC1kCSbVPguUkm8J1XFA54NPpkBfwytjAjmgIfPiQVacRxLDXtKf4pepzHDQGJZ1AVvNebx7Tow-iX_5ifeXiruD8jo6oZuUCFrSACUW7ergTpE02N1MElN4tlNW4LokiEhp3juXCWiQnSdxCsb0DM9-ryfDUiAKw-B4x_A-xBNexWWbEAXFBrpNgNVUEDeFg"/>
+</div>
+<div class="flex flex-col gap-1 px-1">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container">Toleransi 0.0 mm</span>
+<h4 class="font-title-card text-title-card font-semibold text-on-surface">Sambungan Mitre 45° &amp; Quartz Waterfall</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Pertemuan sudut meja solid tanpa garis celah dengan perekatan resin warna khusus.</p>
+</div>
+</div>
+<!-- 2. Blum Aventos HK-S -->
+<div class="bg-surface-container-lowest rounded-[18px] p-4 shadow-sm flex flex-col gap-space-sm group">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Extreme macro close up of an Austrian Blum Aventos HK-S soft close mechanical stay lift lift-up cabinet hinge inside an oak kitchen cabinet, sleek metallic finish, precise tension adjustment screw, warm natural lighting." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAvRSjl3njNm7RFqt503LF4dI5Nf2VZHSjGeUfaL4_HROHPsif8hfrZgXKqoeI-Ku-GTggBqmKgZSykeqUITx-PjEIN_ZUYdGtz4dNpBYtTu0hqyRYQLcghZ3tuI19QtEk4E-AiV0qPrBh5U0nVEmz3-PQQIxIn-fgZ4Zu3duYC8DZasOv2MMCh19bhPxpiMBuLzZ0BADFjP6-ZumKeJnX32TMdkkUB6PQozM2FETzJpKc5d2LF-hIqbQ"/>
+</div>
+<div class="flex flex-col gap-1 px-1">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container">Hardware Autentik</span>
+<h4 class="font-title-card text-title-card font-semibold text-on-surface">Blum Aventos HK-S Lift System</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Mekanisme bukaan pintu atas kabinet gantung yang senyap, presisi, dan tahan 200.000 siklus.</p>
+</div>
+</div>
+<!-- 3. Hidden Finger-Pull & J-Pull -->
+<div class="bg-surface-container-lowest rounded-[18px] p-4 shadow-sm flex flex-col gap-space-sm group">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Close up architectural detail of continuous integrated wooden J-pull recessed handle on a natural white oak kitchen cabinet drawer, smooth beveled internal lip for effortless ergonomic grip, crisp shadow lines." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCwtFT47mWOdBrxgc_7p8S7VHIauFn3aqize9Up0K4p4aw_WHFBeiYro5KufYfQAPuv_klvr9ofKP3blbRduKjtgQgVTbbZP6lhD9OP5EfefNGiw5dN6DfuxLADXZtsQPAogbzPvxskTxxWqW64pv7zRBbXgRQ-lAe7ikyI6swMvkReGs2wU_VCltM-FIe6TqXCOf3-bJBgonf8RrohtIh9kYc8c4n3fM9PHvNt8Z6QcugcfK7I48m-Tw"/>
+</div>
+<div class="flex flex-col gap-1 px-1">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container">Handleless Ergonomics</span>
+<h4 class="font-title-card text-title-card font-semibold text-on-surface">Hidden Finger-Pull Profile</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Bentukan bevel miring kayu solid pada tepi pintu untuk tampilan bersih tanpa handle logam luar.</p>
+</div>
+</div>
+<!-- 4. Integrated Warm LED -->
+<div class="bg-surface-container-lowest rounded-[18px] p-4 shadow-sm flex flex-col gap-space-sm group">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Macro detail of an aluminum recessed profile channeling 3000K warm LED light beneath upper oak cabinets, milky white diffuser creating smooth continuous glow without visible diode dots, glowing evenly across micro tiles." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDCS8jqU3K9CNyxfeaabYU3n1sZpJQn-khnHOi7ZacEAZbOqqOmcGQ3fs1mSJ2laFpYN7GaPpvOhf9cuK5oBqohc_efzPaVZFA4ooMRQNvWJxlWsnLO89drm7dghUc9ocwcPZvtHuxPA5TLwqZ12a5kqF--ZzCZgldyGFeyQp3O_Uo7y-npGQ_4VyKJ-nIvaEZ47AB8z8C6WObm63tnwhEAhXkotChSKiaMiVorvrzM9luomnqiD-KY5A"/>
+</div>
+<div class="flex flex-col gap-1 px-1">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container">CRI &gt; 95 Light</span>
+<h4 class="font-title-card text-title-card font-semibold text-on-surface">Integrated Warm LED Profile 3000K</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Saluran lampu tanam profil aluminium anodized dengan diffuser opal anti-bintik.</p>
+</div>
+</div>
+<!-- 5. Custom Cutlery Divider -->
+<div class="bg-surface-container-lowest rounded-[18px] p-4 shadow-sm flex flex-col gap-space-sm group">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="High angle shot looking down into an open deep kitchen drawer showing bespoke solid teak wood modular cutlery organizers, silver flatware neatly arranged, adjustable wooden divider pegs, felt-lined bottom." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxNKclBy2bTsJTWeFUhO0CherW7L27IjdEJ6YAqYNx6Cvt2tG_h3PB7t87_f1UoYIV5NKexJOuQlEx3IviBdMnzISWwRL-DBVIZal_z2PFJxiTPEVycjdUUOTlA-bTyq0J3U5WMTtt3JUJyHrbGmoSvjgxhRhEdoanwsl8SlJr5hPpY1sujOTZ5emwwg0MUqj8y60WZkyIeB-PwJcxbvKH-AOsnvB4jLLXEnXyP6e1HO2oxk2L2rVkCA"/>
+</div>
+<div class="flex flex-col gap-1 px-1">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container">Organisasi Interior</span>
+<h4 class="font-title-card text-title-card font-semibold text-on-surface">Custom Wood Cutlery Divider</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Organizer modular laci dari kayu jati solid yang dapat digeser sesuai perangkat makan.</p>
+</div>
+</div>
+<!-- 6. Water-Repellent Baseboard -->
+<div class="bg-surface-container-lowest rounded-[18px] p-4 shadow-sm flex flex-col gap-space-sm group">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" data-alt="Detailed macro view of an aluminium-wrapped recessed kickboard plinth at the base of a modern kitchen cabinet meeting the floor tile, seamless anti-fungal silicone bead sealant preventing water damage, immaculate clean execution." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCbS8s68nPUq0PSfYV0MAaKZbzAeWAlpP1LEaIbJbXCnVME74AbBQRwmMcFwLfS4sZRwwYWySxMBqgSxf-TSTAGbNy69XjLp1G3dkdaptsmzfAaI5L_HQ0M1KiFUsU6FIp7EFC7supFAkgnmD38Rb7OJNSfH_jMxlAQ9lxqMCTW8zj4MPhM_qqwaMGfytFxTSH3VX2LZPAVJGK7b0qcIGZqzedGPJAzjV5C0jHXXdtrgoNqLK7D6TOVfg"/>
+</div>
+<div class="flex flex-col gap-1 px-1">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container">Proteksi Kelembaban</span>
+<h4 class="font-title-card text-title-card font-semibold text-on-surface">Water-Repellent Baseboard &amp; Sealant</h4>
+<p class="font-body-compact text-body-compact text-tertiary">Lapisan aluminium kickboard serta sealant anti-jamur food-grade untuk pencegahan rembesan pel.</p>
+</div>
+</div>
+</div>
+</section>
+<!-- 7. RELATED PROJECTS ("Proyek Lainnya") -->
+<section class="flex flex-col gap-space-lg pt-space-lg">
+<div class="flex flex-col sm:flex-row sm:items-end justify-between gap-space-sm">
+<div class="flex flex-col gap-space-xs">
+<span class="font-label-eyebrow text-label-eyebrow text-primary-container tracking-widest">Katalog Kurasi</span>
+<h2 class="font-headline-section text-headline-subsection md:text-headline-section font-semibold text-on-surface tracking-tight">
+            Proyek Lainnya
+          </h2>
+</div>
+<a class="inline-flex items-center gap-1 font-label-button text-label-button text-primary font-semibold hover:text-secondary transition-colors" data-path="portfolio" href="#">
+          Lihat Semua Portfolio
+          <span class="material-symbols-outlined text-[18px]">arrow_forward</span>
+</a>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-space-lg">
+<!-- Related 1 -->
+<a class="group flex flex-col gap-space-sm bg-surface-container-lowest p-space-md rounded-[20px] shadow-sm hover:-translate-y-1 transition-all duration-300" href="#">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Modern high-end master bedroom storage suite in Tangerang with floor-to-ceiling smoked glass wardrobe doors, interior warm LED backlighting, dark walnut wood veneer accents, minimalist serene atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuBehEXF3HLEzVHELaNiiVpcQWRXDirofB-1Hp5hOXj605uKd9Efm0zsXC4mQEBYGe-kAVd7KscPRrdSzFolOuF_oJq39LzJc0aQ7nfIcnxlgAcPV5TGPg0mc9fIrOT-1i5KJ0IvjWaRI22zBbkG7hywc7IhxMCqujtTfAgaSb5GDlyYl2l8hvnRV7XZpenOMUpuDW4Zh2mNPzbmVFTm8SuH-D7HAsmx9GwO4D0ntHKfoAgVERottgmr4g"/>
+<span class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur-md text-on-surface font-label-tag text-label-tag font-semibold">
+              Tangerang
+            </span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">Bedroom Suite</span>
+<div class="flex items-center justify-between">
+<h3 class="font-title-card text-title-card font-semibold text-on-surface group-hover:text-primary transition-colors">Modern Bedroom Storage</h3>
+<span class="material-symbols-outlined text-tertiary group-hover:text-primary group-hover:translate-x-1 transition-all">arrow_forward</span>
+</div>
+<p class="font-body-compact text-body-compact text-on-surface-variant">Smoked Glass &amp; Walnut Wood Suite dengan walk-in closet berpenyekat aluminium.</p>
+</div>
+</a>
+<!-- Related 2 -->
+<a class="group flex flex-col gap-space-sm bg-surface-container-lowest p-space-md rounded-[20px] shadow-sm hover:-translate-y-1 transition-all duration-300" href="#">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Bespoke floating fluted white oak credenza TV console against a smooth light grey microcement media accent wall in BSD City luxury living room, integrated cable management, brass accessories, warm minimal aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuC-iv9iUl6YKFugHQP8tkjRCVleAIwLmKr2-2Tvz0uh1Ei6MSqFfbdjsFcEIJ4m_6xCJPtyrKmVEQx6IimrNtvawYckZf7mYU20Pj0FA4TnyVwhXF0UrxbbDMiROIok1eUy3Dv4x91rKwJw6Uzzz1iVCZOdiRFYFNClAqpCc0EA2-yFWnfmE3_5guS3OVaw2EsnPqtzFEj5yuBOm1sXNi6OpKLUuXANGjj6ETPeUvwRcUv3L1b8IW-buQ"/>
+<span class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur-md text-on-surface font-label-tag text-label-tag font-semibold">
+              BSD City
+            </span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">Living Room Custom</span>
+<div class="flex items-center justify-between">
+<h3 class="font-title-card text-title-card font-semibold text-on-surface group-hover:text-primary transition-colors">Fluted Oak Credenza &amp; Media Wall</h3>
+<span class="material-symbols-outlined text-tertiary group-hover:text-primary group-hover:translate-x-1 transition-all">arrow_forward</span>
+</div>
+<p class="font-body-compact text-body-compact text-on-surface-variant">Solid White Oak &amp; Microcement dengan penataan kabel nir-kabel tersembunyi.</p>
+</div>
+</a>
+<!-- Related 3 -->
+<a class="group flex flex-col gap-space-sm bg-surface-container-lowest p-space-md rounded-[20px] shadow-sm hover:-translate-y-1 transition-all duration-300" href="#">
+<div class="w-full aspect-[4/3] rounded-[14px] overflow-hidden bg-surface-container-high relative">
+<img class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" data-alt="Compact modern kitchen in Kelapa Gading residence featuring sage green duco spray finish cabinetry, white solid surface countertop, functional island with deep drawers, stainless steel undermount sink, bright clean morning light." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDG3wNCsV2_sKu2XlRU1FqlAasgSK1hdxgVs5eGLMe_2ycNyq2UU3q4fk4Xx6yIK-4xU5iNM9m-FrCGcGecTS-yD-cEp4_NWK5t4LDxAjEoz8VW8nbhYFnwygOQI7IYS_43e5Wq09OEaEa3iVZQrMOpUq9ATGxh0nrVySwHPgGCbN6JixkfUIPz8yrtt88oZEkxM_gX_bULyEfWL-mFE-kOUiThTaC89jzT-K2TrXtNpl6OF6_mdyxgGA"/>
+<span class="absolute top-3 right-3 px-2.5 py-1 rounded-full bg-surface-container-lowest/90 backdrop-blur-md text-on-surface font-label-tag text-label-tag font-semibold">
+              Kelapa Gading
+            </span>
+</div>
+<div class="flex flex-col gap-1">
+<span class="font-label-eyebrow text-label-eyebrow text-tertiary">Kitchen Renovation</span>
+<div class="flex items-center justify-between">
+<h3 class="font-title-card text-title-card font-semibold text-on-surface group-hover:text-primary transition-colors">Compact Island &amp; Wet Kitchen</h3>
+<span class="material-symbols-outlined text-tertiary group-hover:text-primary group-hover:translate-x-1 transition-all">arrow_forward</span>
+</div>
+<p class="font-body-compact text-body-compact text-on-surface-variant">Solid Surface &amp; Sage Duco dengan zonasi efisien untuk hunian kompak bertingkat.</p>
+</div>
+</a>
+</div>
+</section>
+<!-- 8. FINAL CTA BANNER -->
+<section class="mt-space-md rounded-[22px] bg-surface-container-low p-space-xl md:p-space-xl lg:py-16 flex flex-col items-center text-center relative overflow-hidden shadow-sm">
+<div class="absolute -right-16 -top-16 w-64 h-64 rounded-full bg-primary-fixed/20 blur-3xl pointer-events-none"></div>
+<div class="absolute -left-16 -bottom-16 w-64 h-64 rounded-full bg-primary-container/10 blur-3xl pointer-events-none"></div>
+<div class="relative z-10 max-w-2xl flex flex-col items-center gap-space-md">
+<span class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-surface-container-lowest text-primary-container font-label-tag text-label-tag font-bold shadow-xs">
+<span class="w-2 h-2 rounded-full bg-primary-container"></span>
+          KONSULTASI DESAIN &amp; SURVEY
+        </span>
+<h2 class="font-headline-section text-headline-subsection md:text-headline-section font-bold text-on-surface tracking-tight">
+          Punya Kebutuhan Serupa?
+        </h2>
+<p class="font-body-lead text-body-lead text-on-surface-variant max-w-xl">
+          Konsultasikan denah ruang, estimasi budget material, dan jadwalkan survey presisi workshop langsung ke lokasi Anda bersama tim arsitek Ruangkeruang.
+        </p>
+<div class="flex flex-col sm:flex-row items-center gap-space-sm pt-space-xs w-full sm:w-auto">
+<a class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-primary-container hover:bg-secondary text-on-primary font-label-button text-label-button px-space-lg py-3.5 rounded-xl transition-all duration-200 shadow-sm cursor-pointer" href="https://wa.me/6281289001234?text=Halo%20Kreasi%20Ruang,%20saya%20tertarik%20dengan%20proyek%20Warm%20Minimal%20Kitchen%20dan%20ingin%20konsultasi." rel="noopener" target="_blank">
+<span class="material-symbols-outlined text-[20px]">chat</span>
+            Diskusikan Proyek Anda
+          </a>
+<a class="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-surface-container-lowest hover:bg-surface-container-high text-on-surface font-label-button text-label-button px-space-lg py-3.5 rounded-xl transition-colors duration-200 shadow-xs cursor-pointer" data-path="konsultasi" href="#">
+<span class="material-symbols-outlined text-[20px]">calendar_month</span>
+            Jadwalkan Survey Lokasi
+          </a>
+</div>
+<div class="pt-space-md flex flex-wrap justify-center items-center gap-x-6 gap-y-2 text-tertiary font-body-compact text-body-compact">
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary-container text-[16px]">check</span>
+<span>Survey 3D Laser Measure</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary-container text-[16px]">check</span>
+<span>Rincian RAB Material Transparan</span>
+</div>
+<div class="flex items-center gap-1.5">
+<span class="material-symbols-outlined text-primary-container text-[16px]">check</span>
+<span>Sampel Fisik Kayu &amp; Quartz</span>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+<script>
+  // Dynamic Scroll Progress Indicator for Architectural Case Study
+  window.addEventListener('scroll', () => {
+    const totalHeight = document.documentElement.scrollHeight - window.innerHeight;
+    if (totalHeight > 0) {
+      const progress = (window.scrollY / totalHeight) * 100;
+      const progressBar = document.getElementById('read-progress');
+      if (progressBar) {
+        progressBar.style.width = `${Math.min(100, Math.max(0, progress))}%`;
+      }
+    }
+  });
+</script></main><footer class="w-full bg-inverse-surface text-inverse-on-surface border-t border-inverse-surface"><div class="max-w-[1440px] mx-auto px-margin-mobile md:px-margin py-space-xl"><div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-space-xl pb-space-xl border-b border-tertiary-container/30"><div class="lg:col-span-1 flex flex-col gap-space-sm"><div class="flex items-center gap-space-sm"><span class="material-symbols-outlined text-primary-fixed text-[28px]">architecture</span><span class="font-headline-subsection text-title-card text-on-primary font-bold tracking-tight">Ruangkeruang</span></div><p class="font-body-compact text-body-compact text-tertiary-fixed-dim leading-relaxed">Studio desain interior &amp; workshop pengerjaan eksterior custom presisi berskala arsitektural.</p><div class="pt-space-sm"><a class="inline-flex items-center gap-space-xs font-label-button text-label-button text-primary-fixed hover:text-primary-fixed-dim transition-colors" href="https://wa.me/6281289001234" rel="noopener" target="_blank"><span class="material-symbols-outlined text-[18px]">chat</span>WhatsApp Studio Direct</a></div></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Interior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Kitchen Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Living Room Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Bedroom Set</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Interior</li><li class="hover:text-on-primary transition-colors cursor-pointer">Built-in Furniture</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Eksterior</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Modern Canopy</li><li class="hover:text-on-primary transition-colors cursor-pointer">Pagar Minimalis</li><li class="hover:text-on-primary transition-colors cursor-pointer">Railing Tangga &amp; Balkon</li><li class="hover:text-on-primary transition-colors cursor-pointer">Custom Metalwork</li><li class="hover:text-on-primary transition-colors cursor-pointer">Facade Cladding</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Perusahaan &amp; Proses</h3><ul class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><li class="hover:text-on-primary transition-colors cursor-pointer">Portfolio Proyek</li><li class="hover:text-on-primary transition-colors cursor-pointer">Cara Pemesanan</li><li class="hover:text-on-primary transition-colors cursor-pointer">Estimasi Biaya</li><li class="hover:text-on-primary transition-colors cursor-pointer">Workshop &amp; Fabrikasi</li><li class="hover:text-on-primary transition-colors cursor-pointer">Material Library</li></ul></div><div class="flex flex-col gap-space-sm"><h3 class="font-label-eyebrow text-label-eyebrow text-tertiary-fixed tracking-wider">Kontak</h3><div class="flex flex-col gap-space-xs font-body-compact text-body-compact text-tertiary-fixed-dim"><p>Workshop Jabodetabek, Indonesia</p><p class="text-on-primary">WhatsApp: +62 812-8900-1234</p><p>Instagram: @ruangkeruang.build</p><p>Email: halo@ruangkeruang.id</p></div></div></div><div class="pt-space-md flex flex-col md:flex-row items-center justify-between gap-space-sm text-tertiary-fixed-dim font-body-compact text-body-compact"><div>© 2025 Ruangkeruang. All rights reserved. Engineering &amp; Build.</div><div class="flex items-center gap-space-md"><a class="hover:text-on-primary transition-colors" href="#">Syarat &amp; Ketentuan</a><a class="hover:text-on-primary transition-colors" href="#">Kebijakan Privasi</a></div></div></div></footer><script src="../mockup.js"></script></body></html>
