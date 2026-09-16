@@ -3863,6 +3863,30 @@ export default function AdministrasiProjekPage() {
         <DialogContent className="max-w-md">
           <DialogHeader><DialogTitle>Edit Proyek</DialogTitle></DialogHeader>
           <div className="space-y-3">
+            <div>
+              <Label>Projek Sipil Tertaut</Label>
+              <select
+                className="w-full border rounded-md px-3 py-2 text-sm"
+                value={formProyek.proyek_berjalan_id}
+                onChange={(e) => {
+                  const pb = proyekBerjalanList.find((p: any) => String(p.id) === e.target.value);
+                  setFormProyek({
+                    ...formProyek,
+                    proyek_berjalan_id: e.target.value,
+                    ...(pb && {
+                      nama_proyek: pb.nama_proyek || formProyek.nama_proyek,
+                      klien: pb.klien || formProyek.klien,
+                    }),
+                  });
+                }}
+              >
+                <option value="">— Tidak ditautkan —</option>
+                {proyekBerjalanList.map((p: any) => (
+                  <option key={p.id} value={String(p.id)}>{p.nama_proyek} {p.klien ? "— " + p.klien : ""}</option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground mt-1">Pilih proyek Sipil untuk menampilkan Termin dan RAPP di Finance.</p>
+            </div>
             <div><Label>Nama Proyek *</Label>
               <Input placeholder="Nama proyek" value={formProyek.nama_proyek} onChange={(e) => setFormProyek({ ...formProyek, nama_proyek: e.target.value })} /></div>
             <div>
@@ -3892,7 +3916,7 @@ export default function AdministrasiProjekPage() {
               <Button variant="outline" onClick={() => setEditProyek(null)}>Batal</Button>
               <Button
                 disabled={!formProyek.nama_proyek || updateProyekMut.isPending}
-                onClick={() => updateProyekMut.mutate({ id: editProyek.id, data: { nama_proyek: formProyek.nama_proyek, klien: formProyek.klien || null, jenis: formProyek.jenis, tanggal_mulai: formProyek.tanggal_mulai || null, tanggal_selesai: formProyek.tanggal_selesai || null } })}
+                onClick={() => updateProyekMut.mutate({ id: editProyek.id, data: { nama_proyek: formProyek.nama_proyek, klien: formProyek.klien || null, jenis: formProyek.jenis, tanggal_mulai: formProyek.tanggal_mulai || null, tanggal_selesai: formProyek.tanggal_selesai || null, proyek_berjalan_id: formProyek.proyek_berjalan_id || null } })}
               >
                 {updateProyekMut.isPending ? "Menyimpan..." : "Simpan"}
               </Button>

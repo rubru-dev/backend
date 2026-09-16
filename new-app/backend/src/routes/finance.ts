@@ -1638,7 +1638,7 @@ router.post("/adm-projek", async (req: Request, res: Response) => {
 // PATCH /finance/adm-projek/:id
 router.patch("/adm-projek/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const { nama_proyek, klien, jenis, tanggal_mulai, tanggal_selesai, status } = req.body;
+  const { nama_proyek, klien, jenis, tanggal_mulai, tanggal_selesai, status, proyek_berjalan_id } = req.body;
   const project = await prisma.admFinanceProject.findUnique({ where: { id } });
   if (!project) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
   const updated = await prisma.admFinanceProject.update({
@@ -1650,9 +1650,12 @@ router.patch("/adm-projek/:id", async (req: Request, res: Response) => {
       tanggal_mulai: tanggal_mulai !== undefined ? (tanggal_mulai ? new Date(tanggal_mulai) : null) : undefined,
       tanggal_selesai: tanggal_selesai !== undefined ? (tanggal_selesai ? new Date(tanggal_selesai) : null) : undefined,
       status: status !== undefined ? status : undefined,
+      proyek_berjalan_id: proyek_berjalan_id !== undefined
+        ? (proyek_berjalan_id ? BigInt(proyek_berjalan_id) : null)
+        : undefined,
     },
   });
-  return res.json({ message: "Proyek diupdate", data: { id: updated.id, nama_proyek: updated.nama_proyek, klien: updated.klien, jenis: updated.jenis, status: updated.status } });
+  return res.json({ message: "Proyek diupdate", data: { id: updated.id, nama_proyek: updated.nama_proyek, klien: updated.klien, jenis: updated.jenis, status: updated.status, proyek_berjalan_id: updated.proyek_berjalan_id } });
 });
 
 // DELETE /finance/adm-projek/:id

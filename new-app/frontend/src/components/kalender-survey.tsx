@@ -2419,7 +2419,7 @@ ${sections}
                 </Button>
               )}
               {canReportAfter && (
-                <Button className="w-full justify-start" onClick={() => { setActionItem(null); router.push(`/survey/after-report/${actionItem.modul ?? modul}/${actionItem.id}`); }}>
+                <Button className="w-full justify-start" onClick={() => { setActionItem(null); openListDetail(actionItem); }}>
                   <FileDown className="mr-2 h-4 w-4" /> Isi Report After Survey
                 </Button>
               )}
