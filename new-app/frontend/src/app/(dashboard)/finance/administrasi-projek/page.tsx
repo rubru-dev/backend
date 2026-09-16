@@ -1,7 +1,7 @@
 "use client";
 import { getLogoBase64 } from "@/lib/get-logo";
 
-import { useState, useRef } from "react";
+import { Fragment, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -17,7 +17,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Plus, Calculator, ChevronLeft, ChevronRight, Trash2, Truck, UserCheck, Banknote, Receipt,
+  Plus, Calculator, ChevronLeft, ChevronRight, ChevronDown, Trash2, Truck, UserCheck, Banknote, Receipt,
   TrendingUp, Package, ClipboardList, Upload, Eye, Pencil, CheckCircle, XCircle,
   ArrowRight, FileDown, PenLine, Wallet, ShieldCheck, Camera, Images, X, Loader2,
 } from "lucide-react";
@@ -92,6 +92,7 @@ function RappFinanceSummary({ termins, proyekNama, proyekLokasi }: { termins: an
 }
 
 function RappMaterialSummaryByTermin({ proyekBerjalanId }: { proyekBerjalanId?: number }) {
+  const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const { data: project, isLoading } = useQuery({
     queryKey: ["finance-pr-rapp-termins", proyekBerjalanId],
     queryFn: () => sipilApi.getProjek(String(proyekBerjalanId)),
@@ -122,12 +123,69 @@ function RappMaterialSummaryByTermin({ proyekBerjalanId }: { proyekBerjalanId?: 
             const rapp = rappQueries[index]?.data;
             const total = (rapp?.material_kategoris ?? []).reduce((sum: number, kategori: any) =>
               sum + (kategori.items ?? []).reduce((s: number, item: any) => s + Number(item.jumlah ?? 0), 0), 0);
-            return <TableRow key={termin.id}><TableCell className="font-medium">{termin.nama ?? `Termin ${termin.urutan}`}</TableCell><TableCell className="text-right font-semibold">{formatRp(total)}</TableCell></TableRow>;
+            const key = String(termin.id);
+            const isExpanded = expanded.has(key);
+            return <Fragment key={termin.id}>
+              <TableRow className="cursor-pointer hover:bg-slate-50" onClick={() => setExpanded((prev) => { const next = new Set(prev); if (next.has(key)) next.delete(key); else next.add(key); return next; })}>
+                <TableCell className="font-medium"><span className="inline-flex items-center gap-2"><ChevronDown className={`h-4 w-4 transition-transform ${isExpanded ? "rotate-180" : ""}`} />{termin.nama ?? `Termin ${termin.urutan}`}</span></TableCell>
+                <TableCell className="text-right font-semibold">{formatRp(total)}</TableCell>
+              </TableRow>
+              {isExpanded && (rapp?.material_kategoris ?? []).map((kategori: any) => <Fragment key={kategori.id}>
+                <TableRow className="bg-slate-50"><TableCell className="pl-10 text-sm font-medium" colSpan={2}>{kategori.kode ? `${kategori.kode} - ` : ""}{kategori.nama}</TableCell></TableRow>
+                {(kategori.items ?? []).map((item: any) => <TableRow key={item.id}><TableCell className="pl-14 text-sm text-muted-foreground">{item.material}</TableCell><TableCell className="text-right text-sm">{formatRp(Number(item.jumlah ?? 0))}</TableCell></TableRow>)}
+              </Fragment>)}
+            </Fragment>;
           })}
         </TableBody>
       </Table>
     </div>
   );
+}
+
+function RabFinanceTerminTab({ proyekBerjalanId }: { proyekBerjalanId?: number }) {
+  const qc = useQueryClient();
+  const QK = ["finance-rab-termin", proyekBerjalanId];
+  const { data, isLoading } = useQuery<any>({
+    queryKey: QK,
+    queryFn: () => sipilApi.getRab(String(proyekBerjalanId)),
+    enabled: !!proyekBerjalanId,
+    retry: false,
+  });
+  const [editing, setEditing] = useState<Record<string, { label: string; nilai: string }>>({});
+  const [newItem, setNewItem] = useState({ label: "", nilai: "", tipe: "main" });
+  const items: any[] = data?.items ?? [];
+  const mainItems = items.filter((i) => i.tipe === "main");
+  const extraItems = items.filter((i) => i.tipe === "penambahan");
+  const save = useMutation({
+    mutationFn: ({ id, value }: { id: number; value: { label: string; nilai: number } }) => sipilApi.updateRabItem(String(id), value),
+    onSuccess: () => { toast.success("RAB disimpan"); qc.invalidateQueries({ queryKey: QK }); },
+    onError: () => toast.error("Gagal menyimpan RAB"),
+  });
+  const add = useMutation({
+    mutationFn: (value: any) => sipilApi.addRabItem(String(proyekBerjalanId), value),
+    onSuccess: () => { toast.success("Item ditambahkan"); setNewItem({ label: "", nilai: "", tipe: "main" }); qc.invalidateQueries({ queryKey: QK }); },
+    onError: () => toast.error("Gagal menambahkan item"),
+  });
+  const remove = useMutation({
+    mutationFn: (id: number) => sipilApi.deleteRabItem(String(id)),
+    onSuccess: () => { toast.success("Item dihapus"); qc.invalidateQueries({ queryKey: QK }); },
+    onError: () => toast.error("Gagal menghapus item"),
+  });
+  if (!proyekBerjalanId) return <p className="py-10 text-center text-sm text-muted-foreground">Hubungkan proyek Finance ke proyek Sipil terlebih dahulu.</p>;
+  if (isLoading) return <p className="py-10 text-center text-sm text-muted-foreground">Memuat RAB Termin...</p>;
+  const renderRows = (list: any[]) => list.map((item) => {
+    const value = editing[String(item.id)] ?? { label: item.label, nilai: String(item.nilai ?? 0) };
+    const isEditing = !!editing[String(item.id)];
+    return <TableRow key={item.id}>
+      <TableCell>{isEditing ? <Input value={value.label} onChange={(e) => setEditing((p) => ({ ...p, [String(item.id)]: { ...value, label: e.target.value } }))} /> : <span className="font-medium">{item.label}</span>}</TableCell>
+      <TableCell className="text-right">{isEditing ? <Input className="ml-auto max-w-48 text-right" type="number" value={value.nilai} onChange={(e) => setEditing((p) => ({ ...p, [String(item.id)]: { ...value, nilai: e.target.value } }))} /> : formatRp(Number(item.nilai))}</TableCell>
+      <TableCell className="text-right whitespace-nowrap">{isEditing ? <><Button size="sm" onClick={() => { save.mutate({ id: Number(item.id), value: { label: value.label, nilai: Number(value.nilai) || 0 } }); setEditing((p) => { const n = { ...p }; delete n[String(item.id)]; return n; }); }}>Simpan</Button><Button size="sm" variant="ghost" onClick={() => setEditing((p) => { const n = { ...p }; delete n[String(item.id)]; return n; })}>Batal</Button></> : <><Button size="icon" variant="ghost" onClick={() => setEditing((p) => ({ ...p, [String(item.id)]: value }))}><Pencil className="h-3.5 w-3.5" /></Button>{(item.tipe === "penambahan" || !["Booking Fee", "Retensi"].includes(item.label)) && <Button size="icon" variant="ghost" className="text-destructive" onClick={() => { if (window.confirm("Hapus item RAB ini?")) remove.mutate(Number(item.id)); }}><Trash2 className="h-3.5 w-3.5" /></Button>}</>}</TableCell>
+    </TableRow>;
+  });
+  return <div className="space-y-4">
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><div className="rounded-lg border bg-teal-50 p-4"><p className="text-xs text-teal-600">Total RAB</p><p className="text-xl font-bold text-teal-700">{formatRp(Number(data?.total_rab ?? 0))}</p></div><div className="rounded-lg border bg-orange-50 p-4"><p className="text-xs text-orange-600">Total RAB + Penambahan</p><p className="text-xl font-bold text-orange-700">{formatRp(Number(data?.total_rab_penambahan ?? 0))}</p></div></div>
+    <div className="rounded-lg border overflow-hidden"><div className="flex items-center justify-between bg-slate-50 px-4 py-3"><h3 className="font-semibold text-sm">Rincian RAB Termin</h3><div className="flex gap-2"><Input className="h-8 w-36" placeholder="Nama item baru" value={newItem.label} onChange={(e) => setNewItem({ ...newItem, label: e.target.value })} /><Input className="h-8 w-32" type="number" placeholder="Nilai" value={newItem.nilai} onChange={(e) => setNewItem({ ...newItem, nilai: e.target.value })} /><Select value={newItem.tipe} onValueChange={(v) => setNewItem({ ...newItem, tipe: v })}><SelectTrigger className="h-8 w-32"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="main">RAB</SelectItem><SelectItem value="penambahan">Penambahan</SelectItem></SelectContent></Select><Button size="sm" onClick={() => newItem.label.trim() && add.mutate({ label: newItem.label.trim(), nilai: Number(newItem.nilai) || 0, tipe: newItem.tipe })}><Plus className="h-3.5 w-3.5 mr-1" /> Tambah</Button></div></div><Table><TableHeader><TableRow><TableHead>Nama</TableHead><TableHead className="text-right">Nilai</TableHead><TableHead className="w-40 text-right">Aksi</TableHead></TableRow></TableHeader><TableBody><TableRow className="bg-teal-50"><TableCell colSpan={3} className="font-semibold text-teal-800">RAB Utama (Booking Fee, Termin, Retensi)</TableCell></TableRow>{renderRows(mainItems)}<TableRow className="bg-orange-50"><TableCell colSpan={3} className="font-semibold text-orange-800">Penambahan</TableCell></TableRow>{renderRows(extraItems)}</TableBody></Table></div>
+  </div>;
 }
 
 function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanId?: number; proyekNama: string; tab: "termin" | "rapp" }) {
@@ -3943,7 +4001,7 @@ export default function AdministrasiProjekPage() {
             </TabsTrigger>
             {String(selectedProyek.jenis ?? "").toLowerCase() === "sipil" && <>
               <TabsTrigger value="sipil-termin" className="flex items-center gap-1 text-xs">
-                <ClipboardList className="h-3.5 w-3.5" /> Termin
+                <ClipboardList className="h-3.5 w-3.5" /> Schedule Pekerjaan
               </TabsTrigger>
               <TabsTrigger value="sipil-rapp" className="flex items-center gap-1 text-xs">
                 <Package className="h-3.5 w-3.5" /> RAPP
@@ -3954,7 +4012,7 @@ export default function AdministrasiProjekPage() {
           <Card className="mt-4">
             <CardContent className="pt-4">
               <TabsContent value="cashflow"><CashflowTab proyekId={selectedProyek.id} /></TabsContent>
-              <TabsContent value="finance-termin"><CashflowTab proyekId={selectedProyek.id} /></TabsContent>
+              <TabsContent value="finance-termin"><RabFinanceTerminTab proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} /></TabsContent>
 
               <TabsContent value="pr"><PRTab proyekId={selectedProyek.id} proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} /></TabsContent>
               <TabsContent value="dokumen"><UploadDokumenTab proyekId={selectedProyek.id} /></TabsContent>
