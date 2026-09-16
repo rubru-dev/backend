@@ -1610,7 +1610,12 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
         include: { account: { select: { platform: true } } },
       }),
       prisma.lead.findMany({
-        where: { modul: "sales-admin", ...whereDate("tanggal_masuk", start, end) },
+        where: {
+          modul: { in: ["sales-admin", "telemarketing", "database-client"] },
+          rencana_survey: "Ya",
+          tanggal_survey: { not: null },
+          ...whereDate("tanggal_survey", start, end),
+        },
         select: {
           tanggal_survey: true,
           invoices: {
@@ -1833,13 +1838,20 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     };
   }
 
-  // Funnel memakai cohort lead Sales Admin yang masuk pada periode terpilih.
+  // Funnel Survey mengikuti sumber data Kalender Survey Sales Admin (showAll):
+  // semua modul yang ditampilkan kalender, dan periode berdasarkan tanggal survey.
   // Pembayaran dihitung dari invoice berstatus Lunas dengan kwitansi, agar stage
   // DP merepresentasikan uang diterima, bukan invoice yang baru diterbitkan.
   const funnelLeads = await prisma.lead.findMany({
-    where: { modul: "sales-admin", ...dateWhere("tanggal_masuk") },
+    where: {
+      modul: { in: ["sales-admin", "telemarketing", "database-client"] },
+      rencana_survey: "Ya",
+      tanggal_survey: { not: null },
+      ...dateWhere("tanggal_survey"),
+    },
     select: {
-      id: true, nama: true, salutation: true, tanggal_masuk: true, tanggal_survey: true,
+      id: true, nama: true, salutation: true, sumber_leads: true, modul: true,
+      tanggal_masuk: true, tanggal_survey: true,
       user: { select: { name: true } },
       invoices: {
         where: { kategori: { in: ["Payment Desain", "Payment Projek"] }, status: "Lunas" },
@@ -1881,6 +1893,8 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
       lead_id: Number(lead.id),
       nama: lead.salutation ? `${lead.salutation} ${lead.nama}` : lead.nama,
       sales: lead.user?.name ?? "Belum ditentukan",
+      sumber: lead.sumber_leads?.trim() || "Tidak diketahui",
+      modul: lead.modul,
       tanggal_masuk: lead.tanggal_masuk,
       tanggal_survey: lead.tanggal_survey,
       tanggal_dp_desain: designDate,
@@ -1902,12 +1916,17 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     return present.length % 2 ? present[middle] : Math.round((present[middle - 1] + present[middle]) / 2);
   };
   const percentage = (value: number, base: number) => base > 0 ? Number(((value / base) * 100).toFixed(1)) : 0;
-  const surveyCount = funnelRows.filter((row) => row.tanggal_survey).length;
+  const surveyCount = funnelRows.length;
   const designCount = funnelRows.filter((row) => row.tanggal_dp_desain).length;
   const spkCount = funnelRows.filter((row) => row.tanggal_spk).length;
+  const surveyBySource: Record<string, number> = {};
+  for (const row of funnelRows) surveyBySource[row.sumber] = (surveyBySource[row.sumber] ?? 0) + 1;
   const funnel = {
     total_leads: funnelRows.length,
     survey: surveyCount,
+    survey_by_source: Object.entries(surveyBySource)
+      .map(([sumber, total]) => ({ sumber, total }))
+      .sort((a, b) => b.total - a.total || a.sumber.localeCompare(b.sumber)),
     dp_desain: designCount,
     spk: spkCount,
     conversion_lead_to_survey: percentage(surveyCount, funnelRows.length),
@@ -3102,7 +3121,7 @@ router.post("/:modul/leads/:id/approve-survey", requireRole("Head Golden"), asyn
 });
 
 // PATCH /bd/:modul/leads/:id/bukti-survey — simpan bukti tanpa mengubah status approval
-router.patch("/:modul/leads/:id/bukti-survey", async (req: Request, res: Response) => {
+router.patch("/:modul/leads/:id/bukti-survey", requirePermission("survey", "report_after"), async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
@@ -3158,7 +3177,7 @@ router.post("/:modul/leads/:id/sign-survey", requireRole("Head Golden"), async (
   return res.json({ message: "Survey disetujui & ditandatangani" });
 });
 
-router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => {
+router.patch("/:modul/leads/:id/survey", requirePermission("survey", "reschedule"), async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
@@ -3193,6 +3212,23 @@ router.patch("/:modul/leads/:id/survey", async (req: Request, res: Response) => 
 
 
   return res.json({ message: "Jadwal survey diupdate" });
+});
+
+// PATCH /bd/:modul/leads/:id/cancel-survey — batalkan jadwal tanpa menghapus lead
+router.patch("/:modul/leads/:id/cancel-survey", requirePermission("survey", "cancel"), async (req: Request, res: Response) => {
+  const { modul } = req.params;
+  if (!validateModul(modul, res)) return;
+  const id = BigInt(req.params.id);
+  const lead = await prisma.lead.findUnique({ where: { id } });
+  if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
+  await prisma.lead.update({
+    where: { id },
+    data: {
+      rencana_survey: "Tidak", tanggal_survey: null, jam_survey: null, pic_survey: null,
+      survey_approval_status: null, survey_approved_by: null, survey_approved_at: null, foto_survey: null,
+    },
+  });
+  return res.json({ message: "Jadwal survey dibatalkan" });
 });
 
 // GET /bd/survey-pic-users — list users for PIC dropdown

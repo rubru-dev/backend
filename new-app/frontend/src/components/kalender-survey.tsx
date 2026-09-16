@@ -430,7 +430,9 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
   const canSchedule = useAuthStore((s) =>
     s.isSuperAdmin() || s.hasAnyRole("Head Golden", "Sales Admin Golden")
   );
-  const canCancelSchedule = useAuthStore((s) => s.isSuperAdmin());
+  const canReschedule = useAuthStore((s) => s.hasPermission("survey", "reschedule"));
+  const canCancelSchedule = useAuthStore((s) => s.hasPermission("survey", "cancel"));
+  const canReportAfter = useAuthStore((s) => s.hasPermission("survey", "report_after"));
   const currentUserName = useAuthStore((s) => s.user?.name ?? "");
   // "Tambah Survey" boleh dipakai semua role KECUALI orang Golden (Super Admin tetap boleh).
   const isGoldenUser = useAuthStore((s) =>
@@ -448,6 +450,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [rejectAlasan, setRejectAlasan] = useState("");
   const [scheduleId, setScheduleId] = useState<number | null>(null);
+  const [actionItem, setActionItem] = useState<any | null>(null);
   const [scheduleForm, setScheduleForm] = useState({
     tanggal_survey: "", jam_survey: "", pic_survey: "",
   });
@@ -636,6 +639,16 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal update jadwal"),
   });
 
+  const cancelMut = useMutation({
+    mutationFn: (id: number) => apiClient.patch(`/bd/${modul}/leads/${id}/cancel-survey`).then((r) => r.data),
+    onSuccess: () => {
+      toast.success("Jadwal survey dibatalkan");
+      qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
+      setActionItem(null);
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal membatalkan jadwal"),
+  });
+
   const buktimut = useMutation({
     mutationFn: ({ id, foto_survey, luasan_tanah, catatan_survey }: { id: number; foto_survey: string[]; luasan_tanah?: string; catatan_survey?: string }) =>
       apiClient.patch(`/bd/${modul}/leads/${id}/bukti-survey`, { foto_survey, luasan_tanah: luasan_tanah || undefined, catatan_survey: catatan_survey || undefined }).then((r) => r.data),
@@ -776,8 +789,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
     // saat modal ditutup (sengaja maupun tak sengaja).
     if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
     const it = listDetailItem;
-    if (it && autoSaveReady.current && it.survey_approval_status !== "approved" &&
-        (canApprove || currentUserName === it.pic_survey)) {
+    if (it && canReportAfter && autoSaveReady.current && it.survey_approval_status !== "approved") {
       autoSaveMut.mutate({ id: it.id, foto_survey: activeReportPhotos(), ...listDetailPayload() });
     }
     autoSaveReady.current = false;
@@ -796,6 +808,10 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
     setListDetailCatatan(item.catatan_survey ?? "");
     setGoldenReportForm(parseGoldenSurveyReportForm(item.catatan_survey, item));
     setKonstruksiReportForm(parseKonstruksiSurveyReportForm(item.catatan_survey, item));
+  }
+
+  function openCalendarActions(item: any) {
+    setActionItem(item);
   }
 
   function updateKonstruksiReport<K extends keyof KonstruksiSurveyReportForm>(key: K, value: KonstruksiSurveyReportForm[K]) {
@@ -913,7 +929,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
   useEffect(() => {
     if (!listDetailItem || !autoSaveReady.current) return;
     if (listDetailItem.survey_approval_status === "approved") return; // terkunci
-    if (!(canApprove || currentUserName === listDetailItem.pic_survey)) return; // tak boleh edit
+    if (!canReportAfter) return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
       autoSaveMut.mutate({ id: listDetailItem.id, foto_survey: activeReportPhotos(), ...listDetailPayload() });
@@ -1674,16 +1690,6 @@ ${sections}
                                     <PenLine className="h-3 w-3 mr-1" /> Approval TTD
                                   </Button>
                                 )}
-                                {reportTemplate && item.survey_signature && (
-                                  <Button size="sm" variant="outline" className="h-7 text-xs"
-                                    onClick={() => downloadOneReportPdf(item)}>
-                                    <FileDown className="h-3 w-3 mr-1" /> PDF
-                                  </Button>
-                                )}
-                                <Button size="sm" variant="outline" className="h-7 text-xs"
-                                  onClick={() => openListDetail(item)}>
-                                  <Eye className="h-3 w-3 mr-1" /> Detail
-                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -1801,6 +1807,10 @@ ${sections}
                         {entries.slice(0, 2).map((e: any) => (
                           <div
                             key={e.id}
+                            role="button"
+                            tabIndex={0}
+                            onClick={(event) => { event.stopPropagation(); openCalendarActions(e); }}
+                            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); event.stopPropagation(); openCalendarActions(e); } }}
                             className={`rounded border px-1 py-0.5 ${entryPillStyle(e.survey_approval_status)}`}
                           >
                             <p className="text-[9px] font-semibold leading-tight truncate">
@@ -1861,7 +1871,7 @@ ${sections}
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-sm">{item.nama}</span>
+                       <button type="button" className="font-semibold text-sm text-left hover:text-amber-700 hover:underline" onClick={() => openCalendarActions(item)}>{item.nama}</button>
                       {statusBadge(item.survey_approval_status)}
                       {showAll && item.modul && (
                         <Badge variant="outline" className="text-[10px] px-1.5">
@@ -1896,50 +1906,9 @@ ${sections}
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-col gap-1 shrink-0 items-end">
-                    {canSchedule && (
-                      item.survey_approval_status === "rejected" ? (
-                        <Button
-                          variant="outline" size="sm"
-                          className="h-7 text-xs px-2 text-amber-700 border-amber-300 hover:bg-amber-50"
-                          onClick={() => openReschedule(item)}
-                        >
-                          <RefreshCw className="h-3 w-3 mr-1" /> Jadwal Ulang
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="ghost" size="sm"
-                          className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
-                          onClick={() => openEditSchedule(item)}
-                        >
-                          Edit jadwal
-                        </Button>
-                      )
-                    )}
-                    {canCancelSchedule && item.tanggal_survey && (
-                      <Button
-                        variant="ghost" size="sm"
-                        className="h-7 text-xs px-2 text-red-600 hover:bg-red-50"
-                        disabled={updateMut.isPending}
-                        onClick={() => {
-                          if (window.confirm(`Batalkan jadwal survey ${item.nama}?`)) {
-                            updateMut.mutate({ id: item.id, body: { tanggal_survey: null, jam_survey: null, pic_survey: null } });
-                          }
-                        }}
-                      >
-                        <X className="mr-1 h-3 w-3" /> Batalkan
-                      </Button>
-                    )}
-                    {canApprove && (!item.survey_approval_status || item.survey_approval_status === "pending") && (
-                      <Button
-                        variant="ghost" size="sm"
-                        className="h-7 text-xs px-2 text-blue-600 hover:bg-blue-50"
-                        onClick={() => openListDetail(item)}
-                      >
-                        <CheckCircle className="h-3 w-3 mr-1" /> Review
-                      </Button>
-                    )}
-                  </div>
+                  <Button type="button" variant="outline" size="sm" className="h-7 text-xs shrink-0" onClick={() => openCalendarActions(item)}>
+                    <Eye className="mr-1 h-3 w-3" /> Pilih Aksi
+                  </Button>
                 </div>
               ))
             )}
@@ -1992,15 +1961,6 @@ ${sections}
                       )}
                     </div>
                   </div>
-                  {canApprove && (
-                    <Button
-                      size="sm" variant="outline"
-                      className="h-7 text-xs px-2 shrink-0"
-                      onClick={() => openListDetail(item)}
-                    >
-                      <CheckCircle className="h-3 w-3 mr-1" /> Review
-                    </Button>
-                  )}
                 </div>
               ))
             )}
@@ -2094,7 +2054,7 @@ ${sections}
                       )}
                     </div>
                   </div>
-                  {canSchedule && <Button
+                  {canReschedule && <Button
                     variant="outline" size="sm"
                     className="h-7 text-xs shrink-0 border-amber-300 text-amber-700 hover:bg-amber-50"
                     onClick={() => openReschedule(item)}
@@ -2428,6 +2388,37 @@ ${sections}
         </DialogContent>
       </Dialog>
 
+      <Dialog open={!!actionItem} onOpenChange={(open) => { if (!open) setActionItem(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Aksi Survey — {actionItem?.nama}</DialogTitle>
+          </DialogHeader>
+          {actionItem && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">Pilih tindakan untuk jadwal survey ini.</p>
+              {canReschedule && (
+                <Button variant="outline" className="w-full justify-start" onClick={() => { setActionItem(null); openReschedule(actionItem); }}>
+                  <RefreshCw className="mr-2 h-4 w-4" /> Reschedule Survey
+                </Button>
+              )}
+              {canCancelSchedule && (
+                <Button variant="outline" className="w-full justify-start text-red-600 hover:bg-red-50" disabled={cancelMut.isPending} onClick={() => {
+                  if (window.confirm(`Batalkan jadwal survey ${actionItem.nama}?`)) cancelMut.mutate(actionItem.id);
+                }}>
+                  <X className="mr-2 h-4 w-4" /> Cancel Survey
+                </Button>
+              )}
+              {canReportAfter && (
+                <Button className="w-full justify-start" onClick={() => { setActionItem(null); openListDetail(actionItem); }}>
+                  <FileDown className="mr-2 h-4 w-4" /> Isi Report After Survey
+                </Button>
+              )}
+              {!canReschedule && !canCancelSchedule && !canReportAfter && <p className="rounded-md border border-dashed p-3 text-center text-sm text-muted-foreground">Anda tidak memiliki akses untuk tindakan survey.</p>}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={!!scheduleId} onOpenChange={() => setScheduleId(null)}>
         <DialogContent>
           <DialogHeader>
@@ -2562,7 +2553,7 @@ ${sections}
                 )}
               </div>
 
-              {useGoldenSurveyReportTemplate && (
+              {canReportAfter && useGoldenSurveyReportTemplate && (
                 <GoldenSurveyReportFields
                   form={goldenReportForm}
                   disabled={listDetailItem.survey_approval_status === "approved"}
@@ -2577,7 +2568,7 @@ ${sections}
                 />
               )}
 
-              {konstruksiTemplate && (
+              {canReportAfter && konstruksiTemplate && (
                 <KonstruksiSurveyReportFields
                   form={konstruksiReportForm}
                   item={listDetailItem}
@@ -2589,12 +2580,15 @@ ${sections}
                   onPhotoChange={handleKonstruksiReportPhotoChange}
                   onPreviewPhoto={setLightboxSrc}
                   photoProcessing={listFotoProcessing}
-                  canUpload={canApprove || currentUserName === listDetailItem.pic_survey}
+                   canUpload={canReportAfter}
                 />
               )}
 
-              {/* Download PDF sengaja TIDAK di sini — hanya lewat tombol PDF di tabel
-                  (muncul setelah survey ditandatangani). */}
+              {canReportAfter && reportTemplate && (
+                <Button variant="outline" className="w-full" onClick={() => downloadOneReportPdf(listDetailItem)}>
+                  <FileDown className="mr-2 h-4 w-4" /> Export PDF After Survey
+                </Button>
+              )}
 
               {!reportTemplate && (
                 <>
@@ -2679,7 +2673,7 @@ ${sections}
 
               {/* Report tersimpan OTOMATIS. Persetujuan dilakukan lewat tombol
                   "Approval TTD" di tabel — tidak perlu tombol setujui/tolak di sini. */}
-              {listDetailItem.survey_approval_status !== "approved" && (canApprove || currentUserName === listDetailItem.pic_survey) && (
+              {canReportAfter && listDetailItem.survey_approval_status !== "approved" && (
                 <div className="flex items-center justify-between gap-2 pt-1">
                   <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                     {autoSaveState === "saving" ? (

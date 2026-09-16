@@ -313,29 +313,6 @@ export function AfterSurveyPDF({ reports, logoUrl }: AfterSurveyPDFProps) {
               </>
             )}
 
-            {/* Persetujuan / Tanda Tangan */}
-            <View style={styles.signWrap} wrap={false}>
-              <View style={styles.signBox}>
-                <Text style={styles.signCaption}>
-                  Bekasi, {r.approved_at ? formatApprovedDate(r.approved_at) : "________________"}
-                </Text>
-                <View style={styles.signArea}>
-                  {r.signature && isRenderableImage(r.signature) ? (
-                    <>
-                      {isRenderableImage(logoUrl) ? <Image style={styles.signWatermark} src={logoUrl} /> : null}
-                      <Image style={styles.signImage} src={r.signature} />
-                    </>
-                  ) : (
-                    <Text style={styles.signPending}>Menunggu persetujuan</Text>
-                  )}
-                </View>
-                <View style={styles.signLine}>
-                  <Text style={styles.signName}>Management RubahRumah</Text>
-                  <Text style={styles.signRole}>Menyetujui Survey</Text>
-                </View>
-              </View>
-            </View>
-
             <View style={styles.footer} fixed>
               <Text style={styles.footerText}>{COMPANY.name} — After Survey Report</Text>
               <Text

@@ -102,6 +102,10 @@ async function main() {
     { name: "bd.kanban",     module: "bd", label: "Sub-menu: Kanban BD" },
     { name: "bd.meta_ads",   module: "bd", label: "Sub-menu: Meta Ads BD" },
     { name: "bd.report_analytics", module: "bd", label: "Sub-menu: Report dan Analytics BD" },
+    // Kalender Survey actions
+    { name: "survey.reschedule", module: "survey", label: "Aksi Kalender Survey: Reschedule" },
+    { name: "survey.cancel", module: "survey", label: "Aksi Kalender Survey: Cancel" },
+    { name: "survey.report_after", module: "survey", label: "Aksi Kalender Survey: Report After Survey" },
     // Content sub-menus
     { name: "content.dashboard_sosmed", module: "content", label: "Sub-menu: Dashboard Sosmed" },
     { name: "content.social_media",     module: "content", label: "Sub-menu: Sosial Media" },
