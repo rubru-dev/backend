@@ -812,6 +812,39 @@ router.delete("/testimoni/:id", async (req, res) => {
   res.json({ success: true });
 });
 
+// ── Alur Pesanan ─────────────────────────────────────────────────────────────
+
+router.get("/alur-pesanan", async (_req, res) => {
+  const items = await prisma.rbAlurPesanan.findMany({ orderBy: [{ sort_order: "asc" }, { created_at: "desc" }] });
+  res.json({ data: items });
+});
+
+router.post("/alur-pesanan", async (req, res) => {
+  const { judul, youtube_url, is_published, sort_order } = req.body;
+  if (!judul || !youtube_url) return res.status(400).json({ detail: "judul dan youtube_url wajib diisi" });
+  const item = await prisma.rbAlurPesanan.create({
+    data: { judul, youtube_url, is_published: is_published === true || is_published === "true", sort_order: parseInt(sort_order) || 0 },
+  });
+  res.json({ data: item });
+});
+
+router.patch("/alur-pesanan/:id", async (req, res) => {
+  const id = BigInt(req.params.id);
+  const { judul, youtube_url, is_published, sort_order } = req.body;
+  const update: Record<string, unknown> = { updated_at: new Date() };
+  if (judul !== undefined) update.judul = judul;
+  if (youtube_url !== undefined) update.youtube_url = youtube_url;
+  if (is_published !== undefined) update.is_published = is_published === true || is_published === "true";
+  if (sort_order !== undefined) update.sort_order = parseInt(sort_order) || 0;
+  const item = await prisma.rbAlurPesanan.update({ where: { id }, data: update });
+  res.json({ data: item });
+});
+
+router.delete("/alur-pesanan/:id", async (req, res) => {
+  await prisma.rbAlurPesanan.delete({ where: { id: BigInt(req.params.id) } });
+  res.json({ success: true });
+});
+
 // ── Website Leads (read-only from dashboard) ──────────────────────────────────
 
 router.get("/leads", async (req, res) => {

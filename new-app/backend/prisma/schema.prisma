@@ -2872,6 +2872,19 @@ model RbTestimoni {
   @@map("rb_testimonis")
 }
 
+/// Video alur pesanan Rubah Rumah (YouTube)
+model RbAlurPesanan {
+  id           BigInt   @id @default(autoincrement())
+  judul        String   @db.VarChar(255)
+  youtube_url  String   @db.Text
+  is_published Boolean  @default(false)
+  sort_order   Int      @default(0)
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("rb_alur_pesanans")
+}
+
 /// Lead dari form website publik
 model RbWebsiteLead {
   id         BigInt   @id @default(autoincrement())

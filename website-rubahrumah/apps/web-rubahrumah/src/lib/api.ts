@@ -71,6 +71,9 @@ export const publicApi = {
     testimonis: () =>
       fetcher<{ data: unknown[] }>("/public/rb/testimoni"),
 
+    alurPesanan: () =>
+      fetcher<{ data: Array<{ id: number; judul: string; youtube_url: string }> }>("/public/rb/alur-pesanan"),
+
     layananByJenis: (jenis: string) =>
       fetcher<{ data: unknown }>(`/public/rb/layanan/${jenis}`),
 

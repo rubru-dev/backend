@@ -187,6 +187,7 @@ async function main() {
     { name: "website.portofolio",        module: "website", label: "Sub-menu: Portofolio" },
     { name: "website.artikel",           module: "website", label: "Sub-menu: Artikel" },
     { name: "website.testimoni",         module: "website", label: "Sub-menu: Testimoni" },
+    { name: "website.alur_pesanan",      module: "website", label: "Sub-menu: Alur Pesanan" },
     { name: "website.config",            module: "website", label: "Sub-menu: Konfigurasi & Kontak" },
     // Tutorial
     { name: "tutorial.view",              module: "tutorial", label: "Lihat Tutorial" },

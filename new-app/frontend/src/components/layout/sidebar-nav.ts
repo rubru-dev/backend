@@ -62,6 +62,7 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["Copy Writer"],
     items: [
       { label: "Dashboard Sosmed", href: "/copy-writer/dashboard-sosmed", icon: "BarChart2", permission: "copy_writer.dashboard_sosmed" },
+      { label: "Timeline Konten", href: "/copy-writer/timelines", icon: "CalendarDays", permission: "copy_writer.timelines" },
       { label: "Laporan Harian", href: "/copy-writer/laporan-harian", icon: "ClipboardList", permission: "copy_writer.laporan_harian" },
     ],
   },
@@ -246,6 +247,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Portofolio",           href: "/website/portofolio",      icon: "Briefcase",          permission: "website.portofolio" },
       { label: "Artikel",              href: "/website/artikel",         icon: "FileText",           permission: "website.artikel" },
       { label: "Testimoni",            href: "/website/testimoni",       icon: "MessageSquareQuote", permission: "website.testimoni" },
+      { label: "Alur Pesanan",          href: "/website/alur-pesanan",     icon: "Route",              permission: "website.alur_pesanan" },
       { label: "Konfigurasi & Kontak", href: "/website/config",          icon: "Globe",              permission: "website.config" },
     ],
   },

@@ -347,6 +347,15 @@ router.get("/testimoni", async (_req, res) => {
   res.json({ data: items });
 });
 
+// GET /v1/public/rb/alur-pesanan
+router.get("/alur-pesanan", async (_req, res) => {
+  const items = await prisma.rbAlurPesanan.findMany({
+    where: { is_published: true },
+    orderBy: [{ sort_order: "asc" }, { created_at: "desc" }],
+  });
+  res.json({ data: items });
+});
+
 // GET /v1/public/rb/layanan/:jenis (legacy compat)
 router.get("/layanan/:jenis", async (req, res) => {
   res.json({ data: null, message: "Gunakan /kalkulator untuk data harga" });

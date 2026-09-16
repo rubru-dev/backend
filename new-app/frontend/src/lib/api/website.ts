@@ -75,6 +75,12 @@ export const websiteApi = {
   updateTestimoni: (id: number | bigint, data: any) => apiClient.patch(`/website/testimoni/${id}`, data).then((r) => r.data.data),
   deleteTestimoni: (id: number | bigint) => apiClient.delete(`/website/testimoni/${id}`).then((r) => r.data),
 
+  // ── Alur Pesanan ──
+  listAlurPesanan: () => apiClient.get("/website/alur-pesanan").then((r) => r.data.data),
+  createAlurPesanan: (data: any) => apiClient.post("/website/alur-pesanan", data).then((r) => r.data.data),
+  updateAlurPesanan: (id: number | bigint, data: any) => apiClient.patch(`/website/alur-pesanan/${id}`, data).then((r) => r.data.data),
+  deleteAlurPesanan: (id: number | bigint) => apiClient.delete(`/website/alur-pesanan/${id}`).then((r) => r.data),
+
   // ── Inline Image Upload ───────────────────────────────────────────────────
   uploadImage: (form: FormData) =>
     apiClient.post("/website/upload-image", form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data.url as string),
