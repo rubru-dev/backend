@@ -1,4 +1,4 @@
-const CACHE = "report-rubru-pwa-v1";
+const CACHE = "report-rubru-pwa-v2";
 const SHELL = ["/offline.html", "/manifest.webmanifest", "/pwa-192.png", "/pwa-512.png", "/maskable-512.png"];
 
 self.addEventListener("install", (event) => {
@@ -21,6 +21,17 @@ self.addEventListener("fetch", (event) => {
     return;
   }
   if (url.pathname.startsWith("/_next/static/") || url.pathname.match(/\.(?:png|jpg|jpeg|webp|svg|ico|woff2?)$/i)) {
-    event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => { if (response.ok) caches.open(CACHE).then((cache) => cache.put(request, response.clone())); return response; })));
+    event.respondWith(caches.match(request).then((cached) => {
+      if (cached) return cached;
+      return fetch(request).then((response) => {
+        if (response.ok) {
+          // Clone sebelum response dikembalikan ke browser. Setelah itu body
+          // response bisa sudah dipakai sehingga clone terlambat akan gagal.
+          const copy = response.clone();
+          event.waitUntil(caches.open(CACHE).then((cache) => cache.put(request, copy)).catch(() => undefined));
+        }
+        return response;
+      });
+    }));
   }
 });

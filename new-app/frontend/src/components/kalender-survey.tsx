@@ -2685,7 +2685,7 @@ ${sections}
               {/* Report tersimpan OTOMATIS. Persetujuan dilakukan lewat tombol
                   "Approval TTD" di tabel — tidak perlu tombol setujui/tolak di sini. */}
               {canReportAfter && (
-                <div className="flex items-center justify-between gap-2 pt-1">
+                <div className="flex flex-col items-stretch justify-between gap-2 pt-1 sm:flex-row sm:items-center">
                   <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                     {autoSaveState === "saving" ? (
                       <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Menyimpan...</>
@@ -3004,15 +3004,15 @@ function KonstruksiSurveyReportFields({
       <div className="space-y-2">
         <p className="text-sm font-semibold">1. Data Klien</p>
         <div className="rounded-md border bg-white p-3 space-y-1.5 text-sm">
-          <div className="flex justify-between gap-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
             <span className="text-muted-foreground">Nama Klien</span>
             <span className="font-medium text-right">{leadDisplayName(item) || "—"}</span>
           </div>
-          <div className="flex justify-between gap-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:justify-between sm:gap-4">
             <span className="text-muted-foreground">Nomor Telepon</span>
             <span className="font-medium text-right">{item?.nomor_telepon || "—"}</span>
           </div>
-          <div className="flex items-start justify-between gap-4">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-4">
             <span className="text-muted-foreground shrink-0">Alamat Klien</span>
             <span className="font-medium text-right">{item?.alamat || "—"}</span>
           </div>
@@ -3140,7 +3140,7 @@ function KonstruksiSurveyReportFields({
           </div>
           <div className="space-y-2">
             {form.kondisi_lokasi.map((row, i) => (
-              <div key={i} className="grid grid-cols-[28px_1fr_1.6fr_34px] gap-2 items-start rounded-md border bg-white p-2">
+              <div key={i} className="grid grid-cols-1 gap-2 items-start rounded-md border bg-white p-2 sm:grid-cols-[28px_1fr_1.6fr_34px]">
                 <span className="pt-2 text-center text-xs text-muted-foreground">{i + 1}</span>
                 <div className="space-y-2">
                   {row.dokumentasi.length > 0 && (
@@ -3210,7 +3210,7 @@ function KonstruksiSurveyReportFields({
           </div>
           <div className="space-y-2">
             {form.kebutuhan.map((row, i) => (
-              <div key={i} className="grid grid-cols-[28px_1fr_1.6fr_34px] gap-2 items-center">
+              <div key={i} className="grid grid-cols-1 gap-2 items-center sm:grid-cols-[28px_1fr_1.6fr_34px]">
                 <span className="text-center text-xs text-muted-foreground">{i + 1}</span>
                 <Input
                   value={row.area}
@@ -3407,7 +3407,7 @@ function GoldenSurveyReportFields({
 
       {!isSectionHidden("area_disurvey") && <GoldenRows title="2. Area yang Disurvey" headers={["Area", "Keterangan"]} disabled={disabled} onHide={() => hideSection("area_disurvey")}>
         {form.area_disurvey.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr_34px] gap-2 items-center">
+          <div key={i} className="grid grid-cols-1 gap-2 items-center sm:grid-cols-[28px_1fr_1fr_34px]">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
             <Input value={row.area} onChange={(e) => updateRow("area_disurvey", i, { area: e.target.value })} placeholder="Contoh: Dapur / Gudang / Taman" disabled={disabled} />
             <Input value={row.keterangan} onChange={(e) => updateRow("area_disurvey", i, { keterangan: e.target.value })} placeholder="Kondisi area yang diperiksa" disabled={disabled} />
@@ -3422,7 +3422,7 @@ function GoldenSurveyReportFields({
       {!isSectionHidden("hama") && <GoldenRows title="3. Jenis Hama yang Ditemukan" headers={["Jenis Hama", "Status Temuan", "Keterangan"]} disabled={disabled} onHide={() => hideSection("hama")}>
         {form.hama.map((row, i) => (
           <div key={`${row.jenis}-${i}`} className="space-y-2 rounded-md border border-dashed border-[#ddc1b1] bg-white p-2">
-            <div className="grid grid-cols-[1fr_160px_1.5fr_34px] gap-2 items-center">
+            <div className="grid grid-cols-1 gap-2 items-center sm:grid-cols-[1fr_160px_1.5fr_34px]">
               <Input value={row.jenis} onChange={(e) => updateRow("hama", i, { jenis: e.target.value })} placeholder="Contoh: Rayap / Tikus / Kecoa" disabled={disabled} />
               <Select value={row.status || "Ditemukan"} onValueChange={(v) => updateRow("hama", i, { status: v })} disabled={disabled}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
@@ -3457,7 +3457,7 @@ function GoldenSurveyReportFields({
 
       {!isSectionHidden("temuan") && <GoldenRows title="5. Detail Temuan Lapangan" headers={["Area Temuan", "Jenis Temuan", "Severity", "Keterangan"]} disabled={disabled} onHide={() => hideSection("temuan")}>
         {form.temuan.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr_130px_1fr_34px] gap-2 items-center">
+          <div key={i} className="grid grid-cols-1 gap-2 items-center sm:grid-cols-[28px_1fr_1fr_130px_1fr_34px]">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
             <Input value={row.area} onChange={(e) => updateRow("temuan", i, { area: e.target.value })} placeholder="Contoh: Plafon kamar" disabled={disabled} />
             <Input value={row.jenis} onChange={(e) => updateRow("temuan", i, { jenis: e.target.value })} placeholder="Contoh: Jalur rayap aktif" disabled={disabled} />
@@ -3481,7 +3481,7 @@ function GoldenSurveyReportFields({
 
       {!isSectionHidden("treatment") && <GoldenRows title="6. Rekomendasi Treatment" headers={["Metode Treatment", "Area Penerapan", "Keterangan"]} disabled={disabled} onHide={() => hideSection("treatment")}>
         {form.treatment.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr_34px] gap-2 items-center">
+          <div key={i} className="grid grid-cols-1 gap-2 items-center sm:grid-cols-[28px_1fr_1fr_1fr_34px]">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
             <Input value={row.metode} onChange={(e) => updateRow("treatment", i, { metode: e.target.value })} placeholder="Contoh: Spraying / Baiting / Injection" disabled={disabled} />
             <Input value={row.area} onChange={(e) => updateRow("treatment", i, { area: e.target.value })} placeholder="Area penerapan treatment" disabled={disabled} />
@@ -3496,7 +3496,7 @@ function GoldenSurveyReportFields({
 
       {!isSectionHidden("material") && <GoldenRows title="7. Kebutuhan Alat / Material" headers={["Item", "Jumlah", "Keterangan"]} disabled={disabled} onHide={() => hideSection("material")}>
         {form.material.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1fr_1fr_1fr_34px] gap-2 items-center">
+          <div key={i} className="grid grid-cols-1 gap-2 items-center sm:grid-cols-[28px_1fr_1fr_1fr_34px]">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
             <Input value={row.item} onChange={(e) => updateRow("material", i, { item: e.target.value })} placeholder="Contoh: Termitisida / Bait station" disabled={disabled} />
             <Input value={row.jumlah} onChange={(e) => updateRow("material", i, { jumlah: e.target.value })} placeholder="Contoh: 2 liter / 4 unit" disabled={disabled} />
@@ -3511,7 +3511,7 @@ function GoldenSurveyReportFields({
 
       {!isSectionHidden("foto_area") && <GoldenRows title="8A. Foto Area Survey" headers={["Dokumentasi", "Keterangan"]} disabled={disabled} onHide={() => hideSection("foto_area")}>
         {form.foto_area.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1.4fr_1fr_34px] gap-2 items-start">
+          <div key={i} className="grid grid-cols-1 gap-2 items-start sm:grid-cols-[28px_1.4fr_1fr_34px]">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
             <div className="space-y-2">
               {row.dokumentasi.length > 0 && (
@@ -3549,7 +3549,7 @@ function GoldenSurveyReportFields({
 
       {!isSectionHidden("foto_temuan") && <GoldenRows title="8B. Foto Temuan Hama" headers={["Dokumentasi", "Keterangan"]} disabled={disabled} onHide={() => hideSection("foto_temuan")}>
         {form.foto_temuan.map((row, i) => (
-          <div key={i} className="grid grid-cols-[28px_1.4fr_1fr_34px] gap-2 items-start">
+          <div key={i} className="grid grid-cols-1 gap-2 items-start sm:grid-cols-[28px_1.4fr_1fr_34px]">
             <span className="text-xs text-muted-foreground text-center">{i + 1}</span>
             <div className="space-y-2">
               {row.dokumentasi.length > 0 && (
