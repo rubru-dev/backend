@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -134,7 +135,7 @@ async function normalizeImage(dataUrl: string): Promise<string> {
 }
 
 interface KalenderSurveyProps {
-  modul: "sales-admin" | "telemarketing" | "golden" | "filter-air";
+  modul: "sales-admin" | "telemarketing" | "database-client" | "sales-client" | "golden" | "filter-air";
   showAll?: boolean;
   useGoldenSurveyReportTemplate?: boolean;
   /**
@@ -142,6 +143,9 @@ interface KalenderSurveyProps {
    * Opt-in: hanya dipakai Kalender Survey Sales Admin, kalender lain tidak berubah.
    */
   allowAddSurvey?: boolean;
+  /** Buka report after survey sebagai halaman penuh untuk satu lead. */
+  reportPage?: boolean;
+  reportLeadId?: number;
 }
 
 /** Modul asal lead yang boleh dijadwalkan lewat tombol "Tambah Survey" */
@@ -403,7 +407,8 @@ function serializeKonstruksiSurveyReportForm(form: KonstruksiSurveyReportForm) {
   return JSON.stringify({ type: "konstruksi_survey_report", data: form });
 }
 
-export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, allowAddSurvey }: KalenderSurveyProps) {
+export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, allowAddSurvey, reportPage, reportLeadId }: KalenderSurveyProps) {
+  const router = useRouter();
   const qc = useQueryClient();
   const [view, setView] = useState<"calendar" | "list">("calendar");
   const [filterUserId, setFilterUserId] = useState<string>("_all");
@@ -485,18 +490,17 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
   // ── API ─────────────────────────────────────────────────────────────────────
 
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["survey-kalender", modul, bulan, tahun, showAll, filterUserId],
+    queryKey: reportPage ? ["after-survey-report", modul, reportLeadId] : ["survey-kalender", modul, bulan, tahun, showAll, filterUserId],
     queryFn: () =>
-      apiClient
-        .get(`/bd/${modul}/survey-kalender`, {
+      apiClient.get(reportPage ? `/bd/${modul}/leads/${reportLeadId}` : `/bd/${modul}/survey-kalender`, reportPage ? undefined : {
           params: {
             bulan,
             tahun,
             ...(showAll ? { show_all: "true" } : {}),
             ...(filterUserId !== "_all" ? { user_id: filterUserId } : {}),
           },
-        })
-        .then((r) => r.data),
+        }).then((r) => r.data),
+    enabled: !reportPage || !!reportLeadId,
     retry: 1,
   });
 
@@ -692,7 +696,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
 
   // ── Derived data ─────────────────────────────────────────────────────────────
 
-  const items: any[] = Array.isArray(data) ? data : (data?.items ?? []);
+  const items: any[] = reportPage ? (data ? [data] : []) : (Array.isArray(data) ? data : (data?.items ?? []));
 
   const byDate: Record<string, any[]> = {};
   items.forEach((item: any) => {
@@ -789,7 +793,7 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
     // saat modal ditutup (sengaja maupun tak sengaja).
     if (autoSaveTimer.current) { clearTimeout(autoSaveTimer.current); autoSaveTimer.current = null; }
     const it = listDetailItem;
-    if (it && canReportAfter && autoSaveReady.current && it.survey_approval_status !== "approved") {
+    if (it && canReportAfter && autoSaveReady.current) {
       autoSaveMut.mutate({ id: it.id, foto_survey: activeReportPhotos(), ...listDetailPayload() });
     }
     autoSaveReady.current = false;
@@ -809,6 +813,13 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
     setGoldenReportForm(parseGoldenSurveyReportForm(item.catatan_survey, item));
     setKonstruksiReportForm(parseKonstruksiSurveyReportForm(item.catatan_survey, item));
   }
+
+  useEffect(() => {
+    if (reportPage && items[0] && String(items[0].id) === String(reportLeadId) && !listDetailItem) {
+      openListDetail(items[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reportPage, reportLeadId, data]);
 
   function openCalendarActions(item: any) {
     setActionItem(item);
@@ -928,7 +939,6 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
   // Auto-save debounced setiap report berubah (biar tidak hilang kalau modal ke-tutup).
   useEffect(() => {
     if (!listDetailItem || !autoSaveReady.current) return;
-    if (listDetailItem.survey_approval_status === "approved") return; // terkunci
     if (!canReportAfter) return;
     if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current);
     autoSaveTimer.current = setTimeout(() => {
@@ -1478,7 +1488,7 @@ ${sections}
             <h1 className="text-2xl font-bold">Detail Survey Golden</h1>
             <p className="text-sm text-muted-foreground">{listDetailItem.nama} - Laporan hasil survey Rubru Pest</p>
           </div>
-          <Button variant="outline" onClick={closeListDetail}>Kembali</Button>
+          <Button variant="outline" onClick={() => reportPage ? router.back() : closeListDetail()}>Kembali</Button>
         </div>
         <div className="rounded-lg border bg-muted/30 p-3 space-y-1.5 text-sm">
           <div className="flex items-center justify-between"><span className="text-muted-foreground">Status</span><span>{statusBadge(listDetailItem.survey_approval_status)}</span></div>
@@ -1489,7 +1499,7 @@ ${sections}
         </div>
         <GoldenSurveyReportFields
           form={goldenReportForm}
-          disabled={listDetailItem.survey_approval_status === "approved"}
+          disabled={false}
           updateField={updateGoldenReport}
           updateRow={updateGoldenReportRow}
           addRow={addGoldenReportRow}
@@ -2409,7 +2419,7 @@ ${sections}
                 </Button>
               )}
               {canReportAfter && (
-                <Button className="w-full justify-start" onClick={() => { setActionItem(null); openListDetail(actionItem); }}>
+                <Button className="w-full justify-start" onClick={() => { setActionItem(null); router.push(`/survey/after-report/${actionItem.modul ?? modul}/${actionItem.id}`); }}>
                   <FileDown className="mr-2 h-4 w-4" /> Isi Report After Survey
                 </Button>
               )}
@@ -2494,13 +2504,14 @@ ${sections}
 
       {/* ── List Detail Modal ── */}
       <Dialog open={!!listDetailItem} onOpenChange={(v) => { if (!v) closeListDetail(); }}>
-        <DialogContent className={`${konstruksiTemplate ? "max-w-3xl" : "max-w-lg"} max-h-[90vh] overflow-y-auto`}>
+        <DialogContent className={`${reportPage ? "fixed inset-0 z-50 w-screen h-screen max-w-none max-h-none rounded-none" : konstruksiTemplate ? "max-w-3xl max-h-[90vh]" : "max-w-lg max-h-[90vh]"} overflow-y-auto`}>
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <CalendarDays className="h-5 w-5 text-amber-500" />
               Detail Survey — {listDetailItem?.nama}
             </DialogTitle>
           </DialogHeader>
+          {reportPage && <Button variant="outline" size="sm" className="mb-2 w-fit" onClick={() => router.back()}>Kembali ke Kalender Survey</Button>}
           {listDetailItem && (
             <div className="space-y-4">
               {/* Lead Info */}
@@ -2556,7 +2567,7 @@ ${sections}
               {canReportAfter && useGoldenSurveyReportTemplate && (
                 <GoldenSurveyReportFields
                   form={goldenReportForm}
-                  disabled={listDetailItem.survey_approval_status === "approved"}
+                  disabled={false}
                   updateField={updateGoldenReport}
                   updateRow={updateGoldenReportRow}
                   addRow={addGoldenReportRow}
@@ -2572,7 +2583,7 @@ ${sections}
                 <KonstruksiSurveyReportFields
                   form={konstruksiReportForm}
                   item={listDetailItem}
-                  disabled={listDetailItem.survey_approval_status === "approved"}
+                  disabled={false}
                   updateField={updateKonstruksiReport}
                   updateRow={updateKonstruksiReportRow}
                   addRow={addKonstruksiReportRow}
@@ -2602,7 +2613,7 @@ ${sections}
                   value={listDetailLuasan}
                   onChange={(e) => setListDetailLuasan(e.target.value)}
                   placeholder="Contoh: 120.5"
-                  disabled={listDetailItem.survey_approval_status === "approved"}
+                  disabled={false}
                 />
               </div>
 
@@ -2613,7 +2624,7 @@ ${sections}
                   value={listDetailCatatan}
                   onChange={(e) => setListDetailCatatan(e.target.value)}
                   placeholder="Catatan hasil survey..."
-                  disabled={listDetailItem.survey_approval_status === "approved"}
+                  disabled={false}
                 />
               </div>
                 </>
@@ -2638,7 +2649,7 @@ ${sections}
                           <ZoomIn className="h-5 w-5 text-white" />
                         </div>
                         {/* Tombol hapus: Head Golden (full access) atau PIC assigned */}
-                        {(canApprove || currentUserName === listDetailItem.pic_survey) && listDetailItem.survey_approval_status !== "approved" && (
+                        {(canApprove || currentUserName === listDetailItem.pic_survey) && (
                           <button
                             type="button"
                             className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full w-4 h-4 text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
@@ -2651,7 +2662,7 @@ ${sections}
                 )}
 
                 {/* Upload area — Head Golden (full access) atau PIC assigned */}
-                {(canApprove || currentUserName === listDetailItem.pic_survey) && listDetailItem.survey_approval_status !== "approved" && (
+                {(canApprove || currentUserName === listDetailItem.pic_survey) && (
                   <>
                     {listFotoProcessing && (
                       <div className="flex items-center gap-1.5 text-xs text-muted-foreground py-1">
@@ -2673,7 +2684,7 @@ ${sections}
 
               {/* Report tersimpan OTOMATIS. Persetujuan dilakukan lewat tombol
                   "Approval TTD" di tabel — tidak perlu tombol setujui/tolak di sini. */}
-              {canReportAfter && listDetailItem.survey_approval_status !== "approved" && (
+              {canReportAfter && (
                 <div className="flex items-center justify-between gap-2 pt-1">
                   <span className="text-xs text-muted-foreground flex items-center gap-1.5">
                     {autoSaveState === "saving" ? (
