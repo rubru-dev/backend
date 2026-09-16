@@ -1603,7 +1603,7 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
 
   async function aggregatePeriod(start: Date, end: Date) {
     const adsSource = req.query.ads_source === "manual" ? "manual" : undefined;
-    const [adsReport, posts, leads, closingCards] = await Promise.all([
+    const [adsReport, posts, leads, leadsInPeriod, closingCards] = await Promise.all([
       buildRealtimeAdsReport({ start_date: iso(start), end_date: iso(end), platform: "Meta", ads_source: adsSource } as any),
       prisma.socialMediaPostMetric.findMany({
         where: whereDate("tanggal", start, end) as any,
@@ -1624,6 +1624,12 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
           },
           proyek_berjalans: { select: { created_at: true } },
           proyek_interiors: { select: { created_at: true } },
+        },
+      }),
+      prisma.lead.count({
+        where: {
+          modul: { in: ["sales-admin", "telemarketing", "database-client"] },
+          ...whereDate("tanggal_masuk", start, end),
         },
       }),
       prisma.salesKanbanCard.findMany({
@@ -1680,8 +1686,8 @@ router.get("/report-analytics/comparison", requirePermission("bd", "view"), asyn
       if (projectPaid >= 10_000_000 && (lead.proyek_berjalans.length > 0 || lead.proyek_interiors.length > 0)) spk++;
     }
     const funnel = {
-      leads: leads.length, survey, design, spk,
-      lead_to_survey: rate(survey, leads.length), survey_to_design: rate(design, survey), design_to_spk: rate(spk, design),
+      leads: leadsInPeriod, survey, design, spk,
+      lead_to_survey: rate(survey, leadsInPeriod), survey_to_design: rate(design, survey), design_to_spk: rate(spk, design),
     };
 
     const bySales: Record<string, { sales: string; total: number; nominal: number }> = {};
@@ -1862,6 +1868,12 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     },
     orderBy: { tanggal_masuk: "desc" },
   });
+  const totalLeadsInPeriod = await prisma.lead.count({
+    where: {
+      modul: { in: ["sales-admin", "telemarketing", "database-client"] },
+      ...dateWhere("tanggal_masuk"),
+    },
+  });
   const dayDiff = (from: Date | null, to: Date | null) => {
     if (!from || !to) return null;
     const elapsed = Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000);
@@ -1922,14 +1934,14 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
   const surveyBySource: Record<string, number> = {};
   for (const row of funnelRows) surveyBySource[row.sumber] = (surveyBySource[row.sumber] ?? 0) + 1;
   const funnel = {
-    total_leads: funnelRows.length,
+    total_leads: totalLeadsInPeriod,
     survey: surveyCount,
     survey_by_source: Object.entries(surveyBySource)
       .map(([sumber, total]) => ({ sumber, total }))
       .sort((a, b) => b.total - a.total || a.sumber.localeCompare(b.sumber)),
     dp_desain: designCount,
     spk: spkCount,
-    conversion_lead_to_survey: percentage(surveyCount, funnelRows.length),
+    conversion_lead_to_survey: percentage(surveyCount, totalLeadsInPeriod),
     conversion_survey_to_design: percentage(designCount, surveyCount),
     conversion_design_to_spk: percentage(spkCount, designCount),
     dp_projek_threshold: 10_000_000,
