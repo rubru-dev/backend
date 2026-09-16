@@ -26,6 +26,7 @@ import dynamic from "next/dynamic";
 import { SignatureDialog } from "@/components/signature-dialog";
 import { RappSipilView } from "@/components/rapp-sipil";
 import { sipilApi } from "@/lib/api/content";
+import { useAuthStore } from "@/store/authStore";
 
 const CashflowTerminPDF = dynamic(() => import("@/components/cashflow-termin-pdf"), { ssr: false });
 const CashflowOverviewPDF = dynamic(() => import("@/components/cashflow-overview-pdf"), { ssr: false });
@@ -39,7 +40,59 @@ function formatRp(val: number | string) {
   return "Rp " + (Number(val) || 0).toLocaleString("id-ID");
 }
 
+function RappFinanceSummary({ termins, proyekNama, proyekLokasi }: { termins: any[]; proyekNama: string; proyekLokasi?: string | null }) {
+  const [selectedTerminId, setSelectedTerminId] = useState(String(termins[0]?.id ?? ""));
+  const selectedTermin = termins.find((t) => String(t.id) === selectedTerminId) ?? termins[0];
+  const { data: rapp, isLoading } = useQuery<any>({
+    queryKey: ["finance-sipil-rapp-summary", selectedTerminId],
+    queryFn: () => sipilApi.getRapp(String(selectedTerminId)),
+    enabled: !!selectedTerminId,
+    refetchInterval: 30_000,
+    refetchIntervalInBackground: false,
+  });
+
+  if (!termins.length) return <p className="py-10 text-center text-sm text-muted-foreground">Belum ada termin pada proyek Sipil ini.</p>;
+  const material = rapp?.material_kategoris?.reduce((sum: number, k: any) => sum + (k.items ?? []).reduce((s: number, i: any) => s + Number(i.jumlah ?? 0), 0), 0) ?? 0;
+  const sipilItems = rapp?.sipil_items ?? [];
+  const sipilTotal = material + sipilItems.reduce((sum: number, i: any) => sum + Number(i.jumlah ?? 0), 0);
+  const vendor = rapp?.vendor_kategoris?.reduce((sum: number, k: any) => sum + (k.items ?? []).reduce((s: number, i: any) => s + Number(i.jumlah ?? 0), 0), 0) ?? 0;
+  const total = sipilTotal + vendor;
+  const rab = Number(rapp?.rab ?? 0);
+  const rows = [
+    { label: "Total Biaya Material Bangunan", value: material },
+    ...sipilItems.map((i: any) => ({ label: i.keterangan ? `${i.nama} (${i.keterangan})` : i.nama, value: Number(i.jumlah ?? 0), detail: true })),
+    { label: "Total RAPP Sipil", value: sipilTotal, total: true },
+    ...(vendor > 0 ? [{ label: "Total RAPP Vendor", value: vendor }] : []),
+    { label: `Total RAPP ${selectedTermin?.nama ?? ""}`, value: total, grand: true },
+    { label: "RAB", value: rab, rab: true },
+    { label: "Selisih (RAB − RAPP)", value: rab - total },
+  ];
+  const margin = rab > 0 ? ((rab - total) / rab) * 100 : 0;
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+        Ringkasan RAPP — hanya tampilan untuk role selain Super Admin.
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {termins.map((t: any) => <button key={t.id} type="button" onClick={() => setSelectedTerminId(String(t.id))} className={`rounded-md px-3 py-1.5 text-sm font-medium ${String(t.id) === selectedTerminId ? "bg-teal-600 text-white" : "bg-muted hover:bg-muted/80"}`}>{t.nama ?? `Termin ${t.urutan}`}</button>)}
+      </div>
+      {isLoading ? <p className="py-8 text-center text-sm text-muted-foreground">Memuat ringkasan RAPP...</p> : rapp && (
+        <div className="overflow-hidden rounded-lg border">
+          <div className="bg-gray-800 px-4 py-3 text-sm font-bold text-white">Ringkasan RAPP — {proyekNama}</div>
+          {proyekLokasi && <div className="border-b bg-slate-50 px-4 py-2 text-xs text-muted-foreground">Lokasi: {proyekLokasi} · {selectedTermin?.nama ?? `Termin ${selectedTermin?.urutan}`}</div>}
+          <Table>
+            <TableHeader><TableRow><TableHead>Keterangan</TableHead><TableHead className="text-right">Nilai</TableHead></TableRow></TableHeader>
+            <TableBody>{rows.map((row: any, index: number) => <TableRow key={`${row.label}-${index}`} className={row.grand ? "bg-yellow-50 font-bold" : row.total ? "bg-orange-50 font-semibold" : row.rab ? "bg-blue-50 font-semibold" : ""}><TableCell className={row.detail ? "pl-8 text-muted-foreground" : ""}>{row.label}</TableCell><TableCell className={`text-right ${row.value < 0 ? "text-red-600" : ""}`}>{formatRp(row.value)}</TableCell></TableRow>)}<TableRow className="bg-green-50"><TableCell className="font-bold text-green-900">Margin</TableCell><TableCell className={`text-right text-lg font-bold ${margin >= 0 ? "text-green-700" : "text-red-600"}`}>{margin.toFixed(2)}%</TableCell></TableRow></TableBody>
+          </Table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanId?: number; proyekNama: string; tab: "termin" | "rapp" }) {
+  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin());
   const qc = useQueryClient();
   const [terminDialog, setTerminDialog] = useState(false);
   const [editTermin, setEditTermin] = useState<any | null>(null);
@@ -105,6 +158,9 @@ function SipilSourceTab({ proyekBerjalanId, proyekNama, tab }: { proyekBerjalanI
 
   const termins: any[] = project.termins ?? [];
   if (tab === "rapp") {
+    if (!isSuperAdmin) {
+      return <RappFinanceSummary termins={termins} proyekNama={project.nama_proyek ?? proyekNama} proyekLokasi={project.lokasi ?? null} />;
+    }
     return <RappSipilView
       termins={termins.map((t: any) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama }))}
       projekNama={project.nama_proyek ?? proyekNama}
