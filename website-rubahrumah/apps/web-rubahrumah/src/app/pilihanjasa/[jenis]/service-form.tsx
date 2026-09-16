@@ -41,9 +41,11 @@ export function ServiceForm({ jenis, jenisLabel, waNumber }: Props) {
     setLoading(true);
     try {
       await publicApi.rb.submitLead({
-        nama_klien: form.nama,
-        telepon: form.telepon,
+        nama: form.nama,
+        whatsapp: form.telepon,
         jenis_jasa: form.jenisJasa,
+        alamat: form.alamat,
+        detail: `Email: ${form.email}; Luas: ${form.luas}; Lantai: ${form.lantai}; Budget: ${form.budget}; Catatan: ${form.catatan}`,
         budget: parseInt(form.budget.replace(/\D/g, "")) || 0,
         catatan: `Email: ${form.email}\nAlamat: ${form.alamat}\nLuas: ${form.luas} m²\nLantai: ${form.lantai}\nCatatan: ${form.catatan}`,
       });
@@ -223,7 +225,7 @@ export function ServiceForm({ jenis, jenisLabel, waNumber }: Props) {
         className="w-full btn-primary justify-center text-sm py-3 disabled:opacity-60 gap-2"
       >
         <Send size={16} />
-        {loading ? "Mengirim..." : "Kirim Pesanan"}
+        {loading ? "Menyiapkan..." : "Konsultasi Sekarang"}
       </button>
     </form>
   );

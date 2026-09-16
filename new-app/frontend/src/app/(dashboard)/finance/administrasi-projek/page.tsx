@@ -3978,10 +3978,10 @@ export default function AdministrasiProjekPage() {
 
         <Tabs defaultValue="cashflow">
           <TabsList className="flex-wrap h-auto gap-1">
-            <TabsTrigger value="cashflow" className="flex items-center gap-1 text-xs">
+            <TabsTrigger value="pr" className="flex items-center gap-1 text-xs">
               <TrendingUp className="h-3.5 w-3.5" /> PR
             </TabsTrigger>
-            <TabsTrigger value="pr" className="flex items-center gap-1 text-xs">
+            <TabsTrigger value="cashflow" className="flex items-center gap-1 text-xs">
               <ClipboardList className="h-3.5 w-3.5" /> Cashflow Projek
             </TabsTrigger>
             <TabsTrigger value="finance-termin" className="flex items-center gap-1 text-xs">
@@ -4011,10 +4011,10 @@ export default function AdministrasiProjekPage() {
 
           <Card className="mt-4">
             <CardContent className="pt-4">
-              <TabsContent value="cashflow"><CashflowTab proyekId={selectedProyek.id} /></TabsContent>
+              <TabsContent value="pr"><PRTab proyekId={selectedProyek.id} proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} /></TabsContent>
               <TabsContent value="finance-termin"><RabFinanceTerminTab proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} /></TabsContent>
 
-              <TabsContent value="pr"><PRTab proyekId={selectedProyek.id} proyekBerjalanId={selectedProyek.proyek_berjalan_id ? Number(selectedProyek.proyek_berjalan_id) : undefined} /></TabsContent>
+              <TabsContent value="cashflow"><CashflowTab proyekId={selectedProyek.id} /></TabsContent>
               <TabsContent value="dokumen"><UploadDokumenTab proyekId={selectedProyek.id} /></TabsContent>
               <TabsContent value="surat-jalan"><SuratJalanTab proyekId={selectedProyek.id} proyekNama={selectedProyek.nama_proyek || ""} /></TabsContent>
               <TabsContent value="tukang"><TukangTab proyekId={selectedProyek.id} proyekNama={selectedProyek.nama_proyek || ""} proyekKlien={selectedProyek.klien || ""} /></TabsContent>
