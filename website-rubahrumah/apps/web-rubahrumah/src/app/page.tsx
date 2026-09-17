@@ -37,11 +37,11 @@ export default async function BerandaPage() {
       {/* Banner strip — constrained to navbar width */}
       <HeroCarousel banners={banners} />
 
-      {/* Pilih Jasa */}
-      <ServiceCards />
-
       {/* Konsultasi general */}
       <GeneralConsultationForm />
+
+      {/* Pilih Jasa */}
+      <ServiceCards />
 
       {/* Portofolio */}
       <PortfolioPreview portfolios={portfolios} />
