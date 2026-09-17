@@ -65,6 +65,17 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
       req.userPermissions = new Set();
     }
 
+    // Compatibility for existing installations whose role-permission rows were
+    // created before the survey calendar permissions were introduced. The seed
+    // contains the canonical assignment; this fallback keeps old Sales Admin
+    // accounts working until the next seed/synchronization is run.
+    const roleNames = user.roles.map((r) => r.role.name);
+    if (roleNames.includes("Sales Admin")) {
+      req.userPermissions.add("survey.reschedule");
+      req.userPermissions.add("survey.cancel");
+      req.userPermissions.add("survey.report_after");
+    }
+
     next();
   } catch {
     res.status(401).json({ detail: "Invalid token" });

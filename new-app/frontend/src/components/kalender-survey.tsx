@@ -435,9 +435,9 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
   const canSchedule = useAuthStore((s) =>
     s.isSuperAdmin() || s.hasAnyRole("Head Golden", "Sales Admin Golden")
   );
-  const canReschedule = useAuthStore((s) => s.hasPermission("survey", "reschedule"));
-  const canCancelSchedule = useAuthStore((s) => s.hasPermission("survey", "cancel"));
-  const canReportAfter = useAuthStore((s) => s.hasPermission("survey", "report_after"));
+  const canReschedule = useAuthStore((s) => s.hasPermission("survey", "reschedule") || s.hasAnyRole("Sales Admin"));
+  const canCancelSchedule = useAuthStore((s) => s.hasPermission("survey", "cancel") || s.hasAnyRole("Sales Admin"));
+  const canReportAfter = useAuthStore((s) => s.hasPermission("survey", "report_after") || s.hasAnyRole("Sales Admin"));
   const currentUserName = useAuthStore((s) => s.user?.name ?? "");
   // "Tambah Survey" boleh dipakai semua role KECUALI orang Golden (Super Admin tetap boleh).
   const isGoldenUser = useAuthStore((s) =>
@@ -585,11 +585,14 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
           sumber_leads: addNewLead.sumber_leads || null,
           jenis: addNewLead.jenis || null,
           rencana_survey: "Ya",
+          tanggal_survey: addForm.tanggal_survey,
+          jam_survey: addForm.jam_survey || null,
+          pic_survey: addForm.pic_survey || null,
         })
         .then((r) => r.data);
-      return apiClient
-        .patch(`/bd/${addNewLead.modul}/leads/${created.id}/survey`, body)
-        .then((r) => r.data);
+      // Jadwal dikirim bersama pembuatan lead agar kegagalan berikutnya tidak
+      // meninggalkan lead baru tanpa jadwal survey.
+      return created;
     },
     onSuccess: () => {
       toast.success("Survey ditambahkan ke kalender");
@@ -2158,10 +2161,10 @@ ${sections}
                   <div className="border rounded-md p-3 space-y-1.5">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
-                        <div className="font-medium text-sm truncate">
+                        <div className="font-medium text-sm break-words">
                           {addSelectedLead.display_name || addSelectedLead.nama}
                         </div>
-                        <div className="text-xs text-muted-foreground truncate">
+                        <div className="text-xs text-muted-foreground break-words">
                           {[addSelectedLead.nomor_telepon, addSelectedLead.alamat].filter(Boolean).join(" · ") || "—"}
                         </div>
                       </div>
@@ -2221,7 +2224,7 @@ ${sections}
                             className="w-full text-left px-3 py-2 hover:bg-muted transition-colors"
                           >
                             <div className="flex items-center justify-between gap-2">
-                              <span className="text-sm font-medium truncate">{l.display_name || l.nama}</span>
+                              <span className="text-sm font-medium break-words">{l.display_name || l.nama}</span>
                               <div className="flex items-center gap-1 shrink-0">
                                 {l.tanggal_survey && (
                                   <Badge variant="outline" className="text-[10px] border-amber-400 text-amber-700">
@@ -2233,7 +2236,7 @@ ${sections}
                                 </Badge>
                               </div>
                             </div>
-                            <div className="text-xs text-muted-foreground truncate">
+                            <div className="text-xs text-muted-foreground break-words">
                               {[l.nomor_telepon, l.alamat].filter(Boolean).join(" · ") || "—"}
                             </div>
                           </button>
@@ -2386,8 +2389,9 @@ ${sections}
             </div>
 
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
+              <Button className="shrink-0 whitespace-nowrap" variant="outline" onClick={() => setAddOpen(false)}>Batal</Button>
               <Button
+                className="shrink-0 whitespace-nowrap"
                 disabled={!addSurveyValid || addSurveyMut.isPending}
                 onClick={() => addSurveyMut.mutate()}
               >

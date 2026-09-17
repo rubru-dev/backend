@@ -244,7 +244,10 @@ async function main() {
     "BD": ["bd.view","bd.create","bd.edit","bd.delete"],
     "Content Creator": ["content.view","content.create","content.edit","content.delete"],
     "Copy Writer": ["copy_writer.view","copy_writer.create","copy_writer.edit","copy_writer.delete"],
-    "Sales Admin": ["sales_admin.view","sales_admin.create","sales_admin.edit","sales_admin.delete"],
+    "Sales Admin": [
+      "sales_admin.view","sales_admin.create","sales_admin.edit","sales_admin.delete",
+      "survey.reschedule","survey.cancel","survey.report_after",
+    ],
     "Telemarketing": ["telemarketing.view","telemarketing.create","telemarketing.edit","telemarketing.delete"],
     "Desain": ["desain.view","desain.create","desain.edit","desain.delete"],
     "Sales": [

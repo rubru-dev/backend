@@ -3193,7 +3193,7 @@ router.patch("/:modul/leads/:id/survey", requirePermission("survey", "reschedule
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
   const id = BigInt(req.params.id);
-  const lead = await prisma.lead.findUnique({ where: { id } });
+  const lead = await prisma.lead.findFirst({ where: { id, modul } });
   if (!lead) return res.status(404).json({ detail: "Lead tidak ditemukan" });
   const { tanggal_survey, jam_survey, pic_survey } = req.body;
   const updates: Record<string, unknown> = {};

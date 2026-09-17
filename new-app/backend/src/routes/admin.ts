@@ -296,6 +296,7 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "survey.reschedule", module: "survey", label: "Aksi Kalender Survey: Reschedule" },
   { name: "survey.cancel", module: "survey", label: "Aksi Kalender Survey: Cancel" },
   { name: "survey.report_after", module: "survey", label: "Aksi Kalender Survey: Report After Survey" },
+  { name: "website.alur_pesanan", module: "website", label: "Sub-menu: Alur Pesanan" },
   { name: "copy_writer.view", module: "copy_writer", label: "Lihat Copy Writer" },
   { name: "copy_writer.create", module: "copy_writer", label: "Buat Copy Writer" },
   { name: "copy_writer.edit", module: "copy_writer", label: "Edit Copy Writer" },

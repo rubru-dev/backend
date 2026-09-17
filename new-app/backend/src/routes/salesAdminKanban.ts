@@ -1,7 +1,12 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
+import { requirePermission } from "../middleware/requireRole";
 
 const router = Router();
+
+// Semua endpoint Kanban Sales Admin harus tunduk pada permission menu/API,
+// bukan hanya autentikasi global dari index.ts.
+router.use(requirePermission("sales_admin", "view"));
 
 const PERMANENT_COLUMNS = [
   { title: "W1",                    color: "#3b82f6", urutan: 0 },

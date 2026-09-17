@@ -33,7 +33,12 @@ router.post("/login", async (req: Request, res: Response) => {
         include: { permission: true },
       })
     : [];
-  const permissions = [...new Set(rolePerms.map((rp) => rp.permission.name))];
+  const permissions = new Set(rolePerms.map((rp) => rp.permission.name));
+  if (user.roles.some((r) => r.role.name === "Sales Admin")) {
+    permissions.add("survey.reschedule");
+    permissions.add("survey.cancel");
+    permissions.add("survey.report_after");
+  }
 
   const accessToken = createAccessToken(Number(user.id));
   const refreshToken = createRefreshToken(Number(user.id));
@@ -48,7 +53,7 @@ router.post("/login", async (req: Request, res: Response) => {
       whatsapp_number: user.whatsapp_number,
       sub_role: user.sub_role ?? "Karyawan",
       roles: user.roles.map((r) => ({ id: r.role.id, name: r.role.name })),
-      permissions,
+      permissions: [...permissions],
       created_at: user.created_at,
     },
   });
