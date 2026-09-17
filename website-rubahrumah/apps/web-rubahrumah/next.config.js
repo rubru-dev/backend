@@ -24,6 +24,7 @@ const nextConfig = {
     return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
   },
   images: {
+    formats: ["image/webp"],
     remotePatterns: [
       { protocol: "http", hostname: "localhost", port: "8000" },
       { protocol: "http", hostname: "localhost", port: "4000" },

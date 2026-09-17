@@ -358,7 +358,7 @@ export default function WebsiteProjekBerjalanPage() {
               <span className="text-xs text-muted-foreground">{groupImages.length} foto</span>
             </div>
             <input
-              ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+              ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden"
               onChange={(e) => e.target.files && uploadImgMut.mutate({ id: viewItem.id, files: e.target.files, group: activeGroup })}
             />
 

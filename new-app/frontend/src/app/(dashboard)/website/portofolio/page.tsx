@@ -313,7 +313,7 @@ export default function WebsitePortofolioPage() {
               </span>
             </div>
             <input
-              ref={fileRef} type="file" accept="image/*" multiple className="hidden"
+              ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" multiple className="hidden"
               onChange={(e) => e.target.files && uploadImgMut.mutate({ id: viewItem.id, files: e.target.files, group: activeGroup })}
             />
             <div className="grid grid-cols-3 gap-2 max-h-72 overflow-y-auto">

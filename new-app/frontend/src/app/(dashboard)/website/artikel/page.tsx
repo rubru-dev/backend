@@ -282,7 +282,7 @@ export default function WebsiteArtikelPage() {
                 </div>
               )}
             </div>
-            <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+            <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
               const f = e.target.files?.[0]; if (!f) return;
               setCoverFile(f); setCoverPreview(URL.createObjectURL(f));
             }} />

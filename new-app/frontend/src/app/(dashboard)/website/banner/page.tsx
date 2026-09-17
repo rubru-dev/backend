@@ -191,7 +191,7 @@ export default function WebsiteBannerPage() {
                   </div>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+              <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
                 const f = e.target.files?.[0]; if (!f) return;
                 setFile(f); setPreview(URL.createObjectURL(f));
               }} />
@@ -214,7 +214,7 @@ export default function WebsiteBannerPage() {
                   </div>
                 )}
               </div>
-              <input ref={mobileFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+              <input ref={mobileFileRef} type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={(e) => {
                 const f = e.target.files?.[0]; if (!f) return;
                 setMobileFile(f); setMobilePreview(URL.createObjectURL(f));
               }} />
