@@ -58,11 +58,13 @@ export default async function PortofolioDetailPage({ params }: { params: { slug:
   const coverSrc = mediaUrl(coverImg?.image_url);
   const imagesByGroup: Record<string, any[]> = (portfolio as any).images_by_group ?? {};
 
-  const TERMIN_LABELS: Record<string, string> = {
-    termin1: "Termin 1",
-    termin2: "Termin 2",
-    termin3: "Termin 3",
-  };
+  const resultGroups = Object.entries(imagesByGroup)
+    .filter(([group, groupImages]) => group !== "cover" && groupImages.length > 0)
+    .sort(([groupA], [groupB]) => {
+      const orderA = Number(groupA.match(/^termin(\d+)$/)?.[1] ?? Number.MAX_SAFE_INTEGER);
+      const orderB = Number(groupB.match(/^termin(\d+)$/)?.[1] ?? Number.MAX_SAFE_INTEGER);
+      return orderA - orderB || groupA.localeCompare(groupB);
+    });
 
   const jenisLabel = JENIS_LABELS[portfolio.jenis_jasa] ?? portfolio.jenis_jasa ?? "";
   const lokasi     = portfolio.lokasi as string | undefined;
@@ -159,7 +161,7 @@ export default async function PortofolioDetailPage({ params }: { params: { slug:
         {/* ─── Dokumentasi Proyek ─── */}
         <h2 className="text-lg font-bold text-slate-800 mb-4">Dokumentasi Proyek</h2>
 
-        {/* All images (cover + termin groups) in one lightbox */}
+        {/* Cover and result groups use separate lightboxes */}
         {images.length > 0 ? (
           <>
             {/* Cover / header photo — clickable for lightbox */}
@@ -180,17 +182,17 @@ export default async function PortofolioDetailPage({ params }: { params: { slug:
               </CoverLightbox>
             )}
 
-            {/* Termin groups — clickable lightbox, max 8 desktop / 4 mobile */}
-            {(["termin1", "termin2", "termin3"] as const).map((grp) => {
-              const grpImages: any[] = imagesByGroup[grp] ?? [];
-              if (grpImages.length === 0) return null;
+            {/* Result groups stay separate; only termin1 gets a visible heading */}
+            {resultGroups.map(([grp, grpImages]) => {
               const lbImages = grpImages.map((img: any) => ({
                 src: mediaUrl(img.image_url) ?? "",
-                alt: img.caption ?? `${TERMIN_LABELS[grp]}`,
+                alt: img.caption ?? (grp === "termin1" ? "Hasil Project" : `${portfolio.nama_klien} hasil project`),
               })).filter((img) => img.src);
               return (
                 <div key={grp} className="mb-6">
-                  <p className="text-sm font-semibold text-slate-600 mb-3">{TERMIN_LABELS[grp]}</p>
+                  {grp === "termin1" && (
+                    <p className="text-sm font-semibold text-slate-600 mb-3">Hasil Project</p>
+                  )}
                   {/* Desktop: max 8 visible; Mobile: max 4 visible */}
                   <div className="hidden sm:block">
                     <ImageLightbox images={lbImages} cols={4} maxVisible={8} />

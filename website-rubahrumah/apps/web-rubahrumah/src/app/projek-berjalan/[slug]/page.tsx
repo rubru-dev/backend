@@ -57,12 +57,13 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
   const coverImage     = mediaUrl(coverImagePath);
 
   const imagesByGroup: Record<string, any[]> = (project as any).images_by_group ?? {};
-  const TERMIN_LABELS: Record<string, string> = {
-    cover:   "Cover",
-    termin1: "Termin 1",
-    termin2: "Termin 2",
-    termin3: "Termin 3",
-  };
+  const resultGroups = Object.entries(imagesByGroup)
+    .filter(([group, groupImages]) => group !== "cover" && groupImages.length > 0)
+    .sort(([groupA], [groupB]) => {
+      const orderA = Number(groupA.match(/^termin(\d+)$/)?.[1] ?? Number.MAX_SAFE_INTEGER);
+      const orderB = Number(groupB.match(/^termin(\d+)$/)?.[1] ?? Number.MAX_SAFE_INTEGER);
+      return orderA - orderB || groupA.localeCompare(groupB);
+    });
 
   const jenisLabel = JENIS_LABELS[project.jenis_jasa] ?? project.jenis_jasa?.replace(/_/g, " ") ?? "";
   const isBerjalan = project.status === "BERJALAN" || project.status === "Dalam Proses";
@@ -139,17 +140,17 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
               </CoverLightbox>
             )}
 
-            {/* Termin groups — clickable lightbox, max 8 desktop / 4 mobile */}
-            {(["termin1", "termin2", "termin3"] as const).map((grp) => {
-              const grpImages: any[] = imagesByGroup[grp] ?? [];
-              if (grpImages.length === 0) return null;
+            {/* Result groups stay separate; only termin1 gets a visible heading */}
+            {resultGroups.map(([grp, grpImages]) => {
               const lbImages = grpImages.map((img: any, i: number) => ({
                 src: mediaUrl(img.image_url) ?? "",
-                alt: `${project.nama_klien} ${TERMIN_LABELS[grp]} ${i + 1}`,
+                alt: `${project.nama_klien} hasil project ${i + 1}`,
               })).filter((img) => img.src);
               return (
                 <div key={grp} className="mb-6">
-                  <p className="text-sm font-semibold text-slate-600 mb-3">{TERMIN_LABELS[grp]}</p>
+                  {grp === "termin1" && (
+                    <p className="text-sm font-semibold text-slate-600 mb-3">Hasil Project</p>
+                  )}
                   {/* Desktop: max 8 visible; Mobile: max 4 visible */}
                   <div className="hidden sm:block">
                     <ImageLightbox images={lbImages} cols={4} maxVisible={8} />

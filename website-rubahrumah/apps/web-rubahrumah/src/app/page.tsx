@@ -43,11 +43,11 @@ export default async function BerandaPage() {
       {/* Pilih Jasa */}
       <ServiceCards />
 
-      {/* Portofolio */}
-      <PortfolioPreview portfolios={portfolios} />
-
       {/* Testimoni */}
       <TestimoniSection testimonis={testimonis} />
+
+      {/* Portofolio */}
+      <PortfolioPreview portfolios={portfolios} />
 
       {/* Projek Berjalan */}
       <ProjectCarousel projects={projects} />

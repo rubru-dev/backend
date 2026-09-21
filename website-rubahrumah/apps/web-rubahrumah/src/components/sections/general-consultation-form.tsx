@@ -31,8 +31,8 @@ export function GeneralConsultationForm() {
           <div className="grid md:grid-cols-[1fr_1.1fr] gap-8 md:gap-12 items-center">
             <div className="text-[#0A5168]">
               <span className="inline-flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-[#0A5168]"><MessageCircle size={15} /> Konsultasi Gratis</span>
-              <h2 className="text-2xl md:text-3xl font-bold mt-3 mb-3">Rencanakan Renovasi Rumah Anda</h2>
-              <p className="text-sm md:text-base text-[#0A5168]/80 leading-relaxed">Lengkapi Formnya, tim kami akan menghubungi anda via Whatsapp</p>
+              <h2 className="text-2xl md:text-3xl font-bold mt-3 mb-3">Mau Renovasi Rumah ?</h2>
+              <p className="text-sm md:text-base text-[#0A5168]/80 leading-relaxed">Yuk Ceritakan kebutuhan anda kepada kami, kami siap bantu mewujudkannya</p>
             </div>
             {submitted ? (
               <div className="rounded-2xl bg-white p-8 text-center text-[#0A5168]"><CheckCircle2 className="mx-auto mb-3 text-green-500" size={42} /><h3 className="font-bold text-lg">Terima kasih!</h3><p className="text-sm text-slate-500 mt-1">Pesan WhatsApp Anda sudah disiapkan.</p></div>

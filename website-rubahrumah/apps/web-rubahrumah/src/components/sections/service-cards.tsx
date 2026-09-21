@@ -19,7 +19,7 @@ export function ServiceCards() {
     <section className="py-14 bg-white">
       <div className="max-w-7xl mx-auto px-6">
         <h2 className="section-title text-center mb-10">
-          Pesan Jasa Renovasi Rumah & Perencanaan Arsitektur
+          Sesuaikan Kebutuhan anda dengan layanan jasa kami.
         </h2>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
