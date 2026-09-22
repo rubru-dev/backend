@@ -122,7 +122,7 @@ export default async function PortofolioPage({ searchParams }: PageProps) {
                       href={`/portofolio/${p.slug}`}
                       className="flex items-center gap-1 text-[#FF9122] text-xs font-semibold hover:underline mt-auto"
                     >
-                      Lihat Projek <ArrowRight size={12} />
+                      Lihat Project <ArrowRight size={12} />
                     </Link>
                   </div>
                 </div>

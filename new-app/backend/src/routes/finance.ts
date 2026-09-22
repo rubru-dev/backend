@@ -5,10 +5,32 @@ import { getPagination, paginateResponse } from "../middleware/pagination";
 import { sendNotifToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/notify";
 import fs from "fs";
 import path from "path";
+import multer from "multer";
 import { config } from "../config";
 
 const router = Router();
 const MAX_STORED_IMAGE_BYTES = 8 * 1024 * 1024;
+
+const cashflowAttachmentDir = path.resolve(config.storagePath, "cashflow-attachments");
+if (!fs.existsSync(cashflowAttachmentDir)) fs.mkdirSync(cashflowAttachmentDir, { recursive: true });
+const cashflowAttachmentUpload = multer({
+  storage: multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, cashflowAttachmentDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const base = path.basename(file.originalname, ext).replace(/[^a-zA-Z0-9_-]/g, "_");
+      cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}-${base}${ext}`);
+    },
+  }),
+  limits: { files: 20, fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowed = [".png", ".jpg", ".jpeg", ".svg"];
+    const allowedMime = ["image/png", "image/jpeg", "image/svg+xml"];
+    if (allowed.includes(ext) && allowedMime.includes(file.mimetype)) cb(null, true);
+    else cb(new Error("File gajian hanya boleh PNG, JPG, JPEG, atau SVG."));
+  },
+});
 
 // ── Invoice helpers ───────────────────────────────────────────────────────────
 
@@ -2262,7 +2284,7 @@ router.get("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: Re
     }),
     prisma.projekCashflow.findMany({
       where: { adm_finance_project_id: pid, adm_finance_termin_id: tid },
-      include: { pr: { include: { items: true } }, gaji_tukang: { select: { foto: true } } },
+      include: { pr: { include: { items: true } }, gaji_tukang: { select: { foto: true } }, attachments: true },
       orderBy: [{ tanggal: "asc" }, { id: "asc" }],
     }),
   ]);
@@ -2272,7 +2294,13 @@ router.get("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: Re
   const totalDeposit = depositAwalSigned + totalDepositTambahan;
   const totalDebit = items.reduce((s, c) => s + Number(c.debit), 0);
   return res.json({
-    items: items.map((c) => ({ id: c.id, tanggal: c.tanggal, no_pr: c.no_pr, keterangan: c.keterangan, debit: Number(c.debit), projek_pr_id: c.projek_pr_id ? Number(c.projek_pr_id) : null, nota_image: c.nota_image || c.gaji_tukang?.foto || null })),
+    items: items.map((c) => ({
+      id: c.id, tanggal: c.tanggal, no_pr: c.no_pr, keterangan: c.keterangan,
+      debit: Number(c.debit), projek_pr_id: c.projek_pr_id ? Number(c.projek_pr_id) : null,
+      gaji_tukang_id: c.gaji_tukang_id ? Number(c.gaji_tukang_id) : null,
+      nota_image: c.nota_image || c.gaji_tukang?.foto || null,
+      attachments: c.attachments.map((a) => ({ id: a.id, file_path: a.file_path, original_name: a.original_name, mime_type: a.mime_type, file_size: a.file_size })),
+    })),
     summary: { total_deposit: totalDeposit, total_debit: totalDebit, sisa: totalDeposit - totalDebit },
   });
 });
@@ -2308,6 +2336,11 @@ router.post("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: R
 // DELETE /finance/adm-projek/:id/termins/:tid/cashflow/:cid
 router.delete("/adm-projek/:id/termins/:tid/cashflow/:cid", async (req: Request, res: Response) => {
   const cid = BigInt(req.params.cid);
+  const attachments = await prisma.projekCashflowAttachment.findMany({ where: { cashflow_id: cid }, select: { file_path: true } });
+  for (const attachment of attachments) {
+    const filePath = path.resolve(config.storagePath, attachment.file_path.replace(/^\/storage\//, ""));
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
   await prisma.projekCashflow.delete({ where: { id: cid } });
   return res.json({ message: "Item cashflow dihapus" });
 });
@@ -2344,7 +2377,7 @@ router.get("/adm-projek/:id/gajian/available", async (req: Request, res: Respons
 });
 
 // POST /finance/adm-projek/:id/termins/:tid/cashflow/gajian — pull gajian to termin cashflow
-router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", async (req: Request, res: Response) => {
+router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", cashflowAttachmentUpload.array("files", 20), async (req: Request, res: Response) => {
   const pid = BigInt(req.params.id);
   const tid = BigInt(req.params.tid);
   const { gaji_tukang_id, tanggal } = req.body;
@@ -2367,7 +2400,19 @@ router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", async (req: Request,
       kredit: 0,
     },
   });
-  return res.json({ message: "Gajian ditarik ke cashflow", data: { id: item.id, keterangan: item.keterangan, debit: Number(item.debit) } });
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  if (files.length > 0) {
+    await prisma.projekCashflowAttachment.createMany({
+      data: files.map((file) => ({
+        cashflow_id: item.id,
+        file_path: `/storage/cashflow-attachments/${file.filename}`,
+        original_name: file.originalname,
+        mime_type: file.mimetype,
+        file_size: file.size,
+      })),
+    });
+  }
+  return res.json({ message: "Gajian ditarik ke cashflow", data: { id: item.id, keterangan: item.keterangan, debit: Number(item.debit), attachments: files.length } });
 });
 
 // ─── PR Sign + Available ──────────────────────────────────────────────────────

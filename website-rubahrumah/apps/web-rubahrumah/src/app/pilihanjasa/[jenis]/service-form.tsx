@@ -11,10 +11,10 @@ interface Props {
 }
 
 const JENIS_OPTIONS = [
-  { value: "BANGUN_RUMAH", label: "Bangun Rumah" },
   { value: "RENOVASI", label: "Renovasi Rumah" },
-  { value: "DESIGN", label: "Desain & Perencanaan" },
-  { value: "INTERIOR", label: "Interior Custom" },
+  { value: "BANGUN_RUMAH", label: "Bangun dari 0" },
+  { value: "DESIGN", label: "Design Arsitektur" },
+  { value: "INTERIOR", label: "Interior Rumah" },
 ];
 
 export function ServiceForm({ jenis, jenisLabel, waNumber }: Props) {

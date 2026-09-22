@@ -48,7 +48,7 @@ export function PortfolioPreview({ portfolios }: Props) {
           </div>
 
           <span className="inline-block self-start text-xs px-2.5 py-0.5 rounded-full font-semibold mb-1.5 bg-green-600 text-white">
-            Projek Selesai
+            Project Selesai
           </span>
 
           {deskripsi && (
@@ -63,7 +63,7 @@ export function PortfolioPreview({ portfolios }: Props) {
             href={`/portofolio/${p.slug}`}
             className="flex items-center gap-1 text-[#FF9122] text-xs font-semibold hover:underline mt-auto"
           >
-            Lihat Projek <ArrowRight size={12} />
+            Lihat Project <ArrowRight size={12} />
           </Link>
         </div>
       </div>

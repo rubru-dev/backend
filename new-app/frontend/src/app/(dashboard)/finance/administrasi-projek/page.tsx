@@ -521,8 +521,13 @@ const admApi = {
   // Gajian cashflow
   getAvailableGajian: (id: number) =>
     apiClient.get(`/finance/adm-projek/${id}/gajian/available`).then((r) => r.data),
-  pullGajianToCashflow: (id: number, tid: number, data: { gaji_tukang_id: number; tanggal: string }) =>
-    apiClient.post(`/finance/adm-projek/${id}/termins/${tid}/cashflow/gajian`, data).then((r) => r.data),
+  pullGajianToCashflow: (id: number, tid: number, data: { gaji_tukang_id: number; tanggal: string; files?: File[] }) => {
+    const payload = new FormData();
+    payload.append("gaji_tukang_id", String(data.gaji_tukang_id));
+    payload.append("tanggal", data.tanggal);
+    for (const file of data.files ?? []) payload.append("files", file);
+    return apiClient.post(`/finance/adm-projek/${id}/termins/${tid}/cashflow/gajian`, payload, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
 
   // Foto Dokumentasi
   getFotoDokumentasi: (id: number) =>
@@ -970,6 +975,8 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
   const [openPullGajian, setOpenPullGajian] = useState(false);
   const [selectedGajianId, setSelectedGajianId] = useState<number | null>(null);
   const [pullGajianTanggal, setPullGajianTanggal] = useState(today);
+  const [pullGajianFiles, setPullGajianFiles] = useState<File[]>([]);
+  const pullGajianFileRef = useRef<HTMLInputElement>(null);
   const [terminForm, setTerminForm] = useState({ nama_termin: "", tanggal: today, deposit_awal: 0 });
   const [depositForm, setDepositForm] = useState({ deposit_awal: 0 });
   const [extraDepositForm, setExtraDepositForm] = useState({ jumlah: 0, catatan: "" });
@@ -1075,13 +1082,15 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
   });
 
   const pullGajianMut = useMutation({
-    mutationFn: (d: { gaji_tukang_id: number; tanggal: string }) =>
+    mutationFn: (d: { gaji_tukang_id: number; tanggal: string; files: File[] }) =>
       admApi.pullGajianToCashflow(proyekId, selectedTerminId!, d),
     onSuccess: () => {
       toast.success("Gajian ditarik ke cashflow");
       qc.invalidateQueries({ queryKey: ["adm-termin-cf", proyekId, selectedTerminId] });
       setOpenPullGajian(false);
       setSelectedGajianId(null);
+      setPullGajianFiles([]);
+      if (pullGajianFileRef.current) pullGajianFileRef.current.value = "";
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
@@ -1322,6 +1331,12 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                     </TableCell>
                     <TableCell className="text-right font-medium text-red-600">{formatRp(it.debit)}</TableCell>
                     <TableCell>
+                      {(it.attachments ?? []).map((file: any) => (
+                        <Button key={file.id} variant="ghost" size="sm" className="h-7 max-w-[150px] px-2 text-blue-600" title={file.original_name ?? "Foto gajian"} onClick={() => setViewNotaDialog(storageUrl(file.file_path))}>
+                          <Eye className="h-3.5 w-3.5 mr-1 shrink-0" />
+                          <span className="truncate">{file.original_name ?? "Foto"}</span>
+                        </Button>
+                      ))}
                       {it.nota_image ? (
                         <Button variant="ghost" size="sm" className="h-7 px-2 text-blue-600" onClick={() => setViewNotaDialog(storageUrl(it.nota_image))}>
                           <Eye className="h-3.5 w-3.5 mr-1" /> Lihat
@@ -1468,7 +1483,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
       </Dialog>
 
       {/* Dialog: Pull Gajian */}
-      <Dialog open={openPullGajian} onOpenChange={(v) => { if (!v) setOpenPullGajian(false); }}>
+      <Dialog open={openPullGajian} onOpenChange={(v) => { setOpenPullGajian(v); if (!v) { setSelectedGajianId(null); setPullGajianFiles([]); if (pullGajianFileRef.current) pullGajianFileRef.current.value = ""; } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1498,11 +1513,37 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
               <Label>Tanggal</Label>
               <Input type="date" value={pullGajianTanggal} onChange={e => setPullGajianTanggal(e.target.value)} />
             </div>
+            <div className="space-y-1.5">
+              <Label>Foto Bukti Gajian (opsional)</Label>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed p-3 text-sm text-muted-foreground hover:border-orange-400 hover:bg-orange-50">
+                <Upload className="h-4 w-4" /> Pilih banyak foto
+                <input
+                  ref={pullGajianFileRef}
+                  type="file"
+                  multiple
+                  accept=".png,.jpg,.jpeg,.svg"
+                  className="hidden"
+                  onChange={(e) => setPullGajianFiles(Array.from(e.target.files ?? []))}
+                />
+              </label>
+              {pullGajianFiles.length > 0 && (
+                <div className="space-y-1 rounded-md border bg-muted/20 p-2">
+                  {pullGajianFiles.map((file) => (
+                    <div key={`${file.name}-${file.size}`} className="flex items-center gap-2 text-xs">
+                      <Images className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                      <span className="text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)} MB</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">PNG, JPG, JPEG, atau SVG. Maksimal 20 file, 20MB per file.</p>
+            </div>
             <div className="flex justify-end gap-2 pt-1">
               <Button variant="outline" onClick={() => setOpenPullGajian(false)}>Batal</Button>
               <Button
                 disabled={!selectedGajianId || pullGajianMut.isPending}
-                onClick={() => selectedGajianId && pullGajianMut.mutate({ gaji_tukang_id: selectedGajianId, tanggal: pullGajianTanggal })}
+                onClick={() => selectedGajianId && pullGajianMut.mutate({ gaji_tukang_id: selectedGajianId, tanggal: pullGajianTanggal, files: pullGajianFiles })}
               >
                 {pullGajianMut.isPending ? "Memproses..." : "Pull ke Cashflow"}
               </Button>

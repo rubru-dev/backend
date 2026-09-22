@@ -10,8 +10,8 @@ import { HeroBanner } from "@/components/sections/hero-banner";
 import { ArrowRight, MapPin, ChevronLeft, ChevronRight } from "lucide-react";
 
 export const metadata = {
-  title: "Projek Berjalan",
-  description: "Intip projek yang sedang dan sudah dikerjakan oleh Rubah Rumah",
+  title: "Project Berjalan",
+  description: "Intip project yang sedang dan sudah dikerjakan oleh Rubah Rumah",
 };
 
 const STATUS_LABEL: Record<string, string> = {
@@ -60,7 +60,7 @@ export default async function GalleryPage({ searchParams }: PageProps) {
 
       <div className="max-w-7xl mx-auto px-6 py-12">
         {/* Heading */}
-        <h1 className="section-title mb-8">Intip Projek Berjalan Di Rubah Rumah</h1>
+        <h1 className="section-title mb-8">Intip Project Berjalan Di Rubah Rumah</h1>
 
         {/* Grid */}
         {projects.length === 0 ? (
@@ -127,7 +127,7 @@ export default async function GalleryPage({ searchParams }: PageProps) {
                       href={`/projek-berjalan/${p.slug}`}
                       className="flex items-center gap-1 text-[#FF9122] text-xs font-semibold hover:underline mt-auto"
                     >
-                      Lihat Projek <ArrowRight size={12} />
+                      Lihat Project <ArrowRight size={12} />
                     </Link>
                   </div>
                 </div>

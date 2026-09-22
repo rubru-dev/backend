@@ -4,6 +4,7 @@ import { useRef, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { storageUrl } from "@/lib/storage-url";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -246,6 +247,8 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   const showSummaryTab = modul === "Sales Admin" || modul === "Sales" || modul === "Telemarketing"; // tab Summary Follow Up
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ ...EMPTY });
+  const [reportFiles, setReportFiles] = useState<File[]>([]);
+  const reportFileRef = useRef<HTMLInputElement>(null);
   const [filterMulai, setFilterMulai] = useState(MONTH_START);
   const [filterSelesai, setFilterSelesai] = useState(MONTH_END);
   const [filterUserId, setFilterUserId] = useState("");
@@ -324,12 +327,24 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
   // ── Mutations ────────────────────────────────────────────────────────────────
 
   const createMut = useMutation({
-    mutationFn: (d: any) => apiClient.post("/laporan-harian", d).then((r) => r.data),
+    mutationFn: (d: any) => {
+      const payload = new FormData();
+      payload.append("modul", d.modul);
+      payload.append("tanggal_mulai", d.tanggal_mulai);
+      payload.append("tanggal_selesai", d.tanggal_selesai);
+      payload.append("kegiatan", d.kegiatan);
+      payload.append("kendala", d.kendala ?? "");
+      payload.append("user_id", d.user_id);
+      for (const file of d.files as File[]) payload.append("files", file);
+      return apiClient.post("/laporan-harian", payload, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+    },
     onSuccess: () => {
       toast.success("Laporan harian berhasil disimpan");
       qc.invalidateQueries({ queryKey: ["laporan-harian", modul] });
       setOpen(false);
       setForm({ ...EMPTY });
+      setReportFiles([]);
+      if (reportFileRef.current) reportFileRef.current.value = "";
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menyimpan laporan"),
   });
@@ -425,6 +440,8 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
 
   function openCreate() {
     setForm({ ...EMPTY, user_id: currentUser ? String(currentUser.id) : "" });
+    setReportFiles([]);
+    if (reportFileRef.current) reportFileRef.current.value = "";
     setOpen(true);
   }
 
@@ -801,6 +818,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
                   <TableHead className="w-36">User</TableHead>
                   <TableHead>Kegiatan Hari Ini</TableHead>
                   <TableHead className="w-48">Kendala</TableHead>
+                  <TableHead className="w-36">File</TableHead>
                   <TableHead className="w-10" />
                 </TableRow>
               </TableHeader>
@@ -808,7 +826,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
                 {isLoading
                   ? Array.from({ length: 4 }).map((_, i) => (
                       <TableRow key={i}>
-                        {Array.from({ length: 5 }).map((__, j) => (
+                        {Array.from({ length: 6 }).map((__, j) => (
                           <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
                         ))}
                       </TableRow>
@@ -833,6 +851,24 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
                           <p className="text-sm line-clamp-2 text-muted-foreground">{lap.kendala || "—"}</p>
                         </TableCell>
                         <TableCell onClick={(e) => e.stopPropagation()}>
+                          <div className="flex flex-wrap gap-1">
+                            {(lap.files ?? []).map((file: any) => (
+                              <Button
+                                key={file.id}
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 max-w-full px-2 text-xs text-blue-600"
+                                title={`Download ${file.title}`}
+                                onClick={() => handleDownloadFile(storageUrl(file.url), file.title)}
+                              >
+                                <Download className="h-3 w-3 mr-1 shrink-0" />
+                                <span className="max-w-[92px] truncate">{file.title}</span>
+                              </Button>
+                            ))}
+                            {(lap.files ?? []).length === 0 && <span className="text-xs text-muted-foreground">-</span>}
+                          </div>
+                        </TableCell>
+                        <TableCell onClick={(e) => e.stopPropagation()}>
                           <Button
                             variant="ghost" size="icon"
                             className="h-7 w-7 text-destructive hover:bg-destructive/10"
@@ -845,7 +881,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
                     ))}
                 {!isLoading && items.length === 0 && (
                   <TableRow>
-                    <TableCell colSpan={5} className="text-center py-16 text-muted-foreground">
+                    <TableCell colSpan={6} className="text-center py-16 text-muted-foreground">
                       <ClipboardList className="mx-auto h-10 w-10 opacity-20 mb-3" />
                       <p>Belum ada laporan harian</p>
                       <p className="text-xs mt-1">Klik "Isi Laporan" untuk menambahkan</p>
@@ -924,6 +960,33 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
               />
             </div>
 
+            <div className="space-y-1.5">
+              <Label>Foto / File Lampiran (opsional)</Label>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed p-3 text-sm text-muted-foreground hover:border-primary/50">
+                <Upload className="h-4 w-4" /> Pilih banyak foto atau file
+                <input
+                  ref={reportFileRef}
+                  type="file"
+                  multiple
+                  accept=".png,.jpg,.jpeg,.svg,.pdf,.doc,.docx,.ppt,.pptx"
+                  className="hidden"
+                  onChange={(e) => setReportFiles(Array.from(e.target.files ?? []))}
+                />
+              </label>
+              {reportFiles.length > 0 && (
+                <div className="space-y-1 rounded-md border bg-muted/20 p-2">
+                  {reportFiles.map((file) => (
+                    <div key={`${file.name}-${file.size}`} className="flex items-center gap-2 text-xs">
+                      <FileText className="h-3.5 w-3.5 shrink-0 text-primary" />
+                      <span className="min-w-0 flex-1 truncate">{file.name}</span>
+                      <span className="text-muted-foreground">{(file.size / 1024 / 1024).toFixed(1)} MB</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-[11px] text-muted-foreground">PNG, JPG, JPEG, SVG, PDF, Word, atau PowerPoint. Maksimal 20 file, 20MB per file.</p>
+            </div>
+
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setOpen(false)}>Batal</Button>
               <Button
@@ -940,6 +1003,7 @@ export function LaporanHarian({ modul, color = "text-primary" }: LaporanHarianPr
                     kegiatan: form.kegiatan,
                     kendala: form.kendala || null,
                     user_id: Number(form.user_id),
+                    files: reportFiles,
                   })
                 }
               >

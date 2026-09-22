@@ -79,12 +79,12 @@ export async function Footer() {
           <div>
             <h4 className="font-bold text-[#0A5168] mb-3 text-sm">Alamat Kantor</h4>
             <div className="flex items-start gap-2 text-sm text-slate-600 mb-4">
-              <MapPin size={14} className="mt-0.5 text-[#FF9122] flex-shrink-0" />
+              <MapPin size={14} className="mt-0.5 text-[#0A5168] flex-shrink-0" />
               <span className="whitespace-pre-line">{alamatKantor}</span>
             </div>
             <h4 className="font-bold text-[#0A5168] mb-3 text-sm">Workshop</h4>
             <div className="flex items-start gap-2 text-sm text-slate-600">
-              <MapPin size={14} className="mt-0.5 text-[#FF9122] flex-shrink-0" />
+              <MapPin size={14} className="mt-0.5 text-[#0A5168] flex-shrink-0" />
               <span className="whitespace-pre-line">{alamatWorkshop}</span>
             </div>
           </div>
@@ -94,13 +94,13 @@ export async function Footer() {
             <h4 className="font-bold text-[#0A5168] mb-3 text-sm">Kontak Kami</h4>
             <ul className="space-y-2">
               <li className="flex items-center gap-2 text-sm text-slate-600">
-                <Phone size={14} className="text-[#FF9122] flex-shrink-0" />
+                <Phone size={14} className="text-[#0A5168] flex-shrink-0" />
                 <a href={`tel:${telepon.replace(/\D/g, "")}`} className="hover:text-[#FF9122] transition-colors">
                   {telepon}
                 </a>
               </li>
               <li className="flex items-center gap-2 text-sm text-slate-600">
-                <Mail size={14} className="text-[#FF9122] flex-shrink-0" />
+                <Mail size={14} className="text-[#0A5168] flex-shrink-0" />
                 <a href={`mailto:${email}`} className="hover:text-[#FF9122] transition-colors">
                   {email}
                 </a>

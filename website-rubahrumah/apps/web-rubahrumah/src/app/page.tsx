@@ -49,7 +49,7 @@ export default async function BerandaPage() {
       {/* Portofolio */}
       <PortfolioPreview portfolios={portfolios} />
 
-      {/* Projek Berjalan */}
+      {/* Project Berjalan */}
       <ProjectCarousel projects={projects} />
 
       {/* Bagaimana Rubah Rumah bekerja */}

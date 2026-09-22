@@ -23,9 +23,9 @@ export async function generateMetadata({ params }: { params: { slug: string } })
   try {
     const data = await publicApi.rb.projectBySlug(params.slug);
     const p = data?.data as { nama_klien?: string; lokasi?: string } | null;
-    return { title: p ? `${p.nama_klien}${p.lokasi ? ` - ${p.lokasi}` : ""}` : "Projek" };
+    return { title: p ? `${p.nama_klien}${p.lokasi ? ` - ${p.lokasi}` : ""}` : "Project" };
   } catch {
-    return { title: "Projek" };
+    return { title: "Project" };
   }
 }
 
@@ -95,7 +95,7 @@ export default async function ProjectDetailPage({ params }: { params: { slug: st
           <nav className="flex items-center gap-1.5 text-xs text-slate-400">
             <Link href="/" className="hover:text-[#FF9122]">Beranda</Link>
             <ChevronRight size={12} />
-            <Link href="/projek-berjalan" className="hover:text-[#FF9122]">Projek Berjalan</Link>
+            <Link href="/projek-berjalan" className="hover:text-[#FF9122]">Project Berjalan</Link>
             <ChevronRight size={12} />
             <span className="text-slate-600 font-medium truncate max-w-[240px]">
               {jenisLabel} {project.nama_klien}{project.lokasi ? ` - ${project.lokasi}` : ""}

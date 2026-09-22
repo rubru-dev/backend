@@ -9,9 +9,9 @@ import { mediaUrl } from "@/lib/media";
 interface Props { projects: RbProjectListItem[] }
 
 const STATUS_LABEL: Record<string, string> = {
-  BERJALAN: "Projek Berjalan",
-  "Dalam Proses": "Projek Berjalan",
-  SELESAI:  "Projek Selesai",
+  BERJALAN: "Project Berjalan",
+  "Dalam Proses": "Project Berjalan",
+  SELESAI:  "Project Selesai",
   DITUNDA:  "Ditunda",
   Ditunda:  "Ditunda",
 };
@@ -79,7 +79,7 @@ export function ProjectCarousel({ projects }: Props) {
             href={`/projek-berjalan/${p.slug}`}
             className="flex items-center gap-1 text-[#FF9122] text-xs font-semibold hover:underline mt-auto"
           >
-            Lihat Projek <ArrowRight size={12} />
+            Lihat Project <ArrowRight size={12} />
           </Link>
         </div>
       </div>
@@ -89,7 +89,7 @@ export function ProjectCarousel({ projects }: Props) {
   return (
     <section className="py-14 bg-slate-50">
       <div className="max-w-7xl mx-auto px-6">
-        <h2 className="section-title text-center mb-8">Intip Projek Di Rubah Rumah</h2>
+        <h2 className="section-title text-center mb-8">Intip Project Di Rubah Rumah</h2>
 
         <CardSlider>{cards}</CardSlider>
 

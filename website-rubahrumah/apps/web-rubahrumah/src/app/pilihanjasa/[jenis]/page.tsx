@@ -8,26 +8,26 @@ import Image from "next/image";
 type Jenis = "bangunrumah" | "renovasirumah" | "designrumah" | "interiorrumah";
 
 const JENIS_MAP: Record<Jenis, { label: string; apiKey: string; subtitle: string; icon: string }> = {
-  bangunrumah: {
-    label: "Bangun Rumah",
-    apiKey: "BANGUN_RUMAH",
-    subtitle: "Wujudkan rumah impian Anda dari awal bersama tim profesional kami",
-    icon: "/icons/BangunRumah.png",
-  },
   renovasirumah: {
     label: "Renovasi Rumah",
     apiKey: "RENOVASI",
     subtitle: "Perbarui dan tingkatkan tampilan serta nilai rumah Anda",
     icon: "/icons/RenovasiRumah.png",
   },
+  bangunrumah: {
+    label: "Bangun dari 0",
+    apiKey: "BANGUN_RUMAH",
+    subtitle: "Wujudkan rumah impian Anda dari awal bersama tim profesional kami",
+    icon: "/icons/BangunRumah.png",
+  },
   designrumah: {
-    label: "Desain & Perencanaan",
+    label: "Design Arsitektur",
     apiKey: "DESIGN",
     subtitle: "Dapatkan desain rumah estetis dan fungsional sesuai selera Anda",
     icon: "/icons/DesainPerencanaan.png",
   },
   interiorrumah: {
-    label: "Interior Custom",
+    label: "Interior Rumah",
     apiKey: "INTERIOR",
     subtitle: "Ciptakan interior yang indah dan nyaman untuk hunian Anda",
     icon: "/icons/InteriorRumah.png",

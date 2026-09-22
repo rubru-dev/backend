@@ -2279,8 +2279,23 @@ model ProjekCashflow {
   termin_rel             AdmFinanceTermin? @relation(fields: [adm_finance_termin_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   pr                     ProjekPR?         @relation(fields: [projek_pr_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   gaji_tukang            GajiTukang?       @relation(fields: [gaji_tukang_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  attachments            ProjekCashflowAttachment[]
 
   @@map("projek_cashflows")
+}
+
+model ProjekCashflowAttachment {
+  id           BigInt          @id @default(autoincrement())
+  cashflow_id  BigInt
+  file_path    String          @db.VarChar(500)
+  original_name String?        @db.VarChar(255)
+  mime_type    String?         @db.VarChar(150)
+  file_size    Int?
+  created_at   DateTime        @default(now()) @db.Timestamptz(6)
+  cashflow     ProjekCashflow  @relation(fields: [cashflow_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([cashflow_id], map: "idx_projek_cashflow_attachments_cashflow")
+  @@map("projek_cashflow_attachments")
 }
 
 model ProjekListMaterial {

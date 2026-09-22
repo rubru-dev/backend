@@ -20,20 +20,20 @@ const docsStorage = multer.diskStorage({
   },
 });
 const ALLOWED_MIME_TYPES = [
-  "image/jpeg", "image/png", "image/webp", "image/gif",
+  "image/jpeg", "image/png", "image/svg+xml",
   "application/pdf",
   "application/msword",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-powerpoint",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation",
 ];
-const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".webp", ".gif", ".pdf", ".doc", ".docx", ".xls", ".xlsx"];
+const ALLOWED_EXTENSIONS = [".jpg", ".jpeg", ".png", ".svg", ".pdf", ".doc", ".docx", ".ppt", ".pptx"];
 const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const ext = path.extname(file.originalname).toLowerCase();
   if (ALLOWED_MIME_TYPES.includes(file.mimetype) && ALLOWED_EXTENSIONS.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error("Tipe file tidak diizinkan. Hanya PDF, gambar, dan dokumen Office yang diperbolehkan."));
+    cb(new Error("Tipe file tidak diizinkan. Gunakan PNG, JPG, JPEG, SVG, PDF, Word, atau PowerPoint."));
   }
 };
 const docsUpload = multer({ storage: docsStorage, limits: { fileSize: 20 * 1024 * 1024 }, fileFilter });
@@ -75,6 +75,22 @@ router.get("/", async (req: Request, res: Response) => {
     }),
   ]);
 
+  const reportIds = items.map((lap) => lap.id);
+  const docs = reportIds.length > 0
+    ? await prisma.projectLink.findMany({
+      where: { linkable_type: "laporan_harian", linkable_id: { in: reportIds } },
+      orderBy: { created_at: "asc" },
+    })
+    : [];
+  const filesByReport = new Map<string, typeof docs>();
+  for (const doc of docs) {
+    if (!doc.url.startsWith("/storage/laporan-docs/")) continue;
+    const key = String(doc.linkable_id);
+    const list = filesByReport.get(key) ?? [];
+    list.push(doc);
+    filesByReport.set(key, list);
+  }
+
   const mapped = items.map((lap) => ({
     id: lap.id,
     modul: lap.modul,
@@ -84,14 +100,17 @@ router.get("/", async (req: Request, res: Response) => {
     kendala: lap.kendala,
     user: lap.user ? { id: lap.user.id, name: lap.user.name } : null,
     created_at: lap.created_at,
+    files: (filesByReport.get(String(lap.id)) ?? []).map((doc) => ({
+      id: String(doc.id), title: doc.title, url: doc.url, created_at: doc.created_at,
+    })),
   }));
   return res.json(paginateResponse(mapped, total, page, limit));
 });
 
 // POST /
-router.post("/", async (req: Request, res: Response) => {
+router.post("/", docsUpload.array("files", 20), async (req: Request, res: Response) => {
   const { modul, tanggal_mulai, tanggal_selesai, kegiatan, kendala, user_id } = req.body;
-  const uid = user_id ?? req.user!.id;
+  const uid = user_id ? BigInt(user_id) : req.user!.id;
   const lap = await prisma.laporanHarian.create({
     data: {
       modul,
@@ -102,7 +121,19 @@ router.post("/", async (req: Request, res: Response) => {
       user_id: uid,
     },
   });
-  return res.status(201).json({ id: lap.id, message: "Laporan harian disimpan" });
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  if (files.length > 0) {
+    await prisma.projectLink.createMany({
+      data: files.map((file) => ({
+        linkable_type: "laporan_harian",
+        linkable_id: lap.id,
+        title: file.originalname,
+        url: `/storage/laporan-docs/${file.filename}`,
+        created_by: req.user!.id,
+      })),
+    });
+  }
+  return res.status(201).json({ id: lap.id, files: files.length, message: "Laporan harian disimpan" });
 });
 
 const LEAD_MODUL_TO_MODUL: Record<string, string> = {
@@ -293,6 +324,13 @@ router.delete("/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const lap = await prisma.laporanHarian.findUnique({ where: { id } });
   if (!lap) return res.status(404).json({ detail: "Laporan tidak ditemukan" });
+  const docs = await prisma.projectLink.findMany({ where: { linkable_type: "laporan_harian", linkable_id: id }, select: { id: true, url: true } });
+  for (const doc of docs) {
+    if (!doc.url.startsWith("/storage/laporan-docs/")) continue;
+    const filePath = path.resolve(config.storagePath, doc.url.replace(/^\/storage\//, ""));
+    if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+  }
+  await prisma.projectLink.deleteMany({ where: { linkable_type: "laporan_harian", linkable_id: id } });
   await prisma.laporanHarian.delete({ where: { id } });
   return res.json({ message: "Laporan dihapus" });
 });
