@@ -76,12 +76,18 @@ export default async function ArticlesPage({ searchParams }: PageProps) {
                   {/* Gambar */}
                   <div className="relative h-48 md:h-auto md:w-56 bg-slate-100 flex-shrink-0">
                     {coverSrc ? (
-                      <Image
-                        src={coverSrc}
-                        alt={a.judul}
-                        fill
-                        className="object-cover hover:scale-105 transition-transform duration-300"
-                      />
+                      <Link
+                        href={`/articles/${a.slug}`}
+                        className="absolute inset-0 block"
+                        aria-label={`Baca artikel ${a.judul}`}
+                      >
+                        <Image
+                          src={coverSrc}
+                          alt={a.judul}
+                          fill
+                          className="object-cover hover:scale-105 transition-transform duration-300"
+                        />
+                      </Link>
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-slate-300 text-sm">
                         Tidak ada foto

@@ -23,12 +23,18 @@ export function PortfolioPreview({ portfolios }: Props) {
         {/* Gambar */}
         <div className="relative h-44 bg-slate-100 overflow-hidden flex-shrink-0">
           {coverSrc && (
-            <Image
-              src={coverSrc}
-              alt={p.nama_klien}
-              fill
-              className="object-cover hover:scale-105 transition-transform duration-300"
-            />
+            <Link
+              href={`/portofolio/${p.slug}`}
+              className="absolute inset-0 block"
+              aria-label={`Lihat detail project ${p.nama_klien}`}
+            >
+              <Image
+                src={coverSrc}
+                alt={p.nama_klien}
+                fill
+                className="object-cover hover:scale-105 transition-transform duration-300"
+              />
+            </Link>
           )}
         </div>
 
