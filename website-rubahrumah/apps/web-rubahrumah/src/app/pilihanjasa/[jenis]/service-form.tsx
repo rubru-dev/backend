@@ -13,7 +13,7 @@ interface Props {
 const JENIS_OPTIONS = [
   { value: "RENOVASI", label: "Renovasi Rumah" },
   { value: "BANGUN_RUMAH", label: "Bangun dari 0" },
-  { value: "DESIGN", label: "Design Arsitek" },
+  { value: "DESIGN", label: "Desain Arsitek" },
   { value: "INTERIOR", label: "Interior Rumah" },
 ];
 
