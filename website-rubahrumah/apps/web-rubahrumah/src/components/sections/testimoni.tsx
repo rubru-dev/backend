@@ -84,7 +84,7 @@ export function TestimoniSection({ testimonis }: { testimonis: Testimoni[] }) {
           Kepuasan klien adalah prioritas utama kami
         </p>
 
-        <CardSlider>{cards}</CardSlider>
+        <CardSlider autoPlay>{cards}</CardSlider>
       </div>
     </section>
   );

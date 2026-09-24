@@ -63,7 +63,7 @@ export function ArtikelPreview({ artikels }: Props) {
           Sajian Artikel Tentang Dunia Pembangunan Rumah!
         </h2>
 
-        <CardSlider>{cards}</CardSlider>
+        <CardSlider autoPlay>{cards}</CardSlider>
 
         {/* Lihat Semua */}
         <div className="flex justify-center mt-8">

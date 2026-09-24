@@ -75,7 +75,7 @@ export function PortfolioPreview({ portfolios }: Props) {
       <div className="max-w-7xl mx-auto px-6">
         <h2 className="section-title text-center mb-8">Portofolio Rubah Rumah</h2>
 
-        <CardSlider>{cards}</CardSlider>
+        <CardSlider autoPlay>{cards}</CardSlider>
 
         {/* Lihat Semua */}
         <div className="flex justify-center mt-8">
