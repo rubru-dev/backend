@@ -3204,6 +3204,7 @@ router.patch("/:modul/leads/:id/survey", requirePermission("survey", "reschedule
     updates.survey_approval_status = null;
     updates.survey_approved_by = null;
     updates.survey_approved_at = null;
+    updates.survey_signature = null;
     updates.foto_survey = null;
   }
   if (jam_survey !== undefined) updates.jam_survey = jam_survey;
@@ -3237,7 +3238,8 @@ router.patch("/:modul/leads/:id/cancel-survey", requirePermission("survey", "can
     where: { id },
     data: {
       rencana_survey: "Tidak", tanggal_survey: null, jam_survey: null, pic_survey: null,
-      survey_approval_status: null, survey_approved_by: null, survey_approved_at: null, foto_survey: null,
+      survey_approval_status: null, survey_approved_by: null, survey_approved_at: null,
+      survey_signature: null, foto_survey: null,
     },
   });
   return res.json({ message: "Jadwal survey dibatalkan" });
