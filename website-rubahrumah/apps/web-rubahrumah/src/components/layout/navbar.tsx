@@ -5,6 +5,7 @@ import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useState, useEffect } from "react";
 import { Menu, X } from "lucide-react";
+import { WhatsAppIcon } from "@/components/ui/whatsapp-icon";
 
 const links = [
   { label: "Beranda", href: "/" },
@@ -70,8 +71,9 @@ export function Navbar() {
             href="https://wa.me/6281376405550"
             target="_blank"
             rel="noreferrer"
-            className="btn-primary text-sm py-2 px-5"
+            className="btn-primary inline-flex items-center gap-2 text-sm py-2 px-5"
           >
+            <WhatsAppIcon />
             Hubungi Kami
           </a>
         </div>
@@ -109,8 +111,9 @@ export function Navbar() {
               target="_blank"
               rel="noreferrer"
               onClick={() => setOpen(false)}
-              className="btn-primary text-sm w-full justify-center"
+              className="btn-primary inline-flex items-center justify-center gap-2 text-sm w-full"
             >
+              <WhatsAppIcon />
               Hubungi Kami
             </a>
           </div>

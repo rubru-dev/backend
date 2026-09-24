@@ -21,7 +21,7 @@ const JENIS_MAP: Record<Jenis, { label: string; apiKey: string; subtitle: string
     icon: "/icons/BangunRumah.png",
   },
   designrumah: {
-    label: "Design Arsitektur",
+    label: "Design Arsitek",
     apiKey: "DESIGN",
     subtitle: "Dapatkan desain rumah estetis dan fungsional sesuai selera Anda",
     icon: "/icons/DesainPerencanaan.png",

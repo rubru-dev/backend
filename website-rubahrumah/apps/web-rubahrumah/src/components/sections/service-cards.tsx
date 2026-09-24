@@ -7,7 +7,7 @@ import Image from "next/image";
 const services = [
   { icon: "/icons/RenovasiRumah.png", label: "Renovasi Rumah", href: "/pilihanjasa/renovasirumah", iconW: 120, iconH: 120 },
   { icon: "/icons/BangunRumah.png", label: "Bangun dari 0", href: "/pilihanjasa/bangunrumah", iconW: 80, iconH: 80 },
-  { icon: "/icons/DesainPerencanaan.png", label: "Design Arsitektur", href: "/pilihanjasa/designrumah", iconW: 80, iconH: 80 },
+  { icon: "/icons/DesainPerencanaan.png", label: "Design Arsitek", href: "/pilihanjasa/designrumah", iconW: 80, iconH: 80 },
   { icon: "/icons/InteriorRumah.png", label: "Interior Rumah", href: "/pilihanjasa/interiorrumah", iconW: 80, iconH: 80 },
 ];
 
