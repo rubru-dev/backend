@@ -2644,13 +2644,14 @@ router.get("/survey-leads-dropdown", async (req: Request, res: Response) => {
 });
 
 // GET /:modul/leads-dropdown — daftar lead ringkas untuk picker (mis. form Penawaran).
-// Tanpa cap pagination & tanpa join berat: form penawaran perlu SEMUA lead modul tsb,
-// beda dengan /:modul/leads yang dibatasi 500 untuk tabel follow-up.
+// Default mengambil 100 data terbaru; search tetap mencari seluruh lead modul
+// sebelum hasil dibatasi maksimal 100 item.
 router.get("/:modul/leads-dropdown", async (req: Request, res: Response) => {
   const { modul } = req.params;
   if (!validateModul(modul, res)) return;
 
   const search = (req.query.search as string | undefined)?.trim();
+  const limit = Math.min(Math.max(parseInt(req.query.limit as string) || 100, 1), 100);
   const where: Record<string, unknown> = { modul };
   const searchFilter = leadSearchFilter(search);
   if (searchFilter) where.OR = searchFilter;
@@ -2659,6 +2660,7 @@ router.get("/:modul/leads-dropdown", async (req: Request, res: Response) => {
     where,
     select: { id: true, salutation: true, nama: true, nomor_telepon: true, alamat: true },
     orderBy: { id: "desc" },
+    take: limit,
   });
   return res.json({
     items: leads.map((l) => ({

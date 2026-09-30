@@ -138,8 +138,10 @@ export default function PenawaranRubruPage() {
   });
 
   const { data } = useQuery({
-    queryKey: ["penawaran-rubru-clients"],
-    queryFn: () => apiClient.get("/bd/telemarketing/leads-dropdown").then((r) => r.data),
+    queryKey: ["penawaran-rubru-clients", clientSearch],
+    queryFn: () => apiClient.get("/bd/sales-admin/leads-dropdown", {
+      params: { search: clientSearch.trim() || undefined, limit: 100 },
+    }).then((r) => r.data),
   });
   const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({
     queryKey: ["penawaran-rubru-employees"],
@@ -171,10 +173,7 @@ export default function PenawaranRubruPage() {
     (rawClientName(a) || String(a?.nama ?? "")).localeCompare(rawClientName(b) || String(b?.nama ?? ""), "id", { sensitivity: "base" })
   );
   const client = clients.find((c: any) => String(c.id) === clientId) ?? clients[0];
-  const searchNeedle = normalizeSearch(clientSearch);
-  const filteredClients = searchNeedle
-    ? clients.filter((c: any) => normalizeSearch([rawClientName(c), c?.nama, c?.display_name, c?.nomor_telepon, c?.alamat].filter(Boolean).join(" ")).includes(searchNeedle))
-    : clients;
+  const filteredClients = clients;
   const namaAsli = client ? rawClientName(client) : "[Nama Client]";
   const name = client ? `${salutation}. ${namaAsli}` : "Mr/Mrs. [Nama Client]";
   const selectedRo = employees.find((e) => String(e.id) === roId);
@@ -388,7 +387,7 @@ export default function PenawaranRubruPage() {
             <Label>Nama Client Rubru</Label>
             <div className="relative">
               <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} placeholder="Cari dari Follow Up Leads Rubru" className="pl-9" />
+              <Input value={clientSearch} onChange={(e) => setClientSearch(e.target.value)} placeholder="Cari dari Follow Up Leads Sales Admin" className="pl-9" />
             </div>
             <Select
               value={clientId || String(client?.id ?? "")}
@@ -685,4 +684,3 @@ function Letterhead() {
     </div>
   );
 }
-
