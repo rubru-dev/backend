@@ -1,6 +1,6 @@
 import { apiClient } from "@/lib/api/client";
 
-export type PenawaranType = "desain" | "rkr" | "golden" | "filter-air";
+export type PenawaranType = "desain" | "rkr" | "rubru" | "golden" | "filter-air";
 export type PenawaranKind = "offer" | "discount";
 
 type PenawaranRecord<T> = {

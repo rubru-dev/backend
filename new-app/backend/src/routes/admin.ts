@@ -330,6 +330,7 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "penawaran.view",        module: "penawaran", label: "Lihat menu Penawaran" },
   { name: "penawaran.desain",      module: "penawaran", label: "Sub-menu: Penawaran Desain" },
   { name: "penawaran.rkr",         module: "penawaran", label: "Sub-menu: Penawaran RKR" },
+  { name: "penawaran.rubru",       module: "penawaran", label: "Sub-menu: Penawaran Rubru" },
   { name: "penawaran.golden",      module: "penawaran", label: "Sub-menu: Penawaran Golden" },
   { name: "penawaran.filter_air",  module: "penawaran", label: "Sub-menu: Penawaran Filter Air" },
 ];

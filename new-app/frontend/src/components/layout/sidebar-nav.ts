@@ -156,6 +156,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Penawaran Desain", href: "/penawaran/desain", icon: "FileText", permission: "penawaran.desain" },
       { label: "Penawaran RKR", href: "/penawaran/rkr", icon: "FileText", permission: "penawaran.rkr" },
+      { label: "Penawaran Rubru", href: "/penawaran/rubru", icon: "FileText", permission: "penawaran.rubru", roles: ["Sales", "Sales Admin"] },
       { label: "Penawaran Golden", href: "/penawaran/golden", icon: "FileText", permission: "penawaran.golden" },
       { label: "Penawaran Filter Air", href: "/penawaran/filter-air", icon: "FileText", permission: "penawaran.filter_air" },
     ],

@@ -4,7 +4,7 @@ import { prisma } from "../lib/prisma";
 import { triggerEventReminder } from "../lib/notify";
 
 const router = Router();
-const TYPES = new Set(["desain", "rkr", "golden", "filter-air"]);
+const TYPES = new Set(["desain", "rkr", "rubru", "golden", "filter-air"]);
 const KINDS = new Set(["offer", "discount"]);
 
 async function ensureTable() {

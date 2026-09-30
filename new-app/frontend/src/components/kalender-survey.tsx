@@ -670,8 +670,8 @@ export function KalenderSurvey({ modul, showAll, useGoldenSurveyReportTemplate, 
   // Approval via tanda tangan (Super Admin / Head Golden) — langsung set approved.
   const [signTarget, setSignTarget] = useState<any | null>(null);
   const signMut = useMutation({
-    mutationFn: ({ id, signature }: { id: number; signature: string }) =>
-      apiClient.post(`/bd/${modul}/leads/${id}/sign-survey`, { signature }).then((r) => r.data),
+    mutationFn: ({ id, signature, itemModul }: { id: number; signature: string; itemModul?: string }) =>
+      apiClient.post(`/bd/${itemModul ?? modul}/leads/${id}/sign-survey`, { signature }).then((r) => r.data),
     onSuccess: () => {
       toast.success("Survey disetujui & ditandatangani");
       qc.invalidateQueries({ queryKey: ["survey-kalender", modul] });
@@ -2089,7 +2089,7 @@ ${sections}
         onOpenChange={(v) => !v && setSignTarget(null)}
         title={`Approval Tanda Tangan — ${signTarget?.nama ?? ""}`}
         loading={signMut.isPending}
-        onSave={(sig) => signTarget && signMut.mutate({ id: signTarget.id, signature: sig })}
+        onSave={(sig) => signTarget && signMut.mutate({ id: signTarget.id, signature: sig, itemModul: signTarget.modul })}
       />
 
       {/* ── Reject Dialog ── */}
@@ -2427,7 +2427,15 @@ ${sections}
                   <FileDown className="mr-2 h-4 w-4" /> Isi Report After Survey
                 </Button>
               )}
-              {!canReschedule && !canCancelSchedule && !canReportAfter && <p className="rounded-md border border-dashed p-3 text-center text-sm text-muted-foreground">Anda tidak memiliki akses untuk tindakan survey.</p>}
+              {canApprove && actionItem.survey_approval_status !== "approved" && (
+                <Button
+                  className="w-full justify-start bg-green-600 text-white hover:bg-green-700"
+                  onClick={() => { setActionItem(null); setSignTarget(actionItem); }}
+                >
+                  <PenLine className="mr-2 h-4 w-4" /> Approval TTD
+                </Button>
+              )}
+              {!canReschedule && !canCancelSchedule && !canReportAfter && !canApprove && <p className="rounded-md border border-dashed p-3 text-center text-sm text-muted-foreground">Anda tidak memiliki akses untuk tindakan survey.</p>}
             </div>
           )}
         </DialogContent>
@@ -2686,7 +2694,7 @@ ${sections}
               </div>
               )}
 
-              {/* Report tersimpan OTOMATIS. Persetujuan dilakukan lewat tombol
+              {/* Report tersimpan otomatis. Approval tersedia lewat tombol
                   "Approval TTD" di tabel — tidak perlu tombol setujui/tolak di sini. */}
               {canReportAfter && (
                 <div className="flex flex-col items-stretch justify-between gap-2 pt-1 sm:flex-row sm:items-center">
