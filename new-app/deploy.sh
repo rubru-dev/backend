@@ -29,6 +29,7 @@ if [ "$ACTION" = "fresh" ]; then
   echo "[3/3] Jalankan Prisma migrate & seed..."
   docker compose exec backend npx prisma migrate deploy
   docker compose exec backend npm run seed
+  docker compose exec backend npm run sync-addendum-access
 
   echo ""
   echo "✓ Deploy selesai!"
@@ -45,6 +46,9 @@ elif [ "$ACTION" = "update" ]; then
 
   echo "[3/4] Jalankan Prisma migrate..."
   docker compose exec backend npx prisma migrate deploy
+
+  echo "[3.5/4] Sinkronisasi akses Addendum..."
+  docker compose exec backend npm run sync-addendum-access
 
   echo "[4/4] Restart services..."
   docker compose restart backend frontend

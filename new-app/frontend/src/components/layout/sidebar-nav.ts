@@ -131,7 +131,7 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 
   // ── Sales ────────────────────────────────────────────────────────────────────
-  // Group: sales.view | Items: sales.kanban, sales.laporan_harian
+  // Group: sales.view | Items: sales.kanban, sales.laporan_harian, sales.addendum
   {
     title: "Sales",
     color: "#3b82f6",
@@ -145,6 +145,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Follow Up Leads Client",  href: "/sales/follow-up-client",   icon: "PhoneCall",     permission: "sales.view" },
       { label: "Kalender Visit Client",   href: "/sales/kalender-visit-client", icon: "CalendarDays", permission: "sales.view" },
       { label: "Laporan Harian",    href: "/sales/laporan-harian",  icon: "ClipboardList", permission: "sales.laporan_harian" },
+      { label: "Addendum Kontrak",  href: "/sales/addendum",         icon: "FileSignature", permission: "sales.addendum", roles: ["Sales", "Sales Admin"] },
     ],
   },
 
@@ -194,7 +195,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Absen Karyawan",          href: "/finance/absen-karyawan",      icon: "ClipboardCheck", permission: "absen.manage" },
       { label: "Form BAST",               href: "/finance/form-bast",           icon: "FileText",       superAdminOnly: true },
       { label: "Laporan Harian",          href: "/finance/laporan-harian",      icon: "ClipboardList",  permission: "finance.laporan_harian" },
-      { label: "Addendum Kontrak",        href: "/sales/addendum",              icon: "FileSignature",  permission: "sales.addendum" },
     ],
   },
 

@@ -40,6 +40,16 @@ function formatRp(val: number | string) {
   return "Rp " + (Number(val) || 0).toLocaleString("id-ID");
 }
 
+function safePdfFilename(value: unknown, fallback: string) {
+  const normalized = String(value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9._-]+/g, "-")
+    .replace(/-{2,}/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return normalized || fallback;
+}
+
 function RappFinanceSummary({ termins, proyekNama, proyekLokasi }: { termins: any[]; proyekNama: string; proyekLokasi?: string | null }) {
   const [selectedTerminId, setSelectedTerminId] = useState(String(termins[0]?.id ?? ""));
   const selectedTermin = termins.find((t) => String(t.id) === selectedTerminId) ?? termins[0];
@@ -1966,7 +1976,9 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       const blob = await pdf(<PRPDFComp {...data} />).toBlob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
-      a.href = url; a.download = `${pr.nomor_pr || "pr"}.pdf`; a.click();
+      a.href = url;
+      a.download = `${safePdfFilename(data.pr?.nomor_pr || pr.nomor_pr, "PR")}-${safePdfFilename(data.project?.nama_proyek, "proyek")}.pdf`;
+      a.click();
       URL.revokeObjectURL(url);
     } catch { toast.error("Gagal generate PDF"); }
   }
@@ -2079,7 +2091,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
         y += 8;
       });
       const total = prs.reduce((sum: number, pr: any) => sum + Number(pr.total || 0), 0);
-      if (y > pageHeight - 22) { doc.addPage(); y = 20; }
+      if (y > pageHeight - 38) { doc.addPage(); drawHeader(); y = 63; }
       doc.setTextColor(...orange);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(9);
@@ -2087,7 +2099,87 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       doc.setTextColor(...dark);
       doc.setFontSize(10);
       doc.text(`Total Estimasi: ${money(total)}`, pageWidth - margin, y + 11, { align: "right" });
-      const filename = `Rekap-PR-${filterStart || "awal"}-${filterEnd || "akhir"}.pdf`;
+
+      // Detail item sengaja ditempatkan setelah tabel ringkasan agar rekap tetap mudah
+      // dipindai, tetapi isi setiap PR tetap tersedia di file ekspor.
+      y += 25;
+      const detailColumns = [
+        { label: "No", width: 10 }, { label: "Nama Item", width: 66 }, { label: "Qty", width: 20 },
+        { label: "Satuan", width: 22 }, { label: "Harga", width: 30 }, { label: "Diskon/Sat.", width: 25 }, { label: "Subtotal", width: 23 },
+      ];
+      const drawDetailHeader = (title: string) => {
+        doc.setFillColor(...orange);
+        doc.rect(margin, y - 5, pageWidth - margin * 2, 9, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        let x = margin + 2;
+        detailColumns.forEach((column) => { doc.text(column.label, x, y); x += column.width; });
+        y += 10;
+        doc.setTextColor(...dark);
+        doc.setFontSize(9);
+        doc.text(title, margin, y);
+        y += 6;
+      };
+      prs.forEach((pr: any) => {
+        const items = Array.isArray(pr.items) ? pr.items : [];
+        const title = `${pr.nomor_pr || "PR"} • ${pr.nama_toko || "Tanpa nama toko"} • ${dateLabel(pr.tanggal)}`;
+        if (y > pageHeight - 44) { doc.addPage(); drawHeader(); y = 63; }
+        drawDetailHeader(title);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        items.forEach((item: any, itemIndex: number) => {
+          const itemName = String(item.nama_item || "-");
+          const itemLines = doc.splitTextToSize(itemName, detailColumns[1].width - 3) as string[];
+          const rowHeight = Math.max(8, itemLines.length * 4 + 3);
+          if (y + rowHeight > pageHeight - 20) {
+            doc.addPage();
+            drawHeader();
+            y = 63;
+            drawDetailHeader(`${title} (lanjutan)`);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7.5);
+          }
+          if (itemIndex % 2 === 1) {
+            doc.setFillColor(255, 247, 237);
+            doc.rect(margin, y - 5, pageWidth - margin * 2, rowHeight, "F");
+          }
+          doc.setTextColor(...dark);
+          const values = [
+            String(itemIndex + 1), itemLines, String(Number(item.qty || 0)), String(item.satuan || "-"),
+            money(item.harga_perkiraan), Number(item.diskon_harga_satuan || 0) > 0 ? money(item.diskon_harga_satuan) : "-", money(item.subtotal),
+          ];
+          let x = margin + 2;
+          values.forEach((value, valueIndex) => {
+            const lines = Array.isArray(value) ? value : [value];
+            doc.text(lines, x, y, { maxWidth: detailColumns[valueIndex].width - 3 });
+            x += detailColumns[valueIndex].width;
+          });
+          doc.setDrawColor(231, 229, 228);
+          doc.setLineWidth(0.15);
+          doc.line(margin, y + rowHeight - 5, pageWidth - margin, y + rowHeight - 5);
+          y += rowHeight;
+        });
+        if (Number(pr.diskon_harga_keseluruhan || 0) > 0 || pr.catatan) {
+          if (y > pageHeight - 28) { doc.addPage(); drawHeader(); y = 63; }
+          doc.setFontSize(7.5);
+          if (Number(pr.diskon_harga_keseluruhan || 0) > 0) {
+            doc.text(`Diskon keseluruhan: ${money(pr.diskon_harga_keseluruhan)}`, margin + 2, y + 2);
+            y += 5;
+          }
+          if (pr.catatan) {
+            const noteLines = doc.splitTextToSize(`Catatan: ${String(pr.catatan)}`, pageWidth - margin * 2 - 4) as string[];
+            doc.text(noteLines, margin + 2, y + 2);
+            y += noteLines.length * 4 + 2;
+          }
+        }
+        y += 7;
+      });
+      const projectFilename = safePdfFilename(report.project?.nama_proyek, "proyek");
+      const periodFilename = filterStart || filterEnd
+        ? `${filterStart || "awal"}-sd-${filterEnd || "akhir"}`
+        : "semua-periode";
+      const filename = `Rekap-PR-${projectFilename}-${safePdfFilename(periodFilename, "semua-periode")}.pdf`;
       doc.save(filename);
     } catch (error: any) {
       const detail = error?.response?.data?.detail || error?.message || (typeof error === "string" ? error : "");

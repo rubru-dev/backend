@@ -2501,8 +2501,22 @@ router.get("/adm-projek/:id/pr/pdf-data", async (req: Request, res: Response) =>
     filter: { tanggal_start: tanggal_start || null, tanggal_end: tanggal_end || null, bulan: bulan || null, tahun: tahun || null },
     prs: prs.map((pr) => ({
       nomor_pr: pr.nomor_pr, tanggal: pr.tanggal, nama_toko: pr.nama_toko, status: pr.status,
+      catatan: pr.catatan,
+      diskon_harga_keseluruhan: Number(pr.diskon_harga_keseluruhan),
       total: pr.items.reduce((sum, it) => sum + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan)), 0) - Number(pr.diskon_harga_keseluruhan),
       item_count: pr.items.length,
+      items: pr.items.map((it) => {
+        const harga = Number(it.harga_perkiraan);
+        const diskon = Number(it.diskon_harga_satuan);
+        return {
+          nama_item: it.nama_item,
+          satuan: it.satuan,
+          qty: Number(it.qty),
+          harga_perkiraan: harga,
+          diskon_harga_satuan: diskon,
+          subtotal: Number(it.qty) * (harga - diskon),
+        };
+      }),
     })),
   });
 });

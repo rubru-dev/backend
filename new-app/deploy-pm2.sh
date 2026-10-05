@@ -134,6 +134,9 @@ if [ "$DO_BACKEND" = true ]; then
   JANGAN pakai --force-db kalau peringatannya menyebut kolom/tabel akan DIHAPUS."
       fi
     fi
+    step "3.5 Sync akses Addendum Kontrak"
+    npm run sync-addendum-access
+    ok "Akses Addendum tersinkron untuk role Sales dan Sales Admin"
   else
     warn "Langkah Prisma dilewati (--skip-db)"
   fi
