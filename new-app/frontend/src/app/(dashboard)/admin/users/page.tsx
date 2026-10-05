@@ -120,9 +120,9 @@ export default function UsersPage() {
           <DialogTrigger asChild>
             <Button onClick={handleOpenCreate}><Plus className="h-4 w-4 mr-2" />Tambah User</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="min-w-0 max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
             <DialogHeader><DialogTitle>{editUser ? "Edit User" : "Tambah User Baru"}</DialogTitle></DialogHeader>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="min-w-0 space-y-4">
               <div className="space-y-1">
                 <Label>Nama</Label>
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} required />
@@ -158,7 +158,7 @@ export default function UsersPage() {
               </div>
               <div className="space-y-2">
                 <Label>Role</Label>
-                <div className="flex flex-wrap gap-2">
+                <div className="min-w-0 max-h-40 overflow-y-auto rounded-md border p-2 flex flex-wrap gap-2">
                   {(roles as Role[] | undefined)?.map((r) => (
                     <button key={r.id} type="button" onClick={() => toggleRole(r.id)}
                       className={`px-3 py-1 rounded-full text-sm border transition-colors ${form.role_ids.includes(r.id) ? "bg-primary text-primary-foreground border-primary" : "border-border hover:border-primary"}`}>

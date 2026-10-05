@@ -371,13 +371,13 @@ function AddItemDialog({
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className={isSipil ? "max-w-4xl" : "max-w-3xl"}>
+      <DialogContent className={isSipil ? "min-w-0 max-w-4xl max-h-[calc(100dvh-2rem)] overflow-y-auto" : "min-w-0 max-w-3xl max-h-[calc(100dvh-2rem)] overflow-y-auto"}>
         <DialogHeader>
           <DialogTitle>{isSipil ? "Tambah Item RAPP Sipil" : "Tambah Material"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-3 pt-1">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
+          <div className="min-w-0 overflow-x-auto rounded-md border">
+            <table className="min-w-[760px] w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b">
                   <th className="text-left pb-2 pr-2 font-medium text-muted-foreground">{isSipil ? "Nama Item" : "Nama Material"} *</th>

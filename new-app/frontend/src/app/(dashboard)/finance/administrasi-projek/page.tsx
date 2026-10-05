@@ -1566,7 +1566,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
 
       {/* View Nota Dialog */}
       <Dialog open={!!viewNotaDialog} onOpenChange={(v) => { if (!v) setViewNotaDialog(null); }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="min-w-0 max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader><DialogTitle>Bukti Nota</DialogTitle></DialogHeader>
           {viewNotaDialog && (
             // eslint-disable-next-line @next/next/no-img-element
@@ -3818,7 +3818,7 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
       </Dialog>
 
       <Dialog open={!!viewGajianFoto} onOpenChange={() => setViewGajianFoto(null)}>
-        <DialogContent className="max-w-xl">
+        <DialogContent className="min-w-0 max-w-xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader><DialogTitle>Foto Bukti Gajian</DialogTitle></DialogHeader>
           {viewGajianFoto && <img src={viewGajianFoto} alt="Foto bukti gajian" className="w-full max-h-[70vh] object-contain rounded" />}
         </DialogContent>

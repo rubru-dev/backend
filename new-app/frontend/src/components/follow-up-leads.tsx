@@ -1847,12 +1847,12 @@ function isDataKlienLead(item: { sumber_leads?: string | null }) {
 
       {/* Attachment Preview */}
       <Dialog open={!!previewAttachment} onOpenChange={(v) => !v && setPreviewAttachment(null)}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="min-w-0 max-w-4xl max-h-[calc(100dvh-2rem)] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{previewAttachment?.name ?? "Lampiran follow up"}</DialogTitle>
           </DialogHeader>
           {previewAttachment && (
-            <div className="flex max-h-[75vh] items-center justify-center overflow-auto rounded-md bg-muted/30 p-2">
+            <div className="min-w-0 max-h-[calc(100dvh-9rem)] overflow-auto rounded-md bg-muted/30 p-2">
               <img
                 src={previewAttachment.data}
                 alt={previewAttachment.name ?? "Lampiran follow up"}

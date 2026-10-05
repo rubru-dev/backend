@@ -1950,7 +1950,7 @@ export default function ProyekSipilDetailPage() {
 
       {/* Dialog Catat Manual — multi-baris */}
       <Dialog open={soManualDialog} onOpenChange={(v) => { if (!v) { setSoManualDialog(false); setSoManualRows([newRow()]); } }}>
-        <DialogContent className="w-[calc(100vw-2rem)] max-w-5xl p-4 sm:p-6">
+        <DialogContent className="min-w-0 w-[calc(100vw-2rem)] max-w-5xl max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:p-6">
           <DialogHeader>
             <DialogTitle><Plus className="h-4 w-4 inline mr-2" />Catat Penggunaan Manual</DialogTitle>
             <p className="text-xs text-muted-foreground pt-0.5">Tambah sebanyak baris yang dibutuhkan — semua disimpan sekaligus.</p>
@@ -1988,8 +1988,8 @@ export default function ProyekSipilDetailPage() {
             </div>
 
             {/* Desktop: tabel */}
-            <div className="hidden sm:block overflow-x-auto rounded-md border">
-              <table className="w-full text-sm">
+            <div className="hidden sm:block min-w-0 overflow-x-auto rounded-md border">
+              <table className="min-w-[760px] w-full text-sm">
                 <thead>
                   <tr className="bg-muted/50 text-xs text-muted-foreground">
                     <th className="text-left px-2 py-2 font-medium w-[200px]">Nama Item *</th>
