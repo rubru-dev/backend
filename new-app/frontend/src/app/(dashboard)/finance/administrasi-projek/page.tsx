@@ -2049,6 +2049,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
         { label: "Nama Toko", width: 55 }, { label: "Item", width: 14 }, { label: "Status", width: 25 }, { label: "Total", width: 35 },
       ];
       const drawTableHeader = (y: number) => {
+        return;
         doc.setFillColor(...orange);
         doc.rect(margin, y - 5, pageWidth - margin * 2, 9, "F");
         doc.setTextColor(255, 255, 255);
@@ -2064,6 +2065,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
       prs.forEach((pr: any, index: number) => {
+        return;
         if (y > pageHeight - 30) {
           doc.addPage();
           drawHeader();
@@ -2091,21 +2093,12 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
         y += 8;
       });
       const total = prs.reduce((sum: number, pr: any) => sum + Number(pr.total || 0), 0);
-      if (y > pageHeight - 38) { doc.addPage(); drawHeader(); y = 63; }
-      doc.setTextColor(...orange);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(9);
-      doc.text(`Total PR: ${prs.length}`, pageWidth - margin, y + 5, { align: "right" });
-      doc.setTextColor(...dark);
-      doc.setFontSize(10);
-      doc.text(`Total Estimasi: ${money(total)}`, pageWidth - margin, y + 11, { align: "right" });
+      y = 63;
 
-      // Detail item sengaja ditempatkan setelah tabel ringkasan agar rekap tetap mudah
-      // dipindai, tetapi isi setiap PR tetap tersedia di file ekspor.
-      y += 25;
       const detailColumns = [
-        { label: "No", width: 10 }, { label: "Nama Item", width: 66 }, { label: "Qty", width: 20 },
-        { label: "Satuan", width: 22 }, { label: "Harga", width: 30 }, { label: "Diskon/Sat.", width: 25 }, { label: "Subtotal", width: 23 },
+        // Total 180 mm: area cetak A4 (182 mm) dikurangi padding awal 2 mm.
+        { label: "No", width: 8 }, { label: "Nama Item", width: 49 }, { label: "Qty", width: 16 },
+        { label: "Satuan", width: 18 }, { label: "Harga", width: 28 }, { label: "Diskon/Sat.", width: 28 }, { label: "Subtotal", width: 33 },
       ];
       const drawDetailHeader = (title: string) => {
         doc.setFillColor(...orange);
@@ -2118,13 +2111,16 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
         y += 10;
         doc.setTextColor(...dark);
         doc.setFontSize(9);
-        doc.text(title, margin, y);
-        y += 6;
+        const titleLines = doc.splitTextToSize(title, pageWidth - margin * 2 - 4) as string[];
+        doc.text(titleLines, margin, y);
+        y += titleLines.length * 4 + 2;
       };
       prs.forEach((pr: any) => {
         const items = Array.isArray(pr.items) ? pr.items : [];
         const title = `${pr.nomor_pr || "PR"} • ${pr.nama_toko || "Tanpa nama toko"} • ${dateLabel(pr.tanggal)}`;
-        if (y > pageHeight - 44) { doc.addPage(); drawHeader(); y = 63; }
+        const titleLines = doc.splitTextToSize(title, pageWidth - margin * 2 - 4) as string[];
+        const detailHeaderHeight = 9 + 10 + titleLines.length * 4 + 2;
+        if (y + detailHeaderHeight > pageHeight - 20) { doc.addPage(); drawHeader(); y = 63; }
         drawDetailHeader(title);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7.5);
@@ -2161,20 +2157,34 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
           y += rowHeight;
         });
         if (Number(pr.diskon_harga_keseluruhan || 0) > 0 || pr.catatan) {
-          if (y > pageHeight - 28) { doc.addPage(); drawHeader(); y = 63; }
+          const noteLines = pr.catatan
+            ? doc.splitTextToSize(`Catatan: ${String(pr.catatan)}`, pageWidth - margin * 2 - 4) as string[]
+            : [];
+          const noteHeight = (Number(pr.diskon_harga_keseluruhan || 0) > 0 ? 5 : 0) + (noteLines.length ? noteLines.length * 4 + 2 : 0);
+          if (y + noteHeight > pageHeight - 20) { doc.addPage(); drawHeader(); y = 63; }
           doc.setFontSize(7.5);
           if (Number(pr.diskon_harga_keseluruhan || 0) > 0) {
             doc.text(`Diskon keseluruhan: ${money(pr.diskon_harga_keseluruhan)}`, margin + 2, y + 2);
             y += 5;
           }
           if (pr.catatan) {
-            const noteLines = doc.splitTextToSize(`Catatan: ${String(pr.catatan)}`, pageWidth - margin * 2 - 4) as string[];
             doc.text(noteLines, margin + 2, y + 2);
             y += noteLines.length * 4 + 2;
           }
         }
         y += 7;
       });
+      if (y + 24 > pageHeight - 14) { doc.addPage(); drawHeader(); y = 63; }
+      doc.setDrawColor(...orange);
+      doc.setLineWidth(0.6);
+      doc.line(margin, y, pageWidth - margin, y);
+      doc.setTextColor(...orange);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(`Total PR: ${prs.length}`, pageWidth - margin, y + 7, { align: "right" });
+      doc.setTextColor(...dark);
+      doc.setFontSize(10);
+      doc.text(`Total Estimasi: ${money(total)}`, pageWidth - margin, y + 14, { align: "right" });
       const projectFilename = safePdfFilename(report.project?.nama_proyek, "proyek");
       const periodFilename = filterStart || filterEnd
         ? `${filterStart || "awal"}-sd-${filterEnd || "akhir"}`
