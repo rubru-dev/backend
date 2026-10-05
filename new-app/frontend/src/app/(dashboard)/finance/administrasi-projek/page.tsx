@@ -1973,13 +1973,22 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
   }
 
   async function handleDownloadFilteredPRPdf() {
-    if (!filterStart && !filterEnd) { toast.error("Isi minimal tanggal mulai atau tanggal akhir untuk filter PDF"); return; }
+    if (filterStart && filterEnd && filterStart > filterEnd) {
+      toast.error("Tanggal mulai tidak boleh lebih besar dari tanggal akhir");
+      return;
+    }
     try {
-      const report = await admApi.getPRListPdfData(proyekId, { ...(filterStart ? { tanggal_start: filterStart } : {}), ...(filterEnd ? { tanggal_end: filterEnd } : {}) });
+      const params: Record<string, string> = {};
+      if (filterStart) params.tanggal_start = filterStart;
+      if (filterEnd) params.tanggal_end = filterEnd;
+      const report = await admApi.getPRListPdfData(proyekId, params);
       if (!report.prs?.length) { toast.info("Tidak ada PR pada periode tersebut"); return; }
       const blob = await pdf(<PRListPDF {...report} />).toBlob();
       const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `Rekap-PR-${filterStart || "awal"}-${filterEnd || "akhir"}.pdf`; a.click(); URL.revokeObjectURL(url);
-    } catch { toast.error("Gagal generate rekap PDF PR"); }
+    } catch (error: any) {
+      console.error("Gagal generate rekap PDF PR", error);
+      toast.error(error?.response?.data?.detail || "Gagal generate rekap PDF PR");
+    }
   }
 
   function openEditPR(pr: any) {
@@ -2102,7 +2111,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
           <div><Label className="text-xs">Tanggal akhir</Label><Input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} /></div>
         </div>
         <div className="flex items-center gap-2 md:pb-0.5">
-          <Button size="sm" variant="outline" onClick={handleDownloadFilteredPRPdf} disabled={!filterStart && !filterEnd}><FileDown className="h-3.5 w-3.5 mr-1" /> PDF filter</Button>
+          <Button size="sm" variant="outline" onClick={handleDownloadFilteredPRPdf}><FileDown className="h-3.5 w-3.5 mr-1" /> {filterStart || filterEnd ? "PDF filter" : "PDF semua"}</Button>
           {(filterStart || filterEnd) && <Button size="sm" variant="ghost" onClick={() => { setFilterStart(""); setFilterEnd(""); }}>Reset filter</Button>}
         <Button size="sm" onClick={() => setOpen(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Buat PR

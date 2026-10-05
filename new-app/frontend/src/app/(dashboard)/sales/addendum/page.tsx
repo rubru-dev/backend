@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { SignatureDialog } from "@/components/signature-dialog";
+import { saveAs } from "file-saver";
 import {
   Plus, Trash2, PenLine, FileText, CheckCircle2, Eye, Pencil,
   Printer, BookOpen, ChevronDown, ChevronUp, Upload, X, ExternalLink, Lock, Building2,
@@ -38,6 +39,69 @@ function fmtDateShort(d?: string | Date | null) {
 // di sini: nilainya di-bake saat build (mis. http://localhost:8000) dan di browser production
 // jadi tautan file yang broken/mixed-content. file_url dari backend berbentuk "/storage/...".
 const BACKEND_URL = "/api/v1";
+
+async function downloadKontrakPdf(dokOrId: KontrakDokumen | number) {
+  try {
+    const dok = typeof dokOrId === "number"
+      ? await kontrakDokumenApi.get(dokOrId)
+      : await kontrakDokumenApi.get(dokOrId.id);
+    const rawPasals = [...(dok.template?.pasals ?? []), ...(dok.extra_pasals ?? [])];
+    const seenPasal = new Set<string>();
+    const pasals = rawPasals.filter((pasal) => {
+      const key = `${(pasal.judul_pasal ?? "").trim().toLowerCase()}||${(pasal.isi_pasal ?? "").trim().toLowerCase()}`;
+      if (key === "||") return true;
+      if (seenPasal.has(key)) return false;
+      seenPasal.add(key);
+      return true;
+    });
+    const company = await kontrakDokumenApi.getCompany().catch(() => ({
+      nama: "PT. Rubah Rumah Inovasi Pemuda (rubahrumah.com)",
+      nib: "2209220142528",
+      alamat: "Jl. Pandu II No.420, Kota Bekasi 17114",
+      telepon: "0813-7640-5550",
+    }));
+    const logoUrl = `${window.location.origin}/images/logo.png`;
+    let watermark = "";
+    try {
+      const logoResponse = await fetch(logoUrl);
+      const logoBlob = await logoResponse.blob();
+      watermark = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(String(reader.result || ""));
+        reader.readAsDataURL(logoBlob);
+      });
+    } catch { /* watermark is optional */ }
+
+    const [{ pdf }, { default: AddendumPDF }, { PDFDocument }] = await Promise.all([
+      import("@react-pdf/renderer"),
+      import("@/components/addendum-pdf"),
+      import("pdf-lib"),
+    ]);
+    const addendumBlob = await pdf(
+      <AddendumPDF dok={dok} company={company} pasals={pasals} logoUrl={logoUrl} sigWatermarkBase64={watermark} />
+    ).toBlob();
+    const mergedPdf = await PDFDocument.load(await addendumBlob.arrayBuffer());
+
+    // Copy halaman PDF lampiran apa adanya; tidak dirender ulang melalui iframe/gambar.
+    for (const lampiran of dok.lampirans ?? []) {
+      if (!lampiran.file_url) continue;
+      const response = await fetch(`${BACKEND_URL}${lampiran.file_url}`);
+      if (!response.ok) throw new Error(`Lampiran "${lampiran.judul}" tidak dapat diambil`);
+      const sourcePdf = await PDFDocument.load(await response.arrayBuffer());
+      const pages = await mergedPdf.copyPages(sourcePdf, sourcePdf.getPageIndices());
+      pages.forEach((page) => mergedPdf.addPage(page));
+    }
+
+    const output = await mergedPdf.save();
+    const outputCopy = new Uint8Array(output.byteLength);
+    outputCopy.set(output);
+    const safeNumber = (dok.nomor_kontrak || "addendum").replace(/[^a-z0-9_-]+/gi, "-");
+    saveAs(new Blob([outputCopy.buffer as ArrayBuffer], { type: "application/pdf" }), `addendum-${safeNumber}.pdf`);
+  } catch (error) {
+    console.error("Gagal membuat PDF addendum", error);
+    alert(error instanceof Error ? error.message : "Gagal membuat PDF addendum");
+  }
+}
 
 const STATUS_BADGE: Record<string, { variant: "secondary" | "default" | "outline" | "destructive"; label: string }> = {
   draft:         { variant: "secondary", label: "Draft" },
@@ -1096,7 +1160,7 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
           </div>
 
           <div className="flex justify-between pt-3">
-            <Button variant="outline" size="sm" onClick={() => { printKontrak(dok.id, dok.lampirans ?? []); }}>
+            <Button variant="outline" size="sm" onClick={() => { downloadKontrakPdf(dok.id); }}>
               <Printer className="h-4 w-4 mr-1" /> Cetak PDF
             </Button>
             <Button variant="outline" onClick={() => onOpenChange(false)}>Tutup</Button>
