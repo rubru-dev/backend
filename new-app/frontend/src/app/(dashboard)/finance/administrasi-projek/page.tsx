@@ -31,7 +31,6 @@ import { useAuthStore } from "@/store/authStore";
 const CashflowTerminPDF = dynamic(() => import("@/components/cashflow-termin-pdf"), { ssr: false });
 const CashflowOverviewPDF = dynamic(() => import("@/components/cashflow-overview-pdf"), { ssr: false });
 const PRPDF = dynamic(() => import("@/components/pr-pdf"), { ssr: false });
-const PRListPDF = dynamic(() => import("@/components/pr-list-pdf"), { ssr: false });
 
 const SuratJalanPDF = dynamic(() => import("@/components/surat-jalan-pdf"), { ssr: false });
 
@@ -1991,10 +1990,105 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
         return (!filterStart || date >= filterStart) && (!filterEnd || date <= filterEnd);
       });
       if (!prs.length) { toast.info("Tidak ada PR pada periode tersebut"); return; }
-      const filter = { tanggal_start: filterStart || null, tanggal_end: filterEnd || null, bulan: null, tahun: null };
       stage = "membuat file PDF";
-      const blob = await pdf(<PRListPDF {...report} prs={prs} filter={filter} />).toBlob();
-      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `Rekap-PR-${filterStart || "awal"}-${filterEnd || "akhir"}.pdf`; a.click(); URL.revokeObjectURL(url);
+      const { jsPDF } = await import("jspdf");
+      const doc = new jsPDF({ unit: "mm", format: "a4" });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 14;
+      const orange = [249, 115, 22] as const;
+      const dark = [28, 25, 23] as const;
+      const muted = [120, 113, 108] as const;
+      const period = filterStart || filterEnd
+        ? `${filterStart || "awal"} s/d ${filterEnd || "akhir"}`
+        : "Semua periode";
+      const money = (value: unknown) => `Rp ${Number(value || 0).toLocaleString("id-ID")}`;
+      const dateLabel = (value: unknown) => value
+        ? new Date(String(value)).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })
+        : "-";
+      const drawHeader = () => {
+        doc.setTextColor(...orange);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(16);
+        doc.text("PURCHASE REQUEST", margin, 18);
+        doc.setTextColor(...muted);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        doc.text("RubahRumah • Rekap PR berdasarkan periode", margin, 24);
+        doc.setDrawColor(...orange);
+        doc.setLineWidth(0.8);
+        doc.line(margin, 28, pageWidth - margin, 28);
+        doc.setFillColor(255, 247, 237);
+        doc.roundedRect(margin, 34, pageWidth - margin * 2, 18, 2, 2, "F");
+        doc.setTextColor(...muted);
+        doc.setFontSize(7);
+        doc.text("NAMA PROYEK", margin + 4, 40);
+        doc.text("KLIEN", margin + 72, 40);
+        doc.text("PERIODE", margin + 137, 40);
+        doc.setTextColor(...dark);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8.5);
+        doc.text(String(report.project?.nama_proyek || "-"), margin + 4, 47, { maxWidth: 62 });
+        doc.text(String(report.project?.klien || "-"), margin + 72, 47, { maxWidth: 60 });
+        doc.text(period, margin + 137, 47, { maxWidth: 44 });
+      };
+      const columns = [
+        { label: "No", width: 10 }, { label: "Nomor PR", width: 29 }, { label: "Tanggal", width: 28 },
+        { label: "Nama Toko", width: 55 }, { label: "Item", width: 14 }, { label: "Status", width: 25 }, { label: "Total", width: 35 },
+      ];
+      const drawTableHeader = (y: number) => {
+        doc.setFillColor(...orange);
+        doc.rect(margin, y - 5, pageWidth - margin * 2, 9, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(7.5);
+        let x = margin + 2;
+        columns.forEach((column) => { doc.text(column.label, x, y); x += column.width; });
+      };
+      drawHeader();
+      let y = 63;
+      drawTableHeader(y);
+      y += 9;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      prs.forEach((pr: any, index: number) => {
+        if (y > pageHeight - 30) {
+          doc.addPage();
+          drawHeader();
+          y = 63;
+          drawTableHeader(y);
+          y += 9;
+        }
+        if (index % 2 === 1) {
+          doc.setFillColor(255, 247, 237);
+          doc.rect(margin, y - 5, pageWidth - margin * 2, 8, "F");
+        }
+        doc.setTextColor(...dark);
+        const values = [
+          String(index + 1), String(pr.nomor_pr || "-"), dateLabel(pr.tanggal),
+          String(pr.nama_toko || "-").slice(0, 32), String(Number(pr.item_count || 0)), String(pr.status || "-"), money(pr.total),
+        ];
+        let x = margin + 2;
+        values.forEach((value, valueIndex) => {
+          doc.text(value, x, y, { maxWidth: columns[valueIndex].width - 3 });
+          x += columns[valueIndex].width;
+        });
+        doc.setDrawColor(231, 229, 228);
+        doc.setLineWidth(0.15);
+        doc.line(margin, y + 3, pageWidth - margin, y + 3);
+        y += 8;
+      });
+      const total = prs.reduce((sum: number, pr: any) => sum + Number(pr.total || 0), 0);
+      if (y > pageHeight - 22) { doc.addPage(); y = 20; }
+      doc.setTextColor(...orange);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.text(`Total PR: ${prs.length}`, pageWidth - margin, y + 5, { align: "right" });
+      doc.setTextColor(...dark);
+      doc.setFontSize(10);
+      doc.text(`Total Estimasi: ${money(total)}`, pageWidth - margin, y + 11, { align: "right" });
+      const filename = `Rekap-PR-${filterStart || "awal"}-${filterEnd || "akhir"}.pdf`;
+      doc.save(filename);
     } catch (error: any) {
       const detail = error?.response?.data?.detail || error?.message || (typeof error === "string" ? error : "");
       const message = detail || `Tidak diketahui (tahap: ${stage})`;
