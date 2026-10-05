@@ -1977,24 +1977,29 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       toast.error("Tanggal mulai tidak boleh lebih besar dari tanggal akhir");
       return;
     }
+    let stage = "menyiapkan filter";
     try {
       // Ambil daftar dasar tanpa filter (endpoint ini sudah dipakai untuk PDF semua),
       // lalu filter tanggal di browser. Ini menghindari kegagalan parsing query
       // tanggal di sisi server dan tetap menghasilkan rentang tanggal yang tepat.
+      stage = "mengambil data PR";
       const report = await admApi.getPRListPdfData(proyekId, {});
       if (!report || !Array.isArray(report.prs)) throw new Error("Respons data PR dari server tidak valid");
+      stage = "memfilter data PR";
       const prs = report.prs.filter((pr: any) => {
         const date = String(pr.tanggal ?? "").slice(0, 10);
         return (!filterStart || date >= filterStart) && (!filterEnd || date <= filterEnd);
       });
       if (!prs.length) { toast.info("Tidak ada PR pada periode tersebut"); return; }
       const filter = { tanggal_start: filterStart || null, tanggal_end: filterEnd || null, bulan: null, tahun: null };
+      stage = "membuat file PDF";
       const blob = await pdf(<PRListPDF {...report} prs={prs} filter={filter} />).toBlob();
       const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `Rekap-PR-${filterStart || "awal"}-${filterEnd || "akhir"}.pdf`; a.click(); URL.revokeObjectURL(url);
     } catch (error: any) {
-      const detail = error?.response?.data?.detail || error?.message || String(error || "Error tidak diketahui");
-      console.error(`[PR PDF] Gagal generate rekap: ${detail} (status ${error?.response?.status ?? "unknown"})`);
-      toast.error(detail);
+      const detail = error?.response?.data?.detail || error?.message || (typeof error === "string" ? error : "");
+      const message = detail || `Tidak diketahui (tahap: ${stage})`;
+      console.error(`[PR PDF] Gagal generate rekap: ${message} (tahap: ${stage}, status: ${error?.response?.status ?? "unknown"})`);
+      toast.error(`Gagal membuat PDF pada tahap ${stage}: ${message}`);
     }
   }
 
