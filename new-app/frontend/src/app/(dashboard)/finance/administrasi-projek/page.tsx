@@ -1982,12 +1982,14 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       if (filterStart) params.tanggal_start = filterStart;
       if (filterEnd) params.tanggal_end = filterEnd;
       const report = await admApi.getPRListPdfData(proyekId, params);
-      if (!report.prs?.length) { toast.info("Tidak ada PR pada periode tersebut"); return; }
-      const blob = await pdf(<PRListPDF {...report} />).toBlob();
+      if (!report || !Array.isArray(report.prs)) throw new Error("Respons data PR dari server tidak valid");
+      if (!report.prs.length) { toast.info("Tidak ada PR pada periode tersebut"); return; }
+      const blob = await pdf(<PRListPDF {...report} filter={report.filter ?? params} />).toBlob();
       const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `Rekap-PR-${filterStart || "awal"}-${filterEnd || "akhir"}.pdf`; a.click(); URL.revokeObjectURL(url);
     } catch (error: any) {
-      console.error("Gagal generate rekap PDF PR", error);
-      toast.error(error?.response?.data?.detail || "Gagal generate rekap PDF PR");
+      const detail = error?.response?.data?.detail || error?.message || String(error || "Error tidak diketahui");
+      console.error("Gagal generate rekap PDF PR", { detail, status: error?.response?.status, response: error?.response?.data, error });
+      toast.error(detail);
     }
   }
 
