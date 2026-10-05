@@ -49,6 +49,9 @@ export interface KontrakDokumen {
   id: number;
   template_id: number | null;
   lead_id: number | null;
+  offer_id: string | null;
+  offer_type: string | null;
+  offer_kind: string | null;
   nomor_kontrak: string | null;
   jenis_pekerjaan: string | null;
   tanggal: string | null;
@@ -113,6 +116,8 @@ export const kontrakTemplateApi = {
 };
 
 export const kontrakDokumenApi = {
+  listOffers: (type: string) =>
+    apiClient.get<{ items: { id: string; type: string; kind: string; data: any; created_at: string }[] }>(`/penawaran/${type}/offers?kind=offer`).then((r) => r.data),
   list: (page = 1, per_page = 50) =>
     apiClient.get<{ items: KontrakDokumen[]; total: number }>(`/sales/kontrak-dokumen?page=${page}&per_page=${per_page}`).then((r) => r.data),
 
@@ -121,6 +126,7 @@ export const kontrakDokumenApi = {
 
   create: (payload: {
     template_id: number; lead_id?: number; tanggal?: string; jenis_pekerjaan?: string;
+    offer_id?: string; offer_type?: string; offer_kind?: string;
     nama_client?: string; telepon_client?: string; alamat_client?: string; nomor_kontrak?: string;
   }) =>
     apiClient.post<KontrakDokumen>("/sales/kontrak-dokumen", payload).then((r) => r.data),
@@ -128,6 +134,7 @@ export const kontrakDokumenApi = {
   update: (id: number, payload: {
     nomor_kontrak?: string; jenis_pekerjaan?: string; tanggal?: string;
     nama_client?: string; telepon_client?: string; alamat_client?: string;
+    offer_id?: string; offer_type?: string; offer_kind?: string;
   }) =>
     apiClient.patch<KontrakDokumen>(`/sales/kontrak-dokumen/${id}`, payload).then((r) => r.data),
 

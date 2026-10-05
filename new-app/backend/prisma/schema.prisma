@@ -3080,6 +3080,9 @@ model KontrakDokumen {
   id                   BigInt                   @id @default(autoincrement())
   template_id          BigInt?
   lead_id              BigInt?
+  offer_id             String?                  @db.VarChar(64)
+  offer_type           String?                  @db.VarChar(50)
+  offer_kind           String?                  @db.VarChar(50)
   nomor_kontrak        String?                  @db.VarChar(100)
   jenis_pekerjaan      String?                  @db.VarChar(500)
   tanggal              DateTime?                @db.Date
@@ -3110,6 +3113,7 @@ model KontrakDokumen {
 
   @@index([template_id], map: "idx_kontrak_dokumens_template")
   @@index([lead_id], map: "idx_kontrak_dokumens_lead")
+  @@index([offer_type, offer_id], map: "idx_kontrak_dokumens_offer")
   @@map("kontrak_dokumens")
 }
 

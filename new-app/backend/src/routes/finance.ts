@@ -2032,12 +2032,16 @@ router.post("/adm-projek/:id/dokumen", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { kategori, nama_file, file_data, file_type, tanggal_upload } = req.body;
   if (!file_data) return res.status(400).json({ detail: "file_data wajib diisi" });
+  const normalizedFileData = String(file_data).replace(/^data:[^;]+;base64,/, "");
+  if (file_type === "pdf" && !/^[A-Za-z0-9+/=\r\n]+$/.test(normalizedFileData)) {
+    return res.status(400).json({ detail: "Data PDF tidak valid" });
+  }
   const doc = await prisma.projekDokumen.create({
     data: {
       adm_finance_project_id: id,
       kategori: kategori || "Nota",
       nama_file: nama_file || null,
-      file_data,
+      file_data: normalizedFileData,
       file_type: file_type || null,
       tanggal_upload: tanggal_upload ? new Date(tanggal_upload) : new Date(),
     },
@@ -2476,6 +2480,33 @@ router.get("/adm-projek/:id/termins/:tid/pdf-data", async (req: Request, res: Re
 });
 
 // GET /finance/adm-projek/:id/pr/:pid/pdf-data
+router.get("/adm-projek/:id/pr/pdf-data", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const { tanggal_start, tanggal_end, bulan, tahun } = req.query as Record<string, string>;
+  const where: any = { adm_finance_project_id: id };
+  if (bulan && tahun) where.tanggal = { gte: new Date(Number(tahun), Number(bulan) - 1, 1), lt: new Date(Number(tahun), Number(bulan), 1) };
+  else if (tahun) where.tanggal = { gte: new Date(Number(tahun), 0, 1), lt: new Date(Number(tahun) + 1, 0, 1) };
+  else if (tanggal_start || tanggal_end) {
+    where.tanggal = {};
+    if (tanggal_start) where.tanggal.gte = new Date(tanggal_start);
+    if (tanggal_end) { const end = new Date(tanggal_end); end.setDate(end.getDate() + 1); where.tanggal.lt = end; }
+  }
+  const [project, prs] = await Promise.all([
+    prisma.admFinanceProject.findUnique({ where: { id } }),
+    prisma.projekPR.findMany({ where, include: { items: true }, orderBy: [{ tanggal: "asc" }, { id: "asc" }] }),
+  ]);
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  return res.json({
+    project: { nama_proyek: project.nama_proyek, klien: project.klien },
+    filter: { tanggal_start: tanggal_start || null, tanggal_end: tanggal_end || null, bulan: bulan || null, tahun: tahun || null },
+    prs: prs.map((pr) => ({
+      nomor_pr: pr.nomor_pr, tanggal: pr.tanggal, nama_toko: pr.nama_toko, status: pr.status,
+      total: pr.items.reduce((sum, it) => sum + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan)), 0) - Number(pr.diskon_harga_keseluruhan),
+      item_count: pr.items.length,
+    })),
+  });
+});
+
 router.get("/adm-projek/:id/pr/:pid/pdf-data", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);

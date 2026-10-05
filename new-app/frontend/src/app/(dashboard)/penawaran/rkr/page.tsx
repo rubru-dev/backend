@@ -357,14 +357,7 @@ export default function PenawaranRkrPage() {
           </div>
           <div>
             <Label>Jenis Penawaran</Label>
-            <Select value={jenisPenawaran} onValueChange={setJenisPenawaran}>
-              <SelectTrigger><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="Interior">Interior</SelectItem>
-                <SelectItem value="Eksterior">Eksterior</SelectItem>
-                <SelectItem value="Interior/Eksterior">Interior/Eksterior</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input value={jenisPenawaran} onChange={(e) => setJenisPenawaran(e.target.value)} placeholder="Contoh: Renovasi Dapur" />
           </div>
           <div>
             <Label>Salutation</Label>

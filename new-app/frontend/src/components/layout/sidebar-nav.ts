@@ -194,7 +194,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Absen Karyawan",          href: "/finance/absen-karyawan",      icon: "ClipboardCheck", permission: "absen.manage" },
       { label: "Form BAST",               href: "/finance/form-bast",           icon: "FileText",       superAdminOnly: true },
       { label: "Laporan Harian",          href: "/finance/laporan-harian",      icon: "ClipboardList",  permission: "finance.laporan_harian" },
-      { label: "Addendum Kontrak",        href: "/sales/addendum",              icon: "FileSignature",  superAdminOnly: true },
+      { label: "Addendum Kontrak",        href: "/sales/addendum",              icon: "FileSignature",  permission: "sales.addendum" },
     ],
   },
 

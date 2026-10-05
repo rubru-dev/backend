@@ -31,6 +31,7 @@ import { useAuthStore } from "@/store/authStore";
 const CashflowTerminPDF = dynamic(() => import("@/components/cashflow-termin-pdf"), { ssr: false });
 const CashflowOverviewPDF = dynamic(() => import("@/components/cashflow-overview-pdf"), { ssr: false });
 const PRPDF = dynamic(() => import("@/components/pr-pdf"), { ssr: false });
+const PRListPDF = dynamic(() => import("@/components/pr-list-pdf"), { ssr: false });
 
 const SuratJalanPDF = dynamic(() => import("@/components/surat-jalan-pdf"), { ssr: false });
 
@@ -431,6 +432,8 @@ const admApi = {
   },
   getPRPdfData: (id: number, pid: number) =>
     apiClient.get(`/finance/adm-projek/${id}/pr/${pid}/pdf-data`).then((r) => r.data),
+  getPRListPdfData: (id: number, params: Record<string, string>) =>
+    apiClient.get(`/finance/adm-projek/${id}/pr/pdf-data`, { params }).then((r) => r.data),
 
   // PR
   getPR: (id: number) =>
@@ -1900,7 +1903,9 @@ const PR_ITEMS_PER_PAGE = 5;
 function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjalanId?: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
-  const [viewPR, setViewPR] = useState<any | null>(null);
+  const [expandedPRs, setExpandedPRs] = useState<Set<number>>(new Set());
+  const [filterStart, setFilterStart] = useState("");
+  const [filterEnd, setFilterEnd] = useState("");
   const [editPRId, setEditPRId] = useState<number | null>(null);
   const [prSigDialog, setPrSigDialog] = useState<{ open: boolean; prId: number | null }>({ open: false, prId: null });
   const [prPage, setPrPage] = useState(0);
@@ -1965,6 +1970,16 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       a.href = url; a.download = `${pr.nomor_pr || "pr"}.pdf`; a.click();
       URL.revokeObjectURL(url);
     } catch { toast.error("Gagal generate PDF"); }
+  }
+
+  async function handleDownloadFilteredPRPdf() {
+    if (!filterStart && !filterEnd) { toast.error("Isi minimal tanggal mulai atau tanggal akhir untuk filter PDF"); return; }
+    try {
+      const report = await admApi.getPRListPdfData(proyekId, { ...(filterStart ? { tanggal_start: filterStart } : {}), ...(filterEnd ? { tanggal_end: filterEnd } : {}) });
+      if (!report.prs?.length) { toast.info("Tidak ada PR pada periode tersebut"); return; }
+      const blob = await pdf(<PRListPDF {...report} />).toBlob();
+      const url = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = url; a.download = `Rekap-PR-${filterStart || "awal"}-${filterEnd || "akhir"}.pdf`; a.click(); URL.revokeObjectURL(url);
+    } catch { toast.error("Gagal generate rekap PDF PR"); }
   }
 
   function openEditPR(pr: any) {
@@ -2047,7 +2062,19 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
   }
   const prNeedsHF = form.items.some(itemNeedsHF);
 
-const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
+  const allItems: any[] = Array.isArray(data) ? data : data?.items ?? [];
+  const items = allItems.filter((pr: any) => {
+    const date = String(pr.tanggal ?? "").slice(0, 10);
+    return (!filterStart || date >= filterStart) && (!filterEnd || date <= filterEnd);
+  });
+
+  function togglePR(id: number) {
+    setExpandedPRs((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
 
   function addItemRow() {
     const next = [...form.items, emptyItem()];
@@ -2069,11 +2096,20 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
   return (
     <div className="space-y-3">
       <RappMaterialSummaryByTermin proyekBerjalanId={proyekBerjalanId} />
-      <div className="flex justify-end">
+      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full md:max-w-xl">
+          <div><Label className="text-xs">Tanggal mulai</Label><Input type="date" value={filterStart} onChange={(e) => setFilterStart(e.target.value)} /></div>
+          <div><Label className="text-xs">Tanggal akhir</Label><Input type="date" value={filterEnd} onChange={(e) => setFilterEnd(e.target.value)} /></div>
+        </div>
+        <div className="flex items-center gap-2 md:pb-0.5">
+          <Button size="sm" variant="outline" onClick={handleDownloadFilteredPRPdf} disabled={!filterStart && !filterEnd}><FileDown className="h-3.5 w-3.5 mr-1" /> PDF filter</Button>
+          {(filterStart || filterEnd) && <Button size="sm" variant="ghost" onClick={() => { setFilterStart(""); setFilterEnd(""); }}>Reset filter</Button>}
         <Button size="sm" onClick={() => setOpen(true)}>
           <Plus className="h-3.5 w-3.5 mr-1" /> Buat PR
         </Button>
+        </div>
       </div>
+      {(filterStart || filterEnd) && <p className="text-xs text-muted-foreground">Menampilkan {items.length} dari {allItems.length} PR.</p>}
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
@@ -2097,7 +2133,8 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
               return s + (Number(it.qty) || 0) * net;
             }, 0) - (Number(pr.diskon_harga_keseluruhan) || 0);
             return (
-              <TableRow key={pr.id}>
+              <Fragment key={pr.id}>
+              <TableRow className="cursor-pointer" onClick={() => togglePR(pr.id)}>
                 <TableCell className="font-mono font-medium text-sm">{pr.nomor_pr}</TableCell>
                 <TableCell className="whitespace-nowrap text-sm">{new Date(pr.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" })}</TableCell>
                 <TableCell className="max-w-[200px] truncate text-sm">{pr.nama_toko || "—"}</TableCell>
@@ -2119,9 +2156,9 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                   )}
                 </TableCell>
                 <TableCell>
-                  <div className="flex gap-1 justify-end">
-                    <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setViewPR(pr)}>
-                      <Eye className="h-3.5 w-3.5" />
+                  <div className="flex gap-1 justify-end" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="outline" size="sm" className="h-7 px-2 text-xs" onClick={() => togglePR(pr.id)}>
+                      {expandedPRs.has(pr.id) ? "Tutup" : "Detail"}
                     </Button>
                     {pr.hf_signed_at && (
                       <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" onClick={() => handleDownloadPRPdf(pr)}>
@@ -2149,6 +2186,20 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
                   </div>
                 </TableCell>
               </TableRow>
+              {expandedPRs.has(pr.id) && (
+                <TableRow className="bg-muted/20 hover:bg-muted/20">
+                  <TableCell colSpan={7} className="p-3">
+                    <div className="overflow-x-auto rounded-md border bg-background">
+                      <Table className="min-w-[720px]">
+                        <TableHeader><TableRow><TableHead>Item</TableHead><TableHead>Satuan</TableHead><TableHead className="text-right">Qty</TableHead><TableHead className="text-right">Harga</TableHead><TableHead className="text-right">Diskon</TableHead><TableHead className="text-right">Subtotal</TableHead></TableRow></TableHeader>
+                        <TableBody>{(pr.items || []).map((it: any) => <TableRow key={it.id}><TableCell>{it.nama_item}{it.is_from_rapp && <Badge variant="outline" className="ml-2 text-[10px]">RAPP</Badge>}</TableCell><TableCell>{it.satuan || "—"}</TableCell><TableCell className="text-right">{Number(it.qty).toLocaleString("id-ID")}</TableCell><TableCell className="text-right">{formatRp(Number(it.harga_perkiraan))}</TableCell><TableCell className="text-right">{Number(it.diskon_harga_satuan) ? formatRp(Number(it.diskon_harga_satuan)) : "—"}</TableCell><TableCell className="text-right font-medium">{formatRp(Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan || 0)))}</TableCell></TableRow>)}</TableBody>
+                      </Table>
+                    </div>
+                    {pr.catatan && <p className="mt-2 text-xs text-muted-foreground">Catatan: {pr.catatan}</p>}
+                  </TableCell>
+                </TableRow>
+              )}
+              </Fragment>
             );
           })}
           {!isLoading && items.length === 0 && (
@@ -2369,92 +2420,6 @@ const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* View PR Dialog */}
-      <Dialog open={!!viewPR} onOpenChange={(v) => !v && setViewPR(null)}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader><DialogTitle>Detail PR: {viewPR?.nomor_pr}</DialogTitle></DialogHeader>
-          {viewPR && (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div><span className="text-muted-foreground">Tanggal:</span> {new Date(viewPR.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</div>
-                <div><span className="text-muted-foreground">Status:</span> <Badge variant={(PR_STATUS_COLOR[viewPR.status] ?? "secondary") as any} className="ml-1">{viewPR.status}</Badge></div>
-                {viewPR.nama_toko && <div className="col-span-2"><span className="text-muted-foreground">Nama Toko:</span> <b>{viewPR.nama_toko}</b></div>}
-              </div>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Nama Item</TableHead>
-                    <TableHead>Sat.</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Harga</TableHead>
-                    <TableHead className="text-right">Diskon/Sat.</TableHead>
-                    <TableHead className="text-right">Subtotal</TableHead>
-                    <TableHead className="w-8" />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {(viewPR.items || []).map((it: any) => {
-                    const exceedsQty = it.rapp_qty != null && Number(it.qty) > Number(it.rapp_qty);
-                    const exceedsHarga = it.rapp_harga != null && Number(it.harga_perkiraan) > Number(it.rapp_harga);
-                    return (
-                      <TableRow key={it.id} className={it.is_from_rapp || exceedsQty || exceedsHarga ? "bg-amber-50/40" : ""}>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            {it.nama_item}
-                            {it.is_from_rapp && <Badge variant="outline" className="text-[10px] text-teal-600 border-teal-300">RAPP</Badge>}
-                          </div>
-                          {it.is_from_rapp && it.termin && <div className="text-[10px] text-muted-foreground">{it.termin.nama ?? `Termin ${it.termin.urutan}`}</div>}
-                        </TableCell>
-                        <TableCell>{it.satuan || "—"}</TableCell>
-                        <TableCell className="text-right">
-                          <span className={exceedsQty ? "text-amber-600 font-semibold" : ""}>{Number(it.qty).toLocaleString("id-ID")}</span>
-                          {exceedsQty && <div className="text-[10px] text-amber-500">RAPP: {Number(it.rapp_qty).toLocaleString("id-ID")}</div>}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <span className={exceedsHarga ? "text-amber-600 font-semibold" : ""}>{formatRp(it.harga_perkiraan)}</span>
-                          {exceedsHarga && <div className="text-[10px] text-amber-500">RAPP: {formatRp(it.rapp_harga)}</div>}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {Number(it.diskon_harga_satuan) > 0
-                            ? <span className="text-green-700">-{formatRp(it.diskon_harga_satuan)}</span>
-                            : <span className="text-muted-foreground">—</span>}
-                        </TableCell>
-                        <TableCell className="text-right font-semibold">{formatRp(Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan || 0)))}</TableCell>
-                        <TableCell>{(it.is_from_rapp || exceedsQty || exceedsHarga) && <ShieldCheck className="h-3.5 w-3.5 text-amber-500" aria-label="Perlu TTD HF" />}</TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-              {(() => {
-                const subtotal = (viewPR.items || []).reduce((s: number, it: any) => s + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan || 0)), 0);
-                const diskonKeseluruhan = Number(viewPR.diskon_harga_keseluruhan) || 0;
-                const total = subtotal - diskonKeseluruhan;
-                return (
-                  <div className="text-right space-y-1">
-                    {diskonKeseluruhan > 0 && (
-                      <>
-                        <div className="text-sm text-muted-foreground">Subtotal: {formatRp(subtotal)}</div>
-                        <div className="text-sm text-green-700">Diskon Keseluruhan: -{formatRp(diskonKeseluruhan)}</div>
-                      </>
-                    )}
-                    <div className="font-bold">Total: {formatRp(total)}</div>
-                  </div>
-                );
-              })()}
-              {viewPR.catatan && <p className="text-sm text-muted-foreground">Catatan: {viewPR.catatan}</p>}
-              {viewPR.hf_signature && (
-                <div className="border-t pt-3">
-                  <p className="text-xs text-muted-foreground mb-1">Tanda Tangan Head Finance:</p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={viewPR.hf_signature} alt="TTD HF" className="max-h-24 border rounded bg-white p-1 object-contain" />
-                </div>
-              )}
-            </div>
-          )}
         </DialogContent>
       </Dialog>
 
@@ -2707,8 +2672,20 @@ function UploadDokumenTab({ proyekId }: { proyekId: number }) {
   }
 
   async function handleView(doc: any) {
-    const full = await admApi.getDokumenFile(proyekId, doc.id);
-    setPreview(full);
+    try {
+      const full = await admApi.getDokumenFile(proyekId, doc.id);
+      if (!full?.file_data) throw new Error("File kosong");
+      setPreview(full);
+    } catch {
+      toast.error("Dokumen tidak dapat dibuka. Coba upload ulang file PDF tersebut.");
+    }
+  }
+
+  function dataUrl(doc: any) {
+    const raw = String(doc.file_data ?? "");
+    if (raw.startsWith("data:")) return raw;
+    const mime = doc.file_type === "image" ? "image/jpeg" : "application/pdf";
+    return `data:${mime};base64,${raw}`;
   }
 
   const items: any[] = Array.isArray(data) ? data : data?.items ?? [];
@@ -2787,9 +2764,9 @@ function UploadDokumenTab({ proyekId }: { proyekId: number }) {
           {preview && (
             <div className="flex justify-center overflow-auto">
               {preview.file_type === "image" ? (
-                <img src={`data:image/jpeg;base64,${preview.file_data}`} alt={preview.nama_file} className="max-w-full max-h-[70vh] object-contain rounded" />
+                <img src={dataUrl(preview)} alt={preview.nama_file} className="max-w-full max-h-[70vh] object-contain rounded" />
               ) : (
-                <iframe src={`data:application/pdf;base64,${preview.file_data}`} className="w-full h-[70vh] rounded" />
+                <iframe title={preview.nama_file || "Preview PDF"} src={dataUrl(preview)} className="w-full h-[70vh] rounded" />
               )}
             </div>
           )}

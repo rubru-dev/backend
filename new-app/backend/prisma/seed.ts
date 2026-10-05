@@ -133,6 +133,7 @@ async function main() {
     // Sales sub-menus
     { name: "sales.kanban",        module: "sales", label: "Sub-menu: Kanban Sales" },
     { name: "sales.laporan_harian",module: "sales", label: "Sub-menu: Laporan Harian Sales" },
+    { name: "sales.addendum",      module: "sales", label: "Sub-menu: Addendum Kontrak" },
     // Finance sub-menus
     { name: "finance.invoice",       module: "finance", label: "Sub-menu: Invoice & Kwitansi" },
     { name: "finance.adm_projek",    module: "finance", label: "Sub-menu: Administrasi Projek" },
@@ -296,6 +297,7 @@ async function main() {
     "Sales Admin": [
       "sales_admin.kanban","sales_admin.follow_up",
       "sales_admin.kalender","sales_admin.laporan_harian",
+      "sales.addendum",
       "absen.submit", ...TUTORIAL_PERMS,
     ],
     "Telemarketing": [
@@ -304,7 +306,7 @@ async function main() {
       "absen.submit", ...TUTORIAL_PERMS,
     ],
     "Desain":       ["desain.follow_up","desain.kanban_paket","desain.laporan_harian","absen.submit", ...TUTORIAL_PERMS],
-    "Sales":        ["sales.kanban","sales.laporan_harian","absen.submit", ...TUTORIAL_PERMS],
+    "Sales":        ["sales.kanban","sales.laporan_harian","sales.addendum","absen.submit", ...TUTORIAL_PERMS],
     "Finance": [
       "finance.invoice","finance.adm_projek","finance.adm_kantor","finance.laporan_harian",
       "finance.cashflow","finance.pr","finance.upload_dokumen","finance.surat_jalan","finance.tukang",

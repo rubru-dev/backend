@@ -5,6 +5,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { config } from "../config";
+import { requirePermission } from "../middleware/requireRole";
 
 const kontrakLampiranDir = path.resolve(config.storagePath, "kontrak-lampiran");
 if (!fs.existsSync(kontrakLampiranDir)) fs.mkdirSync(kontrakLampiranDir, { recursive: true });
@@ -29,6 +30,11 @@ const lampiranUpload = multer({
 });
 
 const router = Router();
+const addendumAccess = requirePermission("sales", "addendum");
+router.use("/kontrak-template", addendumAccess);
+router.use("/kontrak-dokumen", addendumAccess);
+router.use("/kontrak-company", addendumAccess);
+router.use("/addendum", addendumAccess);
 
 // GET /proyek-berjalan
 router.get("/proyek-berjalan", async (req: Request, res: Response) => {
@@ -745,6 +751,7 @@ function mapKontrakTemplate(t: {
 
 function mapKontrakDokumen(d: {
   id: bigint; template_id: bigint | null; lead_id: bigint | null;
+  offer_id: string | null; offer_type: string | null; offer_kind: string | null;
   nomor_kontrak: string | null; jenis_pekerjaan: string | null; tanggal: Date | null;
   nama_client: string | null; telepon_client: string | null; alamat_client: string | null;
   status: string;
@@ -762,6 +769,9 @@ function mapKontrakDokumen(d: {
     id: Number(d.id),
     template_id: d.template_id ? Number(d.template_id) : null,
     lead_id: d.lead_id ? Number(d.lead_id) : null,
+    offer_id: d.offer_id,
+    offer_type: d.offer_type,
+    offer_kind: d.offer_kind,
     nomor_kontrak: d.nomor_kontrak,
     jenis_pekerjaan: d.jenis_pekerjaan,
     tanggal: d.tanggal,
@@ -983,7 +993,7 @@ router.get("/kontrak-dokumen", async (req: Request, res: Response) => {
 // POST /sales/kontrak-dokumen
 router.post("/kontrak-dokumen", async (req: Request, res: Response) => {
   const {
-    template_id, lead_id, tanggal, jenis_pekerjaan,
+    template_id, lead_id, tanggal, jenis_pekerjaan, offer_id, offer_type, offer_kind,
     nama_client, telepon_client, alamat_client, nomor_kontrak: nomorManual,
   } = req.body;
   if (!template_id) return res.status(400).json({ detail: "Template wajib dipilih" });
@@ -1014,6 +1024,9 @@ router.post("/kontrak-dokumen", async (req: Request, res: Response) => {
     data: {
       template_id: BigInt(template_id),
       lead_id: lead_id ? BigInt(lead_id) : null,
+      offer_id: offer_id ? String(offer_id) : null,
+      offer_type: offer_type ? String(offer_type) : null,
+      offer_kind: offer_kind ? String(offer_kind) : null,
       nomor_kontrak,
       jenis_pekerjaan: jenis_pekerjaan ?? null,
       tanggal: tanggal ? new Date(tanggal) : new Date(),
@@ -1059,7 +1072,7 @@ router.patch("/kontrak-dokumen/:id", async (req: Request, res: Response) => {
   if (isKontrakLocked(d)) {
     return res.status(409).json({ detail: "Kontrak sudah ditandatangani lengkap dan terkunci — tidak bisa diedit." });
   }
-  const { nomor_kontrak, jenis_pekerjaan, tanggal, nama_client, telepon_client, alamat_client } = req.body;
+  const { nomor_kontrak, jenis_pekerjaan, tanggal, nama_client, telepon_client, alamat_client, offer_id, offer_type, offer_kind } = req.body;
   const data: Record<string, unknown> = { updated_at: new Date() };
   if (nomor_kontrak !== undefined) data.nomor_kontrak = String(nomor_kontrak).trim() || null;
   if (jenis_pekerjaan !== undefined) data.jenis_pekerjaan = jenis_pekerjaan ?? null;
@@ -1067,6 +1080,9 @@ router.patch("/kontrak-dokumen/:id", async (req: Request, res: Response) => {
   if (nama_client !== undefined) data.nama_client = nama_client ?? null;
   if (telepon_client !== undefined) data.telepon_client = telepon_client ?? null;
   if (alamat_client !== undefined) data.alamat_client = alamat_client ?? null;
+  if (offer_id !== undefined) data.offer_id = offer_id ? String(offer_id) : null;
+  if (offer_type !== undefined) data.offer_type = offer_type ? String(offer_type) : null;
+  if (offer_kind !== undefined) data.offer_kind = offer_kind ? String(offer_kind) : null;
   const updated = await prisma.kontrakDokumen.update({
     where: { id },
     data,

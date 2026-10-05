@@ -59,11 +59,6 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
   w.document.write("<html><body style='font-family:sans-serif;padding:24px'><p>Memuat dokumen...</p></body></html>");
   w.document.close();
 
-  // Pre-open jendela lampiran dari data yang sudah ada (sebelum await)
-  const lampiranWindows = (knownLampirans ?? [])
-    .filter((l) => l.file_url)
-    .map((l) => window.open(`${BACKEND_URL}${l.file_url}`, "_blank"));
-
   // Fetch fresh data
   const dok = typeof dokOrId === "number"
     ? await kontrakDokumenApi.get(dokOrId)
@@ -81,6 +76,22 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
     return true;
   });
   const lampirans = dok.lampirans ?? [];
+  const lampiranPdfHtml = lampirans.filter((l) => l.file_url).map((l) => `
+    <div style="page-break-before:always;text-align:center">
+      <p style="font-family:Arial,sans-serif;font-size:12pt;font-weight:bold;margin:0 0 12px">${l.judul}</p>
+      <iframe title="${l.judul}" src="${BACKEND_URL}${l.file_url}" style="width:100%;height:1000px;border:0"></iframe>
+    </div>
+  `).join("");
+  let offerAppendixHtml = "";
+  if (dok.offer_type && dok.offer_id) {
+    const sourceOffers = await kontrakDokumenApi.listOffers(dok.offer_type).catch(() => ({ items: [] }));
+    const selectedOffer = sourceOffers.items.find((o) => o.id === dok.offer_id);
+    const offerData = selectedOffer?.data ?? {};
+    if (selectedOffer) {
+      const label = dok.offer_type === "rubru" ? "Rubru" : dok.offer_type === "rkr" ? "RKR" : "Desain";
+      offerAppendixHtml = `<div style="page-break-before:always;margin-top:20px"><h2 style="font-size:15pt;text-align:center;border-bottom:2px solid #000;padding-bottom:8px">LAMPIRAN PENAWARAN ${label.toUpperCase()}</h2><p style="font-size:11pt;margin-top:16px"><strong>Klien:</strong> ${offerData.clientName ?? offerData.nama ?? offerData.klien ?? "-"}</p><p style="font-size:11pt"><strong>Jenis/Paket:</strong> ${offerData.jenisPenawaran ?? offerData.paketName ?? "-"}</p><p style="font-size:11pt"><strong>Tanggal:</strong> ${offerData.tanggal ?? "-"}</p><p style="font-size:10pt;color:#444;margin-top:16px">Dokumen ini terhubung dengan penawaran ${label} yang dipilih saat pembuatan addendum.</p></div>`;
+    }
+  }
   const logoUrl = typeof window !== "undefined" ? `${window.location.origin}/images/logo.png` : "";
   // Data Pihak Pertama dari pengaturan (fallback ke default perusahaan).
   const company = await kontrakDokumenApi.getCompany().catch(() => ({
@@ -147,16 +158,6 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
       </div>
     </div>
   `;
-
-  // Daftar lampiran di akhir kontrak
-  const lampiranListSectionHtml = lampirans.length > 0 ? `
-    <div style="margin-top:32px">
-      <p style="font-weight:bold;font-size:12pt;border-bottom:1px solid #000;padding-bottom:4px;margin-bottom:12px">DAFTAR LAMPIRAN</p>
-      ${lampirans.map((l, i) => `
-        <p style="margin:6px 0;font-size:11pt">${i + 1}. ${l.judul}${l.file_url ? "" : " <em style='color:#999;font-size:10pt'>(belum ada file)</em>"}</p>
-      `).join("")}
-    </div>
-  ` : "";
 
   const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
 <title>${dok.template?.judul ?? "Kontrak"} — ${dok.nomor_kontrak ?? ""}</title>
@@ -247,18 +248,15 @@ ${pasalHtml}
   </table>
 </div>
 
-<!-- DAFTAR LAMPIRAN (list di akhir kontrak) -->
-${lampiranListSectionHtml}
+${offerAppendixHtml}
+${lampiranPdfHtml}
 
 </body></html>`;
 
   w.document.open();
   w.document.write(html);
   w.document.close();
-  setTimeout(() => { w.print(); }, 600);
-
-  // Suppress unused variable warning
-  void lampiranWindows;
+  setTimeout(() => { w.print(); }, 1400);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -518,6 +516,8 @@ function CreateKontrakDialog({ open, onOpenChange, templates, onSaved }: {
   const [tanggal, setTanggal] = useState(new Date().toISOString().slice(0, 10));
   const [jenisPekerjaan, setJenisPekerjaan] = useState("");
   const [nomorKontrak, setNomorKontrak] = useState("");
+  const [offerType, setOfferType] = useState("");
+  const [offerId, setOfferId] = useState("");
   // Pihak Kedua — diisi MANUAL (tidak wajib dari lead)
   const [namaClient, setNamaClient] = useState("");
   const [teleponClient, setTeleponClient] = useState("");
@@ -535,6 +535,13 @@ function CreateKontrakDialog({ open, onOpenChange, templates, onSaved }: {
   }
 
   const selectedTemplate = templates.find((t) => String(t.id) === templateId);
+  const { data: offerData, isLoading: loadingOffers } = useQuery({
+    queryKey: ["kontrak-offers", offerType],
+    queryFn: () => kontrakDokumenApi.listOffers(offerType),
+    enabled: !!offerType,
+  });
+  const offerItems = offerData?.items ?? [];
+  const selectedOffer = offerItems.find((o) => o.id === offerId);
 
   const create = useMutation({
     mutationFn: () => kontrakDokumenApi.create({
@@ -542,6 +549,9 @@ function CreateKontrakDialog({ open, onOpenChange, templates, onSaved }: {
       lead_id: leadId ? Number(leadId) : undefined,
       tanggal,
       jenis_pekerjaan: jenisPekerjaan || undefined,
+      offer_id: offerId || undefined,
+      offer_type: offerType || undefined,
+      offer_kind: selectedOffer?.kind || undefined,
       nama_client: namaClient || undefined,
       telepon_client: teleponClient || undefined,
       alamat_client: alamatClient || undefined,
@@ -560,6 +570,28 @@ function CreateKontrakDialog({ open, onOpenChange, templates, onSaved }: {
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader><DialogTitle>Buat Kontrak dari Template</DialogTitle></DialogHeader>
         <div className="space-y-4 mt-2">
+          <div className="border rounded-lg p-3 space-y-3 bg-orange-50/50">
+            <div>
+              <Label>Sumber Penawaran</Label>
+              <select className="w-full border rounded-md px-3 py-2 text-sm bg-white" value={offerType} onChange={(e) => { setOfferType(e.target.value); setOfferId(""); }}>
+                <option value="">-- Pilih sumber (opsional) --</option>
+                <option value="rubru">Penawaran Rubru</option>
+                <option value="rkr">Penawaran RKR</option>
+                <option value="desain">Penawaran Desain</option>
+              </select>
+            </div>
+            {offerType && <div>
+              <Label>Pilih Penawaran</Label>
+              <select className="w-full border rounded-md px-3 py-2 text-sm bg-white" value={offerId} onChange={(e) => setOfferId(e.target.value)} disabled={loadingOffers}>
+                <option value="">{loadingOffers ? "Memuat penawaran..." : "-- Pilih penawaran --"}</option>
+                {offerItems.map((offer) => {
+                  const d = offer.data ?? {};
+                  return <option key={offer.id} value={offer.id}>{d.clientName || d.nama || d.klien || "Tanpa nama"} · {d.jenisPenawaran || d.paketName || "Penawaran"} · {new Date(offer.created_at).toLocaleDateString("id-ID")}</option>;
+                })}
+              </select>
+              {offerType && !loadingOffers && offerItems.length === 0 && <p className="text-xs text-muted-foreground mt-1">Belum ada penawaran tersimpan untuk sumber ini.</p>}
+            </div>}
+          </div>
           <div className="space-y-1.5">
             <Label>Template Kontrak <span className="text-destructive">*</span></Label>
             <select className="w-full border rounded-md px-3 py-2 text-sm bg-white" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
@@ -1124,9 +1156,9 @@ function CompanyDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (v
 // MAIN PAGE
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function AddendumKontrakPage() {
-  const isSuperAdmin = useAuthStore((s) => s.isSuperAdmin);
-  if (!isSuperAdmin()) {
-    return <div className="p-10 text-center text-muted-foreground">Halaman Addendum Kontrak hanya dapat diakses oleh Super Admin.</div>;
+  const hasPermission = useAuthStore((s) => s.hasPermission);
+  if (!hasPermission("sales", "addendum")) {
+    return <div className="p-10 text-center text-muted-foreground">Anda tidak memiliki akses ke Addendum Kontrak.</div>;
   }
   return <AddendumKontrakInner />;
 }

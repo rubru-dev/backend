@@ -333,6 +333,7 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "penawaran.rubru",       module: "penawaran", label: "Sub-menu: Penawaran Rubru" },
   { name: "penawaran.golden",      module: "penawaran", label: "Sub-menu: Penawaran Golden" },
   { name: "penawaran.filter_air",  module: "penawaran", label: "Sub-menu: Penawaran Filter Air" },
+  { name: "sales.addendum",       module: "sales", label: "Sub-menu: Addendum Kontrak" },
 ];
 
 // GET /permissions — list all, grouped by module
