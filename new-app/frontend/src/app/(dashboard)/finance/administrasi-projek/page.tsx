@@ -1916,6 +1916,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
   const [filterStart, setFilterStart] = useState("");
   const [filterEnd, setFilterEnd] = useState("");
   const [editPRId, setEditPRId] = useState<number | null>(null);
+  const [editHadSignature, setEditHadSignature] = useState(false);
   const [prSigDialog, setPrSigDialog] = useState<{ open: boolean; prId: number | null }>({ open: false, prId: null });
   const [prPage, setPrPage] = useState(0);
   const [editPrPage, setEditPrPage] = useState(0);
@@ -2218,6 +2219,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       })),
     });
     setEditPRId(pr.id);
+    setEditHadSignature(!!pr.hf_signed_at);
     setEditPrPage(0);
   }
 
@@ -2382,11 +2384,9 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
                         <FileDown className="h-3.5 w-3.5" />
                       </Button>
                     )}
-                    {!pr.hf_signed_at && (
-                      <Button variant="ghost" size="icon" className="h-7 w-7 text-orange-600" onClick={() => openEditPR(pr)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                    <Button variant="ghost" size="icon" className="h-7 w-7 text-orange-600" onClick={() => openEditPR(pr)} aria-label={`Edit ${pr.nomor_pr}`}>
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
                     {pr.status === "Pending" && (
                       <>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" onClick={() => statusMut.mutate({ pid: pr.id, status: "Disetujui" })}>
@@ -2641,13 +2641,15 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       </Dialog>
 
       {/* Edit PR Dialog */}
-      <Dialog open={!!editPRId} onOpenChange={(v) => { if (!v) { setEditPRId(null); setEditPrPage(0); } }}>
+      <Dialog open={!!editPRId} onOpenChange={(v) => { if (!v) { setEditPRId(null); setEditHadSignature(false); setEditPrPage(0); } }}>
         <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
           <DialogHeader><DialogTitle>Edit Purchase Request</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-md text-xs text-amber-700">
               <ShieldCheck className="h-3.5 w-3.5 flex-shrink-0" />
-              Semua PR membutuhkan <b>Tanda Tangan Head Finance</b> sebelum dapat digunakan. Status akan direset ke Pending.
+              {editHadSignature
+                ? <>Perubahan ini akan membatalkan <b>tanda tangan Head Finance</b>. PR kembali ke status <b>Pending</b> dan harus disetujui serta ditandatangani ulang.</>
+                : <>Semua PR membutuhkan <b>Tanda Tangan Head Finance</b> sebelum dapat digunakan. Status akan direset ke Pending.</>}
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div><Label>Tanggal *</Label>
@@ -2819,7 +2821,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
               })()}
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditPRId(null)}>Batal</Button>
+              <Button variant="outline" onClick={() => { setEditPRId(null); setEditHadSignature(false); }}>Batal</Button>
               <Button disabled={!editForm.tanggal || updatePRMut.isPending} onClick={submitEditPR}>
                 {updatePRMut.isPending ? "Menyimpan..." : "Simpan Perubahan"}
               </Button>

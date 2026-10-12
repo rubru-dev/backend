@@ -1940,17 +1940,17 @@ router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
   return res.json({ message: "PR dibuat", data: pr });
 });
 
-// PUT /finance/adm-projek/:id/pr/:pid — edit PR (blocked if HF signed)
+// PUT /finance/adm-projek/:id/pr/:pid — edit PR (signature is invalidated on edit)
 router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
   const pid = BigInt(req.params.pid);
   const existing = await prisma.projekPR.findUnique({ where: { id: pid } });
   if (!existing) return res.status(404).json({ detail: "PR tidak ditemukan" });
-  if (existing.hf_signed_at) return res.status(400).json({ detail: "PR sudah ditandatangani, tidak bisa diedit" });
 
   const { tanggal, nama_toko, catatan, items, diskon_harga_keseluruhan } = req.body;
   if (!tanggal) return res.status(400).json({ detail: "tanggal wajib diisi" });
 
-  // Delete old items then re-create
+  // Delete old items then re-create. Editing a signed PR invalidates the
+  // previous approval/signature because the signed content has changed.
   await prisma.projekPRItem.deleteMany({ where: { projek_pr_id: pid } });
   const pr = await prisma.projekPR.update({
     where: { id: pid },
@@ -1960,6 +1960,10 @@ router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
       catatan: catatan || null,
       status: "Pending",
       diskon_harga_keseluruhan: Number(diskon_harga_keseluruhan) || 0,
+      hf_signed_at: null,
+      hf_signed_by: null,
+      hf_name: null,
+      hf_signature: null,
       items: {
         create: (items || []).map((it: any) => ({
           nama_item: it.nama_item,
