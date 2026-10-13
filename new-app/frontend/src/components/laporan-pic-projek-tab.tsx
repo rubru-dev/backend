@@ -53,10 +53,10 @@ export function LaporanPicProjekTab({
     <div className="space-y-6">
       {Object.entries(grouped).map(([key, reports]) => {
         const first = reports[0];
+        const reportTitle = `${first.termin_nama || "Tanpa termin"} - ${first.pekerjaan_nama || "Tanpa pekerjaan"}`;
         return <div key={key} className="space-y-2">
           <div className="border-l-4 border-orange-400 pl-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">{first.termin_nama || "Tanpa termin"}</p>
-            <p className="text-sm font-semibold text-foreground">{first.pekerjaan_nama || "Tanpa pekerjaan"}</p>
+            <p className="text-sm font-semibold text-foreground">{reportTitle}</p>
           </div>
           {reports.map((r) => <div key={r.id} className="rounded-lg border bg-card p-4 shadow-sm ml-3">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">

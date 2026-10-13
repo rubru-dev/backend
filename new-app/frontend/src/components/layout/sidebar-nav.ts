@@ -175,7 +175,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Projek Interior",           href: "/projek/interior",    icon: "Home",         permission: "projek_interior.view" },
       { label: "Gudang/Workshop",           href: "/projek/gudang-workshop", icon: "Warehouse", permission: "projek.gudang_workshop" },
       { label: "Kalender Visit Projek",     href: "/pic/kalender-visit", icon: "CalendarDays", permission: "pic.kalender_visit" },
-      { label: "Upload Dokumentasi Projek", href: "/pic/dokumentasi",    icon: "Images",       permission: "pic.dokumentasi", roles: ["PIC Project"] },
     ],
   },
 

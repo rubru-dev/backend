@@ -126,7 +126,6 @@ export interface PdfTask {
   pic:    string;
   status: string;
   fotos?: string[]; // base64 data URLs
-  laporan?: PdfReport[];
 }
 
 export interface PdfTermin {
@@ -134,14 +133,6 @@ export interface PdfTermin {
   tanggal_mulai:  string | null;
   tanggal_selesai: string | null;
   tasks: PdfTask[];
-}
-
-export interface PdfReport {
-  tanggal: string;
-  pic_name: string;
-  kegiatan: string;
-  kendala?: string | null;
-  images?: string[];
 }
 
 export type ProyekPDFType = "desain" | "interior" | "sipil";
@@ -204,36 +195,10 @@ function TaskTable({ tasks }: { tasks: PdfTask[] }) {
                   ))}
                 </View>
               )}
-              <ReportList reports={t.laporan ?? []} />
             </View>
           );
         })
       )}
-    </View>
-  );
-}
-
-function ReportList({ reports }: { reports: PdfReport[] }) {
-  if (reports.length === 0) return null;
-  return (
-    <View style={{ marginTop: 8 }}>
-      <Text style={{ fontSize: 8, fontWeight: "bold", color: ORANGE, marginBottom: 4 }}>LAPORAN PIC PROJECT</Text>
-      <View style={{ flexDirection: "row", backgroundColor: "#44403c", paddingVertical: 4, paddingHorizontal: 5 }}>
-        <Text style={{ width: 52, color: "white", fontSize: 7, fontWeight: "bold" }}>Tanggal</Text>
-        <Text style={{ width: 65, color: "white", fontSize: 7, fontWeight: "bold" }}>PIC</Text>
-        <Text style={{ flex: 1, color: "white", fontSize: 7, fontWeight: "bold" }}>Laporan / Kendala / Foto</Text>
-      </View>
-      {reports.map((r, i) => (
-        <View key={i} wrap={false} style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: "#e7e5e4", padding: 5, backgroundColor: i % 2 === 0 ? "#fff" : ORANGE_LIGHT }}>
-          <Text style={{ width: 52, fontSize: 7.5, color: GRAY }}>{fmtDate(r.tanggal)}</Text>
-          <Text style={{ width: 65, fontSize: 7.5, color: GRAY }}>{r.pic_name}</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 8 }}>{r.kegiatan}</Text>
-            {r.kendala ? <Text style={{ fontSize: 7.5, color: "#92400e", marginTop: 2 }}>Kendala: {r.kendala}</Text> : null}
-            {!!r.images?.length && <View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "flex-start", marginTop: 3 }}>{r.images.map((img, j) => <Image key={j} src={img} style={{ width: 48, height: 48, marginRight: 3, marginBottom: 2, objectFit: "contain" }} />)}</View>}
-          </View>
-        </View>
-      ))}
     </View>
   );
 }

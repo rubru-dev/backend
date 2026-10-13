@@ -119,14 +119,13 @@ router.get("/leads-dropdown", async (req: Request, res: Response) => {
 
 // GET /projeks
 router.get("/projeks", async (req: Request, res: Response) => {
-  const { page, limit, skip } = getPagination(req.query);
+  const { page, limit } = getPagination(req.query);
   const search = req.query.search as string | undefined;
+  const isSuperAdmin = req.user?.roles?.some((r: any) => r.role.name === "Super Admin") ?? false;
 
   const where = search ? { nama_proyek: { contains: search, mode: "insensitive" as const } } : {};
 
-  const [total, items] = await Promise.all([
-    prisma.proyekBerjalan.count({ where }),
-    prisma.proyekBerjalan.findMany({
+  const items = await prisma.proyekBerjalan.findMany({
       where,
       include: {
         termins: {
@@ -137,10 +136,7 @@ router.get("/projeks", async (req: Request, res: Response) => {
         ro: { select: { id: true, name: true } },
       },
       orderBy: { id: "desc" },
-      skip,
-      take: limit,
-    }),
-  ]);
+    });
 
   const mapped = items.map((p) => {
     const allTasks = p.termins.flatMap((t) => t.tasks);
@@ -159,7 +155,8 @@ router.get("/projeks", async (req: Request, res: Response) => {
       progress: calcProgress(allTasks),
     };
   });
-  return res.json(paginateResponse(mapped, total, page, limit));
+  const visible = isSuperAdmin ? mapped : mapped.filter((project) => project.progress < 100);
+  return res.json(paginateResponse(visible, visible.length, page, limit));
 });
 
 // POST /projeks
@@ -203,6 +200,10 @@ router.get("/projeks/:id", async (req: Request, res: Response) => {
   if (!p) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
 
   const allTasks = p.termins.flatMap((t) => t.tasks);
+  const isSuperAdmin = req.user?.roles?.some((r: any) => r.role.name === "Super Admin") ?? false;
+  if (!isSuperAdmin && calcProgress(allTasks) === 100) {
+    return res.status(404).json({ detail: "Proyek tidak ditemukan" });
+  }
   return res.json({
     id: p.id,
     nama_proyek: p.nama_proyek,

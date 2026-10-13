@@ -410,7 +410,8 @@ function calcProgressTasks(tasks: { status: string | null }[]): number {
 }
 
 // GET /interior/projeks
-router.get("/projeks", async (_req: Request, res: Response) => {
+router.get("/projeks", async (req: Request, res: Response) => {
+  const isSuperAdmin = req.user?.roles?.some((r: any) => r.role.name === "Super Admin") ?? false;
   const items = await prisma.proyekInterior.findMany({
     include: {
       termins: { include: { tasks: true }, orderBy: { urutan: "asc" } },
@@ -418,7 +419,7 @@ router.get("/projeks", async (_req: Request, res: Response) => {
     },
     orderBy: { id: "desc" },
   });
-  return res.json(items.map((p) => {
+  const mapped = items.map((p) => {
     const allTasks = p.termins.flatMap((t) => t.tasks);
     return {
       id: p.id,
@@ -433,7 +434,8 @@ router.get("/projeks", async (_req: Request, res: Response) => {
       tasks_selesai: allTasks.filter((t) => t.status === "Selesai").length,
       progress: calcProgressTasks(allTasks),
     };
-  }));
+  });
+  return res.json(isSuperAdmin ? mapped : mapped.filter((project) => project.progress < 100));
 });
 
 // POST /interior/projeks
@@ -475,6 +477,10 @@ router.get("/projeks/:id", async (req: Request, res: Response) => {
   if (!p) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
 
   const allTasks = p.termins.flatMap((t) => t.tasks);
+  const isSuperAdmin = req.user?.roles?.some((r: any) => r.role.name === "Super Admin") ?? false;
+  if (!isSuperAdmin && calcProgressTasks(allTasks) === 100) {
+    return res.status(404).json({ detail: "Proyek tidak ditemukan" });
+  }
   return res.json({
     id: p.id,
     nama_proyek: p.nama_proyek,

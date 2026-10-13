@@ -33,6 +33,14 @@ type Projek = {
 };
 
 const EMPTY_FORM = { nama_proyek: "", lead_id: "", ro_id: "", lokasi: "", tanggal_mulai: "", tanggal_selesai: "" };
+const PROGRESS_FILTERS = [
+  { value: "all", label: "Semua progress" },
+  { value: "0-25", label: "0% - 25%" },
+  { value: "26-50", label: "26% - 50%" },
+  { value: "51-75", label: "51% - 75%" },
+  { value: "76-99", label: "76% - 99%" },
+  { value: "100", label: "100%" },
+] as const;
 
 export default function ProyekSipilListPage() {
   const router = useRouter();
@@ -45,12 +53,20 @@ export default function ProyekSipilListPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [leadSearch, setLeadSearch] = useState("");
+  const [progressFilter, setProgressFilter] = useState<(typeof PROGRESS_FILTERS)[number]["value"]>("all");
   const deferredLeadSearch = useDeferredValue(leadSearch);
 
   const { data: projeks = [], isLoading } = useQuery<Projek[]>({
     queryKey: ["sipil-projeks"],
     queryFn: () => sipilApi.listProjeks(),
     retry: false,
+  });
+
+  const visibleProjeks = projeks.filter((project) => {
+    if (progressFilter === "all") return true;
+    if (progressFilter === "100") return project.progress === 100;
+    const [min, max] = progressFilter.split("-").map(Number);
+    return project.progress >= min && project.progress <= max;
   });
 
   const { data: leads = [] } = useQuery<{ id: string; nama: string }[]>({
@@ -151,6 +167,14 @@ export default function ProyekSipilListPage() {
         {canCreateProjek && <Button onClick={openCreate}><Plus className="h-4 w-4 mr-1.5" /> Tambah Proyek</Button>}
       </div>
 
+      <div className="flex items-center gap-3">
+        <Label htmlFor="sipil-progress-filter" className="text-sm whitespace-nowrap">Filter progress</Label>
+        <Select value={progressFilter} onValueChange={(value) => setProgressFilter(value as typeof progressFilter)}>
+          <SelectTrigger id="sipil-progress-filter" className="w-[180px]"><SelectValue /></SelectTrigger>
+          <SelectContent>{PROGRESS_FILTERS.map((filter) => <SelectItem key={filter.value} value={filter.value}>{filter.label}</SelectItem>)}</SelectContent>
+        </Select>
+      </div>
+
       {/* Mobile: kartu */}
       <div className="block sm:hidden space-y-3">
         {isLoading && Array.from({ length: 3 }).map((_, i) => (
@@ -158,7 +182,7 @@ export default function ProyekSipilListPage() {
             <Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-2 w-full mt-1" />
           </div>
         ))}
-        {!isLoading && projeks.map((p) => (
+        {!isLoading && visibleProjeks.map((p) => (
           <div
             key={p.id}
             className="border rounded-lg p-4 space-y-2.5 cursor-pointer hover:bg-muted/30 active:bg-muted/50 transition-colors"
@@ -201,7 +225,7 @@ export default function ProyekSipilListPage() {
             </div>
           </div>
         ))}
-        {!isLoading && projeks.length === 0 && (
+        {!isLoading && visibleProjeks.length === 0 && (
           <div className="text-center py-16 text-muted-foreground">
             <Building2 className="mx-auto h-10 w-10 opacity-20 mb-3" />
             <p className="font-medium">Belum ada Projek Sipil</p>
@@ -233,7 +257,7 @@ export default function ProyekSipilListPage() {
                 ))}
               </TableRow>
             ))}
-            {!isLoading && projeks.map((p) => (
+            {!isLoading && visibleProjeks.map((p) => (
               <TableRow key={p.id} className="cursor-pointer hover:bg-muted/40 transition-colors" onClick={() => router.push(`/projek/sipil/${p.id}`)}>
                 <TableCell>
                   <div className="flex items-center gap-2 font-medium">
