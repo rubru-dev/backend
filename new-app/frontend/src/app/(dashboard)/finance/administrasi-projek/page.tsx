@@ -19,7 +19,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import {
   Plus, Calculator, ChevronLeft, ChevronRight, ChevronDown, Trash2, Truck, UserCheck, Banknote, Receipt,
   TrendingUp, Package, ClipboardList, Upload, Eye, Pencil, CheckCircle, XCircle,
-  ArrowRight, FileDown, PenLine, Wallet, ShieldCheck, Camera, Images, X, Loader2,
+  ArrowRight, ArrowDownUp, FileDown, PenLine, Wallet, ShieldCheck, Camera, Images, X, Loader2,
 } from "lucide-react";
 import { pdf } from "@react-pdf/renderer";
 import dynamic from "next/dynamic";
@@ -1909,12 +1909,18 @@ const PR_STATUS_COLOR: Record<string, string> = {
 
 const PR_ITEMS_PER_PAGE = 5;
 
+function prNumberValue(value: unknown) {
+  const match = String(value ?? "").match(/(\d+)$/);
+  return match ? Number(match[1]) : -1;
+}
+
 function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjalanId?: number }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [expandedPRs, setExpandedPRs] = useState<Set<number>>(new Set());
   const [filterStart, setFilterStart] = useState("");
   const [filterEnd, setFilterEnd] = useState("");
+  const [prSort, setPrSort] = useState<"asc" | "desc">("desc");
   const [editPRId, setEditPRId] = useState<number | null>(null);
   const [editHadSignature, setEditHadSignature] = useState(false);
   const [prSigDialog, setPrSigDialog] = useState<{ open: boolean; prId: number | null }>({ open: false, prId: null });
@@ -2282,9 +2288,14 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
   const prNeedsHF = form.items.some(itemNeedsHF);
 
   const allItems: any[] = Array.isArray(data) ? data : data?.items ?? [];
-  const items = allItems.filter((pr: any) => {
+  const filteredItems = allItems.filter((pr: any) => {
     const date = String(pr.tanggal ?? "").slice(0, 10);
     return (!filterStart || date >= filterStart) && (!filterEnd || date <= filterEnd);
+  });
+  const items = [...filteredItems].sort((a: any, b: any) => {
+    const numberDiff = prNumberValue(a.nomor_pr) - prNumberValue(b.nomor_pr);
+    if (numberDiff !== 0) return prSort === "asc" ? numberDiff : -numberDiff;
+    return Number(a.id) - Number(b.id) || 0;
   });
 
   function togglePR(id: number) {
@@ -2332,7 +2343,17 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
       <Table>
         <TableHeader>
           <TableRow className="bg-muted/50">
-            <TableHead>No. PR</TableHead>
+            <TableHead aria-sort={prSort === "asc" ? "ascending" : "descending"}>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1.5 font-medium hover:text-foreground"
+                onClick={() => setPrSort((current) => current === "asc" ? "desc" : "asc")}
+              >
+                No. PR
+                <ArrowDownUp className="h-3.5 w-3.5" aria-hidden="true" />
+                <span className="sr-only">Urutkan {prSort === "asc" ? "menurun" : "menaik"}</span>
+              </button>
+            </TableHead>
             <TableHead>Tanggal</TableHead>
             <TableHead>Nama Toko</TableHead>
             <TableHead className="text-right">Est. Nilai</TableHead>

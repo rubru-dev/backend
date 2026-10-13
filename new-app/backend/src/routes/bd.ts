@@ -10,6 +10,7 @@ import { deliver, sendNotifToRoles, triggerEventReminder, NOTIFY_USER_SELECT, FR
 import { sendSurveyScheduledReminder } from "../lib/hardcodedReminderScheduler";
 import { syncInstagram, syncInstagramAccountLevel, syncYouTube } from "../lib/socialSync";
 import { config } from "../config";
+import { summarizeWithSumoPod } from "../lib/sumopod";
 
 const router = Router();
 
@@ -2027,6 +2028,29 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
       })),
     },
   });
+});
+
+// Ringkasan laporan BD dibuat di backend agar API key SumoPod tidak pernah
+// terkirim ke browser. Data yang dikirim ke provider sudah dipadatkan di
+// frontend menjadi metrik dan daftar campaign teratas saja.
+router.post("/report-analytics/summary", requirePermission("bd", "view"), async (req: Request, res: Response) => {
+  const periodLabel = String(req.body?.period_label ?? "periode terpilih").slice(0, 120);
+  const report = req.body?.report;
+  if (!report || typeof report !== "object") return res.status(400).json({ detail: "Data laporan tidak valid." });
+
+  const prompt = [
+    `Periode laporan: ${periodLabel}`,
+    "Data laporan BD dalam JSON:",
+    JSON.stringify(report).slice(0, 30_000),
+  ].join("\n");
+  const summary = await summarizeWithSumoPod([
+    {
+      role: "system",
+      content: "Anda adalah analis paid media dan business development. Buat ringkasan laporan dalam Bahasa Indonesia yang singkat dan mudah dipahami manajemen. Gunakan format: Kesimpulan, Performa utama, Hal yang perlu diperhatikan, dan Rekomendasi. Jangan mengarang angka; jika data kosong sebutkan bahwa data tidak tersedia.",
+    },
+    { role: "user", content: prompt },
+  ]);
+  return res.json({ provider: "sumopod", model: config.sumopodModel, summary, generated_at: new Date().toISOString() });
 });
 
 router.post("/meta-ads/campaigns/:id/sync", async (req: Request, res: Response) => {
