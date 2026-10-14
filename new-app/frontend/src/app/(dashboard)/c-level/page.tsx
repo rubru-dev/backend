@@ -1,12 +1,23 @@
 "use client";
 
-import { FormEvent, KeyboardEvent, useState } from "react";
-import { FileSpreadsheet, Loader2, MessageSquareText, Send, ShieldCheck } from "lucide-react";
+import { FormEvent, KeyboardEvent, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, MessageSquareText, Send, ShieldCheck } from "lucide-react";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { useAuthStore } from "@/store/authStore";
 
 type Message = { role: "user" | "assistant"; content: string };
+
+function formatAssistantText(content: string) {
+  return content
+    .replace(/^\s*#{1,6}\s*/gm, "")
+    .replace(/^\s*[-*]\s+/gm, "• ")
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/`([^`]+)`/g, "$1")
+    .trim();
+}
 
 const STARTER_QUESTIONS = [
   "Bagaimana kondisi leads, invoice, dan proyek saat ini?",
@@ -15,10 +26,18 @@ const STARTER_QUESTIONS = [
 ];
 
 export default function CLevelPage() {
+  const router = useRouter();
+  const { _hasHydrated, isSuperAdmin } = useAuthStore();
   const [messages, setMessages] = useState<Message[]>([]);
   const [question, setQuestion] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (_hasHydrated && !isSuperAdmin()) router.replace("/dashboard");
+  }, [_hasHydrated, isSuperAdmin, router]);
+
+  if (!_hasHydrated || !isSuperAdmin()) return null;
 
   async function ask(event?: FormEvent) {
     event?.preventDefault();
@@ -61,7 +80,7 @@ export default function CLevelPage() {
         <div className="flex items-center gap-2 border-b px-4 py-3"><MessageSquareText className="h-4 w-4 text-teal-700" /><div><h2 className="text-sm font-semibold">Diskusi & Analisa</h2><p className="text-xs text-muted-foreground">Pertanyaan hanya dijawab dari konteks data aplikasi.</p></div></div>
         <div className="flex-1 space-y-4 overflow-y-auto p-4">
           {!messages.length && <div className="flex min-h-[360px] flex-col items-center justify-center text-center"><div className="mb-4 rounded-full border bg-teal-50 p-3 text-teal-700"><MessageSquareText className="h-6 w-6" /></div><h3 className="text-base font-semibold">Mulai dari pertanyaan bisnis</h3><p className="mt-1 max-w-md text-sm text-muted-foreground">Gunakan periode, modul, atau metrik yang tersedia. AI akan menolak topik yang tidak berhubungan dengan aplikasi.</p></div>}
-          {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[90%] whitespace-pre-wrap rounded-lg px-3 py-2.5 text-sm leading-6 sm:max-w-[78%] ${message.role === "user" ? "bg-primary text-primary-foreground" : "border bg-background"}`}><p className="mb-1 text-[11px] font-medium opacity-70">{message.role === "user" ? "Anda" : "Analisa aplikasi"}</p>{message.content}</div></div>)}
+          {messages.map((message, index) => <div key={`${message.role}-${index}`} className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}><div className={`max-w-[90%] whitespace-pre-wrap rounded-lg px-3 py-2.5 text-sm leading-6 sm:max-w-[78%] ${message.role === "user" ? "bg-primary text-primary-foreground" : "border bg-background"}`}><p className="mb-1 text-[11px] font-medium opacity-70">{message.role === "user" ? "Anda" : "Analisa aplikasi"}</p>{message.role === "assistant" ? formatAssistantText(message.content) : message.content}</div></div>)}
           {loading && <div className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" />Menyusun analisa dari data aplikasi...</div>}
           {error && <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{error}</div>}
         </div>
@@ -70,7 +89,6 @@ export default function CLevelPage() {
 
       <aside className="space-y-4">
         <section className="rounded-lg border bg-card p-4"><div className="mb-3 flex items-center gap-2"><MessageSquareText className="h-4 w-4 text-teal-700" /><h2 className="text-sm font-semibold">Contoh pertanyaan</h2></div><div className="space-y-2">{STARTER_QUESTIONS.map((item) => <button type="button" key={item} onClick={() => setQuestion(item)} className="min-h-11 w-full rounded-md border px-3 py-2 text-left text-xs leading-5 transition-colors hover:bg-muted">{item}</button>)}</div></section>
-        <section className="rounded-lg border bg-card p-4"><div className="mb-2 flex items-center gap-2"><FileSpreadsheet className="h-4 w-4 text-teal-700" /><h2 className="text-sm font-semibold">Sumber data manual</h2></div><p className="text-xs leading-5 text-muted-foreground">Kelola import Excel dan template data BD dari menu Import Data Manual.</p><a href="/bd/import-data" className="mt-3 inline-flex min-h-11 items-center text-sm font-medium text-teal-700 hover:underline">Buka import data</a></section>
       </aside>
     </div>
   </div>;

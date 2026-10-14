@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import multer from "multer";
 import * as XLSX from "xlsx";
 import { prisma } from "../lib/prisma";
-import { requireAnyPermission, requirePermission } from "../middleware/requireRole";
+import { requireAnyPermission, requireRole } from "../middleware/requireRole";
 import { summarizeWithSumoPod } from "../lib/sumopod";
 import { config } from "../config";
 
@@ -202,11 +202,22 @@ function isAllowedQuestion(question: string, hasHistory: boolean) {
 }
 
 async function buildContext() {
-  const [leadCount, leadStatuses, invoiceAgg, invoiceStatuses, campaignCount, adsAgg, projectCount, interiorCount, designCount, latestImports] = await Promise.all([
+  const [leadCount, leadStatuses, invoiceAgg, invoiceStatuses, invoiceMonthly, campaignCount, adsAgg, projectCount, interiorCount, designCount, latestImports] = await Promise.all([
     prisma.lead.count(),
     prisma.lead.groupBy({ by: ["status"], _count: { _all: true }, orderBy: { _count: { status: "desc" } } }),
     prisma.invoice.aggregate({ _count: { _all: true }, _sum: { grand_total: true } }),
     prisma.invoice.groupBy({ by: ["status"], _count: { _all: true } }),
+    prisma.$queryRaw<Array<{ bulan: string; status: string; jumlah_invoice: number; nominal: unknown }>>`
+      SELECT
+        TO_CHAR(DATE_TRUNC('month', COALESCE(tanggal, created_at)), 'YYYY-MM') AS bulan,
+        status,
+        COUNT(*)::int AS jumlah_invoice,
+        COALESCE(SUM(grand_total), 0) AS nominal
+      FROM invoices
+      GROUP BY 1, 2
+      ORDER BY 1 DESC, 2 ASC
+      LIMIT 120
+    `,
     prisma.metaAdsCampaign.count({ where: { is_hidden: false } }),
     prisma.adContentMetric.aggregate({ _sum: { spend: true, impressions: true, reach: true, clicks: true, conversions: true } }),
     prisma.proyekBerjalan.count(),
@@ -215,23 +226,33 @@ async function buildContext() {
     prisma.cLevelImportBatch.findMany({ where: { status: "completed" }, orderBy: { created_at: "desc" }, take: 5, select: { file_name: true, rows_imported: true, completed_at: true } }),
   ]);
   return {
-    batasan: "Ini adalah snapshot agregat dari database aplikasi Rubah Rumah. Tidak ada browsing atau sumber eksternal.",
+    batasan: "Ini adalah snapshot data dari database aplikasi Rubah Rumah, termasuk ringkasan bulanan yang tersedia. Tidak ada browsing atau sumber eksternal.",
     leads: { total: leadCount, per_status: leadStatuses.map((item) => ({ status: item.status ?? "Tanpa status", jumlah: item._count._all })) },
-    finance: { invoice_total: invoiceAgg._count._all, invoice_nominal_total: Number(invoiceAgg._sum.grand_total ?? 0), invoice_per_status: invoiceStatuses.map((item) => ({ status: item.status, jumlah: item._count._all })) },
+    finance: {
+      invoice_total: invoiceAgg._count._all,
+      invoice_nominal_total: Number(invoiceAgg._sum.grand_total ?? 0),
+      invoice_per_status: invoiceStatuses.map((item) => ({ status: item.status, jumlah: item._count._all })),
+      invoice_per_bulan: invoiceMonthly.map((item) => ({
+        bulan: item.bulan,
+        status: item.status,
+        jumlah_invoice: Number(item.jumlah_invoice),
+        nominal: Number(item.nominal ?? 0),
+      })),
+    },
     bd_ads: { campaign_total: campaignCount, metric_spend: Number(adsAgg._sum.spend ?? 0), impressions: Number(adsAgg._sum.impressions ?? 0), reach: Number(adsAgg._sum.reach ?? 0), clicks: Number(adsAgg._sum.clicks ?? 0), conversions: Number(adsAgg._sum.conversions ?? 0) },
     projects: { sipil: projectCount, interior: interiorCount, desain: designCount },
     import_manual_terakhir: latestImports,
   };
 }
 
-router.post("/ai/chat", requirePermission("c_level", "ai"), async (req: Request, res: Response) => {
+router.post("/ai/chat", requireRole("Super Admin"), async (req: Request, res: Response) => {
   const question = text(req.body?.question, 4000);
   const history = Array.isArray(req.body?.history) ? req.body.history.slice(-8).filter((item: any) => ["user", "assistant"].includes(item?.role) && typeof item?.content === "string").map((item: any) => ({ role: item.role, content: text(item.content, 4000) })) : [];
   if (!question) return res.status(400).json({ detail: "Pertanyaan wajib diisi." });
   if (!isAllowedQuestion(question, history.length > 0)) return res.status(422).json({ detail: "Saya hanya dapat membantu menganalisa data dan proses yang tersedia di aplikasi Rubah Rumah." });
   const context = await buildContext();
   const answer = await summarizeWithSumoPod([
-    { role: "system", content: "Anda adalah asisten diskusi C-Level untuk aplikasi Rubah Rumah. Jawab hanya berdasarkan DATA APLIKASI yang diberikan pada pesan ini. Jangan browsing, jangan memakai pengetahuan eksternal, jangan menebak angka, dan jangan mengarang data. Jika pertanyaan di luar data aplikasi atau data tidak cukup, katakan dengan jelas bahwa data tidak tersedia atau topik berada di luar cakupan. Fokus pada ringkasan, hubungan antar-metrik, risiko, dan langkah tindak lanjut yang relevan dengan operasi perusahaan. Gunakan Bahasa Indonesia yang singkat dan terstruktur." },
+    { role: "system", content: "Anda adalah asisten diskusi C-Level untuk aplikasi Rubah Rumah. Jawab hanya berdasarkan DATA APLIKASI yang diberikan pada pesan ini. Jangan browsing, jangan memakai pengetahuan eksternal, jangan menebak angka, dan jangan mengarang data. Untuk pertanyaan penjualan bulanan, gunakan finance.invoice_per_bulan dan hitung/urutkan hanya dari data tersebut; jangan mengatakan breakdown bulanan tidak tersedia jika array itu berisi data. Jelaskan bahwa nominal invoice per bulan adalah nilai invoice berdasarkan tanggal invoice, atau created_at bila tanggal invoice kosong, bukan otomatis kas yang sudah diterima. Jika pertanyaan di luar data aplikasi atau data tidak cukup, katakan dengan jelas bahwa data tidak tersedia atau topik berada di luar cakupan. Gunakan Bahasa Indonesia yang natural dan langsung ke inti: mulai dengan kesimpulan singkat, lalu rincian seperlunya. Jangan gunakan heading Markdown, tanda pagar (#), tabel, atau format yang terasa seperti laporan teknis. Gunakan paragraf pendek dan bullet sederhana dengan tanda • jika perlu. Fokus pada ringkasan, hubungan antar-metrik, risiko, dan langkah tindak lanjut yang relevan dengan operasi perusahaan." },
     ...history,
     { role: "user", content: `DATA APLIKASI:\n${JSON.stringify(context).slice(0, 40_000)}\n\nPERTANYAAN:\n${question}` },
   ]);

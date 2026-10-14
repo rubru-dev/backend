@@ -19,10 +19,23 @@ export interface NavGroup {
   roles: string[];        // fallback: role-based check (backward compat)
   permission: string;     // primary: show if user has this permission (e.g. "bd.view")
   alwaysShow?: boolean;   // show to all logged-in users regardless of role/permission
+  superAdminOnly?: boolean;
   items: NavItem[];
 }
 
 export const NAV_GROUPS: NavGroup[] = [
+  // Ruang diskusi manajemen. Hanya Super Admin yang dapat membuka dashboard ini.
+  {
+    title: "Dashboard C-Level",
+    color: "#0f766e",
+    permission: "c_level.view",
+    roles: ["Super Admin"],
+    superAdminOnly: true,
+    items: [
+      { label: "Diskusi & Analisa AI", href: "/c-level", icon: "MessageSquareText", permission: "c_level.ai", superAdminOnly: true },
+    ],
+  },
+
   // ── BD ───────────────────────────────────────────────────────────────────────
   // Group: bd.view | Items: bd.dashboard, bd.kanban, bd.meta_ads
   {
@@ -36,17 +49,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Kanban BD",     href: "/bd/kanban",     icon: "Kanban",          permission: "bd.kanban" },
       { label: "Meta Ads",      href: "/bd/meta-ads",   icon: "TrendingUp",      permission: "bd.meta_ads" },
       { label: "Import Data Manual", href: "/bd/import-data", icon: "FileSpreadsheet", permission: "bd.import_data" },
-    ],
-  },
-
-  // Ruang diskusi manajemen. Akses dipisahkan dari modul operasional BD.
-  {
-    title: "Dashboard C-Level",
-    color: "#0f766e",
-    permission: "c_level.view",
-    roles: [],
-    items: [
-      { label: "Diskusi & Analisa AI", href: "/c-level", icon: "MessageSquareText", permission: "c_level.ai" },
     ],
   },
 

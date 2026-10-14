@@ -131,6 +131,7 @@ export function Sidebar({ className }: { className?: string }) {
 
   // Filter nav groups: permission-based (primary) with role-based fallback
   const visibleGroups = NAV_GROUPS.filter((group) => {
+    if (group.superAdminOnly && !isSuperAdmin()) return false;
     if (group.alwaysShow) return true;                       // Tutorial dll: semua user
     if (isSuperAdmin()) return true;                         // Super Admin sees all
     // Permission-based check (new system)
