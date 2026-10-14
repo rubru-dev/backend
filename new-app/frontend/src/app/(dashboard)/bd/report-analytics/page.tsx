@@ -3,13 +3,14 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, FileSpreadsheet, Search } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ComparisonPeriodDialog, comparisonQuery, defaultComparisonPeriod } from "@/components/bd/comparison-period-dialog";
+import { useAuthStore } from "@/store/authStore";
 
 const MONTHS = ["Januari", "Februari", "Maret", "April", "Mei", "Juni", "Juli", "Agustus", "September", "Oktober", "November", "Desember"];
 const YEARS = Array.from({ length: 10 }, (_, index) => new Date().getFullYear() - index);
@@ -71,6 +72,7 @@ function MultiMetricComparison({ title, metrics, selected, onChange, current, pr
 
 function ReportAnalyticsContent() {
   const searchParams = useSearchParams();
+  const { hasPermission, isSuperAdmin } = useAuthStore();
   const today = new Date();
   const requestedTab = searchParams.get("tab");
   const [activeTab, setActiveTab] = useState(["ads", "social", "funnel", "closing"].includes(requestedTab ?? "") ? requestedTab! : "ads");
@@ -86,6 +88,7 @@ function ReportAnalyticsContent() {
   const [closingCompareMetrics, setClosingCompareMetrics] = useState(["total", "nominal"]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [downloadingTemplate, setDownloadingTemplate] = useState(false);
   useEffect(() => { setPage(1); setSearch(""); }, [activeTab, socialTab]);
   const params = useMemo(() => ({
     ...(startDate || endDate ? { start_date: startDate || undefined, end_date: endDate || undefined } : { bulan: month, tahun: year }),
@@ -104,6 +107,21 @@ function ReportAnalyticsContent() {
   const paginate = (rows: any[]) => rows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
   const changeTab = (value: string) => { setActiveTab(value); const url = new URL(window.location.href); url.searchParams.set("tab", value); window.history.replaceState({}, "", url.toString()); };
   const periodLabel = startDate || endDate ? `${startDate ? date(startDate) : "Awal"} – ${endDate ? date(endDate) : "Sekarang"}` : month ? `${MONTHS[Number(month) - 1]} ${year}` : `seluruh tahun ${year}`;
+  const canImportData = isSuperAdmin() || hasPermission("bd", "import_data");
+  async function downloadImportTemplate() {
+    setDownloadingTemplate(true);
+    try {
+      const response = await apiClient.get("/c-level/template", { responseType: "blob" });
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = "template-import-bd.xlsx";
+      anchor.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setDownloadingTemplate(false);
+    }
+  }
 
   const filteredAds = filterRows(ads, ["campaign_name", "platform", "status"]);
   const socialRows = social.filter((post: any) => String(post.platform).toLowerCase() === socialTab.toLowerCase());
@@ -116,7 +134,7 @@ function ReportAnalyticsContent() {
   const cpc = Number(totals.clicks) ? Number(totals.spend) / Number(totals.clicks) : 0;
   const cpl = Number(totals.result) ? Number(totals.spend) / Number(totals.result) : 0;
   return <div className="space-y-5">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-2xl font-bold">Report dan Analytics BD</h1><p className="text-sm text-muted-foreground">Detail keseluruhan performa pada {periodLabel}.</p></div><div className="flex flex-col gap-2 sm:flex-row print:hidden"><ComparisonPeriodDialog value={comparePeriod} onChange={setComparePeriod} className="w-full sm:max-w-xs" /><Button variant="outline" className="w-full sm:w-auto" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Cetak / PDF</Button></div></div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-2xl font-bold">Report dan Analytics BD</h1><p className="text-sm text-muted-foreground">Detail keseluruhan performa pada {periodLabel}.</p></div><div className="flex flex-col gap-2 sm:flex-row print:hidden">{canImportData && <><Button variant="outline" className="w-full sm:w-auto" onClick={downloadImportTemplate} disabled={downloadingTemplate}><Download className="mr-2 h-4 w-4" />{downloadingTemplate ? "Menyiapkan..." : "Download Template Excel"}</Button><Button variant="outline" className="w-full sm:w-auto" onClick={() => { window.location.href = "/bd/import-data"; }}><FileSpreadsheet className="mr-2 h-4 w-4" />Import Data Excel</Button></>}<ComparisonPeriodDialog value={comparePeriod} onChange={setComparePeriod} className="w-full sm:max-w-xs" /><Button variant="outline" className="w-full sm:w-auto" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Cetak / PDF</Button></div></div>
 
     <div className="grid gap-3 rounded-lg border bg-card p-3 sm:grid-cols-2 xl:grid-cols-5 print:hidden">
       <label className="space-y-1 text-xs text-muted-foreground">Tanggal mulai<Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>

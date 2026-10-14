@@ -10,7 +10,7 @@ import {
   Banknote, Folder, Truck, Home, UserCog, ShieldCheck, Settings,
   ChevronDown, ChevronRight, BarChart2, BookOpen, Globe, Server,
   Building2, Camera, UserCheck, Wallet, CheckCircle,
-  Images, Briefcase, HardHat, Hammer, AlertCircle, FileSpreadsheet, MessageSquareText,
+  Images, Briefcase, HardHat, Hammer, AlertCircle, MessageSquareText,
 } from "lucide-react";
 import { useState } from "react";
 import { cn } from "@/lib/utils";
@@ -25,7 +25,7 @@ const ICON_MAP: Record<string, React.ElementType> = {
   Warehouse, Package, ArrowLeftRight, FileText, Receipt, Calculator,
   Banknote, Folder, Truck, Home, UserCog, ShieldCheck, Settings, BarChart2,
   BookOpen, Globe, Server, Building2, Camera, UserCheck, Wallet, CheckCircle,
-  Images, Briefcase, HardHat, Hammer, AlertCircle, FileSpreadsheet, MessageSquareText,
+  Images, Briefcase, HardHat, Hammer, AlertCircle, MessageSquareText,
 };
 
 function NavIcon({ name, className }: { name: string; className?: string }) {

@@ -34,6 +34,7 @@ const num = (value: unknown) => {
   const parsed = Number(cleaned);
   return Number.isFinite(parsed) ? parsed : 0;
 };
+const firstValue = (row: Record<string, unknown>, ...keys: string[]) => keys.map((key) => row[key]).find((value) => value !== undefined && String(value).trim() !== "");
 const dateValue = (value: unknown) => {
   if (value instanceof Date && !Number.isNaN(value.getTime())) return value;
   const raw = text(value, 30);
@@ -115,19 +116,25 @@ async function importRows(rows: ImportRow[], userId: bigint | undefined) {
       if (!campaign) throw new Error(`Campaign tidak ditemukan: ${text(row.campaign_name) || text(row.meta_campaign_id)}`);
       const date = dateValue(row.date)!;
       if (item.kind === "daily_metric") {
+        const impressions = Math.round(num(row.impressions));
+        const clicks = Math.round(num(row.clicks));
+        const spend = num(row.spend);
+        const conversions = Math.round(num(firstValue(row, "result", "conversions")));
+        const ctr = num(firstValue(row, "ctr")) || (impressions > 0 ? (clicks / impressions) * 100 : 0);
+        const costPerResult = num(firstValue(row, "cpl", "cost_per_result")) || (conversions > 0 ? spend / conversions : 0);
         await tx.adContentMetric.upsert({
           where: { meta_ads_campaign_id_date: { meta_ads_campaign_id: campaign.id, date } },
           update: {
-            impressions: Math.round(num(row.impressions)), reach: Math.round(num(row.reach)), clicks: Math.round(num(row.clicks)),
-            spend: num(row.spend), likes: Math.round(num(row.likes)), comments: Math.round(num(row.comments)), shares: Math.round(num(row.shares)),
-            video_views: Math.round(num(row.video_views)), engagement_rate: num(row.engagement_rate), cost_per_result: num(row.cost_per_result),
-            roas: num(row.roas), frequency: num(row.frequency), conversions: Math.round(num(row.conversions)), data_source: "manual",
+            impressions, reach: Math.round(num(row.reach)), clicks, ctr,
+            spend, likes: Math.round(num(row.likes)), comments: Math.round(num(row.comments)), shares: Math.round(num(row.shares)),
+            video_views: Math.round(num(row.video_views)), engagement_rate: num(row.engagement_rate), cost_per_result: costPerResult,
+            roas: num(row.roas), frequency: num(row.frequency), conversions, data_source: "manual",
           },
           create: {
-            meta_ads_campaign_id: campaign.id, date, impressions: Math.round(num(row.impressions)), reach: Math.round(num(row.reach)),
-            clicks: Math.round(num(row.clicks)), spend: num(row.spend), likes: Math.round(num(row.likes)), comments: Math.round(num(row.comments)),
+            meta_ads_campaign_id: campaign.id, date, impressions, reach: Math.round(num(row.reach)),
+            clicks, ctr, spend, likes: Math.round(num(row.likes)), comments: Math.round(num(row.comments)),
             shares: Math.round(num(row.shares)), video_views: Math.round(num(row.video_views)), engagement_rate: num(row.engagement_rate),
-            cost_per_result: num(row.cost_per_result), roas: num(row.roas), frequency: num(row.frequency), conversions: Math.round(num(row.conversions)), data_source: "manual",
+            cost_per_result: costPerResult, roas: num(row.roas), frequency: num(row.frequency), conversions, data_source: "manual",
           },
         });
       } else {
@@ -157,9 +164,9 @@ router.get("/template", requireAnyPermission("bd.import_data", "c_level.import",
     ["campaign_name", "meta_campaign_id", "platform", "status", "start_date", "end_date", "daily_budget", "total_budget"],
     ["Contoh Campaign", "", "Meta", "aktif", "2026-01-01", "2026-01-31", 0, 0],
   ];
-  const daily = [["date", "campaign_name", "meta_campaign_id", "spend", "impressions", "reach", "clicks", "conversions", "likes", "comments", "shares", "video_views", "engagement_rate", "cost_per_result", "roas", "frequency"], ["2026-01-01", "Contoh Campaign", "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]];
+  const daily = [["date", "campaign_name", "meta_campaign_id", "spend", "result", "impressions", "reach", "clicks", "likes", "comments", "shares", "video_views", "engagement_rate", "roas", "frequency"], ["2026-01-01", "Contoh Campaign", "", 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]];
   const chat = [["date", "campaign_name", "meta_campaign_id", "chats_received", "chats_responded", "avg_response_time", "total_conversions", "response_rate", "conversion_rate"], ["2026-01-01", "Contoh Campaign", "", 0, 0, 0, 0, 0, 0]];
-  const guide = [["Petunjuk"], ["Isi baris data mulai dari baris kedua. Jangan ubah nama sheet dan nama kolom."], ["Tanggal memakai format YYYY-MM-DD. Angka tidak perlu memakai simbol Rupiah."], ["Campaign harus diisi sebelum daily_metrics atau chat_metrics."], ["Hapus baris contoh sebelum upload."]];
+  const guide = [["Petunjuk Pengisian Template BD"], ["Isi data mulai dari baris kedua dan hapus baris contoh sebelum upload."], ["Sheet campaigns berisi daftar campaign. Nama campaign harus sama dengan campaign_name di daily_metrics."], ["Sheet daily_metrics adalah data performa harian: spend, result, impressions, reach, dan clicks."], ["result adalah jumlah hasil/konversi iklan. Template lama dengan kolom conversions tetap didukung."], ["CTR, CPC, dan CPL tidak perlu diisi karena dashboard menghitung otomatis dari data dasar."], ["Tanggal memakai format YYYY-MM-DD. Angka rupiah tidak perlu memakai simbol Rp atau titik pemisah ribuan."], ["Satu campaign pada satu tanggal hanya boleh memiliki satu baris daily_metrics."]];
   for (const [name, data] of [["campaigns", campaigns], ["daily_metrics", daily], ["chat_metrics", chat], ["petunjuk", guide]] as const) XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(data), name);
   const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" });
   res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
