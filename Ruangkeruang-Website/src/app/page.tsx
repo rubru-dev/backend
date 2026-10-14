@@ -1,5 +1,3 @@
-import { redirect } from "next/navigation";
+import RuangkeruangHomePage from "./(public)/ruangkeruang/site/page";
 
-export default function HomePage() {
-  redirect("/ruangkeruang/site");
-}
+export default RuangkeruangHomePage;
