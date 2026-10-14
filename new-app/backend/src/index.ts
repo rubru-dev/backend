@@ -47,6 +47,7 @@ import goldenKanbanAdminRouter from "./routes/goldenKanbanAdmin";
 import goldenKanbanSalesRouter from "./routes/goldenKanbanSales";
 import tutorialRouter from "./routes/tutorial";
 import penawaranRouter from "./routes/penawaran";
+import ruangkeruangRouter from "./routes/ruangkeruang";
 
 // BigInt serialization fix
 (BigInt.prototype as unknown as { toJSON: () => string }).toJSON = function () {
@@ -176,9 +177,11 @@ app.use("/api/v1/notifications", authenticate, notificationsRouter); // auth dih
 
 // Public website routes (no auth — for website-rubahrumah frontend)
 app.use("/v1/public/rb", publicRbRouter);
+app.use("/v1/public/ruangkeruang", ruangkeruangRouter);
 
 // Website admin routes (auth required — for internal dashboard)
 app.use("/api/v1/website", authenticate, websiteAdminRouter);
+app.use("/api/v1/ruangkeruang", authenticate, ruangkeruangRouter);
 
 // Absen Karyawan
 app.use("/api/v1/absen-karyawan", authenticate, absenKaryawanRouter);

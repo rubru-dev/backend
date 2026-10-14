@@ -1,0 +1,49 @@
+const apiUrl = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  output: "standalone",
+  distDir: process.env.NODE_ENV === "development" ? ".next-dev" : ".next",
+
+  typescript: { ignoreBuildErrors: true },
+  eslint: { ignoreDuringBuilds: true },
+
+  transpilePackages: ["@react-pdf/renderer"],
+
+  async headers() {
+    return [{ source: "/sw.js", headers: [{ key: "Cache-Control", value: "no-cache, no-store, must-revalidate" }] }];
+  },
+
+  // Proxy: forward /api/v1/* and /storage/* to Express.js backend
+  async rewrites() {
+    return [
+      {
+        source: "/api/v1/:path*",
+        destination: `${apiUrl}/api/v1/:path*`,
+      },
+      {
+        source: "/storage/:path*",
+        destination: `${apiUrl}/storage/:path*`,
+      },
+    ];
+  },
+
+  images: {
+    formats: ["image/webp"],
+    remotePatterns: [
+      {
+        protocol: "http",
+        hostname: "localhost",
+        port: "3000",
+        pathname: "/storage/**",
+      },
+    ],
+  },
+
+  // Bundle size optimization
+  experimental: {
+    optimizePackageImports: ["lucide-react", "recharts"],
+  },
+};
+
+module.exports = nextConfig;

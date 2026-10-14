@@ -252,6 +252,21 @@ export const NAV_GROUPS: NavGroup[] = [
     ],
   },
 
+  // ── Web Ruangkeruang ───────────────────────────────────────────────────────
+  {
+    title: "Web Ruangkeruang",
+    color: "#c2410c",
+    permission: "ruangkeruang.view",
+    roles: [],
+    items: [
+      { label: "Konfigurasi", href: "/ruangkeruang/config", icon: "Globe", permission: "ruangkeruang.view" },
+      { label: "Layanan", href: "/ruangkeruang/layanan", icon: "Layers", permission: "ruangkeruang.view" },
+      { label: "Portfolio", href: "/ruangkeruang/portfolio", icon: "Images", permission: "ruangkeruang.view" },
+      { label: "Artikel", href: "/ruangkeruang/artikel", icon: "FileText", permission: "ruangkeruang.view" },
+      { label: "Leads", href: "/ruangkeruang/leads", icon: "Inbox", permission: "ruangkeruang.view" },
+    ],
+  },
+
   // ── RubahrumahxGolden ────────────────────────────────────────────────────────
   // Group: golden.view | Items: golden.meta_ads, golden.dashboard_ads, golden.follow_up, golden.kanban_admin, golden.kalender, golden.kalender_after, golden.kanban_sales
   {

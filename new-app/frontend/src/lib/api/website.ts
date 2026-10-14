@@ -88,3 +88,26 @@ export const websiteApi = {
   // ── Leads (read-only) ─────────────────────────────────────────────────────
   listLeads: (params?: any) => apiClient.get("/website/leads", { params }).then((r) => r.data),
 };
+
+export const ruangkeruangApi = {
+  getSettings: () => apiClient.get("/ruangkeruang/settings").then((r) => r.data.data),
+  saveSetting: (key: string, value: unknown) => apiClient.put(`/ruangkeruang/settings/${encodeURIComponent(key)}`, { value }).then((r) => r.data.data),
+  uploadHeroImage: (form: FormData) => apiClient.post("/ruangkeruang/settings/hero-image", form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data.data),
+  listServices: (search?: string) => apiClient.get("/ruangkeruang/services", { params: search ? { search } : undefined }).then((r) => r.data.data),
+  createService: (data: unknown) => apiClient.post("/ruangkeruang/services", data).then((r) => r.data.data),
+  updateService: (id: number | string, data: unknown) => apiClient.patch(`/ruangkeruang/services/${id}`, data).then((r) => r.data.data),
+  deleteService: (id: number | string) => apiClient.delete(`/ruangkeruang/services/${id}`).then((r) => r.data),
+  uploadServiceImage: (id: number | string, form: FormData) => apiClient.post(`/ruangkeruang/services/${id}/image`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data.data),
+  listPortfolios: (search?: string) => apiClient.get("/ruangkeruang/portfolios", { params: search ? { search } : undefined }).then((r) => r.data.data),
+  createPortfolio: (data: unknown) => apiClient.post("/ruangkeruang/portfolios", data).then((r) => r.data.data),
+  updatePortfolio: (id: number | string, data: unknown) => apiClient.patch(`/ruangkeruang/portfolios/${id}`, data).then((r) => r.data.data),
+  deletePortfolio: (id: number | string) => apiClient.delete(`/ruangkeruang/portfolios/${id}`).then((r) => r.data),
+  uploadPortfolioImages: (id: number | string, form: FormData) => apiClient.post(`/ruangkeruang/portfolios/${id}/images`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data.data),
+  deletePortfolioImage: (id: number | string, image: string) => apiClient.delete(`/ruangkeruang/portfolios/${id}/images`, { data: { image } }).then((r) => r.data.data),
+  listArticles: (search?: string) => apiClient.get("/ruangkeruang/articles-admin", { params: search ? { search } : undefined }).then((r) => r.data.data),
+  createArticle: (form: FormData) => apiClient.post("/ruangkeruang/articles-admin", form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data.data),
+  updateArticle: (id: number | string, form: FormData) => apiClient.patch(`/ruangkeruang/articles-admin/${id}`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data.data),
+  deleteArticle: (id: number | string) => apiClient.delete(`/ruangkeruang/articles-admin/${id}`).then((r) => r.data),
+  listLeads: (status?: string) => apiClient.get("/ruangkeruang/leads", { params: status ? { status } : undefined }).then((r) => r.data.data),
+  updateLead: (id: number | string, status: string) => apiClient.patch(`/ruangkeruang/leads/${id}`, { status }).then((r) => r.data.data),
+};
