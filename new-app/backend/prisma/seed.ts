@@ -102,6 +102,10 @@ async function main() {
     { name: "bd.kanban",     module: "bd", label: "Sub-menu: Kanban BD" },
     { name: "bd.meta_ads",   module: "bd", label: "Sub-menu: Meta Ads BD" },
     { name: "bd.report_analytics", module: "bd", label: "Sub-menu: Report dan Analytics BD" },
+    { name: "bd.import_data", module: "bd", label: "Sub-menu: Import Data Manual BD" },
+    { name: "c_level.view", module: "c_level", label: "Lihat Dashboard C-Level" },
+    { name: "c_level.ai", module: "c_level", label: "Gunakan AI Diskusi dan Analisa C-Level" },
+    { name: "c_level.import", module: "c_level", label: "Import Data Manual C-Level" },
     // Kalender Survey actions
     { name: "survey.reschedule", module: "survey", label: "Aksi Kalender Survey: Reschedule" },
     { name: "survey.cancel", module: "survey", label: "Aksi Kalender Survey: Cancel" },
@@ -226,7 +230,7 @@ async function main() {
     "Content Creator", "Copy Writer", "Desain", "PIC Project",
     "Telemarketing", "Sales Admin",
     "Head Finance", "Admin Finance",
-    "Tukang",
+    "Tukang", "C-Level",
   ];
 
   const roleMap: Record<string, bigint> = {};
@@ -259,6 +263,7 @@ async function main() {
     "PIC Project": ["pic.view","pic.create","pic.edit","pic.delete","projek_interior.view"],
     "Head Finance": ["finance.sign_head", "finance.reimburse_all"],
     "Admin Finance": ["finance.sign_admin", "finance.reimburse_all"],
+    "C-Level": ["c_level.view", "c_level.ai", "c_level.import"],
   };
 
   for (const [roleName, permNames] of Object.entries(rolePermissions)) {
@@ -284,7 +289,7 @@ async function main() {
   // Menggunakan createMany + skipDuplicates agar tidak menimpa perubahan manual
   const TUTORIAL_PERMS = ["tutorial.view","tutorial.tutorial_aplikasi","tutorial.api_eksternal","tutorial.deployment"];
   const subMenuRolePerms: Record<string, string[]> = {
-    "BD":            ["bd.dashboard","bd.kanban","bd.meta_ads","bd.report_analytics","absen.submit", ...TUTORIAL_PERMS],
+    "BD":            ["bd.dashboard","bd.kanban","bd.meta_ads","bd.report_analytics","bd.import_data","absen.submit", ...TUTORIAL_PERMS],
     "Content Creator": [
       "content.dashboard_sosmed","content.social_media",
       "content.timelines","content.laporan_harian","content.target",

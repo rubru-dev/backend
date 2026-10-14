@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, Loader2, Search, Sparkles } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Search } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { apiClient } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
@@ -86,9 +86,6 @@ function ReportAnalyticsContent() {
   const [closingCompareMetrics, setClosingCompareMetrics] = useState(["total", "nominal"]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
-  const [aiSummary, setAiSummary] = useState("");
-  const [aiSummaryLoading, setAiSummaryLoading] = useState(false);
-  const [aiSummaryError, setAiSummaryError] = useState("");
   useEffect(() => { setPage(1); setSearch(""); }, [activeTab, socialTab]);
   const params = useMemo(() => ({
     ...(startDate || endDate ? { start_date: startDate || undefined, end_date: endDate || undefined } : { bulan: month, tahun: year }),
@@ -118,28 +115,8 @@ function ReportAnalyticsContent() {
   const cpm = Number(totals.impressions) ? Number(totals.spend) / Number(totals.impressions) * 1000 : 0;
   const cpc = Number(totals.clicks) ? Number(totals.spend) / Number(totals.clicks) : 0;
   const cpl = Number(totals.result) ? Number(totals.spend) / Number(totals.result) : 0;
-  const summaryPayload = useMemo(() => ({
-    ads_totals: totals,
-    top_campaigns: [...filteredAds].sort((a, b) => Number(b.spend ?? 0) - Number(a.spend ?? 0)).slice(0, 10).map((item) => ({
-      campaign_name: item.campaign_name, status: item.status, spend: Number(item.spend ?? 0), result: Number(item.result ?? 0),
-      clicks: Number(item.clicks ?? 0), impressions: Number(item.impressions ?? 0), reach: Number(item.reach ?? 0),
-    })),
-    social: { instagram: data?.ads_organik?.instagram, youtube: data?.ads_organik?.youtube, tiktok: data?.ads_organik?.tiktok },
-    funnel: { total_leads: funnel.total_leads, survey: funnel.survey, dp_desain: funnel.dp_desain, spk: funnel.spk },
-    closing: { total_closing: closing.total_closing, total_nominal: closing.total_nominal, total_sales: closing.total_sales },
-  }), [totals, filteredAds, data, funnel, closing]);
-  const generateAiSummary = async () => {
-    setAiSummaryLoading(true); setAiSummaryError("");
-    try {
-      const response = await apiClient.post("/bd/report-analytics/summary", { period_label: periodLabel, report: summaryPayload });
-      setAiSummary(response.data.summary || "Ringkasan tidak tersedia.");
-    } catch (error: any) {
-      setAiSummaryError(error?.response?.data?.detail || "Ringkasan AI gagal dibuat.");
-    } finally { setAiSummaryLoading(false); }
-  };
-  const SummaryIcon = aiSummaryLoading ? Loader2 : Sparkles;
   return <div className="space-y-5">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-2xl font-bold">Report dan Analytics BD</h1><p className="text-sm text-muted-foreground">Detail keseluruhan performa pada {periodLabel}.</p></div><div className="flex flex-col gap-2 sm:flex-row print:hidden"><ComparisonPeriodDialog value={comparePeriod} onChange={setComparePeriod} className="w-full sm:max-w-xs" /><Button variant="outline" className="w-full sm:w-auto" onClick={generateAiSummary} disabled={aiSummaryLoading || isLoading}><SummaryIcon className={`mr-2 h-4 w-4 ${aiSummaryLoading ? "animate-spin" : ""}`} />{aiSummaryLoading ? "Menganalisis..." : "Ringkas dengan AI"}</Button><Button variant="outline" className="w-full sm:w-auto" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Cetak / PDF</Button></div></div>
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="text-2xl font-bold">Report dan Analytics BD</h1><p className="text-sm text-muted-foreground">Detail keseluruhan performa pada {periodLabel}.</p></div><div className="flex flex-col gap-2 sm:flex-row print:hidden"><ComparisonPeriodDialog value={comparePeriod} onChange={setComparePeriod} className="w-full sm:max-w-xs" /><Button variant="outline" className="w-full sm:w-auto" onClick={() => window.print()}><Download className="mr-2 h-4 w-4" />Cetak / PDF</Button></div></div>
 
     <div className="grid gap-3 rounded-lg border bg-card p-3 sm:grid-cols-2 xl:grid-cols-5 print:hidden">
       <label className="space-y-1 text-xs text-muted-foreground">Tanggal mulai<Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} /></label>
@@ -149,8 +126,6 @@ function ReportAnalyticsContent() {
       <div className="flex items-end"><div className="grid h-10 w-full grid-cols-2 rounded-md border bg-muted/30 p-1"><button type="button" onClick={() => setAdsSource("actual")} className={`rounded text-xs ${adsSource === "actual" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>Actual Meta</button><button type="button" onClick={() => setAdsSource("manual")} className={`rounded text-xs ${adsSource === "manual" ? "bg-background shadow-sm" : "text-muted-foreground"}`}>Data lokal</button></div></div>
       {(startDate || endDate) && <div className="flex items-center justify-between sm:col-span-2 xl:col-span-5"><p className="text-xs text-muted-foreground">Rentang tanggal aktif; bulan dan tahun dinonaktifkan.</p><Button size="sm" variant="ghost" onClick={() => { setStartDate(""); setEndDate(""); }}>Reset tanggal</Button></div>}
     </div>
-
-    {(aiSummary || aiSummaryError) && <section className="rounded-lg border-2 border-primary/20 bg-primary/[0.03] p-4 print:hidden"><div className="mb-2 flex items-center justify-between gap-3"><h2 className="flex items-center gap-2 text-sm font-bold"><Sparkles className="h-4 w-4 text-primary" />Ringkasan AI SumoPod</h2>{aiSummary && <span className="text-[11px] text-muted-foreground">Periode {periodLabel}</span>}</div>{aiSummaryError ? <p className="text-sm text-destructive">{aiSummaryError}</p> : <div className="whitespace-pre-wrap text-sm leading-6">{aiSummary}</div>}</section>}
 
     <Tabs value={activeTab} onValueChange={changeTab}>
       <div className="-mx-4 overflow-x-auto px-4 pb-1 lg:mx-0 lg:px-0 print:hidden"><TabsList className="inline-flex h-auto min-w-max justify-start lg:grid lg:w-full lg:grid-cols-4"><TabsTrigger className="whitespace-nowrap px-4" value="ads">Ads Detail Report</TabsTrigger><TabsTrigger className="whitespace-nowrap px-4" value="social">Social Media Detail Report</TabsTrigger><TabsTrigger className="whitespace-nowrap px-4" value="funnel">Funneling Detail</TabsTrigger><TabsTrigger className="whitespace-nowrap px-4" value="closing">Closing Detail</TabsTrigger></TabsList></div>

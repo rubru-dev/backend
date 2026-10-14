@@ -84,6 +84,24 @@ model AdContentMetric {
   @@map("ad_content_metrics")
 }
 
+model CLevelImportBatch {
+  id            BigInt    @id @default(autoincrement())
+  file_name     String    @db.VarChar(255)
+  status        String    @default("completed") @db.VarChar(30)
+  rows_total    Int       @default(0)
+  rows_imported Int       @default(0)
+  error_count   Int       @default(0)
+  errors        Json      @default("[]")
+  preview_data  Json      @default("[]")
+  uploaded_by   BigInt?
+  created_at    DateTime  @default(now()) @db.Timestamptz(6)
+  completed_at  DateTime?
+  uploader      User?     @relation("CLevelImportUploader", fields: [uploaded_by], references: [id], onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_c_level_import_batches_created_at")
+  @@map("c_level_import_batches")
+}
+
 model AdmFinanceItem {
   id          BigInt            @id @default(autoincrement())
   periode_id  BigInt
@@ -2092,6 +2110,7 @@ model User {
   telemarketing_kanban_cards            TelemarketingKanbanCard[]
   telemarketing_kanban_comments         TelemarketingKanbanComment[]
   client_portal_projects_created        ClientPortalProject[]
+  c_level_import_batches                CLevelImportBatch[]          @relation("CLevelImportUploader")
   absen_karyawans                       AbsenKaryawan[]              @relation("KaryawanAbsen")
   absen_karyawan_approvals              AbsenKaryawan[]              @relation("KaryawanAbsenApprover")
   izin_karyawans                        IzinKaryawan[]               @relation("KaryawanIzin")

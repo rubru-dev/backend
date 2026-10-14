@@ -293,6 +293,7 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "projek_desain.docs",   module: "projek_desain", label: "Tab: Docs/Link Desain" },
   { name: "projek_desain.kanban", module: "projek_desain", label: "Tab: Kanban Pekerjaan Desain" },
   { name: "bd.report_analytics", module: "bd", label: "Sub-menu: Report dan Analytics BD" },
+  { name: "bd.import_data", module: "bd", label: "Sub-menu: Import Data Manual BD" },
   { name: "survey.reschedule", module: "survey", label: "Aksi Kalender Survey: Reschedule" },
   { name: "survey.cancel", module: "survey", label: "Aksi Kalender Survey: Cancel" },
   { name: "survey.report_after", module: "survey", label: "Aksi Kalender Survey: Report After Survey" },
@@ -336,6 +337,9 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "sales.addendum",       module: "sales", label: "Sub-menu: Addendum Kontrak" },
   { name: "ruangkeruang.view",    module: "ruangkeruang", label: "Lihat menu Ruangkeruang" },
   { name: "ruangkeruang.manage",  module: "ruangkeruang", label: "Kelola pengaturan Front End Ruangkeruang" },
+  { name: "c_level.view",          module: "c_level", label: "Lihat Dashboard C-Level" },
+  { name: "c_level.ai",            module: "c_level", label: "Gunakan AI Diskusi dan Analisa C-Level" },
+  { name: "c_level.import",        module: "c_level", label: "Import Data Manual C-Level" },
 ];
 
 // GET /permissions — list all, grouped by module
