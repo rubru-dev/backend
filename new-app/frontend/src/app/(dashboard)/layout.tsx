@@ -86,8 +86,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [isAuthenticated, _hasHydrated, router]);
 
   // Show nothing while store is hydrating to avoid flash
-  if (!_hasHydrated) return null;
-  if (!isAuthenticated) return null;
+  if (!_hasHydrated) return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Memuat aplikasi...</div>;
+  if (!isAuthenticated) return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Mengalihkan ke halaman masuk...</div>;
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">

@@ -669,7 +669,8 @@ export function DashboardHome() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [_hasHydrated, user?.id]);
 
-  if (!_hasHydrated || !user || redirecting) return null;
+  if (!_hasHydrated) return <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">Memuat dashboard...</div>;
+  if (!user || redirecting) return <div className="flex min-h-[60vh] items-center justify-center text-sm text-muted-foreground">Menyiapkan dashboard...</div>;
 
   // Tukang: tampilkan dashboard sederhana dengan tombol ke halaman absen
   if (hasAnyRole("Tukang")) {

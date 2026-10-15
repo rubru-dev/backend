@@ -12,7 +12,9 @@ export function PwaRegister() {
   const [showIosHelp, setShowIosHelp] = useState(false);
 
   useEffect(() => {
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").then((registration) => registration.update()).catch(() => undefined);
+    }
     const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone;
     const dismissed = localStorage.getItem("pwa-install-dismissed") === "1";
     const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);

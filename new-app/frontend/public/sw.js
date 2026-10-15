@@ -1,4 +1,4 @@
-const CACHE = "report-rubru-pwa-v2";
+const CACHE = "report-rubru-pwa-v3";
 const SHELL = ["/offline.html", "/manifest.webmanifest", "/pwa-192.png", "/pwa-512.png", "/maskable-512.png"];
 
 self.addEventListener("install", (event) => {
