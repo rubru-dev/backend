@@ -11,6 +11,31 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
+self.addEventListener("push", (event) => {
+  if (!event.data) return;
+  const data = event.data.json();
+  event.waitUntil(self.registration.showNotification(data.title || "Rubah Rumah", {
+    body: data.body || "Ada notifikasi baru.",
+    icon: "/pwa-192.png",
+    badge: "/pwa-192.png",
+    tag: data.tag || "rubru-notification",
+    data: { url: data.url || "/dashboard" },
+  }));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/dashboard";
+  event.waitUntil(clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+    const existing = windows.find((client) => "focus" in client);
+    if (existing) {
+      existing.navigate(url);
+      return existing.focus();
+    }
+    return clients.openWindow(url);
+  }));
+});
+
 self.addEventListener("fetch", (event) => {
   const request = event.request;
   if (request.method !== "GET") return;

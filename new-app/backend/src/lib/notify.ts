@@ -2,6 +2,7 @@ import { prisma } from "./prisma";
 import { config } from "../config";
 import { sendTelegram } from "./telegram";
 import { sendEmail, isEmailConfigured } from "./email";
+import { createNativeInboxItem, sendNativePush } from "./nativePush";
 
 /**
  * Dispatcher notifikasi multi-channel.
@@ -26,6 +27,7 @@ export type NotifyRecipient = {
 export type DeliveryResult = {
   telegram: boolean;
   email: boolean;
+  push: boolean;
   /** true bila penerima tidak punya channel aktif sama sekali */
   skipped: boolean;
   errors: string[];
@@ -54,7 +56,7 @@ export async function deliver(
   message: string,
   subject?: string,
 ): Promise<DeliveryResult> {
-  const result: DeliveryResult = { telegram: false, email: false, skipped: false, errors: [] };
+  const result: DeliveryResult = { telegram: false, email: false, push: false, skipped: false, errors: [] };
 
   if (user.telegram_chat_id) {
     try {
@@ -78,7 +80,22 @@ export async function deliver(
     }
   }
 
-  result.skipped = !result.telegram && !result.email && result.errors.length === 0;
+  if (user.id) {
+    try {
+      const pushPayload = {
+        title: subject || "Notifikasi Rubah Rumah",
+        body: message.replace(/\*+/g, "").replace(/\n+/g, " ").trim().slice(0, 220),
+        tag: "rubru-reminder",
+        url: "/dashboard",
+      };
+      await createNativeInboxItem(user.id, pushPayload);
+      result.push = await sendNativePush(user.id, pushPayload);
+    } catch (err: any) {
+      result.errors.push(`push: ${err?.message ?? "error"}`);
+    }
+  }
+
+  result.skipped = !result.telegram && !result.email && !result.push && result.errors.length === 0;
   return result;
 }
 
@@ -121,6 +138,18 @@ export async function sendNotifToUserIds(userIds: bigint[], message: string, sub
   if (userIds.length === 0) return;
   const users = await prisma.user.findMany({
     where: { id: { in: userIds }, NOT: { email: { startsWith: "deleted+" } } },
+    select: NOTIFY_USER_SELECT,
+  });
+  await deliverMany(users, message, subject);
+}
+
+/** Invoice adalah notifikasi manajemen: hanya Super Admin yang menerima. */
+export async function sendNotifToSuperAdmins(message: string, subject?: string) {
+  const users = await prisma.user.findMany({
+    where: {
+      roles: { some: { role: { name: "Super Admin" } } },
+      NOT: { email: { startsWith: "deleted+" } },
+    },
     select: NOTIFY_USER_SELECT,
   });
   await deliverMany(users, message, subject);

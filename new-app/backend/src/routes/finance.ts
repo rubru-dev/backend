@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { requireRole, requirePermission, requireModuleAccess } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
-import { sendNotifToRoles, triggerEventReminder, FRONTEND_URL } from "../lib/notify";
+import { sendNotifToRoles, sendNotifToSuperAdmins, triggerEventReminder, FRONTEND_URL } from "../lib/notify";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
@@ -1079,11 +1079,6 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
   });
   const clientName = leadDisplayName((inv as any).lead) || "—";
   const totalAmt = new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(Number(inv.grand_total));
-  triggerEventReminder("invoice_sign_head", {
-    nomor_invoice: inv.invoice_number ?? "—",
-    klien: clientName,
-    total: String(Number(inv.grand_total)),
-  }).catch(() => {});
   return res.status(201).json(invoiceDictFrontend(inv));
 });
 
@@ -1230,13 +1225,10 @@ router.post("/invoices/:id/sign-head", requirePermission("finance", "sign_head")
   });
   const invFull = await prisma.invoice.findUnique({ where: { id }, include: { lead: true } });
   const clientName2 = leadDisplayName((invFull as any)?.lead) || "—";
-  triggerEventReminder("invoice_sign_head", {
-    nomor_invoice: inv.invoice_number ?? "—",
-    klien: clientName2,
-    total: String(Number(inv.grand_total ?? 0)),
-    status: newStatus,
-    aksi: "Ditandatangani — Status: Terbit",
-  }).catch(() => {});
+  sendNotifToSuperAdmins(
+    `Invoice terbit\nNomor: ${inv.invoice_number ?? "-"}\nKlien: ${clientName2}\nTotal: Rp ${Number(inv.grand_total ?? 0).toLocaleString("id-ID")}\nStatus: Terbit\n\n${FRONTEND_URL}/finance/invoice`,
+    "Invoice terbit",
+  ).catch(() => {});
   return res.json({ message: "Tanda tangan Head Finance disimpan", status: newStatus });
 });
 
@@ -1334,6 +1326,10 @@ router.post("/invoices/:id/mark-paid", requireModuleAccess("finance"), async (re
     }
   }
 
+  sendNotifToSuperAdmins(
+    `Invoice lunas\nNomor: ${inv.invoice_number ?? "-"}\nKlien: ${inv.lead?.nama ?? "-"}\nTotal: Rp ${Number(inv.grand_total ?? 0).toLocaleString("id-ID")}\nStatus: Lunas\n\n${FRONTEND_URL}/finance/invoice`,
+    "Invoice lunas",
+  ).catch(() => {});
   return res.json({ message: "Invoice ditandai Lunas — kwitansi dibuat otomatis", kwitansi_id: kwitansi.id });
 });
 

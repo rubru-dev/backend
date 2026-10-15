@@ -1,8 +1,9 @@
 "use client";
 
-import { Menu, Bell } from "lucide-react";
+import { Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { UserMenu } from "./user-menu";
+import { NativeNotificationButton } from "@/components/native-notification-button";
 
 interface HeaderProps {
   onMenuClick: () => void;
@@ -27,10 +28,7 @@ export function Header({ onMenuClick }: HeaderProps) {
 
       {/* Right side actions */}
       <div className="flex items-center gap-2">
-        {/* Notification bell — placeholder */}
-        <Button variant="ghost" size="icon" aria-label="Notifikasi" className="relative">
-          <Bell className="h-5 w-5" />
-        </Button>
+        <NativeNotificationButton />
 
         <UserMenu />
       </div>

@@ -1,8 +1,60 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
 import { deliver, NOTIFY_USER_SELECT, FRONTEND_URL } from "../lib/notify";
+import { getVapidPublicKey } from "../lib/nativePush";
 
 const router = Router();
+
+router.get("/push/config", async (_req: Request, res: Response) => {
+  return res.json({ public_key: getVapidPublicKey() });
+});
+
+router.post("/push/subscribe", async (req: Request, res: Response) => {
+  const { endpoint, keys } = req.body ?? {};
+  if (!endpoint || !keys?.p256dh || !keys?.auth) {
+    return res.status(400).json({ detail: "Subscription push tidak lengkap" });
+  }
+  await prisma.pushSubscription.upsert({
+    where: { endpoint: String(endpoint) },
+    create: {
+      user_id: req.user!.id,
+      endpoint: String(endpoint),
+      p256dh: String(keys.p256dh),
+      auth: String(keys.auth),
+      user_agent: req.get("user-agent") ?? null,
+    },
+    update: {
+      user_id: req.user!.id,
+      p256dh: String(keys.p256dh),
+      auth: String(keys.auth),
+      user_agent: req.get("user-agent") ?? null,
+    },
+  });
+  return res.json({ subscribed: true });
+});
+
+router.delete("/push/subscribe", async (req: Request, res: Response) => {
+  const { endpoint } = req.body ?? {};
+  if (endpoint) await prisma.pushSubscription.deleteMany({ where: { endpoint: String(endpoint), user_id: req.user!.id } });
+  return res.json({ subscribed: false });
+});
+
+router.get("/inbox", async (req: Request, res: Response) => {
+  const rows = await prisma.notification.findMany({
+    where: { notifiable_type: "User", notifiable_id: req.user!.id },
+    orderBy: { created_at: "desc" },
+    take: Math.min(Number(req.query.limit) || 30, 100),
+  });
+  return res.json(rows);
+});
+
+router.patch("/inbox/:id/read", async (req: Request, res: Response) => {
+  await prisma.notification.updateMany({
+    where: { id: req.params.id, notifiable_type: "User", notifiable_id: req.user!.id },
+    data: { read_at: new Date() },
+  });
+  return res.json({ read: true });
+});
 
 // GET /users — daftar user untuk dipilih sebagai penerima
 router.get("/users", async (req: Request, res: Response) => {
