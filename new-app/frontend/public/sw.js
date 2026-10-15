@@ -1,5 +1,5 @@
 const CACHE = "report-rubru-pwa-v3";
-const SHELL = ["/offline.html", "/manifest.webmanifest", "/pwa-192.png", "/pwa-512.png", "/maskable-512.png"];
+const SHELL = ["/offline.html", "/manifest.webmanifest", "/pwa-192.png", "/pwa-512.png", "/maskable-512.png", "/images/logo.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(SHELL)));
@@ -16,8 +16,8 @@ self.addEventListener("push", (event) => {
   const data = event.data.json();
   event.waitUntil(self.registration.showNotification(data.title || "Rubah Rumah", {
     body: data.body || "Ada notifikasi baru.",
-    icon: "/pwa-192.png",
-    badge: "/pwa-192.png",
+    icon: "/images/logo.png",
+    badge: "/images/logo.png",
     tag: data.tag || "rubru-notification",
     data: { url: data.url || "/dashboard" },
   }));

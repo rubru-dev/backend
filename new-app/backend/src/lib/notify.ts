@@ -35,6 +35,24 @@ export type DeliveryResult = {
 
 export type DeliverOptions = { nativePush?: boolean };
 
+function nativeTitle(subject: string | undefined, message: string): string {
+  if (subject) return subject.replace(/[*#]/g, "").trim();
+  if (/survey/i.test(message)) return "Pengingat survey";
+  if (/visit projek/i.test(message)) return "Pengingat visit proyek";
+  if (/item.*pekerjaan|deadline/i.test(message)) return "Pengingat deadline pekerjaan";
+  return "Notifikasi Rubah Rumah";
+}
+
+function nativeBody(message: string): string {
+  return message
+    .split("\n")
+    .map((line) => line.replace(/[*#]/g, "").trim())
+    .filter((line) => line && !/^prioritas:/i.test(line) && !/^https?:\/\//i.test(line))
+    .slice(0, 3)
+    .join(" • ")
+    .slice(0, 220);
+}
+
 /** Kolom minimum yang perlu di-select agar penerima bisa dikirimi dua channel. */
 export const NOTIFY_USER_SELECT = {
   id: true,
@@ -86,8 +104,8 @@ export async function deliver(
   if (options.nativePush && user.id) {
     try {
       const pushPayload = {
-        title: subject || "Notifikasi Rubah Rumah",
-        body: message.replace(/\*+/g, "").replace(/\n+/g, " ").trim().slice(0, 220),
+        title: nativeTitle(subject, message),
+        body: nativeBody(message),
         tag: "rubru-reminder",
         url: "/dashboard",
       };
