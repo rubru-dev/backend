@@ -95,7 +95,7 @@ async function sendMessagesToUsers(
   for (const msg of messages) {
     const fullMsg = `${msg}\n${priorityLine}`;
     for (const user of users) {
-      const nativeFeatures = new Set(["termin_deadline", "task_deadline", "item_pekerjaan_sipil", "item_pekerjaan_desain", "desain_deadline", "survey_scheduled"]);
+      const nativeFeatures = new Set(["termin_deadline", "task_deadline", "item_pekerjaan_sipil", "item_pekerjaan_interior", "item_pekerjaan_desain", "desain_deadline", "survey_scheduled"]);
       const hasil = await deliver(user, fullMsg, rule.label, { nativePush: nativeFeatures.has(rule.feature) });
       if (hasil.telegram || hasil.email) sent++;
     }
