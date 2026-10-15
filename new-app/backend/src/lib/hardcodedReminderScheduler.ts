@@ -178,6 +178,7 @@ async function sendOnce(args: {
   message: string;
   /** Subjek email; kalau kosong dipakai baris pertama pesan. */
   subject?: string;
+  nativePush?: boolean;
 }): Promise<number> {
   let sent = 0;
   for (const user of uniqueUsers(args.users)) {
@@ -185,7 +186,7 @@ async function sendOnce(args: {
 
     // Telegram dan email dicoba dalam satu panggilan, jadi satu baris log per
     // user tetap cukup untuk dedup — tidak ada pass kedua yang perlu dibedakan.
-    const hasil = await deliver(user, args.message, args.subject);
+    const hasil = await deliver(user, args.message, args.subject, { nativePush: args.nativePush });
     const channels = [hasil.telegram ? "telegram" : null, hasil.email ? "email" : null]
       .filter(Boolean).join("+");
 
@@ -210,6 +211,7 @@ async function sendGlobalDaily(type: string, users: ReminderUser[], message: str
     users,
     deadlineDate: start,
     message,
+    nativePush: false,
   });
   console.log(`[HardcodedReminder] ${type}: ${count} Telegram terkirim`);
 }
@@ -236,6 +238,7 @@ export async function sendSurveyScheduledReminder(leadId: bigint): Promise<void>
     users: recipients,
     deadlineDate: lead.tanggal_survey,
     message,
+    nativePush: true,
   });
 }
 
@@ -261,6 +264,7 @@ export async function sendVisitProjectAssignedReminder(visitId: bigint): Promise
     users: recipients,
     deadlineDate: visit.tanggal,
     message,
+    nativePush: true,
   });
 }
 
@@ -281,6 +285,7 @@ export async function sendVisitClientAssignedReminder(visitId: bigint): Promise<
     users: recipients,
     deadlineDate: visit.tanggal,
     message,
+    nativePush: false,
   });
 }
 
@@ -415,7 +420,7 @@ async function sendTerminH3Reminders(): Promise<void> {
       `*Tipe:* Sipil\n*Proyek:* ${termin.proyek_berjalan?.nama_proyek ?? "-"}\n` +
       `*Termin:* ${termin.nama ?? `Termin ${termin.urutan + 1}`}\n` +
       `*Deadline:* ${formatDateID(termin.tanggal_selesai)}\n\n${FRONTEND_URL}/projek/sipil`;
-    total += await sendOnce({ type: "hardcoded_termin_sipil_h3", remindableType: "proyek_berjalan_termin", remindableId: termin.id, users, deadlineDate: start, message });
+    total += await sendOnce({ type: "hardcoded_termin_sipil_h3", remindableType: "proyek_berjalan_termin", remindableId: termin.id, users, deadlineDate: start, message, nativePush: false });
   }
   for (const termin of interior) {
     const message =
@@ -423,7 +428,7 @@ async function sendTerminH3Reminders(): Promise<void> {
       `*Tipe:* Interior\n*Proyek:* ${termin.proyek_interior?.nama_proyek ?? "-"}\n` +
       `*Termin:* ${termin.nama ?? `Termin ${termin.urutan + 1}`}\n` +
       `*Deadline:* ${formatDateID(termin.tanggal_selesai)}\n\n${FRONTEND_URL}/projek/interior`;
-    total += await sendOnce({ type: "hardcoded_termin_interior_h3", remindableType: "proyek_interior_termin", remindableId: termin.id, users, deadlineDate: start, message });
+    total += await sendOnce({ type: "hardcoded_termin_interior_h3", remindableType: "proyek_interior_termin", remindableId: termin.id, users, deadlineDate: start, message, nativePush: false });
   }
   console.log(`[HardcodedReminder] termin H-3: ${total} Telegram terkirim`);
 }
@@ -447,14 +452,14 @@ async function sendProjectTaskH3Reminders(): Promise<void> {
       `*Reminder Deadline Item Pekerjaan H-3*\n\n` +
       `*Tipe:* Sipil\n*Proyek:* ${task.termin?.proyek_berjalan?.nama_proyek ?? "-"}\n` +
       `*Item:* ${task.nama_pekerjaan ?? "-"}\n*Deadline:* ${formatDateID(task.tanggal_selesai)}\n\n${FRONTEND_URL}/projek/sipil`;
-    total += await sendOnce({ type: "hardcoded_task_sipil_h3", remindableType: "proyek_berjalan_task", remindableId: task.id, users, deadlineDate: start, message });
+    total += await sendOnce({ type: "hardcoded_task_sipil_h3", remindableType: "proyek_berjalan_task", remindableId: task.id, users, deadlineDate: start, message, nativePush: true });
   }
   for (const task of interior) {
     const message =
       `*Reminder Deadline Item Pekerjaan H-3*\n\n` +
       `*Tipe:* Interior\n*Proyek:* ${task.termin?.proyek_interior?.nama_proyek ?? "-"}\n` +
       `*Item:* ${task.nama_pekerjaan ?? "-"}\n*Deadline:* ${formatDateID(task.tanggal_selesai)}\n\n${FRONTEND_URL}/projek/interior`;
-    total += await sendOnce({ type: "hardcoded_task_interior_h3", remindableType: "proyek_interior_task", remindableId: task.id, users, deadlineDate: start, message });
+    total += await sendOnce({ type: "hardcoded_task_interior_h3", remindableType: "proyek_interior_task", remindableId: task.id, users, deadlineDate: start, message, nativePush: true });
   }
   console.log(`[HardcodedReminder] task sipil/interior H-3: ${total} Telegram terkirim`);
 }

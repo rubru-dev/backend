@@ -95,7 +95,8 @@ async function sendMessagesToUsers(
   for (const msg of messages) {
     const fullMsg = `${msg}\n${priorityLine}`;
     for (const user of users) {
-      const hasil = await deliver(user, fullMsg, rule.label);
+      const nativeFeatures = new Set(["termin_deadline", "task_deadline", "item_pekerjaan_sipil", "item_pekerjaan_desain", "desain_deadline", "survey_scheduled"]);
+      const hasil = await deliver(user, fullMsg, rule.label, { nativePush: nativeFeatures.has(rule.feature) });
       if (hasil.telegram || hasil.email) sent++;
     }
   }
@@ -402,7 +403,7 @@ async function processRule(rule: any): Promise<number> {
         const picNames: string[] = [];
         for (const pic of (visit as any).pics) {
           if (pic.user) {
-            const hasil = await deliver(pic.user, fullMsg, rule.label);
+            const hasil = await deliver(pic.user, fullMsg, rule.label, { nativePush: true });
             if (hasil.telegram || hasil.email) sentCount++;
           }
           if (pic.user?.name) picNames.push(pic.user.name);

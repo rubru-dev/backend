@@ -33,6 +33,8 @@ export type DeliveryResult = {
   errors: string[];
 };
 
+export type DeliverOptions = { nativePush?: boolean };
+
 /** Kolom minimum yang perlu di-select agar penerima bisa dikirimi dua channel. */
 export const NOTIFY_USER_SELECT = {
   id: true,
@@ -55,6 +57,7 @@ export async function deliver(
   user: NotifyRecipient,
   message: string,
   subject?: string,
+  options: DeliverOptions = {},
 ): Promise<DeliveryResult> {
   const result: DeliveryResult = { telegram: false, email: false, push: false, skipped: false, errors: [] };
 
@@ -80,7 +83,7 @@ export async function deliver(
     }
   }
 
-  if (user.id) {
+  if (options.nativePush && user.id) {
     try {
       const pushPayload = {
         title: subject || "Notifikasi Rubah Rumah",
@@ -104,10 +107,11 @@ export async function deliverMany(
   users: NotifyRecipient[],
   message: string,
   subject?: string,
+  options: DeliverOptions = {},
 ): Promise<number> {
   let sent = 0;
   for (const u of users) {
-    const r = await deliver(u, message, subject);
+    const r = await deliver(u, message, subject, options);
     if (r.telegram || r.email) sent++;
   }
   return sent;
@@ -152,7 +156,7 @@ export async function sendNotifToSuperAdmins(message: string, subject?: string) 
     },
     select: NOTIFY_USER_SELECT,
   });
-  await deliverMany(users, message, subject);
+  await deliverMany(users, message, subject, { nativePush: true });
 }
 
 const PRIORITY_EMOJI: Record<string, string> = { rendah: "🟢", sedang: "🟡", tinggi: "🔴" };
@@ -184,7 +188,7 @@ export async function triggerEventReminder(feature: string, vars: Record<string,
   });
   if (users.length === 0) return;
 
-  await deliverMany(users, buildRuleMessage(rule, vars), rule.label);
+  await deliverMany(users, buildRuleMessage(rule, vars), rule.label, { nativePush: feature === "survey_scheduled" || feature === "kalender_visit_assign" });
 }
 
 /** Kirim event rule ke daftar user tertentu (mengabaikan role_ids di rule) */
@@ -203,7 +207,7 @@ export async function triggerEventReminderToUsers(
   });
   if (users.length === 0) return;
 
-  await deliverMany(users, buildRuleMessage(rule, vars), rule.label);
+  await deliverMany(users, buildRuleMessage(rule, vars), rule.label, { nativePush: feature === "survey_scheduled" || feature === "kalender_visit_assign" });
 }
 
 export const FRONTEND_URL = config.frontendUrl;
