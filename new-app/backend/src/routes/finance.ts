@@ -1399,10 +1399,13 @@ const REIMBURSE_INCLUDE = {
   buktis: true,
 };
 
-// Helper: check if current user can see/manage all reimburse (Super Admin or has finance.reimburse_all)
-function isReimbursePrivileged(req: Request): boolean {
-  const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
-  return isSuperAdmin || !!req.userPermissions?.has("finance.reimburse_all");
+// Hanya Super Admin yang boleh melihat atau mengajukan reimburse lintas user.
+function isReimburseSuperAdmin(req: Request): boolean {
+  return req.user!.roles.some((r: any) => r.role.name === "Super Admin");
+}
+
+function canAccessOwnReimburse(req: Request, reimburse: { user_id: bigint | null }): boolean {
+  return reimburse.user_id === req.user!.id;
 }
 
 // GET /finance/reimburse
@@ -1422,7 +1425,7 @@ router.get("/reimburse", async (req: Request, res: Response) => {
 
   const where: any = {};
   // Non-privileged users can only see their own reimburse
-  if (!isReimbursePrivileged(req)) {
+  if (!isReimburseSuperAdmin(req)) {
     where.user_id = req.user!.id;
   } else {
     if (user_id) where.user_id = BigInt(user_id);
@@ -1458,7 +1461,7 @@ router.get("/reimburse", async (req: Request, res: Response) => {
 });
 
 // GET /finance/reimburse/users  – user dropdown for reimburse form
-router.get("/reimburse/users", async (_req: Request, res: Response) => {
+router.get("/reimburse/users", requireRole("Super Admin"), async (_req: Request, res: Response) => {
   const users = await prisma.user.findMany({
     include: { roles: { include: { role: true } } },
     orderBy: { name: "asc" },
@@ -1474,7 +1477,7 @@ router.get("/reimburse/users", async (_req: Request, res: Response) => {
 router.post("/reimburse", async (req: Request, res: Response) => {
   const { tanggal, kategori, keterangan, items, buktis } = req.body;
   // Non-privileged users can only submit for themselves
-  const user_id = isReimbursePrivileged(req)
+  const user_id = isReimburseSuperAdmin(req)
     ? (req.body.user_id || String(req.user!.id))
     : String(req.user!.id);
   if (!user_id) return res.status(400).json({ detail: "user_id wajib diisi" });
@@ -1522,6 +1525,9 @@ router.post("/reimburse/:id/sign-head", requirePermission("finance", "sign_head"
 
   const existing = await prisma.reimburse.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
+  if (!isReimburseSuperAdmin(req) && !canAccessOwnReimburse(req, existing)) {
+    return res.status(403).json({ detail: "Tidak bisa memproses reimburse milik orang lain" });
+  }
   if (existing.status === "Ditolak") return res.status(400).json({ detail: "Reimburse sudah ditolak" });
 
   const updated = await prisma.reimburse.update({
@@ -1551,7 +1557,7 @@ router.post("/reimburse/:id/sign-admin", requirePermission("finance", "sign_admi
 
 // POST /finance/reimburse/:id/reject
 router.post("/reimburse/:id/reject", async (req: Request, res: Response) => {
-  if (!isReimbursePrivileged(req)) {
+  if (!isReimburseSuperAdmin(req)) {
     return res.status(403).json({ detail: "Tidak memiliki akses untuk menolak reimburse" });
   }
   const id = BigInt(req.params.id);
@@ -1571,7 +1577,7 @@ router.delete("/reimburse/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const existing = await prisma.reimburse.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
-  if (!isReimbursePrivileged(req) && existing.user_id !== req.user!.id) {
+  if (!isReimburseSuperAdmin(req) && !canAccessOwnReimburse(req, existing)) {
     return res.status(403).json({ detail: "Tidak bisa menghapus reimburse milik orang lain" });
   }
   await prisma.reimburse.delete({ where: { id } });

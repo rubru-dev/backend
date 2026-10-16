@@ -15,6 +15,8 @@ export type LaporanPicItem = {
   tanggal: string;
   kegiatan: string;
   kendala: string | null;
+  status_pekerjaan: "On Progress" | "Selesai";
+  status_approval: "Tidak Ada" | "Menunggu Approval" | "Disetujui" | "Ditolak";
   images: string[];
   created_at: string;
   user?: { name: string } | null;
@@ -43,4 +45,7 @@ export const laporanPicApi = {
 
   remove: (id: number | string): Promise<{ success: boolean }> =>
     apiClient.delete(`/pic/laporan-pic/${id}`).then((r) => r.data),
+
+  approveStatus: (id: number | string, action: "approve" | "reject", reason?: string): Promise<LaporanPicItem> =>
+    apiClient.patch(`/pic/laporan-pic/${id}/status-approval`, { action, reason }).then((r) => r.data),
 };

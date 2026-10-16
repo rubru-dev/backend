@@ -10,19 +10,17 @@ import { toast } from "sonner";
 import { Download, Pencil, Plus, Save, Trash2, Warehouse, X } from "lucide-react";
 
 type Wh = { id: number; nama: string; jumlah_item: number };
-type Stock = { id: number; nama_barang: string; quantity: number; price: number; satuan: string | null; supplier: string | null; total_harga: number };
+type Stock = { id: number; nama_barang: string; quantity: number; satuan: string | null; jenis: "Alat" | "Material"; kondisi_barang: "Baik" | "Perlu Perbaikan" | "Rusak" };
 type Detail = { id: number; nama: string; stok: Stock[] };
-
-const IDR = (n: number) => new Intl.NumberFormat("id-ID", { style: "currency", currency: "IDR", maximumFractionDigits: 0 }).format(n || 0);
 
 export default function GudangWorkshopPage() {
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState("");
   const [editingWarehouse, setEditingWarehouse] = useState<{ id: number; nama: string } | null>(null);
-  const [form, setForm] = useState({ nama_barang: "", quantity: "1", satuan: "pcs", price: "0", supplier: "" });
+  const [form, setForm] = useState({ nama_barang: "", jenis: "Material" as "Alat" | "Material", quantity: "1", satuan: "pcs", kondisi_barang: "Baik" as Stock["kondisi_barang"] });
   const [editingStockId, setEditingStockId] = useState<number | null>(null);
-  const [editStockForm, setEditStockForm] = useState({ nama_barang: "", quantity: "1", satuan: "pcs", price: "0", supplier: "" });
+  const [editStockForm, setEditStockForm] = useState({ nama_barang: "", jenis: "Material" as "Alat" | "Material", quantity: "1", satuan: "pcs", kondisi_barang: "Baik" as Stock["kondisi_barang"] });
 
   const { data: warehouses = [] } = useQuery<Wh[]>({
     queryKey: ["projek-warehouse"],
@@ -35,7 +33,6 @@ export default function GudangWorkshopPage() {
     enabled: !!activeId,
   });
 
-  const totalNilai = useMemo(() => (detail?.stok ?? []).reduce((s, i) => s + Number(i.total_harga ?? 0), 0), [detail]);
   const sortedStok = useMemo(
     () =>
       [...(detail?.stok ?? [])].sort((a, b) =>
@@ -77,14 +74,14 @@ export default function GudangWorkshopPage() {
     mutationFn: () => apiClient.post(`/projek/warehouse/${activeId}/stok`, {
       is_custom: true,
       nama_barang: form.nama_barang,
+      jenis: form.jenis,
       quantity: Number(form.quantity || 0),
       satuan: form.satuan || null,
-      price: Number(form.price || 0),
-      supplier: form.supplier || null,
+      kondisi_barang: form.kondisi_barang,
     }).then((r) => r.data),
     onSuccess: () => {
       toast.success("Item dicatat");
-      setForm({ nama_barang: "", quantity: "1", satuan: "pcs", price: "0", supplier: "" });
+      setForm({ nama_barang: "", jenis: "Material", quantity: "1", satuan: "pcs", kondisi_barang: "Baik" });
       qc.invalidateQueries({ queryKey: ["projek-warehouse-detail", activeId] });
       qc.invalidateQueries({ queryKey: ["projek-warehouse"] });
     },
@@ -100,10 +97,10 @@ export default function GudangWorkshopPage() {
   const updateStock = useMutation({
     mutationFn: (id: number) => apiClient.patch(`/projek/warehouse/${activeId}/stok/${id}`, {
       nama_barang: editStockForm.nama_barang,
+      jenis: editStockForm.jenis,
       quantity: Number(editStockForm.quantity || 0),
       satuan: editStockForm.satuan || null,
-      price: Number(editStockForm.price || 0),
-      supplier: editStockForm.supplier || null,
+      kondisi_barang: editStockForm.kondisi_barang,
     }).then((r) => r.data),
     onSuccess: () => {
       toast.success("Item diupdate");
@@ -117,10 +114,10 @@ export default function GudangWorkshopPage() {
     setEditingStockId(s.id);
     setEditStockForm({
       nama_barang: s.nama_barang,
+      jenis: s.jenis,
       quantity: String(s.quantity ?? 0),
       satuan: s.satuan ?? "",
-      price: String(s.price ?? 0),
-      supplier: s.supplier ?? "",
+      kondisi_barang: s.kondisi_barang,
     });
   }
 
@@ -216,8 +213,8 @@ export default function GudangWorkshopPage() {
       `}</style>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 gudang-print-title">
         <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2"><Warehouse className="h-6 w-6 text-teal-600" /> Gudang/Workshop</h1>
-          <p className="text-sm text-muted-foreground">Pencatatan alat dan material in-house yang tersedia di workshop.</p>
+          <h1 className="text-2xl font-bold flex items-center gap-2"><Warehouse className="h-6 w-6 text-teal-600" /> Warehouse</h1>
+          <p className="text-sm text-muted-foreground">Pencatatan alat dan material berdasarkan quantity serta kondisi barang.</p>
         </div>
         <Button variant="outline" onClick={printPdf} disabled={!detail || detail.stok.length === 0} className="print-hidden">
           <Download className="h-4 w-4 mr-1.5" /> Download PDF
@@ -230,7 +227,7 @@ export default function GudangWorkshopPage() {
           <div className="space-y-1">
             {warehouses.length === 0 && (
               <div className="rounded-md border border-dashed px-3 py-4 text-center text-sm text-muted-foreground">
-                Belum ada gudang/workshop.
+                Belum ada Warehouse.
               </div>
             )}
             {warehouses.map((w) => (
@@ -257,7 +254,7 @@ export default function GudangWorkshopPage() {
                       variant="ghost"
                       className="h-8 w-8 text-destructive"
                       onClick={() => {
-                        if (window.confirm(`Hapus gudang/workshop "${w.nama}" beserta semua itemnya?`)) deleteWarehouse.mutate(w.id);
+                        if (window.confirm(`Hapus Warehouse "${w.nama}" beserta semua itemnya?`)) deleteWarehouse.mutate(w.id);
                       }}
                     >
                       <Trash2 className="h-3.5 w-3.5" />
@@ -268,7 +265,7 @@ export default function GudangWorkshopPage() {
             ))}
           </div>
           <div className="pt-2 border-t space-y-2">
-            <Input value={warehouseName} onChange={(e) => setWarehouseName(e.target.value)} placeholder="Nama gudang/workshop" />
+            <Input value={warehouseName} onChange={(e) => setWarehouseName(e.target.value)} placeholder="Nama Warehouse" />
             <Button size="sm" className="w-full" disabled={!warehouseName.trim() || createWarehouse.isPending} onClick={() => createWarehouse.mutate(warehouseName)}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Lokasi
             </Button>
@@ -297,17 +294,17 @@ export default function GudangWorkshopPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 gudang-summary">
             <div className="rounded-lg border bg-white p-4"><p className="text-xs text-muted-foreground">Lokasi</p><p className="text-xl font-bold">{detail?.nama ?? "-"}</p></div>
             <div className="rounded-lg border bg-white p-4"><p className="text-xs text-muted-foreground">Total Item</p><p className="text-xl font-bold">{detail?.stok.length ?? 0}</p></div>
-            <div className="rounded-lg border bg-white p-4"><p className="text-xs text-muted-foreground">Estimasi Nilai</p><p className="text-xl font-bold">{IDR(totalNilai)}</p></div>
+            <div className="rounded-lg border bg-white p-4"><p className="text-xs text-muted-foreground">Total Quantity</p><p className="text-xl font-bold">{(detail?.stok ?? []).reduce((sum, item) => sum + Number(item.quantity || 0), 0)}</p></div>
           </div>
 
           <div className="rounded-lg border bg-slate-50 p-4 space-y-3 print-hidden">
             <p className="text-sm font-semibold">Tambah Alat / Material</p>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
               <div className="md:col-span-2"><Label className="text-xs">Nama Item</Label><Input value={form.nama_barang} onChange={(e) => setForm({ ...form, nama_barang: e.target.value })} placeholder="Bor, tangga, cat, semen..." /></div>
+              <div><Label className="text-xs">Jenis</Label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.jenis} onChange={(e) => setForm({ ...form, jenis: e.target.value as "Alat" | "Material" })}><option>Alat</option><option>Material</option></select></div>
               <div><Label className="text-xs">Qty</Label><Input type="number" value={form.quantity} onChange={(e) => setForm({ ...form, quantity: e.target.value })} /></div>
               <div><Label className="text-xs">Satuan</Label><Input value={form.satuan} onChange={(e) => setForm({ ...form, satuan: e.target.value })} /></div>
-              <div><Label className="text-xs">Harga</Label><Input type="number" value={form.price} onChange={(e) => setForm({ ...form, price: e.target.value })} /></div>
-              <div className="md:col-span-4"><Label className="text-xs">Supplier / Catatan</Label><Input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} placeholder="Opsional" /></div>
+              <div><Label className="text-xs">Kondisi Barang</Label><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={form.kondisi_barang} onChange={(e) => setForm({ ...form, kondisi_barang: e.target.value as Stock["kondisi_barang"] })}><option>Baik</option><option>Perlu Perbaikan</option><option>Rusak</option></select></div>
               <div className="flex items-end"><Button className="w-full" disabled={!activeId || !form.nama_barang.trim() || addStock.isPending} onClick={() => addStock.mutate()}><Plus className="h-4 w-4 mr-1" /> Simpan</Button></div>
             </div>
           </div>
@@ -320,26 +317,24 @@ export default function GudangWorkshopPage() {
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Item</th>
                   <th className="px-4 py-3 text-right font-medium text-gray-500">Qty</th>
                   <th className="px-4 py-3 text-left font-medium text-gray-500">Satuan</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Harga</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Total</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Supplier/Catatan</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Jenis</th>
+                  <th className="px-4 py-3 text-left font-medium text-gray-500">Kondisi Barang</th>
                   <th className="px-4 py-3 w-12 print-hidden"></th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {isLoading ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Memuat...</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Memuat...</td></tr>
                 ) : !detail || sortedStok.length === 0 ? (
-                  <tr><td colSpan={8} className="px-4 py-8 text-center text-muted-foreground">Belum ada item gudang/workshop.</td></tr>
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-muted-foreground">Belum ada item Warehouse.</td></tr>
                 ) : sortedStok.map((s) => editingStockId === s.id ? (
                   <tr key={s.id} className="bg-teal-50/50">
                     <td className="hidden px-4 py-3 text-center gudang-print-check"><span className="gudang-check-box" /></td>
                     <td className="px-4 py-3"><Input value={editStockForm.nama_barang} onChange={(e) => setEditStockForm({ ...editStockForm, nama_barang: e.target.value })} /></td>
                     <td className="px-4 py-3"><Input type="number" value={editStockForm.quantity} onChange={(e) => setEditStockForm({ ...editStockForm, quantity: e.target.value })} className="text-right" /></td>
                     <td className="px-4 py-3"><Input value={editStockForm.satuan} onChange={(e) => setEditStockForm({ ...editStockForm, satuan: e.target.value })} /></td>
-                    <td className="px-4 py-3"><Input type="number" value={editStockForm.price} onChange={(e) => setEditStockForm({ ...editStockForm, price: e.target.value })} className="text-right" /></td>
-                    <td className="px-4 py-3 text-right font-semibold">{IDR(Number(editStockForm.quantity || 0) * Number(editStockForm.price || 0))}</td>
-                    <td className="px-4 py-3"><Input value={editStockForm.supplier} onChange={(e) => setEditStockForm({ ...editStockForm, supplier: e.target.value })} /></td>
+                    <td className="px-4 py-3"><select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={editStockForm.jenis} onChange={(e) => setEditStockForm({ ...editStockForm, jenis: e.target.value as "Alat" | "Material" })}><option>Alat</option><option>Material</option></select></td>
+                    <td className="px-4 py-3"><select className="h-9 w-full rounded-md border bg-background px-2 text-sm" value={editStockForm.kondisi_barang} onChange={(e) => setEditStockForm({ ...editStockForm, kondisi_barang: e.target.value as Stock["kondisi_barang"] })}><option>Baik</option><option>Perlu Perbaikan</option><option>Rusak</option></select></td>
                     <td className="px-4 py-3 print-hidden">
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8 text-teal-700" disabled={!editStockForm.nama_barang.trim() || updateStock.isPending} onClick={() => updateStock.mutate(s.id)}><Save className="h-4 w-4" /></Button>
@@ -353,9 +348,8 @@ export default function GudangWorkshopPage() {
                     <td className="px-4 py-3 font-medium">{s.nama_barang}</td>
                     <td className="px-4 py-3 text-right">{s.quantity}</td>
                     <td className="px-4 py-3">{s.satuan ?? "-"}</td>
-                    <td className="px-4 py-3 text-right">{IDR(s.price)}</td>
-                    <td className="px-4 py-3 text-right font-semibold">{IDR(s.total_harga)}</td>
-                    <td className="px-4 py-3 text-muted-foreground">{s.supplier ?? "-"}</td>
+                    <td className="px-4 py-3">{s.jenis}</td>
+                    <td className={`px-4 py-3 ${s.kondisi_barang === "Rusak" ? "font-semibold text-red-700" : s.kondisi_barang === "Perlu Perbaikan" ? "font-semibold text-amber-700" : "text-emerald-700"}`}>{s.kondisi_barang}</td>
                     <td className="px-4 py-3 print-hidden">
                       <div className="flex gap-1">
                         <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => startEditStock(s)}><Pencil className="h-4 w-4" /></Button>
@@ -371,7 +365,7 @@ export default function GudangWorkshopPage() {
           <div className="hidden gudang-print-footer">
             <div className="text-xs text-slate-600">
               <p className="font-semibold text-slate-900 mb-1">Catatan</p>
-              <p>Dokumen ini merupakan rekap alat dan material in-house berdasarkan data Gudang/Workshop pada saat dicetak.</p>
+              <p>Dokumen ini merupakan rekap alat dan material in-house berdasarkan data Warehouse pada saat dicetak.</p>
             </div>
             <div className="text-center text-sm">
               <p>Bekasi, {tanggalCetak}</p>

@@ -21,6 +21,8 @@ type Projek = {
   id: string;
   nama_proyek: string | null;
   lead: { id: string; nama: string } | null;
+  ro: { id: string; nama: string } | null;
+  pic_project: { id: string; nama: string } | null;
   lokasi: string | null;
   nilai_rab: number;
   tanggal_mulai: string | null;
@@ -31,7 +33,7 @@ type Projek = {
   progress: number;
 };
 
-const EMPTY_FORM = { nama_proyek: "", lead_id: "", lokasi: "", nilai_rab: "", tanggal_mulai: "", tanggal_selesai: "" };
+const EMPTY_FORM = { nama_proyek: "", lead_id: "", ro_id: "", pic_id: "", lokasi: "", nilai_rab: "", tanggal_mulai: "", tanggal_selesai: "" };
 const PROGRESS_FILTERS = [
   { value: "all", label: "Semua progress" },
   { value: "0-25", label: "0% - 25%" },
@@ -54,6 +56,7 @@ export default function ProyekInteriorListPage() {
   const [leadSearch, setLeadSearch] = useState("");
   const [progressFilter, setProgressFilter] = useState<(typeof PROGRESS_FILTERS)[number]["value"]>("all");
   const deferredLeadSearch = useDeferredValue(leadSearch);
+  const { data: employees = [] } = useQuery<{ id: string; nama: string }[]>({ queryKey: ["interior-employees"], queryFn: () => interiorProjekApi.listEmployees(), staleTime: 5 * 60_000 });
 
   const { data: projeks = [], isLoading } = useQuery<Projek[]>({
     queryKey: ["interior-projeks"],
@@ -119,6 +122,8 @@ export default function ProyekInteriorListPage() {
     setForm({
       nama_proyek: p.nama_proyek ?? "",
       lead_id: p.lead?.id ?? "",
+      ro_id: p.ro?.id ?? "",
+      pic_id: p.pic_project?.id ?? "",
       lokasi: p.lokasi ?? "",
       nilai_rab: p.nilai_rab?.toString() ?? "",
       tanggal_mulai: p.tanggal_mulai ?? "",
@@ -131,6 +136,8 @@ export default function ProyekInteriorListPage() {
     const payload = {
       ...form,
       lead_id: form.lead_id || null,
+      ro_id: form.ro_id || null,
+      pic_id: form.pic_id || null,
       nilai_rab: form.nilai_rab ? Number(form.nilai_rab) : 0,
       tanggal_mulai: form.tanggal_mulai || null,
       tanggal_selesai: form.tanggal_selesai || null,
@@ -234,6 +241,8 @@ export default function ProyekInteriorListPage() {
             <TableRow className="bg-muted/50">
               <TableHead>Nama Proyek</TableHead>
               <TableHead>Klien</TableHead>
+              <TableHead>RO</TableHead>
+              <TableHead>PIC Project</TableHead>
               <TableHead>Lokasi</TableHead>
               <TableHead className="text-right">Nilai RAB</TableHead>
               <TableHead>Periode</TableHead>
@@ -245,7 +254,7 @@ export default function ProyekInteriorListPage() {
           <TableBody>
             {isLoading && Array.from({ length: 4 }).map((_, i) => (
               <TableRow key={i}>
-                {Array.from({ length: 8 }).map((__, j) => (
+                {Array.from({ length: 10 }).map((__, j) => (
                   <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
                 ))}
               </TableRow>
@@ -259,6 +268,8 @@ export default function ProyekInteriorListPage() {
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{p.lead?.nama ?? "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{p.ro?.nama ?? "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{p.pic_project?.nama ?? "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{p.lokasi ?? "—"}</TableCell>
                 <TableCell className="text-right text-sm">{p.nilai_rab > 0 ? "Rp " + p.nilai_rab.toLocaleString("id-ID") : "—"}</TableCell>
                 <TableCell>
@@ -292,7 +303,7 @@ export default function ProyekInteriorListPage() {
             ))}
             {!isLoading && projeks.length === 0 && (
               <TableRow>
-                <TableCell colSpan={8} className="text-center py-16 text-muted-foreground">
+                <TableCell colSpan={10} className="text-center py-16 text-muted-foreground">
                   <Home className="mx-auto h-10 w-10 opacity-20 mb-3" />
                   <p className="font-medium">Belum ada Projek Interior</p>
                   <p className="text-sm mt-1">Klik &quot;Tambah Proyek&quot; untuk membuat yang pertama</p>
@@ -326,6 +337,26 @@ export default function ProyekInteriorListPage() {
                       {l.nama}{l.brand ? <span className="text-muted-foreground text-xs ml-1">· {l.brand}</span> : null}
                     </SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>RO (Relationship Officer)</Label>
+              <Select value={form.ro_id || "__none__"} onValueChange={(v) => setForm({ ...form, ro_id: v === "__none__" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Pilih RO (opsional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Tanpa RO —</SelectItem>
+                  {employees.map((employee) => <SelectItem key={employee.id} value={String(employee.id)}>{employee.nama}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>PIC Project</Label>
+              <Select value={form.pic_id || "__none__"} onValueChange={(v) => setForm({ ...form, pic_id: v === "__none__" ? "" : v })}>
+                <SelectTrigger><SelectValue placeholder="Pilih PIC Project (opsional)" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">— Tanpa PIC —</SelectItem>
+                  {employees.map((employee) => <SelectItem key={employee.id} value={String(employee.id)}>{employee.nama}</SelectItem>)}
                 </SelectContent>
               </Select>
             </div>

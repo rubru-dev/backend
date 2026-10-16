@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   CalendarDays, Plus, Pencil, Trash2, X, Camera, CheckCircle, Clock,
-  ChevronLeft, ChevronRight, Users, List,
+  ChevronLeft, ChevronRight, Users,
 } from "lucide-react";
 import { ClockCameraButton } from "@/components/clock-camera-button";
 
@@ -84,7 +84,6 @@ export default function KalenderVisitPage() {
   const [filterPicId, setFilterPicId]         = useState("");
   const [visitDetail, setVisitDetail]         = useState<any | null>(null); // clock in/out + keterangan hasil
   const [hasilText, setHasilText]             = useState("");
-  const [view, setView]                       = useState<"calendar" | "list">("calendar");
 
   const doProjekClock = async (visitId: string, type: "in" | "out", file: File, lat: number, lng: number) => {
     const fd = new FormData();
@@ -321,19 +320,7 @@ export default function KalenderVisitPage() {
         )}
       </div>
 
-      {/* Toggle tampilan */}
-      <div className="flex justify-end">
-        <div className="flex gap-1 rounded-lg bg-muted p-1">
-          {(["calendar", "list"] as const).map((vv) => (
-            <button key={vv} onClick={() => setView(vv)} className={`inline-flex items-center gap-1 rounded px-3 py-1.5 text-sm font-medium ${view === vv ? "bg-background text-orange-600 shadow" : "text-muted-foreground"}`}>
-              {vv === "calendar" ? <CalendarDays className="h-4 w-4" /> : <List className="h-4 w-4" />} {vv === "calendar" ? "Kalender" : "List"}
-            </button>
-          ))}
-        </div>
-      </div>
-
       {/* Calendar */}
-      {view === "calendar" && (
       <Card>
         <CardHeader className="pb-2">
           <div className="flex items-center justify-between">
@@ -424,9 +411,8 @@ export default function KalenderVisitPage() {
           )}
         </CardContent>
       </Card>
-      )}
 
-      {view === "list" && (
+      {false && (
         <Card>
           <CardContent className="divide-y p-0">
             {(allVisits as any[]).length === 0 ? (

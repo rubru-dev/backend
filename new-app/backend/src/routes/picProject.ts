@@ -89,6 +89,12 @@ function isSuperAdmin(user: any) {
   return user.roles?.some((r: any) => r.role.name === "Super Admin");
 }
 
+const LAPORAN_STATUS = ["On Progress", "Selesai"] as const;
+
+function normalizeLaporanStatus(value: unknown) {
+  return value === "Selesai" ? "Selesai" : "On Progress";
+}
+
 let laporanPicImagesTableReady: Promise<void> | null = null;
 
 function ensureLaporanPicImagesTable() {
@@ -792,6 +798,7 @@ router.post(
   async (req: Request, res: Response) => {
   const user = req.user!;
   const { project_type, project_id, termin_id, task_id, kegiatan, kendala, expected_file_count } = req.body;
+  const statusPekerjaan = normalizeLaporanStatus(req.body.status_pekerjaan);
   const files = getUploadedFiles(req).slice(0, 20);
   const expectedFileCount = Number(expected_file_count ?? 0);
   console.log("[LaporanPIC] request upload diterima", {
@@ -822,6 +829,17 @@ router.post(
   if (!target) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan termin yang dipilih" });
   const targetProjectId = type === "interior" ? (target as any).termin.proyek_interior_id : (target as any).termin.proyek_berjalan_id;
   if (String(targetProjectId) !== String(pid)) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan projek yang dipilih" });
+  if (target.status === "Selesai" && !isSuperAdmin(user)) return res.status(400).json({ detail: "Pekerjaan sudah diselesaikan dan tidak dapat diubah oleh PIC" });
+  const statusApproval = statusPekerjaan === "Selesai" ? "Menunggu Approval" : "Tidak Ada";
+  if (type === "interior") {
+    await prisma.proyekInteriorTask.update({ where: { id: tkid }, data: statusPekerjaan === "Selesai"
+      ? { status_approval: statusApproval, status_requested_by: user.id, status_requested_at: new Date(), status_rejection_reason: null }
+      : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null } });
+  } else {
+    await prisma.proyekBerjalanTask.update({ where: { id: tkid }, data: statusPekerjaan === "Selesai"
+      ? { status_approval: statusApproval, status_requested_by: user.id, status_requested_at: new Date(), status_rejection_reason: null }
+      : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null } });
+  }
   if (expectedFileCount > 0 && files.length === 0) {
     console.warn("[LaporanPIC] upload gagal: frontend kirim file tapi backend tidak menerima file", {
       expected_file_count: expectedFileCount,
@@ -843,6 +861,8 @@ router.post(
       pekerjaan_nama: target.nama_pekerjaan ?? null,
       kegiatan: String(kegiatan),
       kendala: kendala ? String(kendala) : null,
+      status_pekerjaan: statusPekerjaan,
+      status_approval: statusApproval,
       images: [],
     },
     include: { user: { select: { name: true } } },
@@ -884,6 +904,7 @@ router.patch(
     if (!isSuperAdmin(user) && String(row.user_id) !== String(user.id)) return res.status(403).json({ detail: "Anda hanya dapat mengedit laporan sendiri" });
 
     const kegiatan = req.body.kegiatan !== undefined ? String(req.body.kegiatan).trim() : row.kegiatan;
+    const statusPekerjaan = normalizeLaporanStatus(req.body.status_pekerjaan ?? row.status_pekerjaan);
     if (!kegiatan) return res.status(400).json({ detail: "Kegiatan wajib diisi" });
     const tid = req.body.termin_id ? BigInt(req.body.termin_id) : row.termin_id;
     const tkid = req.body.task_id ? BigInt(req.body.task_id) : row.task_id;
@@ -894,6 +915,16 @@ router.patch(
     if (!target) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan termin yang dipilih" });
     const targetProjectId = row.project_type === "interior" ? (target as any).termin.proyek_interior_id : (target as any).termin.proyek_berjalan_id;
     if (String(targetProjectId) !== String(row.project_id)) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan projek laporan" });
+    const statusApproval = statusPekerjaan === "Selesai" ? "Menunggu Approval" : "Tidak Ada";
+    if (row.project_type === "interior") {
+      await prisma.proyekInteriorTask.update({ where: { id: tkid }, data: statusPekerjaan === "Selesai"
+        ? { status_approval: statusApproval, status_requested_by: user.id, status_requested_at: new Date(), status_rejection_reason: null }
+        : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null } });
+    } else {
+      await prisma.proyekBerjalanTask.update({ where: { id: tkid }, data: statusPekerjaan === "Selesai"
+        ? { status_approval: statusApproval, status_requested_by: user.id, status_requested_at: new Date(), status_rejection_reason: null }
+        : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null } });
+    }
 
     const keepImages = normalizeImageList(req.body.keep_images ?? "[]");
     await ensureLaporanPicImagesTable();
@@ -921,6 +952,8 @@ router.patch(
         pekerjaan_nama: target.nama_pekerjaan ?? null,
         kegiatan,
         kendala: req.body.kendala ? String(req.body.kendala) : null,
+        status_pekerjaan: statusPekerjaan,
+        status_approval: statusApproval,
         images: allImages,
       },
       include: { user: { select: { name: true } } },
@@ -939,6 +972,27 @@ router.patch(
     return res.json({ ...mapLaporanPic(updated), images: allImages });
   }
 );
+
+// Super Admin menyetujui atau menolak pengajuan penyelesaian item pekerjaan.
+router.patch("/laporan-pic/:id/status-approval", async (req: Request, res: Response) => {
+  if (!isSuperAdmin(req.user)) return res.status(403).json({ detail: "Hanya Super Admin yang dapat memproses approval" });
+  const id = BigInt(req.params.id);
+  const action = req.body.action === "reject" ? "reject" : "approve";
+  const row = await prisma.laporanPicProjek.findUnique({ where: { id } });
+  if (!row) return res.status(404).json({ detail: "Laporan tidak ditemukan" });
+  if (row.status_pekerjaan !== "Selesai" || row.status_approval !== "Menunggu Approval") {
+    return res.status(400).json({ detail: "Laporan ini tidak memiliki pengajuan penyelesaian yang menunggu approval" });
+  }
+  if (!row.task_id) return res.status(400).json({ detail: "Laporan tidak terhubung ke item pekerjaan" });
+  const approved = action === "approve";
+  const taskData = approved
+    ? { status: "Selesai", status_approval: "Disetujui", status_approved_by: req.user!.id, status_approved_at: new Date(), status_rejection_reason: null }
+    : { status_approval: "Ditolak", status_rejection_reason: String(req.body.reason || "Pengajuan penyelesaian ditolak") };
+  if (row.project_type === "interior") await prisma.proyekInteriorTask.update({ where: { id: row.task_id }, data: taskData });
+  else await prisma.proyekBerjalanTask.update({ where: { id: row.task_id }, data: taskData });
+  const updated = await prisma.laporanPicProjek.update({ where: { id }, data: { status_approval: approved ? "Disetujui" : "Ditolak" }, include: { user: { select: { name: true } } } });
+  return res.json(mapLaporanPic(updated));
+});
 
 // List laporan: per-projek (tab Laporan PIC Project) atau milik sendiri (?mine=1)
 router.get("/laporan-pic", async (req: Request, res: Response) => {

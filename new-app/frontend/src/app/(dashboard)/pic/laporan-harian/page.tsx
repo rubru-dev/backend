@@ -1,39 +1,50 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { laporanPicApi } from "@/lib/api/laporanPic";
-import { storageUrl } from "@/lib/storage-url";
-import { format } from "date-fns";
-import { id as idLocale } from "date-fns/locale";
-import { HardHat, Upload, X, Trash2, Pencil, Calendar, Building2, Home, FileDown, Filter } from "lucide-react";
+import { HardHat, Home, List, Upload, X, Building2 } from "lucide-react";
 
-// Muat gambar lewat /api/v1 (path yang sudah pasti diteruskan ke backend oleh reverse proxy / Next rewrite,
-// karena semua API call juga lewat sini). Path DB berupa "/storage/..." → jadi "/api/v1/storage/...".
-// Ini menghindari URL absolut (localhost:8000) & rute /storage terpisah yang belum tentu ada di production.
+function insertBullet(ref: React.RefObject<HTMLTextAreaElement | null>, value: string, onChange: (value: string) => void) {
+  const textarea = ref.current;
+  if (!textarea) return;
+  const start = textarea.selectionStart;
+  const lineStart = value.lastIndexOf("\n", start - 1) + 1;
+  onChange(value.slice(0, lineStart) + "- " + value.slice(lineStart));
+  requestAnimationFrame(() => {
+    textarea.focus();
+    textarea.setSelectionRange(start + 2, start + 2);
+  });
+}
+
+function BulletTextarea({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  return (
+    <div className="overflow-hidden rounded-md border border-input bg-background focus-within:ring-2 focus-within:ring-orange-500/40">
+      <div className="flex items-center gap-1 border-b bg-muted/40 px-2 py-1">
+        <button type="button" title="Tambahkan bullet list" aria-label="Tambahkan bullet list" className="rounded p-1.5 hover:bg-muted"
+          onMouseDown={(event) => { event.preventDefault(); insertBullet(ref, value, onChange); }}>
+          <List className="h-4 w-4" />
+        </button>
+        <span className="text-xs text-muted-foreground">Satu poin untuk setiap kegiatan atau kendala</span>
+      </div>
+      <textarea ref={ref} rows={7} value={value} onChange={(event) => onChange(event.target.value)}
+        placeholder={"- Cek progres pekerjaan\n- Koordinasi dengan tim lapangan\n- Kendala: material belum datang"}
+        className="w-full resize-y bg-background px-3 py-2 text-sm leading-relaxed focus:outline-none" />
+    </div>
+  );
+}
+
 export default function PICLaporanHarianPage() {
   const qc = useQueryClient();
   const [projectType, setProjectType] = useState<"sipil" | "interior">("sipil");
   const [projectId, setProjectId] = useState("");
   const [terminId, setTerminId] = useState("");
   const [taskId, setTaskId] = useState("");
+  const [statusPekerjaan, setStatusPekerjaan] = useState<"On Progress" | "Selesai">("On Progress");
   const [kegiatan, setKegiatan] = useState("");
-  const [kendala, setKendala] = useState("");
   const [files, setFiles] = useState<File[]>([]);
-
-  // Filter + PDF
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [filterProject, setFilterProject] = useState("all");
-  const [downloading, setDownloading] = useState(false);
-  const [editingReport, setEditingReport] = useState<any>(null);
-  const [editTerminId, setEditTerminId] = useState("");
-  const [editTaskId, setEditTaskId] = useState("");
-  const [editKegiatan, setEditKegiatan] = useState("");
-  const [editKendala, setEditKendala] = useState("");
-  const [editKeepImages, setEditKeepImages] = useState<string[]>([]);
-  const [editFiles, setEditFiles] = useState<File[]>([]);
 
   const { data: options = [] } = useQuery({
     queryKey: ["laporan-pic-options", projectType],
@@ -44,471 +55,139 @@ export default function PICLaporanHarianPage() {
     queryFn: () => laporanPicApi.terminOptions(projectType, projectId),
     enabled: Boolean(projectId),
   });
-  const selectedTermin = terminOptions.find((t) => t.id === terminId);
-  const { data: editTerminOptions = [], isLoading: loadingEditTermins } = useQuery({
-    queryKey: ["laporan-pic-edit-termin-options", editingReport?.project_type, editingReport?.project_id],
-    queryFn: () => laporanPicApi.terminOptions(editingReport.project_type, String(editingReport.project_id)),
-    enabled: Boolean(editingReport),
-  });
-  const selectedEditTermin = editTerminOptions.find((t) => t.id === editTerminId);
-  useEffect(() => { setProjectId(""); setTerminId(""); setTaskId(""); }, [projectType]);
-  useEffect(() => { setTerminId(""); setTaskId(""); }, [projectId]);
+  const selectedTermin = terminOptions.find((termin) => termin.id === terminId);
 
-  const { data: mine = [] } = useQuery({
-    queryKey: ["laporan-pic-mine"],
-    queryFn: () => laporanPicApi.listMine(),
-  });
+  useEffect(() => {
+    setProjectId("");
+    setTerminId("");
+    setTaskId("");
+  }, [projectType]);
+  useEffect(() => {
+    setTerminId("");
+    setTaskId("");
+  }, [projectId]);
 
-  // Opsi projek unik dari laporan sendiri (untuk filter)
-  const projectFilterOptions = useMemo(() => {
-    const map = new Map<string, string>();
-    mine.forEach((r) =>
-      map.set(`${r.project_type}:${r.project_id}`, `${r.project_type === "interior" ? "Interior" : "Sipil"} · ${r.project_nama ?? "#" + r.project_id}`)
-    );
-    return Array.from(map, ([value, label]) => ({ value, label }));
-  }, [mine]);
-
-  const filtered = useMemo(
-    () =>
-      mine.filter((r) => {
-        if (filterProject !== "all" && `${r.project_type}:${r.project_id}` !== filterProject) return false;
-        const d = (r.tanggal ?? "").slice(0, 10);
-        if (fromDate && d < fromDate) return false;
-        if (toDate && d > toDate) return false;
-        return true;
-      }),
-    [mine, filterProject, fromDate, toDate]
-  );
-
-  const fmt = (d: string) => format(new Date(d), "d MMM yyyy", { locale: idLocale });
-  const downloadPdf = async () => {
-    setDownloading(true);
-    try {
-      const [{ pdf }, { saveAs }, { getLogoBase64 }, { LaporanPicPdf }] = await Promise.all([
-        import("@react-pdf/renderer"),
-        import("file-saver"),
-        import("@/lib/get-logo"),
-        import("@/components/laporan-pic-pdf"),
-      ]);
-      const logo = await getLogoBase64();
-      const toB64 = async (u: string): Promise<string> => {
-        try {
-          const res = await fetch(u);
-          const blob = await res.blob();
-          return await new Promise<string>((resolve) => {
-            const fr = new FileReader();
-            fr.onloadend = () => resolve(fr.result as string);
-            fr.onerror = () => resolve("");
-            fr.readAsDataURL(blob);
-          });
-        } catch {
-          return "";
-        }
-      };
-      const rows = await Promise.all(
-        filtered.map(async (r) => ({
-          tanggal: r.tanggal ? fmt(r.tanggal) : "-",
-          project_type: r.project_type,
-          project_nama: r.project_nama ?? `#${r.project_id}`,
-          pic_name: r.user?.name ?? "PIC",
-          termin_nama: r.termin_nama,
-          pekerjaan_nama: r.pekerjaan_nama,
-          kegiatan: r.kegiatan,
-          kendala: r.kendala,
-          images: (await Promise.all((r.images || []).map((p) => toB64(storageUrl(p))))).filter(Boolean),
-        }))
-      );
-      const periode =
-        fromDate || toDate
-          ? `${fromDate ? fmt(fromDate) : "Awal"} — ${toDate ? fmt(toDate) : "Sekarang"}`
-          : "Semua tanggal";
-      const projek = filterProject === "all" ? "Semua projek" : projectFilterOptions.find((o) => o.value === filterProject)?.label ?? "-";
-      const meta = { periode, projek, total: rows.length, dicetak: format(new Date(), "d MMM yyyy HH:mm", { locale: idLocale }) };
-      const blob = await pdf(<LaporanPicPdf reports={rows as any} logo={logo} meta={meta} />).toBlob();
-      saveAs(blob, `laporan-pic-project-${format(new Date(), "yyyyMMdd-HHmm")}.pdf`);
-    } catch {
-      toast.error("Gagal membuat PDF.");
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const previews = useMemo(() => files.map((f) => URL.createObjectURL(f)), [files]);
-  useEffect(() => () => previews.forEach((u) => URL.revokeObjectURL(u)), [previews]);
+  const previews = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
+  useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
 
   const addFiles = (list: FileList | null) => {
     if (!list) return;
-    const selected = Array.from(list);
-    console.groupCollapsed("[LaporanPIC] File gambar dipilih");
-    console.table(selected.map((file) => ({ name: file.name, type: file.type, size: file.size })));
-    console.groupEnd();
-    setFiles((prev) => [...prev, ...selected].slice(0, 20));
+    setFiles((previous) => [...previous, ...Array.from(list)].slice(0, 20));
   };
 
   const createMut = useMutation({
     mutationFn: () => {
-      console.groupCollapsed("[LaporanPIC] Mulai upload laporan");
-      console.log("project_type", projectType);
-      console.log("project_id", projectId);
-      console.log("termin_id", terminId);
-      console.log("task_id", taskId);
-      console.log("jumlah_file_frontend", files.length);
-      console.table(files.map((file) => ({ name: file.name, type: file.type, size: file.size })));
-      console.groupEnd();
-
-      const fd = new FormData();
-      fd.append("project_type", projectType);
-      fd.append("project_id", projectId);
-      fd.append("termin_id", terminId);
-      fd.append("task_id", taskId);
-      fd.append("kegiatan", kegiatan);
-      if (kendala) fd.append("kendala", kendala);
-      fd.append("expected_file_count", String(files.length));
-      files.forEach((f) => fd.append("fotos", f));
-      return laporanPicApi.create(fd);
+      const formData = new FormData();
+      formData.append("project_type", projectType);
+      formData.append("project_id", projectId);
+      formData.append("termin_id", terminId);
+      formData.append("task_id", taskId);
+      formData.append("status_pekerjaan", statusPekerjaan);
+      formData.append("kegiatan", kegiatan);
+      formData.append("expected_file_count", String(files.length));
+      files.forEach((file) => formData.append("fotos", file));
+      return laporanPicApi.create(formData);
     },
-    onSuccess: (data) => {
-      console.groupCollapsed("[LaporanPIC] Upload berhasil");
-      console.log("response", data);
-      console.log("jumlah_gambar_response", Array.isArray(data.images) ? data.images.length : "images bukan array");
-      console.table((data.images || []).map((path) => ({ path, url: storageUrl(path) })));
-      console.groupEnd();
-      toast.success("Laporan tersimpan & otomatis terhubung ke projek terpilih.");
+    onSuccess: () => {
+      toast.success("Laporan tersimpan dan terhubung ke projek terpilih.");
       setKegiatan("");
-      setKendala("");
       setProjectId("");
       setTerminId("");
       setTaskId("");
+      setStatusPekerjaan("On Progress");
       setFiles([]);
-      qc.invalidateQueries({ queryKey: ["laporan-pic-mine"] });
-    },
-    onError: (e: any) => {
-      console.groupCollapsed("[LaporanPIC] Upload gagal");
-      console.error(e);
-      console.log("status", e?.response?.status);
-      console.log("response", e?.response?.data);
-      console.log("jumlah_file_frontend", files.length);
-      console.groupEnd();
-      toast.error(e?.response?.data?.detail || "Gagal menyimpan laporan.");
-    },
-  });
-
-  const delMut = useMutation({
-    mutationFn: (id: number) => laporanPicApi.remove(id),
-    onSuccess: () => {
-      toast.success("Laporan dihapus.");
-      qc.invalidateQueries({ queryKey: ["laporan-pic-mine"] });
-    },
-  });
-
-  const updateMut = useMutation({
-    mutationFn: () => {
-      const fd = new FormData();
-      fd.append("termin_id", editTerminId);
-      fd.append("task_id", editTaskId);
-      fd.append("kegiatan", editKegiatan);
-      if (editKendala) fd.append("kendala", editKendala);
-      fd.append("keep_images", JSON.stringify(editKeepImages));
-      editFiles.forEach((file) => fd.append("fotos", file));
-      return laporanPicApi.update(editingReport.id, fd);
-    },
-    onSuccess: () => {
-      toast.success("Laporan berhasil diedit.");
-      setEditingReport(null);
-      setEditFiles([]);
-      qc.invalidateQueries({ queryKey: ["laporan-pic-mine"] });
       qc.invalidateQueries({ queryKey: ["laporan-pic"] });
     },
-    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal mengedit laporan."),
+    onError: (error: any) => toast.error(error?.response?.data?.detail || "Gagal menyimpan laporan."),
   });
 
-  const openEdit = (report: any) => {
-    setEditingReport(report);
-    setEditTerminId(String(report.termin_id ?? ""));
-    setEditTaskId(String(report.task_id ?? ""));
-    setEditKegiatan(report.kegiatan ?? "");
-    setEditKendala(report.kendala ?? "");
-    setEditKeepImages(Array.isArray(report.images) ? [...report.images] : []);
-    setEditFiles([]);
-  };
-
-  const submit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const submit = (event: React.FormEvent) => {
+    event.preventDefault();
     if (!projectId) return toast.error("Pilih nama projek terlebih dahulu.");
     if (!terminId) return toast.error("Pilih termin terlebih dahulu.");
     if (!taskId) return toast.error("Pilih nama pekerjaan terlebih dahulu.");
-    if (!kegiatan.trim()) return toast.error("Isi kegiatan terlebih dahulu.");
+    if (!kegiatan.trim()) return toast.error("Isi laporan terlebih dahulu.");
     createMut.mutate();
   };
 
-  const inputCls =
-    "w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40";
+  const inputClass = "w-full rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500/40";
 
   return (
     <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
       <div>
-        <h1 className="flex items-center gap-2 text-2xl font-bold">
-          <HardHat className="h-6 w-6 text-orange-500" /> Laporan Harian PIC Project
-        </h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Pilih jenis &amp; nama projek, isi kegiatan, dan unggah foto. Laporan otomatis muncul di tab
-          <span className="font-medium"> Laporan PIC Project </span> pada detail projek terkait.
-        </p>
+        <h1 className="flex items-center gap-2 text-2xl font-bold"><HardHat className="h-6 w-6 text-orange-500" /> Laporan Harian PIC Project</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Pilih projek, tulis laporan kegiatan dan kendala dalam satu field, lalu unggah foto jika diperlukan. Laporan akan muncul di tab Laporan PIC Project pada detail projek terkait.</p>
       </div>
 
-      {/* Form */}
       <form onSubmit={submit} className="space-y-4 rounded-lg border bg-card p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-sm font-medium">Jenis Projek</label>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { v: "sipil", label: "Projek Sipil", Icon: Building2 },
-                { v: "interior", label: "Projek Interior", Icon: Home },
-              ] as const).map(({ v, label, Icon }) => (
-                <button
-                  type="button"
-                  key={v}
-                  onClick={() => setProjectType(v)}
-                  className={`flex items-center gap-2 rounded-md border p-2.5 text-sm transition ${
-                    projectType === v
-                      ? "border-orange-500 bg-orange-50 font-semibold text-orange-600"
-                      : "hover:border-orange-400"
-                  }`}
-                >
+                { value: "sipil", label: "Projek Sipil", Icon: Building2 },
+                { value: "interior", label: "Projek Interior", Icon: Home },
+              ] as const).map(({ value, label, Icon }) => (
+                <button type="button" key={value} onClick={() => setProjectType(value)} className={`flex items-center gap-2 rounded-md border p-2.5 text-sm transition ${projectType === value ? "border-orange-500 bg-orange-50 font-semibold text-orange-600" : "hover:border-orange-400"}`}>
                   <Icon className="h-4 w-4" /> {label}
                 </button>
               ))}
             </div>
           </div>
-
           <div>
             <label className="mb-1.5 block text-sm font-medium">Nama Projek</label>
-            <select className={inputCls} value={projectId} onChange={(e) => setProjectId(e.target.value)}>
-              <option value="">— Pilih projek —</option>
-              {options.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.nama}
-                </option>
-              ))}
+            <select className={inputClass} value={projectId} onChange={(event) => setProjectId(event.target.value)}>
+              <option value="">Pilih projek</option>
+              {options.map((option) => <option key={option.id} value={option.id}>{option.nama}</option>)}
             </select>
           </div>
-
           <div>
             <label className="mb-1.5 block text-sm font-medium">Termin</label>
-            <select className={inputCls} value={terminId} disabled={!projectId || loadingTermins} onChange={(e) => { setTerminId(e.target.value); setTaskId(""); }}>
-              <option value="">{loadingTermins ? "Memuat termin…" : "— Pilih termin —"}</option>
-              {terminOptions.map((t) => <option key={t.id} value={t.id}>{t.nama || `Termin ${t.urutan}`}</option>)}
+            <select className={inputClass} value={terminId} disabled={!projectId || loadingTermins} onChange={(event) => { setTerminId(event.target.value); setTaskId(""); }}>
+              <option value="">{loadingTermins ? "Memuat termin..." : "Pilih termin"}</option>
+              {terminOptions.map((termin) => <option key={termin.id} value={termin.id}>{termin.nama || `Termin ${termin.urutan}`}</option>)}
             </select>
           </div>
-
           <div>
             <label className="mb-1.5 block text-sm font-medium">Nama Pekerjaan</label>
-            <select className={inputCls} value={taskId} disabled={!terminId} onChange={(e) => setTaskId(e.target.value)}>
-              <option value="">— Pilih pekerjaan —</option>
+            <select className={inputClass} value={taskId} disabled={!terminId} onChange={(event) => setTaskId(event.target.value)}>
+              <option value="">Pilih pekerjaan</option>
               {(selectedTermin?.tasks ?? []).map((task) => <option key={task.id} value={task.id}>{task.nama_pekerjaan || `Pekerjaan #${task.id}`}</option>)}
             </select>
           </div>
+          <div>
+            <label className="mb-1.5 block text-sm font-medium">Status Pekerjaan</label>
+            <select className={inputClass} value={statusPekerjaan} disabled={!taskId} onChange={(event) => setStatusPekerjaan(event.target.value as "On Progress" | "Selesai")}>
+              <option>On Progress</option>
+              <option>Selesai</option>
+            </select>
+            {statusPekerjaan === "Selesai" && <p className="mt-1 text-xs text-amber-700">Penyelesaian akan menunggu approval Super Admin.</p>}
+          </div>
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium">Kegiatan / Laporan</label>
-          <textarea
-            className={inputCls}
-            rows={4}
-            value={kegiatan}
-            onChange={(e) => setKegiatan(e.target.value)}
-            placeholder="Tuliskan kegiatan / progres yang dikerjakan hari ini…"
-          />
-        </div>
-
-        <div>
-          <label className="mb-1.5 block text-sm font-medium">Kendala (opsional)</label>
-          <textarea
-            className={inputCls}
-            rows={2}
-            value={kendala}
-            onChange={(e) => setKendala(e.target.value)}
-            placeholder="Kendala di lapangan (jika ada)…"
-          />
+          <label className="mb-1.5 block text-sm font-medium">Laporan Kegiatan dan Kendala *</label>
+          <BulletTextarea value={kegiatan} onChange={setKegiatan} />
         </div>
 
         <div>
           <label className="mb-1.5 block text-sm font-medium">Foto Dokumentasi (bisa lebih dari satu)</label>
           <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-4 text-sm text-muted-foreground hover:border-orange-400 hover:text-orange-600">
             <Upload className="h-4 w-4" /> Pilih / tambah foto
-            <input
-              type="file"
-              accept="image/*"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                addFiles(e.target.files);
-                e.target.value = "";
-              }}
-            />
+            <input type="file" accept="image/*" multiple className="hidden" onChange={(event) => { addFiles(event.target.files); event.target.value = ""; }} />
           </label>
-          {previews.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {previews.map((u, i) => (
-                <div key={i} className="relative">
-                  <img src={u} alt={`preview ${i + 1}`} className="h-20 w-20 rounded border object-cover" />
-                  <button
-                    type="button"
-                    onClick={() => setFiles((prev) => prev.filter((_, j) => j !== i))}
-                    className="absolute -right-1.5 -top-1.5 rounded-full bg-red-500 p-0.5 text-white hover:bg-red-600"
-                  >
-                    <X className="h-3 w-3" />
-                  </button>
-                </div>
-              ))}
+          {previews.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{previews.map((url, index) => (
+            <div key={url} className="relative">
+              <img src={url} alt={`preview ${index + 1}`} className="h-20 w-20 rounded border object-cover" />
+              <button type="button" aria-label={`Hapus foto ${index + 1}`} onClick={() => setFiles((previous) => previous.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1.5 -top-1.5 rounded-full bg-red-500 p-0.5 text-white hover:bg-red-600"><X className="h-3 w-3" /></button>
             </div>
-          )}
+          ))}</div>}
         </div>
 
         <div className="flex justify-end">
-          <button
-            type="submit"
-            disabled={createMut.isPending}
-            className="rounded-md bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60"
-          >
-            {createMut.isPending ? "Menyimpan…" : "Simpan Laporan"}
-          </button>
+          <button type="submit" disabled={createMut.isPending} className="rounded-md bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60">{createMut.isPending ? "Menyimpan..." : "Simpan Laporan"}</button>
         </div>
       </form>
-
-      {/* Riwayat laporan sendiri */}
-      <div>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h2 className="text-lg font-semibold">Laporan Saya</h2>
-          <button
-            onClick={downloadPdf}
-            disabled={downloading || filtered.length === 0}
-            className="inline-flex items-center gap-1.5 rounded-md border border-orange-500 px-3 py-1.5 text-sm font-medium text-orange-600 hover:bg-orange-50 disabled:opacity-50"
-          >
-            <FileDown className="h-4 w-4" /> {downloading ? "Menyiapkan…" : "Download PDF"}
-          </button>
-        </div>
-
-        {/* Filter */}
-        <div className="mb-4 grid gap-2 rounded-lg border bg-muted/30 p-3 sm:grid-cols-4">
-          <div className="flex items-center gap-1 text-xs font-medium text-muted-foreground sm:col-span-4">
-            <Filter className="h-3.5 w-3.5" /> Filter
-          </div>
-          <label className="text-xs">Dari tanggal
-            <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className={inputCls} />
-          </label>
-          <label className="text-xs">Sampai tanggal
-            <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className={inputCls} />
-          </label>
-          <label className="text-xs sm:col-span-2">Projek
-            <select value={filterProject} onChange={(e) => setFilterProject(e.target.value)} className={inputCls}>
-              <option value="all">Semua projek</option>
-              {projectFilterOptions.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
-          </label>
-          <div className="text-xs text-muted-foreground sm:col-span-4">
-            Menampilkan <b>{filtered.length}</b> dari {mine.length} laporan.
-            {(fromDate || toDate || filterProject !== "all") && (
-              <button onClick={() => { setFromDate(""); setToDate(""); setFilterProject("all"); }} className="ml-2 text-orange-600 hover:underline">Reset</button>
-            )}
-          </div>
-        </div>
-
-        {filtered.length === 0 ? (
-          <p className="rounded-lg border border-dashed py-8 text-center text-sm text-muted-foreground">
-            {mine.length === 0 ? "Belum ada laporan." : "Tidak ada laporan yang cocok dengan filter."}
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {filtered.map((r) => (
-              <div key={r.id} className="rounded-lg border bg-card p-4 shadow-sm">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                    <span className="inline-flex items-center gap-1 rounded bg-orange-50 px-2 py-0.5 font-medium text-orange-600">
-                      {r.project_type === "interior" ? "Interior" : "Sipil"} · {r.project_nama ?? `#${r.project_id}`}
-                    </span>
-                    <span className="inline-flex items-center gap-1">
-                      <Calendar className="h-3.5 w-3.5" />
-                      {r.tanggal ? format(new Date(r.tanggal), "d MMM yyyy", { locale: idLocale }) : "-"}
-                    </span>
-                  </div>
-                   <button
-                    onClick={() => openEdit(r)}
-                    className="text-muted-foreground hover:text-orange-600"
-                    title="Edit laporan"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
-                  <button
-                    onClick={() => delMut.mutate(r.id)}
-                    className="text-muted-foreground hover:text-red-600"
-                    title="Hapus laporan"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-                <p className="mt-1 text-xs text-muted-foreground">{r.termin_nama || "Tanpa termin"} · {r.pekerjaan_nama || "Tanpa pekerjaan"}</p>
-                <p className="mt-2 whitespace-pre-wrap text-sm">{r.kegiatan}</p>
-                {r.kendala && (
-                  <p className="mt-1.5 rounded bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                    <span className="font-semibold">Kendala:</span> {r.kendala}
-                  </p>
-                )}
-                {Array.isArray(r.images) && r.images.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {r.images.map((p, i) => (
-                      <a key={i} href={storageUrl(p)} target="_blank" rel="noreferrer">
-                        <img
-                          src={storageUrl(p)}
-                          alt={`foto ${i + 1}`}
-                          className="h-20 w-20 rounded border bg-slate-50 object-contain"
-                          onLoad={() =>
-                            console.log("[LaporanPIC] Gambar tampil di Laporan Saya", {
-                              report_id: r.id,
-                              image_index: i,
-                              path: p,
-                              url: storageUrl(p),
-                            })
-                          }
-                          onError={(event) =>
-                            console.error("[LaporanPIC] Gambar gagal tampil di Laporan Saya", {
-                              report_id: r.id,
-                              image_index: i,
-                              path: p,
-                              url: storageUrl(p),
-                              currentSrc: event.currentTarget.currentSrc,
-                            })
-                          }
-                        />
-                      </a>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {editingReport && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onMouseDown={(e) => { if (e.target === e.currentTarget) setEditingReport(null); }}>
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-background p-5 shadow-xl">
-            <div className="mb-4 flex items-center justify-between"><h2 className="text-lg font-semibold">Edit Laporan Harian</h2><button onClick={() => setEditingReport(null)}><X className="h-5 w-5" /></button></div>
-            <div className="space-y-3">
-              <div><label className="mb-1 block text-sm font-medium">Termin</label><select className={inputCls} value={editTerminId} disabled={loadingEditTermins} onChange={(e) => { setEditTerminId(e.target.value); setEditTaskId(""); }}><option value="">{loadingEditTermins ? "Memuat termin…" : "— Pilih termin —"}</option>{editTerminOptions.map((t) => <option key={t.id} value={t.id}>{t.nama || `Termin ${t.urutan}`}</option>)}</select></div>
-              <div><label className="mb-1 block text-sm font-medium">Nama Pekerjaan</label><select className={inputCls} value={editTaskId} disabled={!editTerminId} onChange={(e) => setEditTaskId(e.target.value)}><option value="">— Pilih pekerjaan —</option>{(selectedEditTermin?.tasks ?? []).map((task) => <option key={task.id} value={task.id}>{task.nama_pekerjaan || `Pekerjaan #${task.id}`}</option>)}</select></div>
-              <div><label className="mb-1 block text-sm font-medium">Kegiatan / Laporan</label><textarea className={inputCls} rows={4} value={editKegiatan} onChange={(e) => setEditKegiatan(e.target.value)} /></div>
-              <div><label className="mb-1 block text-sm font-medium">Kendala</label><textarea className={inputCls} rows={2} value={editKendala} onChange={(e) => setEditKendala(e.target.value)} /></div>
-              <div><label className="mb-1 block text-sm font-medium">Foto tersimpan</label><div className="flex flex-wrap gap-2">{editKeepImages.map((p, i) => <div key={`${p}-${i}`} className="relative"><img src={storageUrl(p)} alt={`foto ${i + 1}`} className="h-20 w-20 rounded border bg-slate-50 object-contain" /><button type="button" title="Hapus foto" onClick={() => setEditKeepImages((items) => items.filter((_, j) => j !== i))} className="absolute -right-1 -top-1 rounded-full bg-red-500 p-0.5 text-white"><X className="h-3 w-3" /></button></div>)}</div></div>
-              <div><label className="mb-1 block text-sm font-medium">Tambah foto</label><input type="file" accept="image/*" multiple onChange={(e) => setEditFiles((items) => [...items, ...Array.from(e.target.files ?? [])].slice(0, 20))} /><p className="mt-1 text-xs text-muted-foreground">{editFiles.length ? `${editFiles.length} foto baru dipilih` : "Tidak ada foto baru"}</p></div>
-            </div>
-            <div className="mt-5 flex justify-end gap-2"><button className="rounded-md border px-4 py-2 text-sm" onClick={() => setEditingReport(null)}>Batal</button><button className="rounded-md bg-orange-500 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50" disabled={updateMut.isPending || !editTerminId || !editTaskId || !editKegiatan.trim()} onClick={() => updateMut.mutate()}>{updateMut.isPending ? "Menyimpan…" : "Simpan Perubahan"}</button></div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -105,8 +105,8 @@ router.get("/warehouse/:id", async (req: Request, res: Response) => {
     id: w.id, nama: w.nama,
     stok: w.stok.map((s) => ({
       id: s.id, barang_id: s.barang_id, nama_barang: s.nama_barang ?? (s.barang ? s.barang.nama : ""),
-      is_custom: s.is_custom, quantity: parseFloat(String(s.quantity ?? 0)), price: parseFloat(String(s.price ?? 0)),
-      satuan: s.satuan, supplier: s.supplier, total_harga: parseFloat(String(s.total_harga ?? 0)),
+      is_custom: s.is_custom, quantity: parseFloat(String(s.quantity ?? 0)),
+      satuan: s.satuan, jenis: s.jenis, kondisi_barang: s.kondisi_barang,
     })),
   });
 });
@@ -136,17 +136,20 @@ router.get("/warehouse/:id/stok", async (req: Request, res: Response) => {
   return res.json(
     items.map((s) => ({
       id: s.id, barang_id: s.barang_id, nama_barang: s.nama_barang ?? (s.barang ? s.barang.nama : ""),
-      is_custom: s.is_custom, quantity: parseFloat(String(s.quantity ?? 0)), price: parseFloat(String(s.price ?? 0)),
-      satuan: s.satuan, supplier: s.supplier, total_harga: parseFloat(String(s.total_harga ?? 0)),
+      is_custom: s.is_custom, quantity: parseFloat(String(s.quantity ?? 0)),
+      satuan: s.satuan, jenis: s.jenis, kondisi_barang: s.kondisi_barang,
     }))
   );
 });
 
 router.post("/warehouse/:id/stok", async (req: Request, res: Response) => {
   const wid = BigInt(req.params.id);
-  const { barang_id, nama_barang, is_custom, quantity, price, satuan, supplier } = req.body;
+  const { barang_id, nama_barang, is_custom, quantity, satuan, jenis, kondisi_barang } = req.body;
+  const validJenis = ["Alat", "Material"];
+  const validKondisi = ["Baik", "Perlu Perbaikan", "Rusak"];
+  if (!validJenis.includes(jenis)) return res.status(400).json({ detail: "Jenis wajib dipilih: Alat atau Material" });
+  if (!validKondisi.includes(kondisi_barang)) return res.status(400).json({ detail: "Kondisi barang tidak valid" });
   const qty = quantity ?? 0;
-  const prc = price ?? 0;
   let barangNama = nama_barang ?? null;
   if (!is_custom && barang_id) {
     const b = await prisma.barang.findUnique({ where: { id: barang_id } });
@@ -155,8 +158,8 @@ router.post("/warehouse/:id/stok", async (req: Request, res: Response) => {
   const s = await prisma.stokWarehouse.create({
     data: {
       warehouse_id: wid, barang_id: barang_id ?? null, nama_barang: barangNama,
-      is_custom: is_custom ?? false, quantity: qty, price: prc,
-      satuan: satuan ?? null, supplier: supplier ?? null, total_harga: qty * prc,
+      is_custom: is_custom ?? false, quantity: qty,
+      satuan: satuan ?? null, jenis, kondisi_barang,
     },
   });
   return res.status(201).json({ id: s.id, message: "Stok ditambahkan" });
@@ -167,18 +170,20 @@ router.patch("/warehouse/:wid/stok/:sid", async (req: Request, res: Response) =>
   const sid = BigInt(req.params.sid);
   const s = await prisma.stokWarehouse.findFirst({ where: { id: sid, warehouse_id: wid } });
   if (!s) return res.status(404).json({ detail: "Stok tidak ditemukan" });
-  const { nama_barang, quantity, price, satuan, supplier } = req.body;
+  const { nama_barang, quantity, satuan, jenis, kondisi_barang } = req.body;
   const updates: Record<string, unknown> = {};
   if (nama_barang !== undefined) updates.nama_barang = nama_barang;
   if (quantity !== undefined) updates.quantity = quantity;
-  if (price !== undefined) updates.price = price;
   if (satuan !== undefined) updates.satuan = satuan;
-  if (supplier !== undefined) updates.supplier = supplier;
-  const updated = await prisma.stokWarehouse.update({ where: { id: sid }, data: updates });
-  await prisma.stokWarehouse.update({
-    where: { id: sid },
-    data: { total_harga: parseFloat(String(updated.quantity ?? 0)) * parseFloat(String(updated.price ?? 0)) },
-  });
+  if (jenis !== undefined) {
+    if (!["Alat", "Material"].includes(jenis)) return res.status(400).json({ detail: "Jenis tidak valid" });
+    updates.jenis = jenis;
+  }
+  if (kondisi_barang !== undefined) {
+    if (!["Baik", "Perlu Perbaikan", "Rusak"].includes(kondisi_barang)) return res.status(400).json({ detail: "Kondisi barang tidak valid" });
+    updates.kondisi_barang = kondisi_barang;
+  }
+  await prisma.stokWarehouse.update({ where: { id: sid }, data: updates });
   return res.json({ message: "Stok diupdate" });
 });
 

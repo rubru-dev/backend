@@ -503,7 +503,8 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
 export default function AdministrasiKantorPage() {
   const qc = useQueryClient();
   const { user, isSuperAdmin, hasPermission } = useAuthStore();
-  const isPrivileged    = isSuperAdmin() || hasPermission("finance", "reimburse_all");
+  // Hanya Super Admin yang boleh melihat dan mengajukan reimburse lintas user.
+  const isPrivileged    = isSuperAdmin();
   const canSignHead     = isSuperAdmin() || hasPermission("finance", "sign_head");
   const canSignAdmin    = isSuperAdmin() || hasPermission("finance", "sign_admin");
   const canManageAbsen  = isSuperAdmin() || hasPermission("absen", "manage");
@@ -541,10 +542,11 @@ export default function AdministrasiKantorPage() {
   // Expanded row
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  // Users for dropdown (always loaded, used for form + filter)
+  // Daftar user hanya diperlukan oleh Super Admin untuk memilih pengaju.
   const { data: usersData } = useQuery({
     queryKey: ["reimburse-users", user?.id],
     queryFn: reimburseApi.users,
+    enabled: isPrivileged,
   });
   const users: any[] = Array.isArray(usersData) ? usersData : [];
   const filteredUsers = users.filter(u =>
@@ -557,12 +559,12 @@ export default function AdministrasiKantorPage() {
 
   function buildReimburseParams(extra?: Record<string, any>) {
     return {
-      ...(filterStatus ? { status: filterStatus } : {}),
-      ...(filterUserId ? { user_id: filterUserId } : {}),
-      ...(filterDariTanggal ? { dari_tanggal: filterDariTanggal } : {}),
-      ...(filterSampaiTanggal ? { sampai_tanggal: filterSampaiTanggal } : {}),
-      ...(!filterDariTanggal && !filterSampaiTanggal && filterBulan ? { bulan: filterBulan } : {}),
-      ...(!filterDariTanggal && !filterSampaiTanggal && filterTahun ? { tahun: filterTahun } : {}),
+      ...(isPrivileged && filterStatus ? { status: filterStatus } : {}),
+      ...(isPrivileged && filterUserId ? { user_id: filterUserId } : {}),
+      ...(isPrivileged && filterDariTanggal ? { dari_tanggal: filterDariTanggal } : {}),
+      ...(isPrivileged && filterSampaiTanggal ? { sampai_tanggal: filterSampaiTanggal } : {}),
+      ...(filterBulan ? { bulan: filterBulan } : {}),
+      ...(isPrivileged && !filterDariTanggal && !filterSampaiTanggal && filterTahun ? { tahun: filterTahun } : {}),
       ...extra,
     };
   }
@@ -763,6 +765,7 @@ export default function AdministrasiKantorPage() {
             <option value="">Semua Bulan</option>
             {BULAN_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
           </select>
+          {isPrivileged && <>
           {/* Filter: Tahun */}
           <select className="border rounded-md px-3 py-2 text-sm" value={filterTahun}
             onChange={e => setFilterTahun(e.target.value)}>
@@ -794,6 +797,7 @@ export default function AdministrasiKantorPage() {
               </Button>
             )}
           </div>
+          </>}
           {/* Bulk PDF download */}
           <Button variant="outline" disabled={reimburseTotal === 0 || isLoading}
             onClick={handleDownloadBulkPDF}>

@@ -1130,6 +1130,8 @@ model LaporanPicProjek {
   tanggal        DateTime                @default(dbgenerated("CURRENT_DATE")) @db.Date
   kegiatan       String
   kendala        String?
+  status_pekerjaan String                 @default("On Progress") @db.VarChar(30)
+  status_approval  String                 @default("Tidak Ada") @db.VarChar(30)
   images         Json                    @default("[]")
   created_at     DateTime                @default(now()) @db.Timestamptz(6)
   updated_at     DateTime                @default(now()) @db.Timestamptz(6)
@@ -1240,12 +1242,20 @@ model ProyekBerjalanTask {
   tanggal_mulai   DateTime?                @db.Date
   tanggal_selesai DateTime?                @db.Date
   status          String                   @default("Belum Mulai") @db.VarChar(50)
+  status_approval String                   @default("Tidak Ada") @db.VarChar(30)
+  status_requested_by BigInt?
+  status_requested_at DateTime?            @db.Timestamptz(6)
+  status_approved_by  BigInt?
+  status_approved_at  DateTime?             @db.Timestamptz(6)
+  status_rejection_reason String?
+  checklist_jenis String                   @default("RAB_AWAL") @db.VarChar(20)
   assigned_to     BigInt?
   created_at      DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at      DateTime                 @default(now()) @db.Timestamptz(6)
   assigned_user   User?                    @relation(fields: [assigned_to], references: [id], onUpdate: NoAction)
   termin          ProyekBerjalanTermin     @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   fotos           ProyekBerjalanTaskFoto[]
+  checklist       ChecklistSipil?
 
   @@index([tanggal_selesai], map: "idx_pb_tasks_deadline")
   @@index([status], map: "idx_pb_tasks_status")
@@ -1374,6 +1384,10 @@ model ProyekBerjalan {
   tanggal_mulai        DateTime?              @db.Date
   tanggal_selesai      DateTime?              @db.Date
   created_by           BigInt?
+  pic_user_id          BigInt?
+  ro_nama_snapshot     String?                @db.VarChar(255)
+  pic_nama_snapshot    String?                @db.VarChar(255)
+  client_nama_snapshot String?                @db.VarChar(255)
   ro_id                BigInt?
   created_at           DateTime               @default(now()) @db.Timestamptz(6)
   updated_at           DateTime               @default(now()) @db.Timestamptz(6)
@@ -1382,6 +1396,7 @@ model ProyekBerjalan {
   checklists           ChecklistSipil[]
   rab_items            SipilRabItem[]
   pic                  User?                  @relation("ProyekBerjalanPIC", fields: [created_by], references: [id], onUpdate: NoAction)
+  pic_user             User?                  @relation("ProyekBerjalanAssignedPIC", fields: [pic_user_id], references: [id], onUpdate: NoAction)
   ro                   User?                  @relation("ProyekBerjalanRO", fields: [ro_id], references: [id], onUpdate: NoAction)
   lead                 Lead?                  @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
 
@@ -1426,11 +1441,19 @@ model ProyekInteriorTask {
   tanggal_mulai   DateTime?                @db.Date
   tanggal_selesai DateTime?                @db.Date
   status          String                   @default("Belum Mulai") @db.VarChar(50)
+  status_approval String                   @default("Tidak Ada") @db.VarChar(30)
+  status_requested_by BigInt?
+  status_requested_at DateTime?            @db.Timestamptz(6)
+  status_approved_by  BigInt?
+  status_approved_at  DateTime?             @db.Timestamptz(6)
+  status_rejection_reason String?
+  checklist_jenis String                   @default("RAB_AWAL") @db.VarChar(20)
   created_at      DateTime                 @default(now()) @db.Timestamptz(6)
   updated_at      DateTime                 @default(now()) @db.Timestamptz(6)
   assigned_user   User?                    @relation(fields: [assigned_to], references: [id], onUpdate: NoAction)
   termin          ProyekInteriorTermin     @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   fotos           ProyekInteriorTaskFoto[]
+  checklist       ChecklistInterior?
 
   @@map("proyek_interior_tasks")
 }
@@ -1478,6 +1501,11 @@ model ProyekInterior {
   tanggal_mulai           DateTime?                      @db.Date
   tanggal_selesai         DateTime?                      @db.Date
   created_by              BigInt?
+  ro_id                   BigInt?
+  pic_user_id             BigInt?
+  ro_nama_snapshot        String?                        @db.VarChar(255)
+  pic_nama_snapshot       String?                        @db.VarChar(255)
+  client_nama_snapshot    String?                        @db.VarChar(255)
   created_at              DateTime                       @default(now()) @db.Timestamptz(6)
   updated_at              DateTime                       @default(now()) @db.Timestamptz(6)
   termins                 ProyekInteriorTermin[]
@@ -1486,6 +1514,8 @@ model ProyekInterior {
   rapp_vendor_kategoris   RappInteriorVendorKategori[]
   checklists              ChecklistInterior[]
   pic                     User?                          @relation(fields: [created_by], references: [id], onUpdate: NoAction)
+  ro                      User?                          @relation("ProyekInteriorRO", fields: [ro_id], references: [id], onUpdate: NoAction)
+  pic_user                User?                          @relation("ProyekInteriorAssignedPIC", fields: [pic_user_id], references: [id], onUpdate: NoAction)
   lead                    Lead?                          @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
 
   @@map("proyek_interiors")
@@ -1906,6 +1936,8 @@ model StokWarehouse {
   supplier       String?        @db.VarChar(255)
   total_harga    Decimal        @default(0) @db.Decimal(15, 2)
   satuan         String?        @db.VarChar(50)
+  jenis          String         @default("Material") @db.VarChar(20)
+  kondisi_barang String         @default("Baik") @db.VarChar(30)
   is_custom      Boolean        @default(false)
   created_at     DateTime       @default(now()) @db.Timestamptz(6)
   updated_at     DateTime       @default(now()) @db.Timestamptz(6)
@@ -2101,9 +2133,12 @@ model User {
   proyek_berjalan_tasks                 ProyekBerjalanTask[]
   proyek_berjalans                      ProyekBerjalan[]             @relation("ProyekBerjalanPIC")
   proyek_berjalans_ro                   ProyekBerjalan[]             @relation("ProyekBerjalanRO")
+  proyek_berjalans_assigned_pic         ProyekBerjalan[]             @relation("ProyekBerjalanAssignedPIC")
   sipil_task_fotos                      ProyekBerjalanTaskFoto[]     @relation("SipilTaskFotoUploader")
   proyek_interior_tasks                 ProyekInteriorTask[]
   proyek_interiors                      ProyekInterior[]
+  proyek_interiors_ro                   ProyekInterior[]             @relation("ProyekInteriorRO")
+  proyek_interiors_assigned_pic         ProyekInterior[]             @relation("ProyekInteriorAssignedPIC")
   interior_task_fotos                   ProyekInteriorTaskFoto[]     @relation("InteriorTaskFotoUploader")
   sales_kanban_cards                    SalesKanbanCard[]
   sales_kanban_comments                 SalesKanbanComment[]
@@ -2295,39 +2330,39 @@ model WhatsappReminder {
 // â”€â”€â”€ Projek Administrasi â€“ new tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 model ProjekCashflow {
-  id                     BigInt            @id @default(autoincrement())
+  id                     BigInt                     @id @default(autoincrement())
   adm_finance_project_id BigInt
   adm_finance_termin_id  BigInt?
   projek_pr_id           BigInt?
   gaji_tukang_id         BigInt?
-  tanggal                DateTime          @db.Date
-  no_pr                  String?           @db.VarChar(100)
-  kode                   String?           @db.VarChar(50)
-  termin                 String?           @db.VarChar(50)
+  tanggal                DateTime                   @db.Date
+  no_pr                  String?                    @db.VarChar(100)
+  kode                   String?                    @db.VarChar(50)
+  termin                 String?                    @db.VarChar(50)
   keterangan             String?
-  debit                  Decimal           @default(0) @db.Decimal(15, 2)
-  kredit                 Decimal           @default(0) @db.Decimal(15, 2)
-  nota_image             String?           @db.Text
-  created_at             DateTime          @default(now()) @db.Timestamptz(6)
-  updated_at             DateTime          @default(now()) @db.Timestamptz(6)
-  project                AdmFinanceProject @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  termin_rel             AdmFinanceTermin? @relation(fields: [adm_finance_termin_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  pr                     ProjekPR?         @relation(fields: [projek_pr_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  gaji_tukang            GajiTukang?       @relation(fields: [gaji_tukang_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  debit                  Decimal                    @default(0) @db.Decimal(15, 2)
+  kredit                 Decimal                    @default(0) @db.Decimal(15, 2)
+  nota_image             String?                    @db.Text
+  created_at             DateTime                   @default(now()) @db.Timestamptz(6)
+  updated_at             DateTime                   @default(now()) @db.Timestamptz(6)
+  project                AdmFinanceProject          @relation(fields: [adm_finance_project_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  termin_rel             AdmFinanceTermin?          @relation(fields: [adm_finance_termin_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  pr                     ProjekPR?                  @relation(fields: [projek_pr_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  gaji_tukang            GajiTukang?                @relation(fields: [gaji_tukang_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   attachments            ProjekCashflowAttachment[]
 
   @@map("projek_cashflows")
 }
 
 model ProjekCashflowAttachment {
-  id           BigInt          @id @default(autoincrement())
-  cashflow_id  BigInt
-  file_path    String          @db.VarChar(500)
+  id            BigInt         @id @default(autoincrement())
+  cashflow_id   BigInt
+  file_path     String         @db.VarChar(500)
   original_name String?        @db.VarChar(255)
-  mime_type    String?         @db.VarChar(150)
-  file_size    Int?
-  created_at   DateTime        @default(now()) @db.Timestamptz(6)
-  cashflow     ProjekCashflow  @relation(fields: [cashflow_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  mime_type     String?        @db.VarChar(150)
+  file_size     Int?
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  cashflow      ProjekCashflow @relation(fields: [cashflow_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@index([cashflow_id], map: "idx_projek_cashflow_attachments_cashflow")
   @@map("projek_cashflow_attachments")
@@ -3169,41 +3204,65 @@ model KontrakDokumenPasal {
 
 /// Form Checklist â€” item checklist per proyek sipil (gambar + nama pekerjaan + status + gambar selesai)
 model ChecklistSipil {
-  id                   BigInt         @id @default(autoincrement())
+  id                   BigInt              @id @default(autoincrement())
   proyek_id            BigInt
-  nama_pekerjaan       String         @db.VarChar(500)
-  area_pekerjaan       String?        @db.VarChar(500)
-  gambar_path          String?        @db.VarChar(500)
-  gambar_paths         String?        @db.Text
-  gambar_selesai_path  String?        @db.VarChar(500)
-  gambar_selesai_paths String?        @db.Text
-  is_checked           Boolean        @default(false)
-  urutan               Int            @default(0)
-  created_at           DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
-  proyek               ProyekBerjalan @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  task_id              BigInt?             @unique(map: "uq_checklist_sipil_task")
+  termin_id            BigInt?
+  item_jenis           String              @default("RAB_AWAL") @db.VarChar(20)
+  nama_pekerjaan       String              @db.VarChar(500)
+  area_pekerjaan       String?             @db.VarChar(500)
+  gambar_path          String?             @db.VarChar(500)
+  gambar_paths         String?             @db.Text
+  gambar_selesai_path  String?             @db.VarChar(500)
+  gambar_selesai_paths String?             @db.Text
+  is_checked           Boolean             @default(false)
+  urutan               Int                 @default(0)
+  created_at           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  pic_paraf            Boolean             @default(false)
+  pic_paraf_by         BigInt?
+  pic_paraf_at         DateTime?           @db.Timestamptz(6)
+  client_paraf         Boolean             @default(false)
+  client_paraf_by      BigInt?
+  client_paraf_at      DateTime?           @db.Timestamptz(6)
+  proyek               ProyekBerjalan      @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  task                 ProyekBerjalanTask? @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([proyek_id, task_id], map: "uq_checklist_sipil_project_task")
   @@index([proyek_id], map: "idx_checklist_sipil_proyek")
+  @@index([task_id], map: "idx_checklist_sipil_task")
   @@map("checklist_sipils")
 }
 
 /// Form Checklist â€” item checklist per proyek interior (gambar + nama pekerjaan + status + gambar selesai)
 model ChecklistInterior {
-  id                   BigInt         @id @default(autoincrement())
+  id                   BigInt              @id @default(autoincrement())
   proyek_id            BigInt
-  nama_pekerjaan       String         @db.VarChar(500)
-  area_pekerjaan       String?        @db.VarChar(500)
-  gambar_path          String?        @db.VarChar(500)
-  gambar_paths         String?        @db.Text
-  gambar_selesai_path  String?        @db.VarChar(500)
-  gambar_selesai_paths String?        @db.Text
-  is_checked           Boolean        @default(false)
-  urutan               Int            @default(0)
-  created_at           DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at           DateTime       @default(now()) @updatedAt @db.Timestamptz(6)
-  proyek               ProyekInterior @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  task_id              BigInt?             @unique(map: "uq_checklist_interior_task")
+  termin_id            BigInt?
+  item_jenis           String              @default("RAB_AWAL") @db.VarChar(20)
+  nama_pekerjaan       String              @db.VarChar(500)
+  area_pekerjaan       String?             @db.VarChar(500)
+  gambar_path          String?             @db.VarChar(500)
+  gambar_paths         String?             @db.Text
+  gambar_selesai_path  String?             @db.VarChar(500)
+  gambar_selesai_paths String?             @db.Text
+  is_checked           Boolean             @default(false)
+  urutan               Int                 @default(0)
+  created_at           DateTime            @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime            @default(now()) @updatedAt @db.Timestamptz(6)
+  pic_paraf            Boolean             @default(false)
+  pic_paraf_by         BigInt?
+  pic_paraf_at         DateTime?           @db.Timestamptz(6)
+  client_paraf         Boolean             @default(false)
+  client_paraf_by      BigInt?
+  client_paraf_at      DateTime?           @db.Timestamptz(6)
+  proyek               ProyekInterior      @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  task                 ProyekInteriorTask? @relation(fields: [task_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
+  @@unique([proyek_id, task_id], map: "uq_checklist_interior_project_task")
   @@index([proyek_id], map: "idx_checklist_interior_proyek")
+  @@index([task_id], map: "idx_checklist_interior_task")
   @@map("checklist_interiors")
 }
 

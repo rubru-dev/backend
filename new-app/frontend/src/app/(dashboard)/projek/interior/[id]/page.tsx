@@ -9,6 +9,7 @@ import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { RappSipilView } from "@/components/rapp-sipil";
 import { LaporanPicProjekTab } from "@/components/laporan-pic-projek-tab";
+import { ChecklistTerminTab } from "@/components/checklist-termin-tab";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { interiorProjekApi } from "@/lib/api/content";
@@ -39,6 +40,7 @@ type Task = {
   tanggal_mulai: string | null;
   tanggal_selesai: string | null;
   status: string | null;
+  checklist_jenis?: "RAB_AWAL" | "TAMBAHAN" | string;
   pic: { id: string; nama: string } | null;
 };
 
@@ -84,7 +86,7 @@ const GANTT_BAR_COLOR: Record<string, string> = {
 };
 
 const EMPTY_TERMIN = { nama: "", tanggal_mulai: "", tanggal_selesai: "" };
-const EMPTY_TASK = { nama_pekerjaan: "", tanggal_mulai: "", tanggal_selesai: "", status: "Belum Mulai", pic: "" };
+const EMPTY_TASK = { nama_pekerjaan: "", tanggal_mulai: "", tanggal_selesai: "", status: "Belum Mulai", pic: "", checklist_jenis: "RAB_AWAL" };
 
 // ── Checklist Tab Component ─────────────────────────────────────────────────────
 type ChecklistItem = {
@@ -683,10 +685,10 @@ export default function ProyekInteriorDetailPage() {
   const canTabTermin     = sa || hasPermission("projek_interior", "termin");
   const canTabGantt      = sa || hasPermission("projek_interior", "gantt");
   const canTabRapp       = sa || hasPermission("projek_interior", "rapp");
-  const canTabDokumentasi= true;
+  const canTabDokumentasi= false;
   const canTabChecklist  = true;
   const canTabLaporanPic = sa || hasPermission("projek_interior", "laporan_pic");
-  const defaultTab       = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabRapp ? "rapp" : "dokumentasi";
+  const defaultTab       = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabRapp ? "rapp" : canTabLaporanPic ? "laporan-pic" : "termin";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
   const [ganttFilter, setGanttFilter] = useState("all");
@@ -794,9 +796,9 @@ export default function ProyekInteriorDetailPage() {
   }
 
   function openCreateTask(termin: Termin) { setEditTask(null); setTaskTermin(termin); setTaskForm(EMPTY_TASK); setTaskDialog(true); }
-  function openEditTask(task: Task, termin: Termin) { setEditTask(task); setTaskTermin(termin); setTaskForm({ nama_pekerjaan: task.nama_pekerjaan ?? "", tanggal_mulai: task.tanggal_mulai ?? "", tanggal_selesai: task.tanggal_selesai ?? "", status: task.status ?? "Belum Mulai", pic: task.pic?.id ?? "" }); setTaskDialog(true); }
+  function openEditTask(task: Task, termin: Termin) { setEditTask(task); setTaskTermin(termin); setTaskForm({ nama_pekerjaan: task.nama_pekerjaan ?? "", tanggal_mulai: task.tanggal_mulai ?? "", tanggal_selesai: task.tanggal_selesai ?? "", status: task.status ?? "Belum Mulai", pic: task.pic?.id ?? "", checklist_jenis: task.checklist_jenis ?? "RAB_AWAL" }); setTaskDialog(true); }
   function handleTaskSubmit() {
-    const payload = { nama_pekerjaan: taskForm.nama_pekerjaan || null, tanggal_mulai: taskForm.tanggal_mulai || null, tanggal_selesai: taskForm.tanggal_selesai || null, status: taskForm.status, pic: taskForm.pic || null };
+    const payload = { nama_pekerjaan: taskForm.nama_pekerjaan || null, tanggal_mulai: taskForm.tanggal_mulai || null, tanggal_selesai: taskForm.tanggal_selesai || null, status: taskForm.status, pic: taskForm.pic || null, checklist_jenis: taskForm.checklist_jenis };
     if (editTask) updateTask.mutate({ tid: editTask.id, data: payload });
     else if (taskTermin) addTask.mutate({ terminId: taskTermin.id, data: payload });
   }
@@ -1113,7 +1115,7 @@ export default function ProyekInteriorDetailPage() {
 
         {/* Form Checklist */}
         <TabsContent value="checklist" className="mt-4">
-          <ChecklistTab projekId={id} api={interiorProjekApi} projekDetail={{ nama_proyek: detail?.nama_proyek, lead: detail?.lead, lokasi: detail?.lokasi, tipe: "PROYEK INTERIOR" }} />
+          <ChecklistTerminTab projectId={id} api={interiorProjekApi} />
         </TabsContent>
 
         {/* Laporan PIC Project (terhubung dari Laporan Harian PIC) */}
@@ -1201,6 +1203,13 @@ export default function ProyekInteriorDetailPage() {
             </div>
             <div>
               <Label>Status</Label>
+              <div>
+                <Label>Jenis Checklist</Label>
+                <Select value={taskForm.checklist_jenis} onValueChange={(v) => setTaskForm({ ...taskForm, checklist_jenis: v })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="RAB_AWAL">RAB Awal</SelectItem><SelectItem value="TAMBAHAN">Pekerjaan Tambahan</SelectItem></SelectContent>
+                </Select>
+              </div>
               <Select value={taskForm.status} onValueChange={(v) => setTaskForm({ ...taskForm, status: v })}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>{STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
