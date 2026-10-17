@@ -9,6 +9,7 @@ import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { RappSipilView } from "@/components/rapp-sipil";
 import { LaporanPicProjekTab } from "@/components/laporan-pic-projek-tab";
+import { ProjectStockOpnameTab } from "@/components/project-stock-opname-tab";
 import { ChecklistTerminTab } from "@/components/checklist-termin-tab";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -1498,7 +1499,11 @@ export default function ProyekSipilDetailPage() {
         </AlertDialog>
 
         {/* Stock Opname */}
-        <TabsContent value="stock-opname" className="mt-4 space-y-4">
+        <TabsContent value="stock-opname" className="mt-4">
+          <ProjectStockOpnameTab projectType="sipil" projectId={id} />
+        </TabsContent>
+
+        <TabsContent value="stock-opname-legacy" className="mt-4 space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div className="flex gap-1">
               <button onClick={() => setSoTab("items")} className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${soTab === "items" ? "bg-teal-600 text-white" : "text-muted-foreground hover:text-foreground"}`}>
@@ -1717,7 +1722,7 @@ export default function ProyekSipilDetailPage() {
 
         {/* Form Checklist */}
         <TabsContent value="checklist" className="mt-4">
-          <ChecklistTerminTab projectId={id} api={sipilApi} />
+          <ChecklistTerminTab projectId={id} api={sipilApi} projectInfo={{ nama_proyek: detail?.nama_proyek, lokasi: detail?.lokasi, lead: detail?.lead, tipe: "SIPIL" }} />
         </TabsContent>
 
         {/* Laporan PIC Project (terhubung dari Laporan Harian PIC) */}

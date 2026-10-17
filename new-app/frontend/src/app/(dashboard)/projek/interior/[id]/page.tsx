@@ -9,6 +9,7 @@ import { pdf } from "@react-pdf/renderer";
 import { saveAs } from "file-saver";
 import { RappSipilView } from "@/components/rapp-sipil";
 import { LaporanPicProjekTab } from "@/components/laporan-pic-projek-tab";
+import { ProjectStockOpnameTab } from "@/components/project-stock-opname-tab";
 import { ChecklistTerminTab } from "@/components/checklist-termin-tab";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
@@ -29,7 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, Pencil, Trash2, Home, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
-  Camera, Upload, X, ImageIcon, CheckSquare, ClipboardCheck,
+  Camera, Upload, X, ImageIcon, CheckSquare, ClipboardCheck, PackageSearch,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 
@@ -687,8 +688,9 @@ export default function ProyekInteriorDetailPage() {
   const canTabRapp       = sa || hasPermission("projek_interior", "rapp");
   const canTabDokumentasi= false;
   const canTabChecklist  = true;
+  const canTabStockOpname= sa || hasPermission("projek_interior", "stock_opname");
   const canTabLaporanPic = sa || hasPermission("projek_interior", "laporan_pic");
-  const defaultTab       = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabRapp ? "rapp" : canTabLaporanPic ? "laporan-pic" : "termin";
+  const defaultTab       = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : canTabLaporanPic ? "laporan-pic" : "termin";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
   const [ganttFilter, setGanttFilter] = useState("all");
@@ -926,6 +928,7 @@ export default function ProyekInteriorDetailPage() {
           {canTabRapp       && <TabsTrigger value="rapp"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />RAPP</TabsTrigger>}
           {canTabDokumentasi && <TabsTrigger value="dokumentasi"><Camera className="h-3.5 w-3.5 mr-1.5" />Dokumentasi</TabsTrigger>}
           {canTabChecklist   && <TabsTrigger value="checklist"><CheckSquare className="h-3.5 w-3.5 mr-1.5" />Form Checklist</TabsTrigger>}
+          {canTabStockOpname && <TabsTrigger value="stock-opname"><PackageSearch className="h-3.5 w-3.5 mr-1.5" />Stock Opname</TabsTrigger>}
           {canTabLaporanPic  && <TabsTrigger value="laporan-pic"><ClipboardCheck className="h-3.5 w-3.5 mr-1.5" />Laporan PIC Project</TabsTrigger>}
         </TabsList>
 
@@ -1115,8 +1118,14 @@ export default function ProyekInteriorDetailPage() {
 
         {/* Form Checklist */}
         <TabsContent value="checklist" className="mt-4">
-          <ChecklistTerminTab projectId={id} api={interiorProjekApi} />
+          <ChecklistTerminTab projectId={id} api={interiorProjekApi} projectInfo={{ nama_proyek: detail?.nama_proyek, lokasi: detail?.lokasi, lead: detail?.lead, tipe: "INTERIOR" }} />
         </TabsContent>
+
+        {canTabStockOpname && (
+          <TabsContent value="stock-opname" className="mt-4">
+            <ProjectStockOpnameTab projectType="interior" projectId={id} />
+          </TabsContent>
+        )}
 
         {/* Laporan PIC Project (terhubung dari Laporan Harian PIC) */}
         {canTabLaporanPic && (

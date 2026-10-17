@@ -1,13 +1,16 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { pdf } from "@react-pdf/renderer";
+import { saveAs } from "file-saver";
 import { toast } from "sonner";
-import { Check, ImageIcon, Loader2, PenLine } from "lucide-react";
+import { Check, Download, ImageIcon, Loader2, PenLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { storageUrl } from "@/lib/storage-url";
+import { getLogoBase64 } from "@/lib/get-logo";
 
 type ChecklistItem = {
   id: string;
@@ -32,6 +35,13 @@ type ChecklistApi = {
   updateChecklistParaf: (id: string, party: "pic" | "client", value: boolean) => Promise<unknown>;
 };
 
+type ChecklistProjectInfo = {
+  nama_proyek?: string | null;
+  lokasi?: string | null;
+  lead?: { nama: string } | null;
+  tipe?: string;
+};
+
 function ParafButton({ value, label, onClick, disabled }: { value: boolean; label: string; onClick: () => void; disabled?: boolean }) {
   return (
     <Button
@@ -49,10 +59,11 @@ function ParafButton({ value, label, onClick, disabled }: { value: boolean; labe
   );
 }
 
-export function ChecklistTerminTab({ projectId, api }: { projectId: string; api: ChecklistApi }) {
+export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId: string; api: ChecklistApi; projectInfo?: ChecklistProjectInfo }) {
   const qc = useQueryClient();
   const queryKey = ["checklist-termin", projectId];
   const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => api.getChecklist(projectId) });
+  const [exportingTermin, setExportingTermin] = useState<string | null>(null);
   const parafMutation = useMutation({
     mutationFn: ({ id, party, value }: { id: string; party: "pic" | "client"; value: boolean }) => api.updateChecklistParaf(id, party, value),
     onSuccess: () => qc.invalidateQueries({ queryKey }),
@@ -69,6 +80,50 @@ export function ChecklistTerminTab({ projectId, api }: { projectId: string; api:
     }
     return [...grouped.values()];
   }, [items]);
+
+  async function fetchImage(url: string) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return null;
+      const blob = await response.blob();
+      return await new Promise<string | null>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(typeof reader.result === "string" ? reader.result : null);
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch { return null; }
+  }
+
+  async function exportTermin(group: { name: string; items: ChecklistItem[] }) {
+    setExportingTermin(group.name);
+    try {
+      const { ChecklistTerminPDF } = await import("@/components/checklist-termin-pdf");
+      const logoUrl = await getLogoBase64();
+      const pdfItems = await Promise.all(group.items.map(async (item, index) => ({
+        no: index + 1,
+        nama_pekerjaan: item.nama_pekerjaan,
+        item_jenis: item.item_jenis,
+        dokumentasi_b64s: (await Promise.all(item.dokumentasi_paths.map((path) => fetchImage(storageUrl(path))))).filter(Boolean) as string[],
+        pic_paraf: item.pic_paraf,
+        client_paraf: item.client_paraf,
+      })));
+      const blob = await pdf(<ChecklistTerminPDF data={{
+        namaProyek: projectInfo?.nama_proyek ?? "Proyek",
+        tipeProyek: projectInfo?.tipe ?? "PROYEK",
+        termin: group.name,
+        klien: projectInfo?.lead?.nama ?? data?.signatories?.client,
+        lokasi: projectInfo?.lokasi,
+        signatories: data?.signatories ?? {},
+        items: pdfItems,
+        logoUrl,
+      }} />).toBlob();
+      saveAs(blob, `Checklist-${group.name}-${projectInfo?.nama_proyek ?? "Proyek"}.pdf`.replace(/[\\/:*?"<>|]/g, "-"));
+    } catch (error) {
+      console.error(error);
+      toast.error("Gagal membuat PDF checklist termin");
+    } finally { setExportingTermin(null); }
+  }
 
   if (isLoading) return <div className="flex items-center justify-center py-16 text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Memuat checklist dari task termin...</div>;
   if (isError) return <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4 text-sm text-destructive">Checklist gagal dimuat. Coba muat ulang halaman.</div>;
@@ -89,7 +144,7 @@ export function ChecklistTerminTab({ projectId, api }: { projectId: string; api:
         <section key={group.name} className="overflow-hidden rounded-lg border bg-background">
           <div className="flex items-center justify-between border-b bg-muted/40 px-4 py-3">
             <h4 className="font-semibold">{group.name}</h4>
-            <span className="text-xs text-muted-foreground">{group.items.length} pekerjaan</span>
+            <div className="flex items-center gap-2"><span className="text-xs text-muted-foreground">{group.items.length} pekerjaan</span><Button type="button" variant="outline" size="sm" className="h-8 gap-1.5" disabled={exportingTermin !== null} onClick={() => exportTermin(group)}><Download className="h-3.5 w-3.5" />{exportingTermin === group.name ? "Membuat PDF..." : "Export PDF"}</Button></div>
           </div>
           <div className="overflow-x-auto">
             <Table className="min-w-[900px]">

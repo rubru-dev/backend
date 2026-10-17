@@ -7,17 +7,19 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Download, Pencil, Plus, Save, Trash2, Warehouse, X } from "lucide-react";
+import { ChevronDown, ChevronRight, Download, Pencil, Plus, Save, Trash2, Warehouse, X } from "lucide-react";
 
 type Wh = { id: number; nama: string; jumlah_item: number };
 type Stock = { id: number; nama_barang: string; quantity: number; satuan: string | null; jenis: "Alat" | "Material"; kondisi_barang: "Baik" | "Perlu Perbaikan" | "Rusak" };
 type Detail = { id: number; nama: string; stok: Stock[] };
+type Allocation = { id: string; nama_item: string; project_type: string; project_name: string; movement_type: string; qty: number; satuan: string | null; tanggal: string; catatan: string | null };
 
 export default function GudangWorkshopPage() {
   const qc = useQueryClient();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [warehouseName, setWarehouseName] = useState("");
   const [editingWarehouse, setEditingWarehouse] = useState<{ id: number; nama: string } | null>(null);
+  const [expandedStockId, setExpandedStockId] = useState<number | null>(null);
   const [form, setForm] = useState({ nama_barang: "", jenis: "Material" as "Alat" | "Material", quantity: "1", satuan: "pcs", kondisi_barang: "Baik" as Stock["kondisi_barang"] });
   const [editingStockId, setEditingStockId] = useState<number | null>(null);
   const [editStockForm, setEditStockForm] = useState({ nama_barang: "", jenis: "Material" as "Alat" | "Material", quantity: "1", satuan: "pcs", kondisi_barang: "Baik" as Stock["kondisi_barang"] });
@@ -30,6 +32,11 @@ export default function GudangWorkshopPage() {
   const { data: detail, isLoading } = useQuery<Detail | null>({
     queryKey: ["projek-warehouse-detail", activeId],
     queryFn: () => activeId ? apiClient.get(`/projek/warehouse/${activeId}`).then((r) => r.data) : Promise.resolve(null),
+    enabled: !!activeId,
+  });
+  const { data: allocations = [] } = useQuery<Allocation[]>({
+    queryKey: ["warehouse-allocations", activeId],
+    queryFn: () => activeId ? apiClient.get(`/project-stock/warehouse/${activeId}/allocations`).then((r) => r.data) : Promise.resolve([]),
     enabled: !!activeId,
   });
 
@@ -343,9 +350,10 @@ export default function GudangWorkshopPage() {
                     </td>
                   </tr>
                 ) : (
+                  <>
                   <tr key={s.id}>
                     <td className="hidden px-4 py-3 text-center gudang-print-check"><span className="gudang-check-box" /></td>
-                    <td className="px-4 py-3 font-medium">{s.nama_barang}</td>
+                    <td className="px-4 py-3 font-medium"><button type="button" className="inline-flex items-center gap-1 text-left hover:text-teal-700" onClick={() => setExpandedStockId(expandedStockId === s.id ? null : s.id)}>{expandedStockId === s.id ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}{s.nama_barang}</button></td>
                     <td className="px-4 py-3 text-right">{s.quantity}</td>
                     <td className="px-4 py-3">{s.satuan ?? "-"}</td>
                     <td className="px-4 py-3">{s.jenis}</td>
@@ -357,6 +365,8 @@ export default function GudangWorkshopPage() {
                       </div>
                     </td>
                   </tr>
+                  {expandedStockId === s.id && <tr key={`${s.id}-allocation`} className="bg-slate-50"><td colSpan={7} className="px-8 py-3"><p className="mb-1 text-xs font-semibold text-slate-600">Riwayat projek barang ini</p>{allocations.filter((a) => a.nama_item.toLowerCase() === s.nama_barang.toLowerCase()).length === 0 ? <p className="text-xs text-muted-foreground">Belum ada alokasi/transaksi projek yang tercatat.</p> : <div className="space-y-1">{allocations.filter((a) => a.nama_item.toLowerCase() === s.nama_barang.toLowerCase()).map((a) => <div key={a.id} className="flex flex-wrap gap-x-4 text-xs"><b>{a.project_name}</b><span>{a.movement_type === "DIKEMBALIKAN" ? "Dikembalikan" : "Dikirim ke projek"}</span><span>{a.qty} {a.satuan || ""}</span><span className="text-muted-foreground">{new Date(a.tanggal).toLocaleDateString("id-ID")}</span></div>)}</div>}</td></tr>}
+                  </>
                 ))}
               </tbody>
             </table>
