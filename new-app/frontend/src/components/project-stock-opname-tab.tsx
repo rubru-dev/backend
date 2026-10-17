@@ -2,7 +2,8 @@
 
 import { Fragment, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { ChevronDown, ChevronRight, Plus, Send, Truck } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus, Truck } from "lucide-react";
+import { PBStatusBadge } from "@/components/pb-status-badge";
 import { toast } from "sonner";
 import { projectStockApi, ProjectStockType } from "@/lib/api/projectStock";
 
@@ -18,16 +19,14 @@ export function ProjectStockOpnameTab({ projectType, projectId }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [itemForm, setItemForm] = useState({ nama_item: "", satuan: "", qty_total: "", keterangan: "" });
   const [movementForm, setMovementForm] = useState({ stock_item_id: "", movement_type: "BARANG_MASUK", qty: "", tanggal: new Date().toISOString().slice(0, 10), warehouse_id: "", warehouse_stock_id: "", catatan: "" });
-  const [pbQty, setPbQty] = useState<Record<string, string>>({});
 
   const stockQuery = useQuery<StockItem[]>({ queryKey: ["project-stock", projectType, String(projectId)], queryFn: () => projectStockApi.list(projectType, projectId) });
-  const pbQuery = useQuery<any[]>({ queryKey: ["project-pb", projectType, String(projectId)], queryFn: () => projectStockApi.listPB(projectType, projectId), initialData: [] });
+  const pbQuery = useQuery<any[]>({ queryKey: ["project-pb", projectType, String(projectId)], queryFn: () => projectStockApi.listPB(projectType, projectId), staleTime: 0 });
   const warehousesQuery = useQuery<WarehouseOption[]>({ queryKey: ["project-stock-warehouses"], queryFn: projectStockApi.warehouses });
   const items = useMemo(() => (stockQuery.data ?? []).filter((item) => item.jenis === jenisTab), [stockQuery.data, jenisTab]);
   const invalidate = () => { qc.invalidateQueries({ queryKey: ["project-stock", projectType, String(projectId)] }); qc.invalidateQueries({ queryKey: ["project-pb", projectType, String(projectId)] }); };
   const addItem = useMutation({ mutationFn: () => projectStockApi.addItem(projectType, projectId, { ...itemForm, jenis: jenisTab, qty_total: Number(itemForm.qty_total) }), onSuccess: () => { toast.success("Item Stock Opname ditambahkan"); setItemForm({ nama_item: "", satuan: "", qty_total: "", keterangan: "" }); invalidate(); }, onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal menambah item") });
   const addMovement = useMutation({ mutationFn: () => projectStockApi.movement(movementForm.stock_item_id, { ...movementForm, qty: Number(movementForm.qty) }), onSuccess: () => { toast.success("Transaksi stok dicatat"); setMovementForm({ ...movementForm, stock_item_id: "", qty: "", warehouse_stock_id: "", catatan: "" }); invalidate(); qc.invalidateQueries({ queryKey: ["project-stock-warehouses"] }); }, onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal mencatat transaksi") });
-  const createPB = useMutation({ mutationFn: () => projectStockApi.createPB(projectType, projectId, { items: items.filter((item) => Number(pbQty[item.id] || 0) > 0).map((item) => ({ stock_item_id: item.id, qty: Number(pbQty[item.id]) })) }), onSuccess: () => { toast.success("PB diajukan"); setPbQty({}); invalidate(); }, onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal mengajukan PB") });
 
   const selectedItem = (stockQuery.data ?? []).find((item) => item.id === movementForm.stock_item_id);
   const selectedWarehouse = (warehousesQuery.data ?? []).find((warehouse) => warehouse.id === movementForm.warehouse_id);
@@ -36,7 +35,7 @@ export function ProjectStockOpnameTab({ projectType, projectId }: Props) {
       <div className="flex gap-1 rounded-lg border bg-muted/30 p-1">
         {(["Alat", "Material"] as const).map((jenis) => <button type="button" key={jenis} onClick={() => setJenisTab(jenis)} className={`rounded-md px-3 py-1.5 text-sm font-medium ${jenisTab === jenis ? "bg-teal-600 text-white" : "text-muted-foreground hover:bg-background"}`}>{jenis}</button>)}
       </div>
-      <button type="button" className="inline-flex min-h-10 items-center gap-1.5 rounded-md bg-teal-600 px-3 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-60" disabled={createPB.isPending || !Object.values(pbQty).some((q) => Number(q) > 0)} onClick={() => createPB.mutate()}><Send className="h-4 w-4" /> Ajukan PB</button>
+      <p className="text-xs text-muted-foreground">PB diajukan oleh PIC dari menu PIC Project → PB Projek.</p>
     </div>
 
     <div className="rounded-lg border bg-muted/20 p-3">
@@ -72,6 +71,6 @@ export function ProjectStockOpnameTab({ projectType, projectId }: Props) {
       {!items.length && <tr><td colSpan={11} className="px-4 py-10 text-center text-muted-foreground">Belum ada item {jenisTab.toLowerCase()}.</td></tr>}
     </tbody></table></div>
 
-    <div className="rounded-lg border p-4"><h3 className="mb-3 font-semibold">Daftar PB Projek</h3>{(pbQuery.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">Belum ada PB.</p> : <div className="space-y-2">{pbQuery.data.map((pb: any) => <div key={pb.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm"><span className="font-medium">{pb.nomor_pb}</span><span>{pb.items.map((i: any) => `${i.nama_item} (${i.qty} ${i.satuan})`).join(", ")}</span><span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs text-amber-700">{pb.status}</span></div>)}</div>}</div>
+    <div className="rounded-lg border p-4"><h3 className="mb-3 font-semibold">Daftar PB Projek</h3>{pbQuery.isLoading ? <p className="text-sm text-muted-foreground">Memuat PB...</p> : (pbQuery.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">Belum ada PB.</p> : <div className="space-y-2">{(pbQuery.data ?? []).map((pb: any) => <div key={pb.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm"><span className="font-medium">{pb.nomor_pb}</span><span>{pb.items.map((i: any) => `${i.nama_item} (${i.qty} ${i.satuan})`).join(", ")}</span><PBStatusBadge status={pb.status} /></div>)}</div>}</div>
   </div>;
 }

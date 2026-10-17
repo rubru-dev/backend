@@ -758,6 +758,17 @@ Design:
 - Upload foto harus jelas: preview, notes, project selector.
 - Kalender Visit harus menampilkan jadwal, lokasi, client, action WhatsApp/maps.
 
+#### PB Projek (Permintaan Barang)
+
+Alur: Projek Sipil/Interior → tab Stock Opname (isi item + Qty Total) → PIC `/pic/pb-projek` ajukan PB → Finance `/finance/pb-projek` Setujui/Tolak → Buat PR (masuk ke PR Administrasi Projek) → "Barang Diterima" (PIC/Finance) → Barang Masuk tercatat di Stock Opname.
+
+- Status PB: `Diajukan` → `Disetujui`/`Ditolak`; `Disetujui` → `Ditolak` (selama belum ada PR) atau `Diproses PR` (via create-pr); `Diproses PR` → `Selesai` (via receive). Transisi lain ditolak.
+- Kuota: semua PB selain `Ditolak` (termasuk `Diajukan` & `Selesai`) memakan Qty Total; dicek dengan row lock saat create & dicek ulang saat approve.
+- Barang Masuk dicatat saat `receive`, BUKAN saat PR dibuat. Hapus PR → PB terkait kembali `Disetujui`.
+- Akses Finance (lihat semua PB, approve, buat PR): role Super Admin/Head Finance/Admin Finance/Finance atau permission `finance.adm_projek`. Non-finance: PB dari projek tempat ia PIC + PB yang ia ajukan.
+- API (`/api/v1/project-stock`): `GET /pb`, `GET|POST /:type/:id/pb`, `PATCH /pb/:id/status`, `POST /pb/:id/create-pr`, `POST /pb/:id/receive`.
+- Frontend: query PB jangan pakai `initialData: []` — dengan `staleTime` global 60 detik data kosong dianggap fresh dan tidak pernah di-fetch.
+
 ### 9.12 Tukang
 
 Page:

@@ -2000,7 +2000,17 @@ router.patch("/adm-projek/:id/pr/:pid/status", async (req: Request, res: Respons
 // DELETE /finance/adm-projek/:id/pr/:pid
 router.delete("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
   const pid = BigInt(req.params.pid);
-  await prisma.projekPR.delete({ where: { id: pid } });
+  await prisma.$transaction(async (tx) => {
+    // PB Projek yang PR-nya dihapus (barang belum diterima) kembali ke "Disetujui"
+    // supaya Finance bisa membuat PR baru. Barang Masuk otomatis dari PB versi
+    // lama ikut dihapus karena barangnya tidak pernah datang.
+    const openPbs = await tx.projectPB.findMany({ where: { pr_id: pid, status: "Diproses PR" }, include: { items: { select: { stock_item_id: true } } } });
+    if (openPbs.length) {
+      await tx.projectStockMovement.deleteMany({ where: { reference_type: "PR", reference_id: pid, stock_item_id: { in: openPbs.flatMap((pb) => pb.items.map((i) => i.stock_item_id)) } } });
+      await tx.projectPB.updateMany({ where: { id: { in: openPbs.map((pb) => pb.id) } }, data: { status: "Disetujui", pr_id: null } });
+    }
+    await tx.projekPR.delete({ where: { id: pid } });
+  });
   return res.json({ message: "PR dihapus" });
 });
 
