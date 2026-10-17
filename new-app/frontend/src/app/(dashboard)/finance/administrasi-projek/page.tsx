@@ -1,7 +1,7 @@
 "use client";
 import { getLogoBase64 } from "@/lib/get-logo";
 
-import { Fragment, useState, useRef } from "react";
+import { Fragment, useEffect, useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -367,6 +367,8 @@ const KODE_OPTIONS = ["MTR", "OP", "MPH", "MPM", "TOOLS", "DESIGN", "BG"];
 const admApi = {
   listProyek: () =>
     apiClient.get("/finance/adm-projek").then((r) => r.data),
+  getProyek: (id: number | string) =>
+    apiClient.get(`/finance/adm-projek/${id}`).then((r) => r.data),
   createProyek: (data: any) =>
     apiClient.post("/finance/adm-projek", data).then((r) => r.data),
   updateProyek: (id: number, data: any) =>
@@ -4168,10 +4170,22 @@ function TukangTab({ proyekId, proyekNama, proyekKlien }: { proyekId: number; pr
 export default function AdministrasiProjekPage() {
   const qc = useQueryClient();
   const [selectedProyek, setSelectedProyek] = useState<any | null>(null);
+  const [detailTab, setDetailTab] = useState("cashflow");
   const [openProyek, setOpenProyek] = useState(false);
   const [editProyek, setEditProyek] = useState<any | null>(null);
   const [confirmDeleteProyek, setConfirmDeleteProyek] = useState<any | null>(null);
   const [formProyek, setFormProyek] = useState({ nama_proyek: "", klien: "", jenis: "Sipil", tanggal_mulai: today, tanggal_selesai: "", proyek_berjalan_id: "" });
+
+  // Deep-link ?proyek=<id>&tab=<tab> (dipakai tombol Buat PR / Lihat PR di PB Projek)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const proyekId = params.get("proyek");
+    if (!proyekId) return;
+    admApi.getProyek(proyekId)
+      .then((p) => { setSelectedProyek(p); setDetailTab(params.get("tab") || "cashflow"); })
+      .catch(() => toast.error("Projek administrasi tidak ditemukan"))
+      .finally(() => window.history.replaceState(null, "", window.location.pathname));
+  }, []);
 
   const { data: proyekList, isLoading: loadingProyek } = useQuery({
     queryKey: ["adm-projek-list"],
@@ -4230,7 +4244,7 @@ export default function AdministrasiProjekPage() {
     return (
       <div className="space-y-6">
         <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={() => setSelectedProyek(null)}>
+          <Button variant="ghost" size="icon" onClick={() => { setSelectedProyek(null); setDetailTab("cashflow"); }}>
             <ChevronLeft className="h-5 w-5" />
           </Button>
           <div>
@@ -4239,7 +4253,7 @@ export default function AdministrasiProjekPage() {
           </div>
         </div>
 
-        <Tabs defaultValue="cashflow">
+        <Tabs value={detailTab} onValueChange={setDetailTab}>
           <TabsList className="flex-wrap h-auto gap-1">
             <TabsTrigger value="pr" className="flex items-center gap-1 text-xs">
               <TrendingUp className="h-3.5 w-3.5" /> PR
@@ -4328,7 +4342,7 @@ export default function AdministrasiProjekPage() {
               <TableRow
                 key={p.id}
                 className="cursor-pointer hover:bg-muted/50 transition-colors"
-                onClick={() => setSelectedProyek(p)}
+                onClick={() => { setSelectedProyek(p); setDetailTab("cashflow"); }}
               >
                 <TableCell className="font-semibold">{p.nama_proyek || p.lokasi || "—"}</TableCell>
                 <TableCell className="text-muted-foreground">{p.klien || p.lead?.nama || "—"}</TableCell>

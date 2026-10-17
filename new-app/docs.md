@@ -760,13 +760,16 @@ Design:
 
 #### PB Projek (Permintaan Barang)
 
-Alur: Projek Sipil/Interior → tab Stock Opname (isi item + Qty Total) → PIC `/pic/pb-projek` ajukan PB → Finance `/finance/pb-projek` Setujui/Tolak → Buat PR (masuk ke PR Administrasi Projek) → "Barang Diterima" (PIC/Finance) → Barang Masuk tercatat di Stock Opname.
+Alur: Projek Sipil/Interior → tab Stock Opname (isi item + Qty Total) → PIC `/pic/pb-projek` isi form multi-item (dropdown dari Stock Opname projek) → **Simpan Draft** (bisa edit/hapus) → **Kirim ke Finance** (dialog review + checkbox) → Finance `/finance/pb-projek` **Setujui (Finance)** → **Setujui (Super Admin)** → **Buat PR** (langsung pindah ke `/finance/administrasi-projek?proyek=<id>&tab=pr`) → "Barang Diterima" (PIC/Finance) → Barang Masuk tercatat di Stock Opname.
 
-- Status PB: `Diajukan` → `Disetujui`/`Ditolak`; `Disetujui` → `Ditolak` (selama belum ada PR) atau `Diproses PR` (via create-pr); `Diproses PR` → `Selesai` (via receive). Transisi lain ditolak.
-- Kuota: semua PB selain `Ditolak` (termasuk `Diajukan` & `Selesai`) memakan Qty Total; dicek dengan row lock saat create & dicek ulang saat approve.
+- Status PB: `Draft` → `Diajukan` → `Disetujui Finance` → `Disetujui` (= disetujui Super Admin) → `Diproses PR` (create-pr) → `Selesai` (receive). Sebelum ada PR, Finance/SA bisa `Ditolak` (wajib alasan) atau **Minta Revisi** (status kembali `Draft`, wajib catatan, approval direset). Transisi lain ditolak.
+- Tahap Finance hanya oleh role Finance / permission `finance.adm_projek` (Super Admin tanpa role finance tidak bisa melompati); tahap final hanya Super Admin. PB lama berstatus `Disetujui` tanpa `sa_approved_at` harus di-approve Super Admin dulu sebelum Buat PR.
+- Kuota: semua PB selain `Draft` & `Ditolak` memakan Qty Total; dicek (row lock) saat simpan draft, kirim, dan setiap approve.
 - Barang Masuk dicatat saat `receive`, BUKAN saat PR dibuat. Hapus PR → PB terkait kembali `Disetujui`.
-- Akses Finance (lihat semua PB, approve, buat PR): role Super Admin/Head Finance/Admin Finance/Finance atau permission `finance.adm_projek`. Non-finance: PB dari projek tempat ia PIC + PB yang ia ajukan.
-- API (`/api/v1/project-stock`): `GET /pb`, `GET|POST /:type/:id/pb`, `PATCH /pb/:id/status`, `POST /pb/:id/create-pr`, `POST /pb/:id/receive`.
+- Akses: Finance/SA melihat semua PB kecuali Draft. Non-finance: PB dari projek tempat ia PIC + PB yang ia ajukan. Draft hanya bisa dibuat/diubah/dikirim/dihapus oleh PIC projek atau pembuatnya.
+- Notifikasi: kirim → role Finance; approve Finance → Super Admin; approve SA → role Finance; tolak/revisi → pembuat PB.
+- Field baru `project_pbs`: `submitted_at`, `finance_approved_by/at`, `sa_approved_by/at`, `reviewed_by/at`, `catatan_review`; `project_pb_items.catatan`.
+- API (`/api/v1/project-stock`): `GET /pb`, `GET|PUT|DELETE /pb/:id`, `GET|POST /:type(sipil|interior)/:id/pb`, `POST /pb/:id/submit`, `PATCH /pb/:id/status {status, catatan}`, `POST /pb/:id/create-pr`, `POST /pb/:id/receive`. Finance: `GET /finance/adm-projek/:id`.
 - Frontend: query PB jangan pakai `initialData: []` — dengan `staleTime` global 60 detik data kosong dianggap fresh dan tidak pernah di-fetch.
 
 ### 9.12 Tukang

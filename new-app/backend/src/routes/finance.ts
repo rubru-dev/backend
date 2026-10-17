@@ -1598,22 +1598,33 @@ router.get("/adm-projek", async (req: Request, res: Response) => {
     }),
   ]);
   return res.json({
-    items: items.map((p) => ({
-      id: p.id,
-      nama_proyek: p.nama_proyek || p.lokasi,
-      klien: p.klien || (p.lead ? p.lead.nama : null),
-      jenis: p.jenis,
-      lokasi: p.lokasi,
-      status: p.status,
-      jumlah_termin: p.jumlah_termin,
-      tanggal_mulai: p.tanggal_mulai,
-      tanggal_selesai: p.tanggal_selesai,
-      lead: p.lead ? { nama: p.lead.nama } : null,
-      proyek_berjalan_id: p.proyek_berjalan_id,
-      proyek_berjalan: p.proyek_berjalan ? { id: p.proyek_berjalan.id, nama_proyek: p.proyek_berjalan.nama_proyek } : null,
-    })),
+    items: items.map(mapAdmProject),
     total, page, per_page: perPage,
   });
+});
+
+function mapAdmProject(p: any) {
+  return {
+    id: p.id,
+    nama_proyek: p.nama_proyek || p.lokasi,
+    klien: p.klien || (p.lead ? p.lead.nama : null),
+    jenis: p.jenis,
+    lokasi: p.lokasi,
+    status: p.status,
+    jumlah_termin: p.jumlah_termin,
+    tanggal_mulai: p.tanggal_mulai,
+    tanggal_selesai: p.tanggal_selesai,
+    lead: p.lead ? { nama: p.lead.nama } : null,
+    proyek_berjalan_id: p.proyek_berjalan_id,
+    proyek_berjalan: p.proyek_berjalan ? { id: p.proyek_berjalan.id, nama_proyek: p.proyek_berjalan.nama_proyek } : null,
+  };
+}
+
+// GET /finance/adm-projek/:id — satu projek (dipakai deep-link ?proyek=&tab= dari PB Projek)
+router.get("/adm-projek/:id(\\d+)", async (req: Request, res: Response) => {
+  const p = await prisma.admFinanceProject.findUnique({ where: { id: BigInt(req.params.id) }, include: { lead: true, termins: true, proyek_berjalan: true } });
+  if (!p) return res.status(404).json({ detail: "Projek tidak ditemukan" });
+  return res.json(mapAdmProject(p));
 });
 
 // GET /finance/adm-projek/proyek-berjalan-options — list ProyekBerjalan for linking

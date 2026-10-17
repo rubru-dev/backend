@@ -1120,25 +1120,25 @@ model Sop {
 }
 
 model LaporanPicProjek {
-  id             BigInt                  @id @default(autoincrement())
-  user_id        BigInt?
-  project_type   String                  @db.VarChar(20)
-  project_id     BigInt
-  project_nama   String?                 @db.VarChar(255)
-  termin_id      BigInt?
-  task_id        BigInt?
-  termin_nama    String?                 @db.VarChar(255)
-  pekerjaan_nama String?                 @db.VarChar(255)
-  tanggal        DateTime                @default(dbgenerated("CURRENT_DATE")) @db.Date
-  kegiatan       String
-  kendala        String?
-  status_pekerjaan String                 @default("On Progress") @db.VarChar(30)
-  status_approval  String                 @default("Tidak Ada") @db.VarChar(30)
-  images         Json                    @default("[]")
-  created_at     DateTime                @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime                @default(now()) @db.Timestamptz(6)
-  user           User?                   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
-  image_files    LaporanPicProjekImage[]
+  id               BigInt                  @id @default(autoincrement())
+  user_id          BigInt?
+  project_type     String                  @db.VarChar(20)
+  project_id       BigInt
+  project_nama     String?                 @db.VarChar(255)
+  termin_id        BigInt?
+  task_id          BigInt?
+  termin_nama      String?                 @db.VarChar(255)
+  pekerjaan_nama   String?                 @db.VarChar(255)
+  tanggal          DateTime                @default(dbgenerated("CURRENT_DATE")) @db.Date
+  kegiatan         String
+  kendala          String?
+  status_pekerjaan String                  @default("On Progress") @db.VarChar(30)
+  status_approval  String                  @default("Tidak Ada") @db.VarChar(30)
+  images           Json                    @default("[]")
+  created_at       DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime                @default(now()) @db.Timestamptz(6)
+  user             User?                   @relation(fields: [user_id], references: [id], onUpdate: NoAction)
+  image_files      LaporanPicProjekImage[]
 
   @@index([project_type, project_id], map: "idx_laporan_pic_projeks_project")
   @@map("laporan_pic_projeks")
@@ -1238,26 +1238,26 @@ model Projek {
 }
 
 model ProyekBerjalanTask {
-  id              BigInt                   @id @default(autoincrement())
-  termin_id       BigInt
-  nama_pekerjaan  String?                  @db.VarChar(255)
-  tanggal_mulai   DateTime?                @db.Date
-  tanggal_selesai DateTime?                @db.Date
-  status          String                   @default("Belum Mulai") @db.VarChar(50)
-  status_approval String                   @default("Tidak Ada") @db.VarChar(30)
-  status_requested_by BigInt?
-  status_requested_at DateTime?            @db.Timestamptz(6)
-  status_approved_by  BigInt?
-  status_approved_at  DateTime?             @db.Timestamptz(6)
+  id                      BigInt                   @id @default(autoincrement())
+  termin_id               BigInt
+  nama_pekerjaan          String?                  @db.VarChar(255)
+  tanggal_mulai           DateTime?                @db.Date
+  tanggal_selesai         DateTime?                @db.Date
+  status                  String                   @default("Belum Mulai") @db.VarChar(50)
+  status_approval         String                   @default("Tidak Ada") @db.VarChar(30)
+  status_requested_by     BigInt?
+  status_requested_at     DateTime?                @db.Timestamptz(6)
+  status_approved_by      BigInt?
+  status_approved_at      DateTime?                @db.Timestamptz(6)
   status_rejection_reason String?
-  checklist_jenis String                   @default("RAB_AWAL") @db.VarChar(20)
-  assigned_to     BigInt?
-  created_at      DateTime                 @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime                 @default(now()) @db.Timestamptz(6)
-  assigned_user   User?                    @relation(fields: [assigned_to], references: [id], onUpdate: NoAction)
-  termin          ProyekBerjalanTermin     @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  fotos           ProyekBerjalanTaskFoto[]
-  checklist       ChecklistSipil?
+  checklist_jenis         String                   @default("RAB_AWAL") @db.VarChar(20)
+  assigned_to             BigInt?
+  created_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  assigned_user           User?                    @relation(fields: [assigned_to], references: [id], onUpdate: NoAction)
+  termin                  ProyekBerjalanTermin     @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  fotos                   ProyekBerjalanTaskFoto[]
+  checklist               ChecklistSipil?
 
   @@index([tanggal_selesai], map: "idx_pb_tasks_deadline")
   @@index([status], map: "idx_pb_tasks_status")
@@ -1437,26 +1437,26 @@ model ArItemOverride {
 }
 
 model ProyekInteriorTask {
-  id              BigInt                   @id @default(autoincrement())
-  termin_id       BigInt
-  nama_pekerjaan  String?                  @db.VarChar(255)
-  assigned_to     BigInt?
-  tanggal_mulai   DateTime?                @db.Date
-  tanggal_selesai DateTime?                @db.Date
-  status          String                   @default("Belum Mulai") @db.VarChar(50)
-  status_approval String                   @default("Tidak Ada") @db.VarChar(30)
-  status_requested_by BigInt?
-  status_requested_at DateTime?            @db.Timestamptz(6)
-  status_approved_by  BigInt?
-  status_approved_at  DateTime?             @db.Timestamptz(6)
+  id                      BigInt                   @id @default(autoincrement())
+  termin_id               BigInt
+  nama_pekerjaan          String?                  @db.VarChar(255)
+  assigned_to             BigInt?
+  tanggal_mulai           DateTime?                @db.Date
+  tanggal_selesai         DateTime?                @db.Date
+  status                  String                   @default("Belum Mulai") @db.VarChar(50)
+  status_approval         String                   @default("Tidak Ada") @db.VarChar(30)
+  status_requested_by     BigInt?
+  status_requested_at     DateTime?                @db.Timestamptz(6)
+  status_approved_by      BigInt?
+  status_approved_at      DateTime?                @db.Timestamptz(6)
   status_rejection_reason String?
-  checklist_jenis String                   @default("RAB_AWAL") @db.VarChar(20)
-  created_at      DateTime                 @default(now()) @db.Timestamptz(6)
-  updated_at      DateTime                 @default(now()) @db.Timestamptz(6)
-  assigned_user   User?                    @relation(fields: [assigned_to], references: [id], onUpdate: NoAction)
-  termin          ProyekInteriorTermin     @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
-  fotos           ProyekInteriorTaskFoto[]
-  checklist       ChecklistInterior?
+  checklist_jenis         String                   @default("RAB_AWAL") @db.VarChar(20)
+  created_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                 @default(now()) @db.Timestamptz(6)
+  assigned_user           User?                    @relation(fields: [assigned_to], references: [id], onUpdate: NoAction)
+  termin                  ProyekInteriorTermin     @relation(fields: [termin_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  fotos                   ProyekInteriorTaskFoto[]
+  checklist               ChecklistInterior?
 
   @@map("proyek_interior_tasks")
 }
@@ -1932,43 +1932,43 @@ model StockOpnameUsageItem {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model StokWarehouse {
-  id             BigInt         @id @default(autoincrement())
-  warehouse_id   BigInt
-  barang_id      BigInt?
-  nama_barang    String?        @db.VarChar(255)
-  quantity       Decimal        @default(0) @db.Decimal(15, 3)
-  price          Decimal        @default(0) @db.Decimal(15, 2)
-  supplier       String?        @db.VarChar(255)
-  total_harga    Decimal        @default(0) @db.Decimal(15, 2)
-  satuan         String?        @db.VarChar(50)
-  jenis          String         @default("Material") @db.VarChar(20)
-  kondisi_barang String         @default("Baik") @db.VarChar(30)
-  is_custom      Boolean        @default(false)
-  created_at     DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at     DateTime       @default(now()) @db.Timestamptz(6)
-  barang_termins BarangTermin[]
+  id                      BigInt                 @id @default(autoincrement())
+  warehouse_id            BigInt
+  barang_id               BigInt?
+  nama_barang             String?                @db.VarChar(255)
+  quantity                Decimal                @default(0) @db.Decimal(15, 3)
+  price                   Decimal                @default(0) @db.Decimal(15, 2)
+  supplier                String?                @db.VarChar(255)
+  total_harga             Decimal                @default(0) @db.Decimal(15, 2)
+  satuan                  String?                @db.VarChar(50)
+  jenis                   String                 @default("Material") @db.VarChar(20)
+  kondisi_barang          String                 @default("Baik") @db.VarChar(30)
+  is_custom               Boolean                @default(false)
+  created_at              DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime               @default(now()) @db.Timestamptz(6)
+  barang_termins          BarangTermin[]
   project_stock_movements ProjectStockMovement[]
-  barang         Barang?        @relation(fields: [barang_id], references: [id], onUpdate: NoAction)
-  warehouse      Warehouse      @relation(fields: [warehouse_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  barang                  Barang?                @relation(fields: [barang_id], references: [id], onUpdate: NoAction)
+  warehouse               Warehouse              @relation(fields: [warehouse_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@map("stok_warehouses")
 }
 
 model ProjectStockItem {
-  id            BigInt                    @id @default(autoincrement())
-  project_type  String                    @db.VarChar(20)
-  project_id    BigInt
-  jenis         String                    @db.VarChar(20)
-  nama_item     String                    @db.VarChar(255)
-  satuan        String                    @db.VarChar(50)
-  qty_total     Decimal                   @default(0) @db.Decimal(15, 3)
-  keterangan    String?
-  created_by    BigInt?
-  created_at    DateTime                  @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime                  @updatedAt
-  creator       User?                     @relation("ProjectStockItemCreator", fields: [created_by], references: [id], onUpdate: NoAction)
-  movements     ProjectStockMovement[]
-  pb_items      ProjectPBItem[]
+  id           BigInt                 @id @default(autoincrement())
+  project_type String                 @db.VarChar(20)
+  project_id   BigInt
+  jenis        String                 @db.VarChar(20)
+  nama_item    String                 @db.VarChar(255)
+  satuan       String                 @db.VarChar(50)
+  qty_total    Decimal                @default(0) @db.Decimal(15, 3)
+  keterangan   String?
+  created_by   BigInt?
+  created_at   DateTime               @default(now()) @db.Timestamptz(6)
+  updated_at   DateTime               @updatedAt
+  creator      User?                  @relation("ProjectStockItemCreator", fields: [created_by], references: [id], onUpdate: NoAction)
+  movements    ProjectStockMovement[]
+  pb_items     ProjectPBItem[]
 
   @@index([project_type, project_id], map: "idx_project_stock_items_project")
   @@index([jenis], map: "idx_project_stock_items_jenis")
@@ -1976,23 +1976,23 @@ model ProjectStockItem {
 }
 
 model ProjectStockMovement {
-  id                    BigInt           @id @default(autoincrement())
-  stock_item_id         BigInt
-  movement_type         String           @db.VarChar(30)
-  qty                   Decimal          @db.Decimal(15, 3)
-  reference_type        String?          @db.VarChar(30)
-  reference_id          BigInt?
-  warehouse_id          BigInt?
-  warehouse_stock_id    BigInt?
-  project_type          String           @db.VarChar(20)
-  project_id            BigInt
-  tanggal               DateTime         @db.Date
-  catatan               String?
-  created_by            BigInt?
-  created_at            DateTime         @default(now()) @db.Timestamptz(6)
-  stock_item            ProjectStockItem @relation(fields: [stock_item_id], references: [id], onDelete: Cascade)
-  warehouse_stock       StokWarehouse?   @relation(fields: [warehouse_stock_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
-  creator               User?            @relation("ProjectStockMovementCreator", fields: [created_by], references: [id], onUpdate: NoAction)
+  id                 BigInt           @id @default(autoincrement())
+  stock_item_id      BigInt
+  movement_type      String           @db.VarChar(30)
+  qty                Decimal          @db.Decimal(15, 3)
+  reference_type     String?          @db.VarChar(30)
+  reference_id       BigInt?
+  warehouse_id       BigInt?
+  warehouse_stock_id BigInt?
+  project_type       String           @db.VarChar(20)
+  project_id         BigInt
+  tanggal            DateTime         @db.Date
+  catatan            String?
+  created_by         BigInt?
+  created_at         DateTime         @default(now()) @db.Timestamptz(6)
+  stock_item         ProjectStockItem @relation(fields: [stock_item_id], references: [id], onDelete: Cascade)
+  warehouse_stock    StokWarehouse?   @relation(fields: [warehouse_stock_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  creator            User?            @relation("ProjectStockMovementCreator", fields: [created_by], references: [id], onUpdate: NoAction)
 
   @@index([stock_item_id, movement_type], map: "idx_project_stock_movements_item_type")
   @@index([project_type, project_id], map: "idx_project_stock_movements_project")
@@ -2000,21 +2000,32 @@ model ProjectStockMovement {
 }
 
 model ProjectPB {
-  id            BigInt         @id @default(autoincrement())
-  project_type  String         @db.VarChar(20)
-  project_id    BigInt
-  nomor_pb      String?        @db.VarChar(100)
-  status        String         @default("Diajukan") @db.VarChar(30)
-  catatan       String?
-  created_by    BigInt?
-  approved_by   BigInt?
-  approved_at   DateTime?      @db.Timestamptz(6)
-  pr_id         BigInt?
-  created_at    DateTime       @default(now()) @db.Timestamptz(6)
-  updated_at    DateTime       @updatedAt
-  creator       User?          @relation("ProjectPBCreator", fields: [created_by], references: [id], onUpdate: NoAction)
-  approver      User?          @relation("ProjectPBApprover", fields: [approved_by], references: [id], onUpdate: NoAction)
-  items         ProjectPBItem[]
+  id                  BigInt          @id @default(autoincrement())
+  project_type        String          @db.VarChar(20)
+  project_id          BigInt
+  nomor_pb            String?         @db.VarChar(100)
+  status              String          @default("Diajukan") @db.VarChar(30)
+  catatan             String?
+  created_by          BigInt?
+  approved_by         BigInt?
+  approved_at         DateTime?       @db.Timestamptz(6)
+  submitted_at        DateTime?       @db.Timestamptz(6)
+  finance_approved_by BigInt?
+  finance_approved_at DateTime?       @db.Timestamptz(6)
+  sa_approved_by      BigInt?
+  sa_approved_at      DateTime?       @db.Timestamptz(6)
+  reviewed_by         BigInt?
+  reviewed_at         DateTime?       @db.Timestamptz(6)
+  catatan_review      String?
+  pr_id               BigInt?
+  created_at          DateTime        @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime        @updatedAt
+  creator             User?           @relation("ProjectPBCreator", fields: [created_by], references: [id], onUpdate: NoAction)
+  approver            User?           @relation("ProjectPBApprover", fields: [approved_by], references: [id], onUpdate: NoAction)
+  finance_approver    User?           @relation("ProjectPBFinanceApprover", fields: [finance_approved_by], references: [id], onUpdate: NoAction)
+  sa_approver         User?           @relation("ProjectPBSaApprover", fields: [sa_approved_by], references: [id], onUpdate: NoAction)
+  reviewer            User?           @relation("ProjectPBReviewer", fields: [reviewed_by], references: [id], onUpdate: NoAction)
+  items               ProjectPBItem[]
 
   @@index([project_type, project_id], map: "idx_project_pbs_project")
   @@index([status], map: "idx_project_pbs_status")
@@ -2024,7 +2035,7 @@ model ProjectPB {
 model ProyekBerjalanPIC {
   proyek_id  BigInt
   user_id    BigInt
-  created_at DateTime @default(now()) @db.Timestamptz(6)
+  created_at DateTime       @default(now()) @db.Timestamptz(6)
   proyek     ProyekBerjalan @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user       User           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -2036,7 +2047,7 @@ model ProyekBerjalanPIC {
 model ProyekInteriorPIC {
   proyek_id  BigInt
   user_id    BigInt
-  created_at DateTime @default(now()) @db.Timestamptz(6)
+  created_at DateTime       @default(now()) @db.Timestamptz(6)
   proyek     ProyekInterior @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   user       User           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -2050,6 +2061,7 @@ model ProjectPBItem {
   pb_id         BigInt
   stock_item_id BigInt
   qty           Decimal          @db.Decimal(15, 3)
+  catatan       String?
   created_at    DateTime         @default(now()) @db.Timestamptz(6)
   pb            ProjectPB        @relation(fields: [pb_id], references: [id], onDelete: Cascade)
   stock_item    ProjectStockItem @relation(fields: [stock_item_id], references: [id], onDelete: Cascade)
@@ -2262,10 +2274,13 @@ model User {
   telemarketing_reports                 TelemarketingReport[]
   termin_histories                      TerminHistory[]
   transfers                             Transfer[]
-  project_stock_items_created            ProjectStockItem[]          @relation("ProjectStockItemCreator")
-  project_stock_movements_created        ProjectStockMovement[]      @relation("ProjectStockMovementCreator")
-  project_pbs_created                    ProjectPB[]                 @relation("ProjectPBCreator")
-  project_pbs_approved                   ProjectPB[]                 @relation("ProjectPBApprover")
+  project_stock_items_created           ProjectStockItem[]           @relation("ProjectStockItemCreator")
+  project_stock_movements_created       ProjectStockMovement[]       @relation("ProjectStockMovementCreator")
+  project_pbs_created                   ProjectPB[]                  @relation("ProjectPBCreator")
+  project_pbs_approved                  ProjectPB[]                  @relation("ProjectPBApprover")
+  project_pbs_finance_approved          ProjectPB[]                  @relation("ProjectPBFinanceApprover")
+  project_pbs_sa_approved               ProjectPB[]                  @relation("ProjectPBSaApprover")
+  project_pbs_reviewed                  ProjectPB[]                  @relation("ProjectPBReviewer")
   roles                                 UserRole[]
   reimburses_as_karyawan                Reimburse[]                  @relation("reimburse_karyawan")
   reimburses_head_finance               Reimburse[]                  @relation("reimburse_head_finance")
