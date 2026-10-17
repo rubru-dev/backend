@@ -23,6 +23,7 @@ type Projek = {
   lead: { id: string; nama: string } | null;
   ro: { id: string; nama: string } | null;
   pic_project: { id: string; nama: string } | null;
+  pic_projects?: { id: string; nama: string }[];
   lokasi: string | null;
   nilai_rab: number;
   tanggal_mulai: string | null;
@@ -33,7 +34,7 @@ type Projek = {
   progress: number;
 };
 
-const EMPTY_FORM = { nama_proyek: "", lead_id: "", ro_id: "", pic_id: "", lokasi: "", tanggal_mulai: "", tanggal_selesai: "" };
+const EMPTY_FORM = { nama_proyek: "", lead_id: "", ro_id: "", pic_id: "", pic_ids: [] as string[], lokasi: "", tanggal_mulai: "", tanggal_selesai: "" };
 const PROGRESS_FILTERS = [
   { value: "all", label: "Semua progress" },
   { value: "0-25", label: "0% - 25%" },
@@ -130,6 +131,7 @@ export default function ProyekSipilListPage() {
       lead_id: p.lead?.id ?? "",
       ro_id: p.ro?.id ?? "",
       pic_id: p.pic_project?.id ?? "",
+      pic_ids: (p.pic_projects ?? (p.pic_project ? [p.pic_project] : [])).map((pic) => String(pic.id)),
       lokasi: p.lokasi ?? "",
       tanggal_mulai: p.tanggal_mulai ?? "",
       tanggal_selesai: p.tanggal_selesai ?? "",
@@ -143,6 +145,7 @@ export default function ProyekSipilListPage() {
       lead_id: form.lead_id || null,
       ro_id: form.ro_id || null,
       pic_id: form.pic_id || null,
+      pic_ids: form.pic_ids,
       tanggal_mulai: form.tanggal_mulai || null,
       tanggal_selesai: form.tanggal_selesai || null,
     };
@@ -271,7 +274,7 @@ export default function ProyekSipilListPage() {
                 </TableCell>
                 <TableCell className="text-sm text-muted-foreground">{p.lead?.nama ?? "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground">{p.ro?.nama ?? "—"}</TableCell>
-                <TableCell className="text-sm text-muted-foreground">{p.pic_project?.nama ?? "—"}</TableCell>
+                <TableCell className="text-sm text-muted-foreground">{p.pic_projects?.map((pic) => pic.nama).join(", ") || p.pic_project?.nama || "—"}</TableCell>
                 <TableCell className="text-sm text-muted-foreground max-w-[160px] truncate">{p.lokasi ?? "—"}</TableCell>
                 <TableCell>
                   {(p.tanggal_mulai || p.tanggal_selesai) ? (
@@ -361,6 +364,7 @@ export default function ProyekSipilListPage() {
                 </SelectContent>
               </Select>
             </div>
+            <div><Label>PIC tambahan (opsional)</Label><div className="mt-2 max-h-28 space-y-1 overflow-y-auto rounded-md border p-2">{(employees as any[]).map((e: any) => <label key={e.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.pic_ids.includes(String(e.id))} onChange={(event) => setForm({ ...form, pic_ids: event.target.checked ? [...form.pic_ids, String(e.id)] : form.pic_ids.filter((id) => id !== String(e.id)) })} />{e.nama}</label>)}</div><p className="mt-1 text-xs text-muted-foreground">PIC yang dipilih dapat membuat PB untuk projek ini.</p></div>
             <div><Label>Lokasi</Label><Input placeholder="Alamat atau lokasi proyek" value={form.lokasi} onChange={(e) => setForm({ ...form, lokasi: e.target.value })} /></div>
             <div className="grid grid-cols-2 gap-3">
               <div>

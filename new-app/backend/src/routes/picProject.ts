@@ -10,6 +10,10 @@ import { reverseGeocode, numOrNull } from "../lib/reverseGeocode";
 
 const router = Router();
 
+function canBrowseAllProjects(req: Request) {
+  return req.user?.roles.some((r: any) => ["Super Admin", "Head Finance", "Admin Finance", "Finance"].includes(r.role.name)) ?? false;
+}
+
 // ── Helper: parse tanggal ke UTC midnight dari calendar date yang user pilih ──
 // Frontend bisa kirim "YYYY-MM-DD", "YYYY-MM-DDTHH:mm:ss.sssZ", atau
 // "YYYY-MM-DDTHH:mm:ss+07:00". Ambil tahun/bulan/hari-nya saja di TZ Jakarta
@@ -761,11 +765,13 @@ router.get("/pic-users", async (_req: Request, res: Response) => {
 // Opsi nama projek untuk dropdown saat PIC mengisi laporan
 router.get("/laporan-pic/projek-options", async (req: Request, res: Response) => {
   const type = String(req.query.type || "sipil") === "interior" ? "interior" : "sipil";
+  const userId = req.user!.id;
+  const accessWhere = canBrowseAllProjects(req) ? {} : { OR: [{ pic_user_id: userId }, { pic_assignments: { some: { user_id: userId } } }] };
   if (type === "interior") {
-    const rows = await prisma.proyekInterior.findMany({ select: { id: true, nama_proyek: true }, orderBy: { id: "desc" } });
+    const rows = await prisma.proyekInterior.findMany({ where: accessWhere, select: { id: true, nama_proyek: true }, orderBy: { id: "desc" } });
     return res.json(rows.map((r) => ({ id: r.id, nama: r.nama_proyek || `Interior #${r.id}` })));
   }
-  const rows = await prisma.proyekBerjalan.findMany({ select: { id: true, nama_proyek: true }, orderBy: { id: "desc" } });
+  const rows = await prisma.proyekBerjalan.findMany({ where: accessWhere, select: { id: true, nama_proyek: true }, orderBy: { id: "desc" } });
   return res.json(rows.map((r) => ({ id: r.id, nama: r.nama_proyek || `Sipil #${r.id}` })));
 });
 

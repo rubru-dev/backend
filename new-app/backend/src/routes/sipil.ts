@@ -136,6 +136,7 @@ router.get("/projeks", async (req: Request, res: Response) => {
         ro: { select: { id: true, name: true } },
         pic: { select: { id: true, name: true } },
         pic_user: { select: { id: true, name: true } },
+        pic_assignments: { include: { user: { select: { id: true, name: true } } } },
       },
       orderBy: { id: "desc" },
     });
@@ -148,6 +149,7 @@ router.get("/projeks", async (req: Request, res: Response) => {
       lead: p.lead ? { id: p.lead.id, nama: p.lead.nama } : null,
       ro: p.ro ? { id: p.ro.id, nama: p.ro.name } : null,
       pic_project: p.pic_user ? { id: p.pic_user.id, nama: p.pic_user.name } : (p.pic ? { id: p.pic.id, nama: p.pic.name } : null),
+      pic_projects: p.pic_assignments.map((a) => ({ id: a.user.id, nama: a.user.name })),
       lokasi: p.lokasi,
       nilai_rab: parseFloat(String(p.nilai_rab ?? 0)),
       tanggal_mulai: fmtDate(p.tanggal_mulai),
@@ -164,18 +166,20 @@ router.get("/projeks", async (req: Request, res: Response) => {
 
 // POST /projeks
 router.post("/projeks", requireRole("Super Admin"), async (req: Request, res: Response) => {
-  const { nama_proyek, lead_id, ro_id, pic_id, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
+  const { nama_proyek, lead_id, ro_id, pic_id, pic_ids, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
+  const assignedPicIds = Array.isArray(pic_ids) ? pic_ids.filter(Boolean).map((id: string | number) => BigInt(id)) : (pic_id ? [BigInt(pic_id)] : [req.user!.id]);
+  const primaryPicId = assignedPicIds[0] ?? null;
   const [lead, ro, picUser] = await Promise.all([
     lead_id ? prisma.lead.findUnique({ where: { id: BigInt(lead_id) }, select: { nama: true } }) : null,
     ro_id ? prisma.user.findUnique({ where: { id: BigInt(ro_id) }, select: { name: true } }) : null,
-    pic_id ? prisma.user.findUnique({ where: { id: BigInt(pic_id) }, select: { name: true } }) : null,
+    primaryPicId ? prisma.user.findUnique({ where: { id: primaryPicId }, select: { name: true } }) : null,
   ]);
   const p = await prisma.proyekBerjalan.create({
     data: {
       nama_proyek: nama_proyek ?? null,
       lead_id: lead_id ? BigInt(lead_id) : null,
       ro_id: ro_id ? BigInt(ro_id) : null,
-      pic_user_id: pic_id ? BigInt(pic_id) : req.user!.id,
+      pic_user_id: primaryPicId,
       ro_nama_snapshot: ro?.name ?? null,
       pic_nama_snapshot: picUser?.name ?? (req.user?.name ?? null),
       client_nama_snapshot: lead?.nama ?? null,
@@ -186,6 +190,7 @@ router.post("/projeks", requireRole("Super Admin"), async (req: Request, res: Re
       created_by: req.user!.id,
     },
   });
+  if (assignedPicIds.length) await prisma.proyekBerjalanPIC.createMany({ data: assignedPicIds.map((user_id) => ({ proyek_id: p.id, user_id })), skipDuplicates: true });
   return res.status(201).json({ id: p.id });
 });
 
@@ -207,6 +212,7 @@ router.get("/projeks/:id", async (req: Request, res: Response) => {
       lead: true,
       pic: { select: { id: true, name: true } },
       pic_user: { select: { id: true, name: true } },
+      pic_assignments: { include: { user: { select: { id: true, name: true } } } },
       ro: { select: { id: true, name: true } },
     },
   });
@@ -228,6 +234,7 @@ router.get("/projeks/:id", async (req: Request, res: Response) => {
     tanggal_selesai: fmtDate(p.tanggal_selesai),
     dibuat_oleh: p.pic_user ? { id: p.pic_user.id, nama: p.pic_user.name } : (p.pic ? { id: p.pic.id, nama: p.pic.name } : null),
     pic_project: p.pic_user ? { id: p.pic_user.id, nama: p.pic_user.name } : (p.pic ? { id: p.pic.id, nama: p.pic.name } : null),
+    pic_projects: p.pic_assignments.map((a) => ({ id: a.user.id, nama: a.user.name })),
     progress: calcProgress(allTasks),
     termins: p.termins.map((t) => ({
       id: t.id,
@@ -257,18 +264,24 @@ router.patch("/projeks/:id", async (req: Request, res: Response) => {
   const p = await prisma.proyekBerjalan.findUnique({ where: { id } });
   if (!p) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
 
-  const { nama_proyek, lead_id, ro_id, pic_id, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
+  const { nama_proyek, lead_id, ro_id, pic_id, pic_ids, lokasi, nilai_rab, tanggal_mulai, tanggal_selesai } = req.body;
   const updates: Record<string, unknown> = {};
   if (nama_proyek !== undefined) updates.nama_proyek = nama_proyek;
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
   if (ro_id !== undefined) updates.ro_id = ro_id ? BigInt(ro_id) : null;
   if (pic_id !== undefined) updates.pic_user_id = pic_id ? BigInt(pic_id) : null;
+  if (Array.isArray(pic_ids)) updates.pic_user_id = pic_ids.length ? BigInt(pic_ids[0]) : null;
   if (lokasi !== undefined) updates.lokasi = lokasi;
   if (nilai_rab !== undefined) updates.nilai_rab = nilai_rab;
   if (tanggal_mulai !== undefined) updates.tanggal_mulai = tanggal_mulai ? new Date(tanggal_mulai) : null;
   if (tanggal_selesai !== undefined) updates.tanggal_selesai = tanggal_selesai ? new Date(tanggal_selesai) : null;
 
   await prisma.proyekBerjalan.update({ where: { id }, data: updates });
+  if (Array.isArray(pic_ids) || pic_id !== undefined) {
+    const assignedPicIds = Array.isArray(pic_ids) ? pic_ids.filter(Boolean).map((value: string | number) => BigInt(value)) : (pic_id ? [BigInt(pic_id)] : []);
+    await prisma.proyekBerjalanPIC.deleteMany({ where: { proyek_id: id } });
+    if (assignedPicIds.length) await prisma.proyekBerjalanPIC.createMany({ data: assignedPicIds.map((user_id) => ({ proyek_id: id, user_id })), skipDuplicates: true });
+  }
   return res.json({ message: "Proyek diupdate" });
 });
 
@@ -1011,12 +1024,14 @@ router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
       pic_project: proyek.pic_nama_snapshot ?? proyek.pic_user?.name ?? proyek.pic?.name ?? null,
       client: proyek.client_nama_snapshot ?? proyek.lead?.nama ?? null,
     },
-    items: tasks.map(({ task, termin }) => ({
-      ...serializeChecklist(itemByTask.get(String(task.id))),
+    items: tasks.map(({ task, termin }) => {
+      const checklist = serializeChecklist(itemByTask.get(String(task.id)));
+      return {
+      ...checklist,
       task_id: String(task.id), termin_id: String(termin.id), termin_nama: termin.nama ?? `Termin ${termin.urutan}`,
       nama_pekerjaan: task.nama_pekerjaan ?? "Pekerjaan tanpa nama", item_jenis: task.checklist_jenis,
-      dokumentasi_paths: images.get(String(task.id)) ?? [], status: task.status,
-    })),
+      dokumentasi_paths: [...(checklist.gambar_paths ?? []), ...(images.get(String(task.id)) ?? [])], status: task.status,
+    }; }),
   });
 });
 

@@ -42,15 +42,19 @@ const s = StyleSheet.create({
   photos: { flexDirection: "row", flexWrap: "wrap", gap: 3 },
   photo: { width: 34, height: 30, objectFit: "cover", borderWidth: 1, borderColor: "#d6d3d1" },
   empty: { color: MUTED, fontSize: 7 },
-  parafMark: { alignSelf: "center", width: 22, height: 22, borderRadius: 11, backgroundColor: "#dcfce7", color: "#15803d", fontSize: 13, textAlign: "center", paddingTop: 3 },
-  parafEmpty: { alignSelf: "center", width: 22, height: 22, borderRadius: 11, borderWidth: 1, borderColor: "#d6d3d1", color: "#a8a29e", fontSize: 10, textAlign: "center", paddingTop: 4 },
+  parafMark: { alignSelf: "center", color: INK, fontSize: 13, textAlign: "center" },
+  parafEmpty: { alignSelf: "center", color: "#fff", fontSize: 10, textAlign: "center" },
   signatures: { marginTop: 24, borderWidth: 1, borderColor: "#d6d3d1", padding: 10 },
+  signatureWatermark: { position: "absolute", width: 112, height: 112, opacity: 0.08, objectFit: "contain", top: 0, left: 34 },
   signatureTitle: { textAlign: "center", fontSize: 8, fontWeight: "bold", marginBottom: 20 },
   signatureGrid: { flexDirection: "row", justifyContent: "space-between" },
-  signature: { width: "31%", textAlign: "center" },
+  signature: { width: "42%", textAlign: "center", alignSelf: "flex-end" },
   signatureLine: { height: 38, borderBottomWidth: 1, borderBottomColor: "#57534e", marginBottom: 5 },
   signatureName: { fontSize: 8, fontWeight: "bold" },
   signatureRole: { fontSize: 7, color: MUTED, marginTop: 2 },
+  noteBox: { marginTop: 18, borderWidth: 1, borderColor: "#a8a29e", minHeight: 72, padding: 7 },
+  noteTitle: { fontSize: 8, fontWeight: "bold", marginBottom: 5 },
+  noteText: { fontSize: 8, lineHeight: 1.35 },
   footer: { position: "absolute", bottom: 18, left: 34, right: 34, borderTopWidth: 1, borderTopColor: "#fed7aa", paddingTop: 4, flexDirection: "row", justifyContent: "space-between" },
   footerText: { fontSize: 6.5, color: MUTED },
 });
@@ -73,6 +77,7 @@ export type ChecklistTerminPdfData = {
   signatories: { ro?: string | null; pic_project?: string | null; client?: string | null };
   items: ChecklistTerminPdfItem[];
   logoUrl?: string | null;
+  catatan?: string | null;
 };
 
 export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
@@ -105,14 +110,16 @@ export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
           <View style={[s.cell, s.no]}><Text>{item.no}</Text></View>
           <View style={[s.cell, s.item]}><Text style={s.itemText}>{item.nama_pekerjaan}</Text><Text style={s.typeText}>{item.item_jenis === "TAMBAHAN" ? "PEKERJAAN TAMBAHAN" : "RAB AWAL"}</Text></View>
           <View style={[s.cell, s.doc]}>{item.dokumentasi_b64s.length ? <View style={s.photos}>{item.dokumentasi_b64s.map((src, index) => <Image key={index} src={src} style={s.photo} />)}</View> : <Text style={s.empty}>Belum ada dokumentasi</Text>}</View>
-          <View style={[s.cell, s.paraf]}><Text style={item.pic_paraf ? s.parafMark : s.parafEmpty}>{item.pic_paraf ? "✓" : "—"}</Text></View>
-          <View style={[s.cell, s.paraf, { borderRightWidth: 0 }]}><Text style={item.client_paraf ? s.parafMark : s.parafEmpty}>{item.client_paraf ? "✓" : "—"}</Text></View>
+          <View style={[s.cell, s.paraf, { backgroundColor: "#fff" }]}><Text style={item.pic_paraf ? s.parafMark : s.parafEmpty}>{item.pic_paraf ? "✓" : " "}</Text></View>
+          <View style={[s.cell, s.paraf, { borderRightWidth: 0, backgroundColor: "#fff" }]}><Text style={item.client_paraf ? s.parafMark : s.parafEmpty}>{item.client_paraf ? "✓" : " "}</Text></View>
         </View>)}
       </View>
 
+      <View style={s.noteBox}><Text style={s.noteTitle}>Catatan / Pekerjaan yang Masih Kurang</Text><Text style={s.noteText}>{data.catatan || " "}</Text></View>
+
       <View style={s.signatures}>
         <Text style={s.signatureTitle}>Mengetahui</Text>
-        <View style={s.signatureGrid}>{[["RO", data.signatories.ro], ["PIC Project", data.signatories.pic_project], ["Client", data.signatories.client]].map(([role, name]) => <View key={String(role)} style={s.signature}><View style={s.signatureLine} /><Text style={s.signatureName}>{name || "Belum diinput"}</Text><Text style={s.signatureRole}>{role}</Text></View>)}</View>
+        <View style={s.signatureGrid}><View style={[s.signature, { position: "relative" }]}>{data.logoUrl && <Image src={data.logoUrl} style={s.signatureWatermark} />}<View style={s.signatureLine} /><Text style={s.signatureName}>{data.signatories.ro || "Belum diinput"}</Text><Text style={s.signatureRole}>RO</Text></View></View>
       </View>
 
       <View style={s.footer} fixed><Text style={s.footerText}>{COMPANY.name} — Form Checklist</Text><Text style={s.footerText} render={({ pageNumber, totalPages }) => `Hal ${pageNumber}/${totalPages}`} /></View>

@@ -14,6 +14,21 @@ function canApprovePB(req: Request) {
   return isSuperAdmin(req) || req.user?.roles.some((r: any) => ["Head Finance", "Admin Finance"].includes(r.role.name)) === true;
 }
 
+function canViewAllProjects(req: Request) {
+  return isSuperAdmin(req) || req.user?.roles.some((r: any) => ["Head Finance", "Admin Finance", "Finance"].includes(r.role.name)) === true;
+}
+
+async function canAccessProject(req: Request, projectType: string, projectId: bigint) {
+  if (canViewAllProjects(req)) return true;
+  const userId = req.user!.id;
+  if (projectType === "interior") {
+    const project = await prisma.proyekInterior.findUnique({ where: { id: projectId }, select: { created_by: true, pic_user_id: true, pic_assignments: { where: { user_id: userId }, select: { user_id: true } } } });
+    return Boolean(project && (project.pic_user_id === userId || project.pic_assignments.length > 0));
+  }
+  const project = await prisma.proyekBerjalan.findUnique({ where: { id: projectId }, select: { created_by: true, pic_user_id: true, pic_assignments: { where: { user_id: userId }, select: { user_id: true } } } });
+  return Boolean(project && (project.pic_user_id === userId || project.pic_assignments.length > 0));
+}
+
 function num(value: unknown) { return Number(value ?? 0); }
 function cleanType(value: unknown) { return String(value) === "interior" ? "interior" : "sipil"; }
 
@@ -43,12 +58,22 @@ async function stockSummary(projectType: string, projectId: bigint) {
 router.get("/:projectType/:projectId", async (req, res) => {
   const projectType = cleanType(req.params.projectType);
   const projectId = BigInt(req.params.projectId);
+  if (!(await canAccessProject(req, projectType, projectId))) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
   return res.json(await stockSummary(projectType, projectId));
 });
 
-router.get("/pb", async (_req, res) => {
+router.get("/pb", async (req, res) => {
+  const all = canViewAllProjects(req);
+  const userId = req.user!.id;
+  const [sipilProjects, interiorProjects] = await Promise.all([
+    prisma.proyekBerjalan.findMany({ where: all ? undefined : { OR: [{ created_by: userId }, { pic_user_id: userId }, { pic_assignments: { some: { user_id: userId } } }] }, select: { id: true, nama_proyek: true, pic_user: { select: { name: true } }, pic_assignments: { include: { user: { select: { name: true } } } } } }),
+    prisma.proyekInterior.findMany({ where: all ? undefined : { OR: [{ created_by: userId }, { pic_user_id: userId }, { pic_assignments: { some: { user_id: userId } } }] }, select: { id: true, nama_proyek: true, pic_user: { select: { name: true } }, pic_assignments: { include: { user: { select: { name: true } } } } } }),
+  ]);
+  const projectMap = new Map<string, { name: string; pics: string[] }>();
+  for (const p of sipilProjects) projectMap.set(`sipil:${p.id}`, { name: p.nama_proyek ?? `Sipil #${p.id}`, pics: [p.pic_user?.name, ...p.pic_assignments.map((x) => x.user.name)].filter(Boolean) as string[] });
+  for (const p of interiorProjects) projectMap.set(`interior:${p.id}`, { name: p.nama_proyek ?? `Interior #${p.id}`, pics: [p.pic_user?.name, ...p.pic_assignments.map((x) => x.user.name)].filter(Boolean) as string[] });
   const rows = await prisma.projectPB.findMany({ include: { items: { include: { stock_item: true } }, creator: { select: { name: true } } }, orderBy: { created_at: "desc" } });
-  return res.json(rows.map((pb) => ({ id: String(pb.id), project_type: pb.project_type, project_id: String(pb.project_id), nomor_pb: pb.nomor_pb, status: pb.status, pr_id: pb.pr_id ? String(pb.pr_id) : null, created_at: pb.created_at, creator: pb.creator?.name ?? null, items: pb.items.map((i) => ({ nama_item: i.stock_item.nama_item, satuan: i.stock_item.satuan, qty: num(i.qty) })) })));
+  return res.json(rows.filter((pb) => projectMap.has(`${pb.project_type}:${pb.project_id}`)).map((pb) => { const project = projectMap.get(`${pb.project_type}:${pb.project_id}`)!; return { id: String(pb.id), project_type: pb.project_type, project_id: String(pb.project_id), project_name: project.name, pic_names: project.pics, nomor_pb: pb.nomor_pb, status: pb.status, pr_id: pb.pr_id ? String(pb.pr_id) : null, created_at: pb.created_at, creator: pb.creator?.name ?? null, items: pb.items.map((i) => ({ nama_item: i.stock_item.nama_item, satuan: i.stock_item.satuan, qty: num(i.qty) })) }; }));
 });
 
 router.get("/warehouses", async (_req, res) => {
@@ -79,6 +104,7 @@ router.get("/warehouse/:id/allocations", async (req, res) => {
 router.post("/:projectType/:projectId/items", async (req: Request, res: Response) => {
   const projectType = cleanType(req.params.projectType);
   const projectId = BigInt(req.params.projectId);
+  if (!(await canAccessProject(req, projectType, projectId))) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
   const { jenis, nama_item, satuan, qty_total, keterangan } = req.body;
   if (!VALID_JENIS.includes(jenis) || !nama_item?.trim() || !satuan?.trim()) return res.status(400).json({ detail: "Jenis, nama item, dan satuan wajib diisi" });
   const qty = num(qty_total);
@@ -144,6 +170,7 @@ router.post("/items/:id/movements", async (req: Request, res: Response) => {
 });
 
 router.get("/:projectType/:projectId/pb", async (req, res) => {
+  if (!(await canAccessProject(req, cleanType(req.params.projectType), BigInt(req.params.projectId)))) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
   const rows = await prisma.projectPB.findMany({ where: { project_type: cleanType(req.params.projectType), project_id: BigInt(req.params.projectId) }, include: { items: { include: { stock_item: true } }, creator: { select: { name: true } } }, orderBy: { created_at: "desc" } });
   return res.json(rows.map((pb) => ({ id: String(pb.id), nomor_pb: pb.nomor_pb, status: pb.status, catatan: pb.catatan, created_at: pb.created_at, creator: pb.creator?.name ?? null, items: pb.items.map((i) => ({ id: String(i.id), stock_item_id: String(i.stock_item_id), nama_item: i.stock_item.nama_item, satuan: i.stock_item.satuan, qty: num(i.qty) })) })));
 });
@@ -151,6 +178,7 @@ router.get("/:projectType/:projectId/pb", async (req, res) => {
 router.post("/:projectType/:projectId/pb", async (req: Request, res: Response) => {
   const projectType = cleanType(req.params.projectType);
   const projectId = BigInt(req.params.projectId);
+  if (!(await canAccessProject(req, projectType, projectId))) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
   const items = Array.isArray(req.body.items) ? req.body.items : [];
   if (!items.length) return res.status(400).json({ detail: "Minimal satu item PB harus dipilih" });
   const stockIds = items.map((i: any) => BigInt(i.stock_item_id));

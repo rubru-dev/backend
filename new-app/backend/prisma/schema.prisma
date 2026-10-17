@@ -1399,6 +1399,7 @@ model ProyekBerjalan {
   rab_items            SipilRabItem[]
   pic                  User?                  @relation("ProyekBerjalanPIC", fields: [created_by], references: [id], onUpdate: NoAction)
   pic_user             User?                  @relation("ProyekBerjalanAssignedPIC", fields: [pic_user_id], references: [id], onUpdate: NoAction)
+  pic_assignments      ProyekBerjalanPIC[]
   ro                   User?                  @relation("ProyekBerjalanRO", fields: [ro_id], references: [id], onUpdate: NoAction)
   lead                 Lead?                  @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
 
@@ -1518,6 +1519,7 @@ model ProyekInterior {
   pic                     User?                          @relation(fields: [created_by], references: [id], onUpdate: NoAction)
   ro                      User?                          @relation("ProyekInteriorRO", fields: [ro_id], references: [id], onUpdate: NoAction)
   pic_user                User?                          @relation("ProyekInteriorAssignedPIC", fields: [pic_user_id], references: [id], onUpdate: NoAction)
+  pic_assignments         ProyekInteriorPIC[]
   lead                    Lead?                          @relation(fields: [lead_id], references: [id], onUpdate: NoAction)
   adm_finance_projects    AdmFinanceProject[]            @relation("AdmFinanceProjectInterior")
 
@@ -2019,6 +2021,30 @@ model ProjectPB {
   @@map("project_pbs")
 }
 
+model ProyekBerjalanPIC {
+  proyek_id  BigInt
+  user_id    BigInt
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  proyek     ProyekBerjalan @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       User           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([proyek_id, user_id])
+  @@index([user_id], map: "idx_proyek_berjalan_pics_user")
+  @@map("proyek_berjalan_pics")
+}
+
+model ProyekInteriorPIC {
+  proyek_id  BigInt
+  user_id    BigInt
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+  proyek     ProyekInterior @relation(fields: [proyek_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  user       User           @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([proyek_id, user_id])
+  @@index([user_id], map: "idx_proyek_interior_pics_user")
+  @@map("proyek_interior_pics")
+}
+
 model ProjectPBItem {
   id            BigInt           @id @default(autoincrement())
   pb_id         BigInt
@@ -2218,11 +2244,13 @@ model User {
   proyek_berjalans                      ProyekBerjalan[]             @relation("ProyekBerjalanPIC")
   proyek_berjalans_ro                   ProyekBerjalan[]             @relation("ProyekBerjalanRO")
   proyek_berjalans_assigned_pic         ProyekBerjalan[]             @relation("ProyekBerjalanAssignedPIC")
+  proyek_berjalan_pic_assignments       ProyekBerjalanPIC[]
   sipil_task_fotos                      ProyekBerjalanTaskFoto[]     @relation("SipilTaskFotoUploader")
   proyek_interior_tasks                 ProyekInteriorTask[]
   proyek_interiors                      ProyekInterior[]
   proyek_interiors_ro                   ProyekInterior[]             @relation("ProyekInteriorRO")
   proyek_interiors_assigned_pic         ProyekInterior[]             @relation("ProyekInteriorAssignedPIC")
+  proyek_interior_pic_assignments       ProyekInteriorPIC[]
   interior_task_fotos                   ProyekInteriorTaskFoto[]     @relation("InteriorTaskFotoUploader")
   sales_kanban_cards                    SalesKanbanCard[]
   sales_kanban_comments                 SalesKanbanComment[]
