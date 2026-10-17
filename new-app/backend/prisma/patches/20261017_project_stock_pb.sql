@@ -63,7 +63,7 @@ CREATE INDEX IF NOT EXISTS "idx_adm_finance_projects_proyek_interior"
   ON "adm_finance_projects" ("proyek_interior_id");
 DO $$ BEGIN
   ALTER TABLE "adm_finance_projects"
-    ADD CONSTRAINT "fk_adm_finance_projects_proyek_interior"
+    ADD CONSTRAINT "adm_finance_projects_proyek_interior_id_fkey"
     FOREIGN KEY ("proyek_interior_id") REFERENCES "proyek_interiors"("id")
     ON DELETE SET NULL ON UPDATE NO ACTION;
 EXCEPTION WHEN duplicate_object THEN NULL;
@@ -79,7 +79,7 @@ CREATE INDEX IF NOT EXISTS "idx_project_stock_movements_warehouse_stock"
   ON "project_stock_movements" ("warehouse_stock_id");
 DO $$ BEGIN
   ALTER TABLE "project_stock_movements"
-    ADD CONSTRAINT "fk_project_stock_movements_warehouse_stock"
+    ADD CONSTRAINT "project_stock_movements_warehouse_stock_id_fkey"
     FOREIGN KEY ("warehouse_stock_id") REFERENCES "stok_warehouses"("id")
     ON DELETE SET NULL ON UPDATE NO ACTION;
 EXCEPTION WHEN duplicate_object THEN NULL;
