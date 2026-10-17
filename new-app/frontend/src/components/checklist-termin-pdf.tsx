@@ -44,12 +44,14 @@ const s = StyleSheet.create({
   empty: { color: MUTED, fontSize: 7 },
   parafMark: { alignSelf: "center", color: INK, fontSize: 13, textAlign: "center" },
   parafEmpty: { alignSelf: "center", color: "#fff", fontSize: 10, textAlign: "center" },
-  signatures: { marginTop: 24, borderWidth: 1, borderColor: "#d6d3d1", padding: 10 },
-  signatureWatermark: { position: "absolute", width: 112, height: 112, opacity: 0.08, objectFit: "contain", top: 0, left: 34 },
-  signatureTitle: { textAlign: "center", fontSize: 8, fontWeight: "bold", marginBottom: 20 },
+  signatures: { marginTop: 24, borderWidth: 1, borderColor: "#d6d3d1", paddingVertical: 10, paddingHorizontal: 14 },
   signatureGrid: { flexDirection: "row", justifyContent: "space-between" },
-  signature: { width: "42%", textAlign: "center", alignSelf: "flex-end" },
-  signatureLine: { height: 38, borderBottomWidth: 1, borderBottomColor: "#57534e", marginBottom: 5 },
+  signature: { width: "40%", textAlign: "center" },
+  // Label di atas kolom; kolom RO sengaja kosong tapi tetap setinggi label agar garis sejajar.
+  signatureLabel: { height: 12, fontSize: 8, fontWeight: "bold", textAlign: "center" },
+  // Area tanda tangan; logo RO hanya berada di dalam area ini (di atas garis), tidak menimpa nama.
+  signatureArea: { position: "relative", height: 58, borderBottomWidth: 1, borderBottomColor: "#57534e", marginBottom: 5, alignItems: "center", justifyContent: "center" },
+  signatureLogo: { width: 110, height: 52, opacity: 0.18, objectFit: "contain" },
   signatureName: { fontSize: 8, fontWeight: "bold" },
   signatureRole: { fontSize: 7, color: MUTED, marginTop: 2 },
   noteBox: { marginTop: 18, borderWidth: 1, borderColor: "#a8a29e", minHeight: 72, padding: 7 },
@@ -117,9 +119,21 @@ export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
 
       <View style={s.noteBox}><Text style={s.noteTitle}>Catatan / Pekerjaan yang Masih Kurang</Text><Text style={s.noteText}>{data.catatan || " "}</Text></View>
 
-      <View style={s.signatures}>
-        <Text style={s.signatureTitle}>Mengetahui</Text>
-        <View style={s.signatureGrid}><View style={[s.signature, { position: "relative" }]}>{data.logoUrl && <Image src={data.logoUrl} style={s.signatureWatermark} />}<View style={s.signatureLine} /><Text style={s.signatureName}>{data.signatories.ro || "Belum diinput"}</Text><Text style={s.signatureRole}>RO</Text></View></View>
+      <View style={s.signatures} wrap={false}>
+        <View style={s.signatureGrid}>
+          <View style={s.signature}>
+            <Text style={s.signatureLabel}> </Text>
+            <View style={s.signatureArea}>{data.logoUrl && <Image src={data.logoUrl} style={s.signatureLogo} />}</View>
+            <Text style={s.signatureName}>{data.signatories.ro || "Belum diinput"}</Text>
+            <Text style={s.signatureRole}>RO</Text>
+          </View>
+          <View style={s.signature}>
+            <Text style={s.signatureLabel}>Menyetujui,</Text>
+            <View style={s.signatureArea} />
+            <Text style={s.signatureName}>{data.signatories.client || data.klien || "Belum diinput"}</Text>
+            <Text style={s.signatureRole}>Client</Text>
+          </View>
+        </View>
       </View>
 
       <View style={s.footer} fixed><Text style={s.footerText}>{COMPANY.name} — Form Checklist</Text><Text style={s.footerText} render={({ pageNumber, totalPages }) => `Hal ${pageNumber}/${totalPages}`} /></View>
