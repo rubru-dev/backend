@@ -1,12 +1,48 @@
 "use client";
 
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { laporanPicApi } from "@/lib/api/laporanPic";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { User, Calendar, ImageOff, Check, X } from "lucide-react";
+import { User, Calendar, ImageOff, Images, Check, X } from "lucide-react";
 import { storageUrl } from "@/lib/storage-url";
 import { useAuthStore } from "@/store/authStore";
+
+// Gambar disembunyikan di balik dropdown → <img> baru dirender (dan baru dimuat browser)
+// saat dibuka. Ini mencegah puluhan/ratusan gambar dimuat serentak saat tab dibuka.
+function ReportImages({ images }: { images: string[] }) {
+  const [open, setOpen] = useState(false);
+  if (!Array.isArray(images) || images.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-slate-50"
+      >
+        <Images className="h-3.5 w-3.5" />
+        {open ? "Sembunyikan gambar" : `Lihat ${images.length} gambar`}
+      </button>
+      {open && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {images.map((p, i) => (
+            <a key={i} href={storageUrl(p)} target="_blank" rel="noreferrer" title="Buka gambar">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={storageUrl(p)}
+                alt={`Foto ${i + 1}`}
+                loading="lazy"
+                decoding="async"
+                className="h-24 w-24 rounded border bg-slate-50 object-contain transition-opacity hover:opacity-90"
+              />
+            </a>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ReportText({ text }: { text: string }) {
   return (
@@ -37,16 +73,21 @@ export function LaporanPicProjekTab({
 }) {
   const qc = useQueryClient();
   const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
-  const { data, isLoading } = useQuery({
+  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ["laporan-pic", projectType, String(projectId)],
-    queryFn: () => laporanPicApi.listByProject(projectType, projectId),
+    queryFn: ({ pageParam }) => laporanPicApi.listByProjectPaged(projectType, projectId, pageParam, 15),
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      const loaded = allPages.reduce((n, p) => n + p.items.length, 0);
+      return loaded < lastPage.total ? allPages.length + 1 : undefined;
+    },
   });
   const approvalMutation = useMutation({
     mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) => laporanPicApi.approveStatus(id, action),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["laporan-pic", projectType, String(projectId)] }),
   });
 
-  const rows = data ?? [];
+  const rows = data?.pages.flatMap((p) => p.items) ?? [];
   const grouped = rows.reduce<Record<string, typeof rows>>((groups, row) => {
     const key = `${row.termin_id ?? "none"}:${row.task_id ?? "none"}`;
     (groups[key] ??= []).push(row);
@@ -111,43 +152,23 @@ export function LaporanPicProjekTab({
             <ReportText text={[r.kegiatan, r.kendala ? `- Kendala: ${r.kendala}` : ""].filter(Boolean).join("\n")} />
           </div>
 
-          {Array.isArray(r.images) && r.images.length > 0 && (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {r.images.map((p, i) => (
-                <a key={i} href={storageUrl(p)} target="_blank" rel="noreferrer" title="Buka gambar">
-                  <img
-                    src={storageUrl(p)}
-                    alt={`Foto ${i + 1}`}
-                    className="h-24 w-24 rounded border bg-slate-50 object-contain transition-opacity hover:opacity-90"
-                    onLoad={() =>
-                      console.log("[LaporanPIC] Gambar tampil di tab project", {
-                        report_id: r.id,
-                        project_type: projectType,
-                        project_id: String(projectId),
-                        image_index: i,
-                        path: p,
-                        url: storageUrl(p),
-                      })
-                    }
-                    onError={(event) =>
-                      console.error("[LaporanPIC] Gambar gagal tampil di tab project", {
-                        report_id: r.id,
-                        project_type: projectType,
-                        project_id: String(projectId),
-                        image_index: i,
-                        path: p,
-                        url: storageUrl(p),
-                        currentSrc: event.currentTarget.currentSrc,
-                      })
-                    }
-                  />
-                </a>
-              ))}
-            </div>
-          )}
+          <ReportImages images={r.images} />
           </div>)}
         </div>;
       })}
+
+      {hasNextPage && (
+        <div className="flex justify-center pt-2">
+          <button
+            type="button"
+            onClick={() => fetchNextPage()}
+            disabled={isFetchingNextPage}
+            className="rounded-md border px-4 py-2 text-sm font-medium text-foreground hover:bg-slate-50 disabled:opacity-60"
+          >
+            {isFetchingNextPage ? "Memuat…" : "Muat lebih banyak"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

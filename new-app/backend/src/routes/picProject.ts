@@ -1002,11 +1002,31 @@ router.patch("/laporan-pic/:id/status-approval", async (req: Request, res: Respo
 
 // List laporan: per-projek (tab Laporan PIC Project) atau milik sendiri (?mine=1)
 router.get("/laporan-pic", async (req: Request, res: Response) => {
-  const { project_type, project_id, mine } = req.query;
+  const { project_type, project_id, mine, page, per_page } = req.query;
   const where: any = {};
   if (mine === "1") where.user_id = req.user!.id;
   if (project_type) where.project_type = project_type === "interior" ? "interior" : "sipil";
   if (project_id) where.project_id = BigInt(String(project_id));
+
+  // Pagination OPSIONAL. Tanpa `per_page` → kembalikan SEMUA laporan (array) seperti
+  // sebelumnya, supaya export PDF / konsumen lain SELALU dapat data lengkap (tidak ada
+  // yang hilang). Dengan `per_page` → objek paginasi untuk tampilan "Muat lebih banyak".
+  if (per_page) {
+    const take = Math.min(Math.max(parseInt(String(per_page)) || 15, 1), 100);
+    const pageNum = Math.max(parseInt(String(page)) || 1, 1);
+    const [total, rows] = await Promise.all([
+      prisma.laporanPicProjek.count({ where }),
+      prisma.laporanPicProjek.findMany({
+        where,
+        orderBy: { created_at: "desc" },
+        include: { user: { select: { name: true } } },
+        skip: (pageNum - 1) * take,
+        take,
+      }),
+    ]);
+    return res.json({ items: await attachLaporanPicImages(rows), total, page: pageNum, per_page: take });
+  }
+
   const rows = await prisma.laporanPicProjek.findMany({
     where,
     orderBy: { created_at: "desc" },

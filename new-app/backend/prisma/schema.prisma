@@ -1141,6 +1141,7 @@ model LaporanPicProjek {
   image_files      LaporanPicProjekImage[]
 
   @@index([project_type, project_id], map: "idx_laporan_pic_projeks_project")
+  @@index([project_type, project_id, created_at(sort: Desc)], map: "idx_laporan_pic_projeks_project_created")
   @@map("laporan_pic_projeks")
 }
 

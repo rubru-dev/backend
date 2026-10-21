@@ -37,8 +37,18 @@ export const laporanPicApi = {
       .patch(`/pic/laporan-pic/${id}`, formData, { headers: { "Content-Type": "multipart/form-data" } })
       .then((r) => r.data),
 
+  // Lengkap (tanpa paginasi) — dipakai bila butuh SEMUA laporan, mis. untuk export PDF.
   listByProject: (project_type: "sipil" | "interior", project_id: number | string): Promise<LaporanPicItem[]> =>
     apiClient.get(`/pic/laporan-pic`, { params: { project_type, project_id } }).then((r) => r.data),
+
+  // Paginasi — dipakai tab tampilan ("Muat lebih banyak"). per_page memicu mode paginasi.
+  listByProjectPaged: (
+    project_type: "sipil" | "interior",
+    project_id: number | string,
+    page: number,
+    per_page: number,
+  ): Promise<{ items: LaporanPicItem[]; total: number; page: number; per_page: number }> =>
+    apiClient.get(`/pic/laporan-pic`, { params: { project_type, project_id, page, per_page } }).then((r) => r.data),
 
   listMine: (): Promise<LaporanPicItem[]> =>
     apiClient.get(`/pic/laporan-pic`, { params: { mine: 1 } }).then((r) => r.data),
