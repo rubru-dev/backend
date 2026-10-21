@@ -3291,6 +3291,10 @@ model KontrakDokumen {
   telepon_client       String?                  @db.VarChar(50)
   alamat_client        String?                  @db.Text
   status               String                   @default("draft") @db.VarChar(50)
+  // Jika true, pasal template sudah di-"lepas" (disalin) ke KontrakDokumenPasal milik
+  // dokumen ini. Dokumen berhenti membaca pasal template live, sehingga pasal bisa
+  // diedit khusus kontrak ini tanpa mengubah template.
+  pasals_detached      Boolean                  @default(false)
   // RO (Relationship Officer) â€” Pihak Pertama signature 1
   ro_name              String?                  @db.VarChar(255)
   ro_signature         String?                  @db.Text

@@ -59,6 +59,8 @@ export interface KontrakDokumen {
   telepon_client: string | null;
   alamat_client: string | null;
   status: string;
+  /** true = pasal template sudah disalin ke dokumen & bisa diedit khusus kontrak ini */
+  pasals_detached: boolean;
   ro_name: string | null;
   ro_signature: string | null;
   ro_signed_at: string | null;
@@ -140,6 +142,10 @@ export const kontrakDokumenApi = {
 
   delete: (id: number) =>
     apiClient.delete(`/sales/kontrak-dokumen/${id}`).then((r) => r.data),
+
+  // Lepas pasal template ke dokumen agar bisa diedit khusus kontrak ini (tanpa ubah template)
+  detachPasals: (dokId: number) =>
+    apiClient.post<KontrakDokumen>(`/sales/kontrak-dokumen/${dokId}/detach-pasals`, {}).then((r) => r.data),
 
   // Pasal ekstra per dokumen
   addPasal: (dokId: number, payload: { judul_pasal?: string; isi_pasal?: string }) =>

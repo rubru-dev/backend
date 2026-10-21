@@ -579,6 +579,22 @@ Design:
 - Addendum Kontrak harus form dokumen dengan preview PDF.
 - Gunakan action jelas: buat addendum, preview, download.
 
+#### Edit Pasal per Dokumen Kontrak (tanpa ubah template)
+
+- Menu "Addendum Kontrak" = tab Template Kontrak + Dokumen Kontrak + Company. Pasal sebuah
+  Dokumen Kontrak secara default dibaca **live** dari template (`KontrakTemplatePasal`) + pasal
+  tambahan khusus dokumen (`KontrakDokumenPasal`).
+- Agar pasal bisa diedit khusus satu kontrak **tanpa mengubah template**, dokumen bisa di-"detach":
+  tombol **"Edit pasal untuk kontrak ini"** di detail dokumen menyalin pasal template ke
+  `KontrakDokumenPasal` milik dokumen lalu set `KontrakDokumen.pasals_detached = true`. Sejak itu
+  dokumen berhenti baca template live; semua pasal diedit/tambah/hapus via `ExtraPasalEditor`.
+- Pasal **sengaja tetap bisa diedit walau kontrak sudah TTD lengkap** (revisi kontrak terpublish);
+  tanpa jejak audit/versi. Kunci TTD tetap berlaku untuk "Edit Data" dokumen & hapus dokumen.
+- API: `POST /sales/kontrak-dokumen/:id/detach-pasals` (idempoten), lalu
+  `POST|PATCH|DELETE /sales/kontrak-dokumen/:id/pasal[/:pasalId]`.
+- Render pasal (komponen `AddendumPDF`, HTML cetak, panel detail) dipusatkan di helper
+  `resolveKontrakPasals(dok)` yang bercabang pada `pasals_detached` agar PDF & layar selalu sama.
+
 ### 9.8 Penawaran
 
 Pages:

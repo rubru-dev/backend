@@ -755,6 +755,7 @@ function mapKontrakDokumen(d: {
   nomor_kontrak: string | null; jenis_pekerjaan: string | null; tanggal: Date | null;
   nama_client: string | null; telepon_client: string | null; alamat_client: string | null;
   status: string;
+  pasals_detached?: boolean;
   ro_name: string | null; ro_signature: string | null; ro_signed_at: Date | null;
   management_name: string | null; management_signature: string | null; management_signed_at: Date | null;
   client_name: string | null; client_signature: string | null; client_signed_at: Date | null;
@@ -779,6 +780,7 @@ function mapKontrakDokumen(d: {
     telepon_client: d.telepon_client,
     alamat_client: d.alamat_client,
     status: d.status,
+    pasals_detached: d.pasals_detached ?? false,
     ro_name: d.ro_name,
     ro_signature: d.ro_signature,
     ro_signed_at: d.ro_signed_at,
@@ -1111,13 +1113,60 @@ router.delete("/kontrak-dokumen/:id", async (req: Request, res: Response) => {
   return res.json({ message: "Kontrak dihapus" });
 });
 
+// POST /sales/kontrak-dokumen/:id/detach-pasals
+// Salin pasal template ke pasal milik dokumen ("detach") agar isi pasal bisa diedit
+// khusus kontrak ini TANPA mengubah template. Idempoten: kalau sudah detached, no-op.
+// Boleh dijalankan walau kontrak sudah TTD lengkap (revisi kontrak terpublish).
+router.post("/kontrak-dokumen/:id/detach-pasals", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const d = await prisma.kontrakDokumen.findUnique({
+    where: { id },
+    include: {
+      template: { select: { pasals: { orderBy: { urutan: "asc" } } } },
+      extra_pasals: { orderBy: { urutan: "asc" } },
+    },
+  });
+  if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
+  if (!d.pasals_detached) {
+    const tmpl = d.template?.pasals ?? [];
+    const extras = d.extra_pasals ?? [];
+    await prisma.$transaction([
+      // Geser pasal tambahan lama ke belakang salinan template agar penomoran tetap urut.
+      ...extras.map((p, j) =>
+        prisma.kontrakDokumenPasal.update({ where: { id: p.id }, data: { urutan: tmpl.length + j + 1 } })
+      ),
+      // Salin pasal template ke depan sebagai pasal milik dokumen.
+      ...tmpl.map((p, i) =>
+        prisma.kontrakDokumenPasal.create({
+          data: { dokumen_id: id, urutan: i + 1, judul_pasal: p.judul_pasal, isi_pasal: p.isi_pasal },
+        })
+      ),
+      prisma.kontrakDokumen.update({ where: { id }, data: { pasals_detached: true, updated_at: new Date() } }),
+    ]);
+  }
+  const updated = await prisma.kontrakDokumen.findUnique({
+    where: { id },
+    include: {
+      template: { select: { id: true, judul: true, pihak_satu: true, pihak_dua: true, pembuka: true, penutup: true, pasals: { orderBy: { urutan: "asc" } } } },
+      lead: { select: { nama: true, nomor_telepon: true, alamat: true } },
+      creator: { select: { name: true } },
+      lampirans: { orderBy: { urutan: "asc" } },
+      extra_pasals: { orderBy: { urutan: "asc" } },
+    },
+  });
+  return res.json(mapKontrakDokumen(updated!));
+});
+
 // ── Pasal EKSTRA per dokumen ──────────────────────────────────────────────────
 // POST /sales/kontrak-dokumen/:id/pasal
 router.post("/kontrak-dokumen/:id/pasal", async (req: Request, res: Response) => {
   const dokumen_id = BigInt(req.params.id);
   const d = await prisma.kontrakDokumen.findUnique({ where: { id: dokumen_id } });
   if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
-  if (isKontrakLocked(d)) return res.status(409).json({ detail: "Kontrak sudah terkunci — pasal tidak bisa diubah." });
+  // Pasal SENGAJA tetap bisa diedit walau kontrak sudah TTD lengkap: revisi pasal untuk
+  // kontrak yang sudah dipublish ke klien adalah kebutuhan bisnis. Edit pasal tidak
+  // mengubah template (lihat endpoint detach-pasals). Kunci TTD tetap berlaku untuk
+  // "Edit Data" & hapus dokumen.
   const { judul_pasal, isi_pasal } = req.body;
   const last = await prisma.kontrakDokumenPasal.findFirst({ where: { dokumen_id }, orderBy: { urutan: "desc" } });
   const p = await prisma.kontrakDokumenPasal.create({
@@ -1131,7 +1180,10 @@ router.patch("/kontrak-dokumen/:id/pasal/:pasalId", async (req: Request, res: Re
   const dokumen_id = BigInt(req.params.id);
   const d = await prisma.kontrakDokumen.findUnique({ where: { id: dokumen_id } });
   if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
-  if (isKontrakLocked(d)) return res.status(409).json({ detail: "Kontrak sudah terkunci — pasal tidak bisa diubah." });
+  // Pasal SENGAJA tetap bisa diedit walau kontrak sudah TTD lengkap: revisi pasal untuk
+  // kontrak yang sudah dipublish ke klien adalah kebutuhan bisnis. Edit pasal tidak
+  // mengubah template (lihat endpoint detach-pasals). Kunci TTD tetap berlaku untuk
+  // "Edit Data" & hapus dokumen.
   const { judul_pasal, isi_pasal } = req.body;
   const data: Record<string, unknown> = {};
   if (judul_pasal !== undefined) data.judul_pasal = judul_pasal ?? null;
@@ -1145,7 +1197,10 @@ router.delete("/kontrak-dokumen/:id/pasal/:pasalId", async (req: Request, res: R
   const dokumen_id = BigInt(req.params.id);
   const d = await prisma.kontrakDokumen.findUnique({ where: { id: dokumen_id } });
   if (!d) return res.status(404).json({ detail: "Kontrak tidak ditemukan" });
-  if (isKontrakLocked(d)) return res.status(409).json({ detail: "Kontrak sudah terkunci — pasal tidak bisa diubah." });
+  // Pasal SENGAJA tetap bisa diedit walau kontrak sudah TTD lengkap: revisi pasal untuk
+  // kontrak yang sudah dipublish ke klien adalah kebutuhan bisnis. Edit pasal tidak
+  // mengubah template (lihat endpoint detach-pasals). Kunci TTD tetap berlaku untuk
+  // "Edit Data" & hapus dokumen.
   await prisma.kontrakDokumenPasal.delete({ where: { id: BigInt(req.params.pasalId) } });
   return res.json({ message: "Pasal dihapus" });
 });

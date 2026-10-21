@@ -40,20 +40,29 @@ function fmtDateShort(d?: string | Date | null) {
 // jadi tautan file yang broken/mixed-content. file_url dari backend berbentuk "/storage/...".
 const BACKEND_URL = "/api/v1";
 
+// Pasal yang tampil/tercetak di dokumen. Jika pasal sudah di-"detach" (disalin ke
+// dokumen), pakai pasal milik dokumen saja; kalau belum, gabung pasal template (live)
+// + pasal tambahan. Dedup judul+isi supaya tidak dobel. Dipakai semua jalur render.
+function resolveKontrakPasals(dok: KontrakDokumen): KontrakDokumenPasal[] {
+  const raw = dok.pasals_detached
+    ? [...(dok.extra_pasals ?? [])]
+    : [...(dok.template?.pasals ?? []), ...(dok.extra_pasals ?? [])];
+  const seen = new Set<string>();
+  return raw.filter((p) => {
+    const key = `${(p.judul_pasal ?? "").trim().toLowerCase()}||${(p.isi_pasal ?? "").trim().toLowerCase()}`;
+    if (key === "||") return true;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
 async function downloadKontrakPdf(dokOrId: KontrakDokumen | number) {
   try {
     const dok = typeof dokOrId === "number"
       ? await kontrakDokumenApi.get(dokOrId)
       : await kontrakDokumenApi.get(dokOrId.id);
-    const rawPasals = [...(dok.template?.pasals ?? []), ...(dok.extra_pasals ?? [])];
-    const seenPasal = new Set<string>();
-    const pasals = rawPasals.filter((pasal) => {
-      const key = `${(pasal.judul_pasal ?? "").trim().toLowerCase()}||${(pasal.isi_pasal ?? "").trim().toLowerCase()}`;
-      if (key === "||") return true;
-      if (seenPasal.has(key)) return false;
-      seenPasal.add(key);
-      return true;
-    });
+    const pasals = resolveKontrakPasals(dok);
     const company = await kontrakDokumenApi.getCompany().catch(() => ({
       nama: "PT. Rubah Rumah Inovasi Pemuda (rubahrumah.com)",
       nib: "2209220142528",
@@ -127,18 +136,8 @@ async function printKontrak(dokOrId: KontrakDokumen | number, knownLampirans?: K
   const dok = typeof dokOrId === "number"
     ? await kontrakDokumenApi.get(dokOrId)
     : await kontrakDokumenApi.get((dokOrId as KontrakDokumen).id);
-  // Pasal template (live) + pasal ekstra khusus dokumen ini → nomor lanjut.
-  // Dedup by isi+judul supaya tidak tampil dobel (mis. pasal ekstra tak sengaja
-  // sama dengan pasal template, atau ter-submit dua kali).
-  const rawPasals = [...(dok.template?.pasals ?? []), ...(dok.extra_pasals ?? [])];
-  const seenPasal = new Set<string>();
-  const allPasals = rawPasals.filter((p) => {
-    const key = `${(p.judul_pasal ?? "").trim().toLowerCase()}||${(p.isi_pasal ?? "").trim().toLowerCase()}`;
-    if (key === "||") return true; // pasal kosong biarkan (jarang)
-    if (seenPasal.has(key)) return false;
-    seenPasal.add(key);
-    return true;
-  });
+  // Pasal template (live) + pasal ekstra, atau pasal milik dokumen kalau sudah detach.
+  const allPasals = resolveKontrakPasals(dok);
   const lampirans = dok.lampirans ?? [];
   const lampiranPdfHtml = lampirans.filter((l) => l.file_url).map((l) => `
     <div style="page-break-before:always;text-align:center">
@@ -906,7 +905,10 @@ function EditKontrakDialog({ open, onOpenChange, dok }: {
 // ── Editor pasal EKSTRA khusus dokumen (di luar pasal template) ────────────────
 function ExtraPasalEditor({ dok, locked = false }: { dok: KontrakDokumen; locked?: boolean }) {
   const qc = useQueryClient();
-  const templateCount = dok.template?.pasals.length ?? 0;
+  // Saat sudah detach, pasal milik dokumen adalah SELURUH pasal (penomoran mulai 1).
+  // Saat belum, pasal tambahan melanjutkan nomor setelah pasal template.
+  const detached = dok.pasals_detached;
+  const templateCount = detached ? 0 : (dok.template?.pasals.length ?? 0);
   const extras = dok.extra_pasals ?? [];
   const [addOpen, setAddOpen] = useState(false);
   const [judul, setJudul] = useState("");
@@ -937,15 +939,19 @@ function ExtraPasalEditor({ dok, locked = false }: { dok: KontrakDokumen; locked
   return (
     <div>
       <div className="flex items-center justify-between mb-2">
-        <p className="text-xs font-bold text-muted-foreground uppercase">Pasal Tambahan Khusus Kontrak Ini ({extras.length})</p>
+        <p className="text-xs font-bold text-muted-foreground uppercase">{detached ? `Pasal Kontrak Ini (${extras.length})` : `Pasal Tambahan Khusus Kontrak Ini (${extras.length})`}</p>
         {!locked && (
           <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setAddOpen(true)}>
             <Plus className="h-3.5 w-3.5 mr-1" /> Tambah Pasal
           </Button>
         )}
       </div>
-      <p className="text-[11px] text-muted-foreground mb-2">Pasal ini melanjutkan penomoran setelah {templateCount} pasal dari template, dan hanya berlaku untuk kontrak ini.</p>
-      {extras.length === 0 && <p className="text-xs text-muted-foreground italic py-2">Belum ada pasal tambahan.</p>}
+      {detached ? (
+        <p className="text-[11px] text-muted-foreground mb-2">Pasal sudah dilepas dari template — mengedit di sini hanya mengubah kontrak ini, bukan template.</p>
+      ) : (
+        <p className="text-[11px] text-muted-foreground mb-2">Pasal ini melanjutkan penomoran setelah {templateCount} pasal dari template, dan hanya berlaku untuk kontrak ini.</p>
+      )}
+      {extras.length === 0 && <p className="text-xs text-muted-foreground italic py-2">{detached ? "Belum ada pasal." : "Belum ada pasal tambahan."}</p>}
       <div className="space-y-1.5">
         {extras.map((p, i) => (
           <div key={p.id} className="border rounded p-2 text-xs flex items-start justify-between gap-2">
@@ -1045,6 +1051,11 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
     onSuccess: () => { toast.success("Disimpan"); qc.invalidateQueries({ queryKey: ["kontrak-dokumen"] }); qc.invalidateQueries({ queryKey: ["kontrak-dokumen-detail", dok.id] }); setSigTarget(null); },
     onError: () => toast.error("Gagal"),
   });
+  const detachMut = useMutation({
+    mutationFn: () => kontrakDokumenApi.detachPasals(dok.id),
+    onSuccess: () => { toast.success("Pasal siap diedit khusus kontrak ini"); qc.invalidateQueries({ queryKey: ["kontrak-dokumen"] }); qc.invalidateQueries({ queryKey: ["kontrak-dokumen-detail", dok.id] }); },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
+  });
 
   const SigCard = ({ title, role, sig, name, date, onSign }: {
     title?: string; role: string; sig: string | null; name: string | null; date: string | null; onSign: () => void;
@@ -1116,10 +1127,16 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
             {/* Lampiran */}
             <LampiranManager dokId={dok.id} lampirans={dok.lampirans ?? []} />
 
-            {/* Pasal dari template (read-only) */}
-            {pasals.length > 0 && (
+            {/* Pasal dari template (read-only) — hanya saat BELUM di-detach */}
+            {!dok.pasals_detached && pasals.length > 0 && (
               <div>
-                <p className="text-xs font-bold text-muted-foreground uppercase mb-2">Pasal dari Template ({pasals.length})</p>
+                <div className="flex items-center justify-between mb-2 gap-2">
+                  <p className="text-xs font-bold text-muted-foreground uppercase">Pasal dari Template ({pasals.length})</p>
+                  <Button size="sm" variant="outline" className="h-7 text-xs shrink-0" onClick={() => detachMut.mutate()} disabled={detachMut.isPending}>
+                    <Pencil className="h-3.5 w-3.5 mr-1" /> {detachMut.isPending ? "Menyiapkan..." : "Edit pasal untuk kontrak ini"}
+                  </Button>
+                </div>
+                <p className="text-[11px] text-muted-foreground mb-2">Pasal di bawah mengikuti template (akan ikut berubah bila template diubah). Klik tombol di atas untuk menyalin pasal ini ke kontrak ini agar bisa diedit tanpa mengubah template.</p>
                 <div className="space-y-1.5 max-h-40 overflow-y-auto pr-1">
                   {pasals.map((p, i) => (
                     <div key={p.id} className="border rounded p-2 text-xs">
@@ -1131,8 +1148,9 @@ function KontrakDetailDialog({ open, onOpenChange, dok: initialDok }: {
               </div>
             )}
 
-            {/* Pasal tambahan khusus dokumen ini */}
-            <ExtraPasalEditor dok={dok} locked={isLocked} />
+            {/* Editor pasal kontrak ini. Pasal SELALU bisa diedit (termasuk setelah TTD),
+                namun tidak mengubah template. */}
+            <ExtraPasalEditor dok={dok} locked={false} />
 
             {/* Tanda tangan
                 Layout: Kiri = RO (atas) + Management (bawah)   |   Kanan = Client
