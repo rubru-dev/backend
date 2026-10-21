@@ -297,7 +297,17 @@ router.get("/admin/list", async (req: Request, res: Response) => {
   const [items, total] = await Promise.all([
     prisma.absenKaryawan.findMany({
       where,
-      include: { user: { select: { id: true, name: true } }, approver: { select: { name: true } } },
+      // Sengaja TANPA foto_masuk/foto_keluar (bisa base64 besar di record lama) — foto
+      // diambil lazy via GET /admin/:id/foto saat dialog foto dibuka.
+      select: {
+        id: true, tanggal: true, user_id: true,
+        jam_masuk: true, jam_keluar: true,
+        jarak_masuk: true, jarak_keluar: true,
+        di_luar_kantor: true, alasan_luar: true,
+        terlambat: true, status: true, catatan_reject: true, approved_at: true,
+        user: { select: { id: true, name: true } },
+        approver: { select: { name: true } },
+      },
       orderBy: [{ tanggal: "desc" }, { jam_masuk: "desc" }],
       skip,
       take: Number(per_page),
@@ -307,11 +317,29 @@ router.get("/admin/list", async (req: Request, res: Response) => {
   return res.json({ items, total, page: Number(page), per_page: Number(per_page) });
 });
 
+// ── GET /absen-karyawan/admin/:id/foto — foto absen (lazy, hanya saat dibuka) ──
+router.get("/admin/:id/foto", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const r = await prisma.absenKaryawan.findUnique({
+    where: { id },
+    select: { foto_masuk: true, foto_keluar: true },
+  });
+  if (!r) return res.status(404).json({ detail: "Record tidak ditemukan" });
+  return res.json(r);
+});
+
 // ── GET /absen-karyawan/admin/pending — approval luar kantor ──────────────────
 router.get("/admin/pending", async (_req: Request, res: Response) => {
   const items = await prisma.absenKaryawan.findMany({
     where: { status: "Pending" },
-    include: { user: { select: { id: true, name: true } } },
+    // TANPA foto (lazy via /admin/:id/foto) — lihat catatan di /admin/list.
+    select: {
+      id: true, tanggal: true, user_id: true,
+      jam_masuk: true, jam_keluar: true,
+      jarak_masuk: true, jarak_keluar: true,
+      di_luar_kantor: true, alasan_luar: true, status: true,
+      user: { select: { id: true, name: true } },
+    },
     orderBy: { tanggal: "desc" },
   });
   return res.json(items);

@@ -50,6 +50,8 @@ const REIMBURSE_PAGE_SIZE = 50;
 const reimburseApi = {
   users: () => apiClient.get("/finance/reimburse/users").then((r) => r.data),
   list: (params?: any) => apiClient.get("/finance/reimburse", { params }).then((r) => r.data),
+  // Base64 bukti diambil lazy (list tidak lagi membawa base64).
+  getBuktis: (id: number) => apiClient.get(`/finance/reimburse/${id}/buktis`).then((r) => r.data as any[]),
   create: (data: any) => apiClient.post("/finance/reimburse", data).then((r) => r.data),
   signHead: (id: number, signature_data: string) =>
     apiClient.post(`/finance/reimburse/${id}/sign-head`, { signature_data }).then((r) => r.data),
@@ -57,6 +59,33 @@ const reimburseApi = {
     apiClient.post(`/finance/reimburse/${id}/reject`, { alasan }).then((r) => r.data),
   delete: (id: number) => apiClient.delete(`/finance/reimburse/${id}`).then((r) => r.data),
 };
+
+// Menampilkan bukti bon (base64) secara lazy — fetch hanya saat baris reimburse dibuka,
+// bukan ikut payload list. count dari `bukti_count` agar tahu jumlah tanpa fetch.
+function ReimburseBuktiViewer({ reimburseId, count }: { reimburseId: number; count: number }) {
+  const { data: buktis, isLoading } = useQuery({
+    queryKey: ["reimburse-buktis", reimburseId],
+    queryFn: () => reimburseApi.getBuktis(reimburseId),
+  });
+  if (count === 0) return <p className="text-sm text-muted-foreground italic">Tidak ada bukti bon.</p>;
+  if (isLoading || !buktis) {
+    return (
+      <div className="flex flex-wrap gap-3">
+        {Array.from({ length: count }).map((_, i) => <Skeleton key={i} className="w-28 h-28 rounded-md" />)}
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-wrap gap-3">
+      {buktis.map((b: any, i: number) => (
+        <div key={i} className="border rounded-md overflow-hidden w-28 h-28 bg-white">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={b.data} alt={b.nama || `bukti-${i}`} className="w-full h-full object-cover" />
+        </div>
+      ))}
+    </div>
+  );
+}
 
 // ── Status badge ──────────────────────────────────────────────────────────────
 const STATUS_MAP: Record<string, { label: string; variant: any; icon: any }> = {
@@ -198,7 +227,7 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
   const [filterUser, setFilterUser]   = useState("");
   const [filterTgl, setFilterTgl]     = useState("");
   const [filterStatus, setFilterStatus] = useState("");
-  const [photoDialog, setPhotoDialog] = useState<{ masuk?: string; keluar?: string; name?: string } | null>(null);
+  const [photoDialog, setPhotoDialog] = useState<{ id: number; name?: string } | null>(null);
   const [rejectOpen, setRejectOpen]   = useState<{ id: number; catatan: string } | null>(null);
 
   const { data: karyawanList } = useQuery({
@@ -236,6 +265,13 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
     queryFn: () => apiClient.get("/absen-karyawan/admin/pending").then(r => r.data as any[]),
     enabled: canManage,
     refetchInterval: 30000,
+  });
+
+  // Foto absen diambil lazy saat dialog dibuka (list/pending tidak lagi membawa foto).
+  const { data: fotoData, isLoading: fotoLoading } = useQuery({
+    queryKey: ["adm-kantor-absen-foto", photoDialog?.id],
+    queryFn: () => apiClient.get(`/absen-karyawan/admin/${photoDialog!.id}/foto`).then(r => r.data as { foto_masuk: string | null; foto_keluar: string | null }),
+    enabled: !!photoDialog?.id,
   });
 
   const approveMut = useMutation({
@@ -298,9 +334,9 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
                     )}
                   </div>
                   <div className="flex gap-1.5 shrink-0">
-                    {p.foto_masuk && (
+                    {p.jam_masuk && (
                       <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
-                        onClick={() => setPhotoDialog({ masuk: p.foto_masuk, keluar: p.foto_keluar, name: p.user?.name })}>
+                        onClick={() => setPhotoDialog({ id: p.id, name: p.user?.name })}>
                         <Eye className="h-3.5 w-3.5" />
                       </Button>
                     )}
@@ -418,9 +454,9 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
                         }
                       </TableCell>
                       <TableCell>
-                        {(r.foto_masuk || r.foto_keluar) && (
+                        {(r.jam_masuk || r.jam_keluar) && (
                           <Button size="sm" variant="ghost" className="h-7 gap-1"
-                            onClick={() => setPhotoDialog({ masuk: r.foto_masuk, keluar: r.foto_keluar, name: r.user?.name })}>
+                            onClick={() => setPhotoDialog({ id: r.id, name: r.user?.name })}>
                             <Camera className="h-3.5 w-3.5" /> Foto
                           </Button>
                         )}
@@ -452,16 +488,20 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-2">Foto Masuk</p>
-              {photoDialog?.masuk
-                ? <img src={photoDialog.masuk} alt="foto masuk" className="w-full rounded-lg border" />
-                : <div className="h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground text-xs">Belum ada foto</div>
+              {fotoLoading
+                ? <Skeleton className="h-48 w-full rounded-lg" />
+                : fotoData?.foto_masuk
+                  ? <img src={fotoData.foto_masuk} alt="foto masuk" className="w-full rounded-lg border" />
+                  : <div className="h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground text-xs">Belum ada foto</div>
               }
             </div>
             <div>
               <p className="text-xs font-semibold text-muted-foreground mb-2">Foto Keluar</p>
-              {photoDialog?.keluar
-                ? <img src={photoDialog.keluar} alt="foto keluar" className="w-full rounded-lg border" />
-                : <div className="h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground text-xs">Belum ada foto</div>
+              {fotoLoading
+                ? <Skeleton className="h-48 w-full rounded-lg" />
+                : fotoData?.foto_keluar
+                  ? <img src={fotoData.foto_keluar} alt="foto keluar" className="w-full rounded-lg border" />
+                  : <div className="h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground text-xs">Belum ada foto</div>
               }
             </div>
           </div>
@@ -667,6 +707,15 @@ export default function AdministrasiKantorPage() {
         toast.error("Tidak ada data reimburse untuk filter ini");
         return;
       }
+      // List tidak lagi membawa base64 bukti → ambil lazy per item untuk PDF rekap.
+      // Sekuensial agar tidak membanjiri server dengan ratusan request paralel.
+      for (const it of allItems) {
+        if ((it.bukti_count ?? 0) > 0) {
+          it.buktis = await reimburseApi.getBuktis(it.id).catch(() => []);
+        } else {
+          it.buktis = [];
+        }
+      }
       const logoUrl = await getLogoBase64();
       const parts: string[] = [];
       if (filterUserId) {
@@ -699,6 +748,8 @@ export default function AdministrasiKantorPage() {
   async function handleDownloadPDF(r: any) {
     try {
       const logoUrl = await getLogoBase64();
+      // Bukti base64 diambil lazy (tidak lagi ada di payload list).
+      const buktis = await reimburseApi.getBuktis(r.id).catch(() => []);
       const blob = await pdf(
         <ReimbursePDF
           id={r.id}
@@ -710,7 +761,7 @@ export default function AdministrasiKantorPage() {
           items={r.items || []}
           total={r.total}
           logoUrl={logoUrl}
-          buktis={r.buktis || []}
+          buktis={buktis}
           head_finance={r.head_finance ? { name: r.head_finance.name, at: r.head_finance_at, signature: r.head_finance_signature } : null}
         />
       ).toBlob();
@@ -952,18 +1003,7 @@ export default function AdministrasiKantorPage() {
                               {/* Bukti bon */}
                               <div className="space-y-3">
                                 <h4 className="font-semibold text-sm">Bukti Bon / Struk</h4>
-                                {(r.buktis || []).length === 0 ? (
-                                  <p className="text-sm text-muted-foreground italic">Tidak ada bukti bon.</p>
-                                ) : (
-                                  <div className="flex flex-wrap gap-3">
-                                    {(r.buktis || []).map((b: any, i: number) => (
-                                      <div key={i} className="border rounded-md overflow-hidden w-28 h-28 bg-white">
-                                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                                        <img src={b.data} alt={b.nama || `bukti-${i}`} className="w-full h-full object-cover" />
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
+                                <ReimburseBuktiViewer reimburseId={r.id} count={r.bukti_count ?? (r.buktis || []).length} />
                               </div>
                             </div>
                           </TableCell>

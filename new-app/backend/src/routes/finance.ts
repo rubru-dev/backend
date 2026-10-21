@@ -1386,7 +1386,10 @@ function reimburseDict(r: any) {
     admin_finance_signature: r.admin_finance_signature,
     admin_finance: r.admin_finance ? { name: r.admin_finance.name } : null,
     items: (r.items || []).map((it: any) => ({ id: it.id, deskripsi: it.deskripsi, jumlah: Number(it.jumlah) })),
-    buktis: (r.buktis || []).map((b: any) => ({ id: b.id, data: b.data, nama: b.nama })),
+    // Di list, bukti TANPA base64 `data` (lihat REIMBURSE_INCLUDE_LIST) → `data` undefined.
+    // Base64 diambil lazy via GET /reimburse/:id/buktis saat baris dibuka / cetak PDF.
+    buktis: (r.buktis || []).map((b: any) => ({ id: b.id, data: b.data ?? null, nama: b.nama })),
+    bukti_count: (r.buktis || []).length,
     created_at: r.created_at,
   };
 }
@@ -1397,6 +1400,16 @@ const REIMBURSE_INCLUDE = {
   admin_finance: true,
   items: true,
   buktis: true,
+};
+
+// Varian untuk LIST: bukti hanya metadata (id + nama), TANPA kolom base64 `data` yang
+// berat. Ini kunci anti-lag — payload list turun dari puluhan MB ke puluhan KB.
+const REIMBURSE_INCLUDE_LIST = {
+  user: { include: { roles: { include: { role: true } } } },
+  head_finance: true,
+  admin_finance: true,
+  items: true,
+  buktis: { select: { id: true, nama: true } },
 };
 
 // Hanya Super Admin yang boleh melihat atau mengajukan reimburse lintas user.
@@ -1451,13 +1464,28 @@ router.get("/reimburse", async (req: Request, res: Response) => {
     prisma.reimburse.count({ where }),
     prisma.reimburse.findMany({
       where,
-      include: REIMBURSE_INCLUDE,
+      include: REIMBURSE_INCLUDE_LIST,
       orderBy: { id: "desc" },
       skip: (page - 1) * perPage,
       take: perPage,
     }),
   ]);
   return res.json({ items: items.map(reimburseDict), total, page, per_page: perPage });
+});
+
+// GET /finance/reimburse/:id/buktis — base64 bukti (lazy). Hanya diambil saat baris
+// dibuka atau saat cetak PDF, supaya list tidak membawa base64 yang berat.
+router.get("/reimburse/:id/buktis", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const r = await prisma.reimburse.findUnique({
+    where: { id },
+    select: { user_id: true, buktis: { select: { id: true, data: true, nama: true } } },
+  });
+  if (!r) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
+  if (!isReimburseSuperAdmin(req) && !canAccessOwnReimburse(req, r)) {
+    return res.status(403).json({ detail: "Tidak memiliki akses" });
+  }
+  return res.json(r.buktis.map((b) => ({ id: b.id, data: b.data, nama: b.nama })));
 });
 
 // GET /finance/reimburse/users  – user dropdown for reimburse form
