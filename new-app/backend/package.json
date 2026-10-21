@@ -12,6 +12,7 @@
     "sync-ruangkeruang-access": "npx ts-node --transpile-only prisma/ensure-ruangkeruang-access.ts",
     "sync-addendum-access": "npx ts-node --transpile-only prisma/ensure-addendum-access.ts",
     "seed": "npx ts-node --transpile-only prisma/seed.ts",
+    "migrate:task-image": "npx ts-node --transpile-only prisma/migrate-task-image-to-files.ts",
     "update:projek-access": "npx ts-node --transpile-only prisma/update-projek-access.ts",
     "mediamtx:win": "..\\..\\mediamtx.exe ..\\..\\mediamtx.yml",
     "dev:cctv": "concurrently \"npm run dev\" \"npm run mediamtx:win\""

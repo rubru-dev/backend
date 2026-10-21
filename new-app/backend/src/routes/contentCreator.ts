@@ -1,11 +1,29 @@
 import express, { Router, Request, Response } from "express";
+import fs from "fs";
+import path from "path";
 import { prisma } from "../lib/prisma";
+import { config } from "../config";
 import { requireRole, requirePermission } from "../middleware/requireRole";
 import { syncInstagram, syncTikTok, syncYouTube, syncInstagramAccountLevel } from "../lib/socialSync";
 import { getPagination, paginateResponse } from "../middleware/pagination";
 import { sendNotifToRoles, FRONTEND_URL } from "../lib/notify";
 
 const router = Router();
+
+// Simpan task_image base64 → file di /storage/content-timeline, kembalikan path relatif.
+// Dulu base64 disimpan langsung di kolom DB → setiap list membawa puluhan MB dan bikin
+// Timeline Konten lag. Dengan path, list jadi ringan & <img> di-lazy-load browser.
+function saveTaskImage(dataUrl: string): string {
+  const m = dataUrl.match(/^data:(image\/\w+);base64,(.+)$/);
+  if (!m) throw new Error("Format gambar tidak valid");
+  const ext = m[1].split("/")[1] === "jpeg" ? "jpg" : m[1].split("/")[1];
+  const buffer = Buffer.from(m[2], "base64");
+  const dir = path.join(path.resolve(config.storagePath), "content-timeline");
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  fs.writeFileSync(path.join(dir, filename), buffer);
+  return `/storage/content-timeline/${filename}`;
+}
 
 function serialize(c: { id: bigint; judul: string | null; deskripsi: string | null; platform: string | null; tanggal_publish: Date | null; tanggal_upload: Date | null; status: string | null; bulan: number | null; tahun: number | null; planning_status: string | null; produksi_status: string | null; upload_status: string | null; catatan_revisi: string | null; hd_bd_signature?: string | null; hd_bd_signed_at?: Date | null; task_image?: string | null; created_at: Date | null; user?: { id: bigint; name: string } | null }) {
   return {
@@ -22,7 +40,9 @@ function serialize(c: { id: bigint; judul: string | null; deskripsi: string | nu
     produksi_status: c.produksi_status,
     upload_status: c.upload_status,
     catatan_revisi: c.catatan_revisi,
-    hd_bd_signature: c.hd_bd_signature ?? null,
+    // hd_bd_signature base64 TIDAK dikirim di list (tak pernah dirender sbg gambar di
+    // halaman ini, hanya dipakai sebagai indikator "sudah TTD"). Cukup flag presence.
+    has_hd_bd_signature: !!c.hd_bd_signature,
     hd_bd_signed_at: c.hd_bd_signed_at?.toISOString() ?? null,
     task_image: c.task_image ?? null,
     user: c.user ? { id: c.user.id, name: c.user.name } : null,
@@ -226,8 +246,10 @@ router.patch("/timeline/:id/image", express.json({ limit: "50mb" }), async (req:
   if (!task_image) return res.status(400).json({ detail: "Gambar wajib diisi" });
   const c = await prisma.contentTimeline.findUnique({ where: { id } });
   if (!c) return res.status(404).json({ detail: "Timeline tidak ditemukan" });
-  await prisma.contentTimeline.update({ where: { id }, data: { task_image } });
-  return res.json({ ok: true });
+  // Simpan sebagai file (bukan base64 di DB). Terima juga nilai yang sudah berupa path.
+  const stored = task_image.startsWith("data:") ? saveTaskImage(task_image) : task_image;
+  await prisma.contentTimeline.update({ where: { id }, data: { task_image: stored } });
+  return res.json({ ok: true, task_image: stored });
 });
 
 // POST /timeline/:id/resubmit — resubmit after revision

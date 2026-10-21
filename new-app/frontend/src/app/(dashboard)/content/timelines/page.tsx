@@ -19,6 +19,7 @@ import {
   AlertCircle, Clock, Pencil, Trash2, X, Upload, PenLine, ImageIcon, RefreshCw, FileDown,
 } from "lucide-react";
 import { SignatureDialog } from "@/components/signature-dialog";
+import { storageUrl } from "@/lib/storage-url";
 import jsPDF from "jspdf";
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -49,7 +50,7 @@ interface TimelineItem {
   upload_status: ApprovalStatus;
   catatan_revisi?: string;
   user?: { id: number; name: string };
-  hd_bd_signature?: string | null;
+  has_hd_bd_signature?: boolean;
   hd_bd_signed_at?: string | null;
   task_image?: string | null;
 }
@@ -310,7 +311,8 @@ function KalenderTimeline({
                       </p>
                     )}
                     {item.task_image && (
-                      <img src={item.task_image} alt="Gambar task" className="mt-1 max-h-24 rounded border object-contain" />
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={storageUrl(item.task_image)} alt="Gambar task" loading="lazy" className="mt-1 max-h-24 rounded border object-contain" />
                     )}
                     {/* Upload date info */}
                     {dateField === "tanggal_upload" && item.tanggal_upload && (
@@ -369,7 +371,7 @@ function KalenderTimeline({
                     )}
                     {/* TTD Head BD — upload calendar, superadmin only */}
                     {onSignHdBd && isSuperAdmin && item.upload_status === "approved" && (
-                      item.hd_bd_signature
+                      item.has_hd_bd_signature
                         ? <Badge variant="outline" className="text-green-600 text-xs gap-1 border-green-400 h-7 px-2">
                             <CheckCircle className="h-3 w-3" /> TTD HD BD
                           </Badge>
@@ -468,13 +470,17 @@ export default function ContentTimelinePage() {
     queryFn: () => contentApi.uploadPending(),
   });
 
+  // Hanya di-fetch saat dialog PDF dibuka — sebelumnya jalan saat load & menarik ulang
+  // data bulan yang sama (duplikat) sehingga memperberat pembukaan menu.
   const { data: pdfPlanningItems = [], isLoading: isLoadingPdfPlanning } = useQuery<TimelineItem[]>({
     queryKey: ["content-pdf-calendar", pdfBulan, pdfTahun],
     queryFn: () => contentApi.calendarTimeline({ bulan: pdfBulan, tahun: pdfTahun }),
+    enabled: pdfOpen,
   });
   const { data: pdfUploadItems = [], isLoading: isLoadingPdfUpload } = useQuery<TimelineItem[]>({
     queryKey: ["content-pdf-upload-calendar", pdfBulan, pdfTahun],
     queryFn: () => contentApi.uploadCalendar({ bulan: pdfBulan, tahun: pdfTahun }),
+    enabled: pdfOpen,
   });
 
   // Mutations
@@ -1198,7 +1204,8 @@ export default function ContentTimelinePage() {
               {imageTarget.task_image && !imagePreview && (
                 <div>
                   <p className="text-xs text-muted-foreground mb-1">Gambar saat ini:</p>
-                  <img src={imageTarget.task_image} alt="Gambar task" className="max-h-40 rounded border object-contain w-full" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={storageUrl(imageTarget.task_image)} alt="Gambar task" loading="lazy" className="max-h-40 rounded border object-contain w-full" />
                 </div>
               )}
               <label
