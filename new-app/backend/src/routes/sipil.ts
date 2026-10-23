@@ -50,6 +50,17 @@ const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFil
   }
 };
 const docsUpload = multer({ storage: docsStorage, limits: { fileSize: 20 * 1024 * 1024 }, fileFilter });
+const documentFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedMime = ["image/jpeg", "image/png", "application/pdf"];
+  const allowedExtensions = [".jpg", ".jpeg", ".png", ".pdf"];
+  if (allowedMime.includes(file.mimetype) && allowedExtensions.includes(ext)) {
+    cb(null, true);
+  } else {
+    cb(new Error("Tipe file tidak diizinkan. Hanya PDF, JPG, JPEG, dan PNG yang diperbolehkan."));
+  }
+};
+const documentUpload = multer({ storage: docsStorage, limits: { fileSize: 20 * 1024 * 1024 }, fileFilter: documentFileFilter });
 
 function fmtDate(d: Date | null | undefined): string | null {
   if (!d) return null;
@@ -880,7 +891,7 @@ router.get("/projeks/:id/links", async (req: Request, res: Response) => {
 });
 
 // POST /projeks/:id/links (supports JSON url OR multipart file upload)
-router.post("/projeks/:id/links", requirePermission("projek_sipil", "docs"), docsUpload.single("file"), async (req: Request, res: Response) => {
+router.post("/projeks/:id/links", requirePermission("projek_sipil", "docs"), documentUpload.single("file"), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
   const { title, catatan } = req.body;
   let url: string = req.body.url ?? "";

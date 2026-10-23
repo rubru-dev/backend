@@ -89,6 +89,8 @@ const GANTT_BAR_COLOR: Record<string, string> = {
 
 const EMPTY_TERMIN = { nama: "", tanggal_mulai: "", tanggal_selesai: "" };
 const EMPTY_TASK = { nama_pekerjaan: "", tanggal_mulai: "", tanggal_selesai: "", status: "Belum Mulai", pic: "", checklist_jenis: "RAB_AWAL" };
+const DOCUMENT_ACCEPT = ".pdf,.jpg,.jpeg,.png";
+const DOCUMENT_MAX_SIZE = 20 * 1024 * 1024;
 
 // ── Checklist Tab Component ─────────────────────────────────────────────────────
 type ChecklistItem = {
@@ -861,13 +863,13 @@ export default function ProyekSipilDetailPage() {
   const sa = isSuperAdmin();
   const canTabTermin     = sa || hasPermission("projek_sipil", "termin");
   const canTabGantt      = sa || hasPermission("projek_sipil", "gantt");
-  const canTabDocs       = false;
+  const canTabDocs       = sa || hasPermission("projek_sipil", "docs");
   const canTabRapp       = sa || hasPermission("projek_sipil", "rapp");
   const canTabStockOpname= sa || hasPermission("projek_sipil", "stock_opname");
   const canTabDokumentasi= false;
   const canTabChecklist  = sa || hasPermission("projek_sipil", "checklist");
   const canTabLaporanPic = sa || hasPermission("projek_sipil", "laporan_pic");
-  const defaultTab = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : canTabLaporanPic ? "laporan-pic" : "termin";
+  const defaultTab = canTabTermin ? "termin" : canTabGantt ? "gantt" : canTabDocs ? "docs" : canTabRapp ? "rapp" : canTabStockOpname ? "stock-opname" : canTabLaporanPic ? "laporan-pic" : "termin";
 
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
   const [ganttFilter, setGanttFilter] = useState("all");
@@ -962,6 +964,7 @@ export default function ProyekSipilDetailPage() {
   const [linkForm, setLinkForm] = useState({ title: "", url: "", catatan: "" });
   const [docsMode, setDocsMode] = useState<"url" | "file">("url");
   const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
+  const [docFileError, setDocFileError] = useState("");
   const docFileRef = useRef<HTMLInputElement>(null);
   const { data: links = [], isLoading: linksLoading } = useQuery<any[]>({
     queryKey: ["sipil-links", id],
@@ -986,6 +989,25 @@ export default function ProyekSipilDetailPage() {
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
   const [confirmDeleteLinkId, setConfirmDeleteLinkId] = useState<string | null>(null);
+
+  function handleDocFileChange(file: File | undefined) {
+    setDocFileError("");
+    setSelectedDocFile(null);
+    if (!file) return;
+
+    const extension = `.${file.name.split(".").pop()?.toLowerCase() ?? ""}`;
+    if (!DOCUMENT_ACCEPT.split(",").includes(extension)) {
+      setDocFileError("Format tidak didukung. Pilih PDF, JPG, JPEG, atau PNG.");
+      if (docFileRef.current) docFileRef.current.value = "";
+      return;
+    }
+    if (file.size > DOCUMENT_MAX_SIZE) {
+      setDocFileError("Ukuran file maksimal 20 MB.");
+      if (docFileRef.current) docFileRef.current.value = "";
+      return;
+    }
+    setSelectedDocFile(file);
+  }
 
   async function handleDownloadFile(url: string, filename: string) {
     try {
@@ -1251,7 +1273,7 @@ export default function ProyekSipilDetailPage() {
         <TabsList>
           {canTabTermin      && <TabsTrigger value="termin"><List className="h-3.5 w-3.5 mr-1.5" />Daftar Termin</TabsTrigger>}
           {canTabGantt       && <TabsTrigger value="gantt"><BarChart2 className="h-3.5 w-3.5 mr-1.5" />Gantt Chart</TabsTrigger>}
-          {canTabDocs        && <TabsTrigger value="docs"><Link2 className="h-3.5 w-3.5 mr-1.5" />Docs/Link</TabsTrigger>}
+          {canTabDocs        && <TabsTrigger value="docs"><Upload className="h-3.5 w-3.5 mr-1.5" />Upload Dokumen</TabsTrigger>}
           {canTabRapp        && <TabsTrigger value="rapp"><ClipboardList className="h-3.5 w-3.5 mr-1.5" />RAPP</TabsTrigger>}
           {canTabStockOpname && <TabsTrigger value="stock-opname"><PackageSearch className="h-3.5 w-3.5 mr-1.5" />Stock Opname</TabsTrigger>}
           {canTabDokumentasi && <TabsTrigger value="dokumentasi"><Camera className="h-3.5 w-3.5 mr-1.5" />Dokumentasi</TabsTrigger>}
@@ -1390,7 +1412,7 @@ export default function ProyekSipilDetailPage() {
         <TabsContent value="docs" className="mt-4 space-y-4">
           <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Tambah Dokumen</p>
+              <p className="text-sm font-medium">Tambah dokumen proyek</p>
               <div className="flex gap-1 text-xs">
                 <button onClick={() => setDocsMode("url")} className={`px-3 py-1 rounded-md font-medium transition-colors ${docsMode === "url" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
                   <Link2 className="h-3 w-3 inline mr-1" />URL / Link
@@ -1411,9 +1433,9 @@ export default function ProyekSipilDetailPage() {
               </div>
             ) : (
               <div>
-                <Label className="text-xs">File (PDF/Image, maks 20MB)</Label>
+                <Label className="text-xs">File (PDF, JPG, JPEG, atau PNG; maks 20 MB)</Label>
                 <div
-                  className="border-2 border-dashed rounded-lg p-4 text-center cursor-pointer hover:border-primary/50 transition-colors"
+                  className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${docFileError ? "border-destructive/60 bg-destructive/5" : "hover:border-primary/50"}`}
                   onClick={() => docFileRef.current?.click()}
                 >
                   {selectedDocFile ? (
@@ -1424,7 +1446,8 @@ export default function ProyekSipilDetailPage() {
                     <p className="text-sm text-muted-foreground"><Upload className="h-4 w-4 inline mr-1" />Klik untuk pilih file</p>
                   )}
                 </div>
-                <input ref={docFileRef} type="file" accept=".pdf,image/*" className="hidden" onChange={(e) => setSelectedDocFile(e.target.files?.[0] ?? null)} />
+                <input ref={docFileRef} type="file" accept={DOCUMENT_ACCEPT} className="hidden" onChange={(e) => handleDocFileChange(e.target.files?.[0])} />
+                {docFileError && <p className="mt-1.5 text-xs text-destructive" role="alert">{docFileError}</p>}
               </div>
             )}
             <div>
