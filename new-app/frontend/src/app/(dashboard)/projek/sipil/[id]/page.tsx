@@ -30,7 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, Pencil, Trash2, Building2, ChevronLeft, ChevronDown, ChevronRight,
   BarChart2, List, CalendarRange, Layers, FileDown, Loader2, ClipboardList,
-  Link2, ExternalLink, X, Upload, FileText, PackageSearch, Boxes, Camera, ImageIcon,
+  ExternalLink, X, Upload, FileText, PackageSearch, Boxes, Camera, ImageIcon,
   CheckSquare, Download, DollarSign, ClipboardCheck,
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -961,8 +961,6 @@ export default function ProyekSipilDetailPage() {
   });
 
   // Docs/Link
-  const [linkForm, setLinkForm] = useState({ title: "", url: "", catatan: "" });
-  const [docsMode, setDocsMode] = useState<"url" | "file">("url");
   const [selectedDocFile, setSelectedDocFile] = useState<File | null>(null);
   const [docFileError, setDocFileError] = useState("");
   const docFileRef = useRef<HTMLInputElement>(null);
@@ -977,7 +975,6 @@ export default function ProyekSipilDetailPage() {
     onSuccess: () => {
       toast.success("Dokumen ditambahkan");
       qc.invalidateQueries({ queryKey: ["sipil-links", id] });
-      setLinkForm({ title: "", url: "", catatan: "" });
       setSelectedDocFile(null);
       if (docFileRef.current) docFileRef.current.value = "";
     },
@@ -1411,55 +1408,31 @@ export default function ProyekSipilDetailPage() {
         {/* Docs/Link */}
         <TabsContent value="docs" className="mt-4 space-y-4">
           <div className="border rounded-lg p-4 space-y-3 bg-muted/30">
-            <div className="flex items-center justify-between">
-              <p className="text-sm font-medium">Tambah dokumen proyek</p>
-              <div className="flex gap-1 text-xs">
-                <button onClick={() => setDocsMode("url")} className={`px-3 py-1 rounded-md font-medium transition-colors ${docsMode === "url" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-                  <Link2 className="h-3 w-3 inline mr-1" />URL / Link
-                </button>
-                <button onClick={() => setDocsMode("file")} className={`px-3 py-1 rounded-md font-medium transition-colors ${docsMode === "file" ? "bg-white shadow-sm text-foreground" : "text-muted-foreground hover:text-foreground"}`}>
-                  <Upload className="h-3 w-3 inline mr-1" />Upload File
-                </button>
-              </div>
-            </div>
+            <p className="text-sm font-medium">Upload dokumen proyek</p>
+            <p className="text-xs text-muted-foreground">Nama dokumen akan mengikuti nama file asli dari perangkat Anda.</p>
             <div>
-              <Label className="text-xs">Judul *</Label>
-              <Input placeholder="e.g. RAB Final, Gambar Kerja, Foto Progres" value={linkForm.title} onChange={(e) => setLinkForm({ ...linkForm, title: e.target.value })} />
-            </div>
-            {docsMode === "url" ? (
-              <div>
-                <Label className="text-xs">URL *</Label>
-                <Input placeholder="https://..." value={linkForm.url} onChange={(e) => setLinkForm({ ...linkForm, url: e.target.value })} />
+              <Label className="text-xs">File (PDF, JPG, JPEG, atau PNG; maks 20 MB)</Label>
+              <div
+                className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${docFileError ? "border-destructive/60 bg-destructive/5" : "hover:border-primary/50"}`}
+                onClick={() => docFileRef.current?.click()}
+              >
+                {selectedDocFile ? (
+                  <p className="text-sm font-medium text-teal-700 flex items-center justify-center gap-2">
+                    <FileText className="h-4 w-4" />{selectedDocFile.name}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground"><Upload className="h-4 w-4 inline mr-1" />Pilih file dari PC atau HP</p>
+                )}
               </div>
-            ) : (
-              <div>
-                <Label className="text-xs">File (PDF, JPG, JPEG, atau PNG; maks 20 MB)</Label>
-                <div
-                  className={`border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-colors ${docFileError ? "border-destructive/60 bg-destructive/5" : "hover:border-primary/50"}`}
-                  onClick={() => docFileRef.current?.click()}
-                >
-                  {selectedDocFile ? (
-                    <p className="text-sm font-medium text-teal-700 flex items-center justify-center gap-2">
-                      <FileText className="h-4 w-4" />{selectedDocFile.name}
-                    </p>
-                  ) : (
-                    <p className="text-sm text-muted-foreground"><Upload className="h-4 w-4 inline mr-1" />Klik untuk pilih file</p>
-                  )}
-                </div>
-                <input ref={docFileRef} type="file" accept={DOCUMENT_ACCEPT} className="hidden" onChange={(e) => handleDocFileChange(e.target.files?.[0])} />
-                {docFileError && <p className="mt-1.5 text-xs text-destructive" role="alert">{docFileError}</p>}
-              </div>
-            )}
-            <div>
-              <Label className="text-xs">Catatan</Label>
-              <Input placeholder="Keterangan tambahan (opsional)" value={linkForm.catatan} onChange={(e) => setLinkForm({ ...linkForm, catatan: e.target.value })} />
+              <input ref={docFileRef} type="file" accept={DOCUMENT_ACCEPT} className="hidden" onChange={(e) => handleDocFileChange(e.target.files?.[0])} />
+              {docFileError && <p className="mt-1.5 text-xs text-destructive" role="alert">{docFileError}</p>}
             </div>
             <Button
               size="sm"
-              disabled={!linkForm.title || (docsMode === "url" ? !linkForm.url : !selectedDocFile) || addLinkMut.isPending}
-              onClick={() => addLinkMut.mutate(docsMode === "file" ? { title: linkForm.title, catatan: linkForm.catatan, file: selectedDocFile! } : linkForm)}
+              disabled={!selectedDocFile || addLinkMut.isPending}
+              onClick={() => selectedDocFile && addLinkMut.mutate(selectedDocFile)}
             >
-              {addLinkMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Menyimpan...</> : <><Plus className="h-3.5 w-3.5 mr-1.5" />Tambah Dokumen</>}
+              {addLinkMut.isPending ? <><Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />Mengupload...</> : <><Upload className="h-3.5 w-3.5 mr-1.5" />Upload Dokumen</>}
             </Button>
           </div>
 
@@ -1467,8 +1440,8 @@ export default function ProyekSipilDetailPage() {
             <div className="space-y-2">{[1,2].map((i) => <Skeleton key={i} className="h-14 w-full" />)}</div>
           ) : links.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
-              <Link2 className="mx-auto h-8 w-8 opacity-20 mb-2" />
-              <p className="text-sm">Belum ada dokumen. Tambahkan link atau upload file di atas.</p>
+              <FileText className="mx-auto h-8 w-8 opacity-20 mb-2" />
+              <p className="text-sm">Belum ada dokumen. Upload file pertama di atas.</p>
             </div>
           ) : (
             <div className="space-y-2">
@@ -1478,7 +1451,7 @@ export default function ProyekSipilDetailPage() {
                 const filename = link.url?.split("/").pop() ?? link.title;
                 return (
                   <div key={link.id} className="flex items-center gap-3 border rounded-lg px-4 py-3 bg-background">
-                    {isFile ? <FileText className="h-4 w-4 text-teal-600 flex-shrink-0" /> : <Link2 className="h-4 w-4 text-teal-600 flex-shrink-0" />}
+                    <FileText className="h-4 w-4 text-teal-600 flex-shrink-0" />
                     <div className="flex-1 min-w-0">
                       {isFile ? (
                         <button

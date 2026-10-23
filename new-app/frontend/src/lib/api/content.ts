@@ -169,15 +169,10 @@ export const sipilApi = {
   deleteUsageLog: (logId: string) => apiClient.delete(`/sipil/stock-opname/logs/${logId}`).then((r) => r.data),
   // Docs/Link
   getLinks: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/links`).then((r) => r.data),
-  addLink: (projekId: string, data: { title: string; url?: string; catatan?: string; file?: File }) => {
-    if (data.file) {
-      const form = new FormData();
-      form.append("title", data.title);
-      if (data.catatan) form.append("catatan", data.catatan);
-      form.append("file", data.file);
-      return apiClient.post(`/sipil/projeks/${projekId}/links`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
-    }
-    return apiClient.post(`/sipil/projeks/${projekId}/links`, data).then((r) => r.data);
+  addLink: (projekId: string, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return apiClient.post(`/sipil/projeks/${projekId}/links`, form, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
   },
   deleteLink: (linkId: string) => apiClient.delete(`/sipil/links/${linkId}`).then((r) => r.data),
   // Dokumentasi PIC

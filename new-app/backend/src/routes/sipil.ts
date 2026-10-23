@@ -893,15 +893,11 @@ router.get("/projeks/:id/links", async (req: Request, res: Response) => {
 // POST /projeks/:id/links (supports JSON url OR multipart file upload)
 router.post("/projeks/:id/links", requirePermission("projek_sipil", "docs"), documentUpload.single("file"), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
-  const { title, catatan } = req.body;
-  let url: string = req.body.url ?? "";
-  if (req.file) {
-    url = `/storage/sipil-docs/${req.file.filename}`;
-  }
-  if (!title) return res.status(400).json({ detail: "title wajib diisi" });
-  if (!url) return res.status(400).json({ detail: "url atau file wajib diisi" });
+  if (!req.file) return res.status(400).json({ detail: "File wajib diupload" });
+  const title = req.file.originalname;
+  const url = `/storage/sipil-docs/${req.file.filename}`;
   const link = await prisma.projectLink.create({
-    data: { linkable_type: "sipil_projek", linkable_id: proyekId, title, url, catatan: catatan || null, created_by: (req as any).user?.id ?? null },
+    data: { linkable_type: "sipil_projek", linkable_id: proyekId, title, url, created_by: (req as any).user?.id ?? null },
   });
   return res.json({ ...link, id: String(link.id), linkable_id: String(link.linkable_id), created_by: link.created_by ? String(link.created_by) : null });
 });
