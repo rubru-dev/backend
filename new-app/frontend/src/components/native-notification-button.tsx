@@ -8,11 +8,11 @@ import { useAuthStore } from "@/store/authStore";
 
 type InboxItem = { id: string; data: { title?: string; body?: string; url?: string }; read_at: string | null; created_at: string };
 
-function encodeKey(value: string): Uint8Array {
+function encodeKey(value: string): ArrayBuffer {
   const padding = "=".repeat((4 - (value.length % 4)) % 4);
   const base64 = (value + padding).replace(/-/g, "+").replace(/_/g, "/");
   const raw = window.atob(base64);
-  return Uint8Array.from(raw, (char) => char.charCodeAt(0));
+  return Uint8Array.from(raw, (char) => char.charCodeAt(0)).buffer;
 }
 
 export function NativeNotificationButton() {

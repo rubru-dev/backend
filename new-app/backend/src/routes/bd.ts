@@ -94,20 +94,6 @@ async function notifyCalendarAssignment(args: {
   }
 }
 
-function calendarNotificationRoles(modul: string) {
-  if (modul !== "golden") return [];
-  return ["Super Admin", "Head Golden", "HeadGolden"];
-}
-
-function goldenCalendarPath(modul: string, type: "survey" | "after") {
-  if (type === "after") {
-    return modul === "golden" ? "golden/kalender-after" : "telemarketing/kalender-instalasi-filter-air";
-  }
-  return modul === "golden"
-    ? "golden/kalender-survey"
-    : modul === "telemarketing" ? "telemarketing/kalender-survey" : "sales-admin/kalender-survey";
-}
-
 function normalizeLeadIdentity(value: unknown) {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -275,33 +261,6 @@ function leadDict(l: {
 
 // ── LEADS (BD module) ─────────────────────────────────────────────────────────
 
-async function addLeadToGoldenAdminProjection(lead: { id: bigint; nama: string }, projection: string, bulan: number, tahun: number) {
-  const allowed = new Set(["W1", "W2", "W3", "W4"]);
-  if (!allowed.has(projection)) return;
-
-  const colDefaults: Record<string, { color: string; urutan: number }> = {
-    W1: { color: "#3b82f6", urutan: 0 },
-    W2: { color: "#8b5cf6", urutan: 1 },
-    W3: { color: "#f59e0b", urutan: 2 },
-    W4: { color: "#10b981", urutan: 3 },
-  };
-  const defaults = colDefaults[projection];
-  let col = await prisma.goldenKanbanAdminColumn.findFirst({ where: { title: projection, bulan, tahun } });
-  if (!col) {
-    col = await prisma.goldenKanbanAdminColumn.create({
-      data: { title: projection, color: defaults.color, urutan: defaults.urutan, bulan, tahun },
-    });
-  }
-
-  const exists = await prisma.goldenKanbanAdminCard.findFirst({ where: { column_id: col.id, lead_id: lead.id } });
-  if (exists) return;
-
-  const lastCard = await prisma.goldenKanbanAdminCard.findFirst({ where: { column_id: col.id }, orderBy: { urutan: "desc" } });
-  await prisma.goldenKanbanAdminCard.create({
-    data: { column_id: col.id, title: lead.nama, lead_id: lead.id, urutan: (lastCard?.urutan ?? 0) + 1 },
-  });
-}
-
 // Minggu ke-berapa dalam bulan dari sebuah tanggal (1..4). Hari 1–7 → W1, 8–14 → W2, dst (di-cap W4).
 function weekOfMonth(date: Date): number {
   return Math.min(4, Math.max(1, Math.ceil(date.getDate() / 7)));
@@ -314,10 +273,6 @@ const W_COL_DEFAULTS: Record<string, { color: string; urutan: number }> = {
 // Tempatkan lead ke Kanban Admin di kolom W (W1–W4) sesuai brand/modul. Kolom dibuat kalau belum ada.
 async function addLeadToAdminKanban(modul: string, lead: { id: bigint; nama: string }, projection: string, bulan: number, tahun: number) {
   if (!W_COL_DEFAULTS[projection]) return;
-  if (modul === "golden") {
-    await addLeadToGoldenAdminProjection(lead, projection, bulan, tahun);
-    return;
-  }
   const def = W_COL_DEFAULTS[projection];
   if (modul === "sales-admin") {
     let col = await prisma.adminKanbanColumn.findFirst({ where: { title: projection, bulan, tahun } });
@@ -1807,7 +1762,7 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     ],
   } : {};
 
-  const [igPosts, ytPosts, ttPosts, igAccounts, closingCards, closingInvoices, goldenInvoices, filterAirInvoices] = await Promise.all([
+  const [igPosts, ytPosts, ttPosts, igAccounts, closingCards, closingInvoices] = await Promise.all([
     prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["Instagram", "INSTAGRAM"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
     prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["YouTube", "YOUTUBE"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
     prisma.socialMediaPostMetric.findMany({ where: { account: { platform: { in: ["TikTok", "TIKTOK"] } }, ...(dateWhere("tanggal") as any) }, include: { account: { select: { platform: true, account_name: true, username: true } } }, orderBy: { tanggal: "desc" } }),
@@ -1820,8 +1775,6 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
       include: { lead: { select: { id: true, nama: true, salutation: true, jenis: true } }, assigned_user: { select: { id: true, name: true } } },
     }),
     prisma.invoice.findMany({ where: { kategori: { in: ["Payment Desain", "Payment Projek", "Payment RKR"] }, ...dateWhere("tanggal") } }),
-    prisma.invoice.findMany({ where: { kategori: "Payment Golden", ...dateWhere("tanggal") } }),
-    prisma.invoice.findMany({ where: { kategori: "Payment Filter Air", ...dateWhere("tanggal") } }),
   ]);
 
   function socialSummary(posts: any[], includeIgAccount = false) {
@@ -1994,24 +1947,12 @@ router.get("/report-analytics", requirePermission("bd", "view"), async (req: Req
     sales_admin_rubahrumah: { leads: await leadStats("sales-admin"), survey: await surveyStats("sales-admin") },
     sales_admin_rkr_mitra: {
       rkr: { leads: await leadStats("telemarketing"), survey: await surveyStats("telemarketing") },
-      golden: { leads: await leadStats("golden"), survey: await surveyStats("golden"), pengerjaan: await pengerjaanStats("golden") },
-      filter_air: { leads: await leadStats("filter-air"), survey: await surveyStats("filter-air"), pengerjaan: await pengerjaanStats("filter-air") },
     },
     closing_rubahrumah_rkr: {
       total_closing: closingCards.reduce((s, c) => s + Number(c.projeksi_sales ?? 0), 0),
       total_cards: closingCards.length,
       by_jenis: closingByJenis,
       by_payment_category: closingByPayment,
-    },
-    closing_golden: { total_harga: goldenInvoices.reduce((s, i) => s + Number(i.grand_total ?? 0), 0), total_invoice: goldenInvoices.length },
-    closing_filter_air: {
-      total_harga: filterAirInvoices.reduce((s, i) => s + Number(i.grand_total ?? 0), 0),
-      total_invoice: filterAirInvoices.length,
-      by_jenis: filterAirInvoices.reduce((acc: Record<string, number>, i: any) => {
-        const key = i.jenis_filter_air || "Tanpa Jenis";
-        acc[key] = (acc[key] ?? 0) + Number(i.grand_total ?? 0);
-        return acc;
-      }, {}),
     },
     funnel,
     closing_detail: {
@@ -2588,7 +2529,7 @@ router.post("/kanban/labels", async (_req: Request, res: Response) => {
 
 // ── MODULAR LEADS (sales-admin / telemarketing) ───────────────────────────────
 
-const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client", "golden", "filter-air", "sales-client"]);
+const VALID_MODUL = new Set(["sales-admin", "telemarketing", "database-client", "sales-client"]);
 
 function validateModul(modul: string, res: Response): boolean {
   if (!VALID_MODUL.has(modul)) {
@@ -2931,13 +2872,11 @@ router.patch("/:modul/leads/:id", async (req: Request, res: Response) => {
   });
 
   // Auto-add ke Kanban jika projection diisi/berubah
-  if (b.projection && (modul === "sales-admin" || modul === "telemarketing" || modul === "golden")) {
+  if (b.projection && (modul === "sales-admin" || modul === "telemarketing")) {
     const now = new Date();
     const bln = updatedLead.bulan != null ? updatedLead.bulan : now.getMonth() + 1;
     const thn = updatedLead.tahun != null ? updatedLead.tahun : now.getFullYear();
-    if (modul === "golden") {
-      await addLeadToGoldenAdminProjection(updatedLead, b.projection, bln, thn);
-    } else if (modul === "sales-admin") {
+    if (modul === "sales-admin") {
       const col = await prisma.adminKanbanColumn.findFirst({ where: { title: b.projection, bulan: bln, tahun: thn } });
       if (col) {
         const exists = await prisma.adminKanbanCard.findFirst({ where: { column_id: col.id, lead_id: updatedLead.id } });
@@ -3319,22 +3258,6 @@ router.patch("/:modul/leads/:id/pengerjaan-schedule", requireRole("Head Golden",
       ...(pic_survey !== undefined ? { pic_survey } : {}),
     },
   });
-
-  if (assignedPic) {
-    const calendarPath = goldenCalendarPath(modul, "after");
-    const msg = surveyAssignmentMessage({
-      title: "Assign After Pengerjaan Baru",
-      lead,
-      tanggal: tanggal_pengerjaan,
-      jamSurvey: lead.jam_survey,
-      calendarPath,
-    });
-    await notifyCalendarAssignment({
-      picName: assignedPic,
-      roleNames: calendarNotificationRoles(modul),
-      message: msg,
-    });
-  }
 
   return res.json({ message: "Tanggal pengerjaan berhasil diset" });
 });

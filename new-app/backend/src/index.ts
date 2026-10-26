@@ -43,9 +43,6 @@ import notificationsRouter from "./routes/notifications";
 import publicRbRouter from "./routes/publicRb";
 import websiteAdminRouter from "./routes/websiteAdmin";
 import absenKaryawanRouter from "./routes/absenKaryawan";
-import goldenRouter from "./routes/golden";
-import goldenKanbanAdminRouter from "./routes/goldenKanbanAdmin";
-import goldenKanbanSalesRouter from "./routes/goldenKanbanSales";
 import tutorialRouter from "./routes/tutorial";
 import penawaranRouter from "./routes/penawaran";
 import ruangkeruangRouter from "./routes/ruangkeruang";
@@ -189,9 +186,6 @@ app.use("/api/v1/c-level", authenticate, cLevelRouter);
 
 // Absen Karyawan
 app.use("/api/v1/absen-karyawan", authenticate, absenKaryawanRouter);
-app.use("/api/v1/golden", authenticate, goldenRouter);
-app.use("/api/v1/golden-kanban-admin", authenticate, goldenKanbanAdminRouter);
-app.use("/api/v1/golden-kanban-sales", authenticate, goldenKanbanSalesRouter);
 app.use("/api/v1/tutorial", authenticate, tutorialRouter);
 app.use("/api/v1/penawaran", authenticate, penawaranRouter);
 

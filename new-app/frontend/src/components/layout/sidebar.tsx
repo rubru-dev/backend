@@ -55,10 +55,7 @@ function SidebarItem({ item }: { item: NavItem }) {
     if (item.roles?.length && !hasAnyRole(...item.roles)) {
       return null;
     }
-    // Head Golden: full access to all golden.* items
-    if (hasAnyRole("Head Golden") && mod === "golden") {
-      // allow through
-    } else if (item.roles?.length && hasAnyRole(...item.roles)) {
+    if (item.roles?.length && hasAnyRole(...item.roles)) {
       // allow through
     } else if (!hasPermission(mod, act)) {
       return null;
@@ -137,14 +134,12 @@ export function Sidebar({ className }: { className?: string }) {
     // Permission-based check (new system)
     if (group.permission) {
       const [mod, act] = group.permission.split(".");
-      // Head Golden: full access to all golden group items
-      if (hasAnyRole("Head Golden") && mod === "golden") return true;
       if (hasPermission(mod, act)) return true;
     }
     if (group.items.some((item) => {
       if (!item.permission) return false;
       const [mod, act] = item.permission.split(".");
-      return hasPermission(mod, act) || (hasAnyRole("Head Golden") && mod === "golden");
+      return hasPermission(mod, act);
     })) return true;
     // Fallback: role-based (for users without permissions loaded yet)
     if (group.roles.length === 0) return false;

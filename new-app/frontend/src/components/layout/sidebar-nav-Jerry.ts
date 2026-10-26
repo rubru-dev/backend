@@ -94,8 +94,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Kanban Sales Rubru",      href: "/sales/kanban",            icon: "Kanban" },
       { label: "Kanban Sales RKR",        href: "/sales/kanban-rkr",        icon: "Kanban" },
-      { label: "Kanban Sales Golden",     href: "/sales/kanban-golden",     icon: "Kanban" },
-      { label: "Kanban Sales Filter Air", href: "/sales/kanban-filter-air", icon: "Kanban" },
       { label: "Laporan Harian", href: "/sales/laporan-harian",  icon: "ClipboardList" },
     ],
   },

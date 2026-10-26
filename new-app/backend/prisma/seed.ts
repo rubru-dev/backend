@@ -126,9 +126,9 @@ async function main() {
     { name: "sales_admin.kalender",      module: "sales_admin", label: "Sub-menu: Kalender Survey" },
     { name: "sales_admin.laporan_harian",module: "sales_admin", label: "Sub-menu: Laporan Harian Sales Admin" },
     // Sales Admin Product dan Mitra sub-menus
-    { name: "telemarketing.kanban",        module: "telemarketing", label: "Sub-menu: Kanban Admin Product / Kanban Golden" },
-    { name: "telemarketing.follow_up",     module: "telemarketing", label: "Sub-menu: Follow Up Leads RKR / Golden" },
-    { name: "telemarketing.kalender",      module: "telemarketing", label: "Sub-menu: Kalender Survey RKR / Golden / After Pengerjaan Golden" },
+    { name: "telemarketing.kanban",        module: "telemarketing", label: "Sub-menu: Kanban Admin RKR" },
+    { name: "telemarketing.follow_up",     module: "telemarketing", label: "Sub-menu: Follow Up Leads RKR" },
+    { name: "telemarketing.kalender",      module: "telemarketing", label: "Sub-menu: Kalender Survey RKR" },
     { name: "telemarketing.laporan_harian",module: "telemarketing", label: "Sub-menu: Laporan Harian Sales Admin Product dan Mitra" },
     // Desain sub-menus
     { name: "desain.follow_up",      module: "desain", label: "Sub-menu: Follow Up After Survey" },
@@ -200,17 +200,6 @@ async function main() {
     { name: "tutorial.tutorial_aplikasi", module: "tutorial", label: "Sub-menu: Tutorial Aplikasi" },
     { name: "tutorial.api_eksternal",     module: "tutorial", label: "Sub-menu: Tutorial API Eksternal" },
     { name: "tutorial.deployment",        module: "tutorial", label: "Sub-menu: Tutorial Deployment" },
-    // Golden (RubahrumahxGolden)
-    { name: "golden.view",          module: "golden", label: "Lihat RubahrumahxGolden" },
-    { name: "golden.create",        module: "golden", label: "Buat RubahrumahxGolden" },
-    { name: "golden.edit",          module: "golden", label: "Edit RubahrumahxGolden" },
-    { name: "golden.delete",        module: "golden", label: "Hapus RubahrumahxGolden" },
-    { name: "golden.dashboard_ads", module: "golden", label: "Sub-menu: Dashboard Ads Golden" },
-    { name: "golden.meta_ads",      module: "golden", label: "Sub-menu: Meta Ads Golden" },
-    { name: "golden.follow_up",     module: "golden", label: "Sub-menu: Follow Up Leads Golden" },
-    { name: "golden.kanban_admin",  module: "golden", label: "Sub-menu: Kanban Admin Golden" },
-    { name: "golden.kalender",      module: "golden", label: "Sub-menu: Kalender Survey Golden" },
-    { name: "golden.kanban_sales",  module: "golden", label: "Sub-menu: Kanban Sales Golden" },
   ];
 
   const permMap: Record<string, bigint> = {};
@@ -378,7 +367,6 @@ async function main() {
     }
   }
 
-  // Note: Golden permissions (golden.view dll) sudah di-upsert di permMap.
   // Assign ke role via Admin panel UI, atau Super Admin langsung bypass semua permission.
 
   const adminId  = userMap["admin@test.com"];
@@ -1113,7 +1101,6 @@ async function main() {
   console.log("  │ telemarketing@test.com  – Telemarketing                          │");
   console.log("  │ salesadmin@test.com     – Sales Admin                            │");
   console.log("  │ tukang@test.com         – Tukang (sub_role: Tukang)              │");
-  console.log("  │ mitra@test.com          – BD Mitra (sub_role: Mitra, Golden)     │");
   console.log("  └──────────────────────────────────────────────────────────────────┘");
 }
 

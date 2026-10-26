@@ -47,7 +47,6 @@ function formatDateID(date: Date | null | undefined): string {
 }
 
 function calendarPath(modul?: string | null): string {
-  if (modul === "golden") return "golden/kalender-survey";
   if (modul === "telemarketing") return "telemarketing/kalender-survey";
   return "sales-admin/kalender-survey";
 }

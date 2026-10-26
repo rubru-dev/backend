@@ -19,10 +19,9 @@ export function useAuth() {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
     });
-    // Tukang → /absen, Mitra sub_role → /golden/kanban-sales, lainnya → /dashboard
+    // Tukang → /absen, lainnya → /dashboard
     const isTukang = data.user.roles?.some((r: { name: string }) => r.name === "Tukang");
-    const isMitra = data.user.sub_role === "Mitra";
-    router.push(isTukang ? "/absen" : isMitra ? "/golden/kanban-sales" : "/dashboard");
+    router.push(isTukang ? "/absen" : "/dashboard");
   }
 
   async function logout() {

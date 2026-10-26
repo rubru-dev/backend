@@ -139,7 +139,6 @@ router.post("/", docsUpload.array("files", 20), async (req: Request, res: Respon
 const LEAD_MODUL_TO_MODUL: Record<string, string> = {
   "sales-admin": "Sales Admin",
   "telemarketing": "Telemarketing",
-  "golden": "Golden",
 };
 
 function isoDate(d: Date | null | undefined): string | null {

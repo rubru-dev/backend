@@ -150,8 +150,6 @@ function salesBoardCols(cols: Array<{ id: number; title: string; urutan: number;
 
 function salesKanbanSourceWhere(source?: string) {
   if (source === "rkr") return { lead: { modul: "telemarketing" } };
-  if (source === "golden") return { lead: { modul: "golden" } };
-  if (source === "filter-air") return { lead: { modul: "filter-air" } };
   return {
     OR: [
       { lead_id: null },
@@ -163,8 +161,6 @@ function salesKanbanSourceWhere(source?: string) {
 
 function salesKanbanLeadWhere(source?: string) {
   if (source === "rkr") return { modul: "telemarketing" };
-  if (source === "golden") return { modul: "golden" };
-  if (source === "filter-air") return { modul: "filter-air" };
   return { OR: [{ modul: null }, { modul: { in: ["sales-admin", "database-client"] } }] };
 }
 

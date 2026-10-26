@@ -115,16 +115,8 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["Telemarketing"],
     items: [
       { label: "Kanban Admin RKR",                 href: "/telemarketing/kanban",                      icon: "Kanban",       permission: "telemarketing.kanban" },
-      { label: "Kanban Admin Golden",              href: "/telemarketing/kanban-golden",               icon: "Kanban",       permission: "telemarketing.kanban" },
-      { label: "Kanban Admin Filter Air",          href: "/telemarketing/kanban-filter-air",           icon: "Kanban",       permission: "telemarketing.kanban" },
       { label: "Follow Up Leads RKR",              href: "/telemarketing/follow-up",                   icon: "PhoneCall",    permission: "telemarketing.follow_up" },
       { label: "Kalender Survey RKR",              href: "/telemarketing/kalender-survey",             icon: "CalendarDays", permission: "telemarketing.kalender" },
-      { label: "Follow Up Leads Golden",           href: "/telemarketing/follow-up-golden",            icon: "PhoneCall",    permission: "telemarketing.follow_up" },
-      { label: "Kalender Survey Golden",           href: "/telemarketing/kalender-survey-golden",      icon: "CalendarDays", permission: "telemarketing.kalender" },
-      { label: "Kalender After AP Golden",         href: "/telemarketing/kalender-after-golden",       icon: "Hammer",       permission: "telemarketing.kalender" },
-      { label: "Follow Up Leads Filter Air",       href: "/telemarketing/follow-up-filter-air",        icon: "PhoneCall",    permission: "telemarketing.follow_up" },
-      { label: "Kalender Survey Filter Air",       href: "/telemarketing/kalender-survey-filter-air",  icon: "CalendarDays", permission: "telemarketing.kalender" },
-      { label: "Kalender Instalasi Filter Air",    href: "/telemarketing/kalender-instalasi-filter-air", icon: "Hammer",     permission: "telemarketing.kalender" },
       { label: "Laporan Harian",                   href: "/telemarketing/laporan-harian",              icon: "ClipboardList",permission: "telemarketing.laporan_harian" },
     ],
   },
@@ -153,8 +145,6 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "Kanban Sales Rubru",      href: "/sales/kanban",             icon: "Kanban",        permission: "sales.kanban" },
       { label: "Kanban Sales RKR",        href: "/sales/kanban-rkr",         icon: "Kanban",        permission: "sales.kanban" },
-      { label: "Kanban Sales Golden",     href: "/sales/kanban-golden",      icon: "Kanban",        permission: "sales.kanban" },
-      { label: "Kanban Sales Filter Air", href: "/sales/kanban-filter-air",  icon: "Kanban",        permission: "sales.kanban" },
       { label: "Follow Up Leads Client",  href: "/sales/follow-up-client",   icon: "PhoneCall",     permission: "sales.view" },
       { label: "Kalender Visit Client",   href: "/sales/kalender-visit-client", icon: "CalendarDays", permission: "sales.view" },
       { label: "Laporan Harian",    href: "/sales/laporan-harian",  icon: "ClipboardList", permission: "sales.laporan_harian" },
@@ -171,8 +161,6 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Penawaran Desain", href: "/penawaran/desain", icon: "FileText", permission: "penawaran.desain" },
       { label: "Penawaran RKR", href: "/penawaran/rkr", icon: "FileText", permission: "penawaran.rkr" },
       { label: "Penawaran Rubru", href: "/penawaran/rubru", icon: "FileText", permission: "penawaran.rubru", roles: ["Sales", "Sales Admin"] },
-      { label: "Penawaran Golden", href: "/penawaran/golden", icon: "FileText", permission: "penawaran.golden" },
-      { label: "Penawaran Filter Air", href: "/penawaran/filter-air", icon: "FileText", permission: "penawaran.filter_air" },
     ],
   },
 
@@ -283,24 +271,6 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 
   // ── RubahrumahxGolden ────────────────────────────────────────────────────────
-  // Group: golden.view | Items: golden.meta_ads, golden.dashboard_ads, golden.follow_up, golden.kanban_admin, golden.kalender, golden.kalender_after, golden.kanban_sales
-  {
-    title: "RubahrumahxGolden",
-    color: "#f59e0b",
-    permission: "golden.view",
-    roles: ["BD"],
-    items: [
-      { label: "Dashboard Ads",          href: "/golden/dashboard-ads",    icon: "BarChart2",       permission: "golden.dashboard_ads" },
-      { label: "Meta Ads",               href: "/golden/meta-ads",         icon: "TrendingUp",      permission: "golden.meta_ads", roles: ["BD"] },
-      { label: "Follow Up Leads",        href: "/golden/follow-up",        icon: "PhoneCall",       permission: "golden.follow_up" },
-      { label: "Kanban Admin",           href: "/golden/kanban-admin",     icon: "Kanban",          permission: "golden.kanban_admin" },
-      { label: "Kalender Survey",        href: "/golden/kalender-survey",  icon: "CalendarDays",    permission: "golden.kalender" },
-      { label: "Kalender After Pengerjaan", href: "/golden/kalender-after", icon: "Hammer",         permission: "golden.kalender_after" },
-      { label: "Kanban Sales",           href: "/golden/kanban-sales",     icon: "LayoutDashboard", permission: "golden.kanban_sales" },
-      { label: "AR Golden",              href: "/golden/ar",              icon: "Receipt",         permission: "golden.ar" },
-    ],
-  },
-
   // ── Admin (Super Admin only) ──────────────────────────────────────────────────
   // Group: admin.view | Items: admin.users, admin.roles, admin.settings
   {
