@@ -4,7 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { laporanPicApi } from "@/lib/api/laporanPic";
-import { HardHat, Home, List, Upload, X, Building2 } from "lucide-react";
+import { HardHat, Home, List, X, Building2 } from "lucide-react";
+import { NativeCameraButton } from "@/components/native-camera-button";
 
 function insertBullet(ref: React.RefObject<HTMLTextAreaElement | null>, value: string, onChange: (value: string) => void) {
   const textarea = ref.current;
@@ -70,9 +71,8 @@ export default function PICLaporanHarianPage() {
   const previews = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
   useEffect(() => () => previews.forEach((url) => URL.revokeObjectURL(url)), [previews]);
 
-  const addFiles = (list: FileList | null) => {
-    if (!list) return;
-    setFiles((previous) => [...previous, ...Array.from(list)].slice(0, 20));
+  const addFile = (file: File) => {
+    setFiles((previous) => (previous.length < 20 ? [...previous, file] : previous));
   };
 
   const createMut = useMutation({
@@ -192,11 +192,13 @@ export default function PICLaporanHarianPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium">Foto Dokumentasi (bisa lebih dari satu)</label>
-          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed py-4 text-sm text-muted-foreground hover:border-orange-400 hover:text-orange-600">
-            <Upload className="h-4 w-4" /> Pilih / tambah foto
-            <input type="file" accept="image/*" multiple className="hidden" onChange={(event) => { addFiles(event.target.files); event.target.value = ""; }} />
-          </label>
+          <label className="mb-1.5 block text-sm font-medium">Foto Dokumentasi (dari kamera HP, bisa lebih dari satu)</label>
+          <NativeCameraButton
+            label="Buka Kamera HP"
+            disabled={createMut.isPending || files.length >= 20}
+            onCapture={(file) => addFile(file)}
+          />
+          {files.length >= 20 && <p className="mt-2 text-xs text-amber-700">Maksimal 20 foto dalam satu laporan.</p>}
           {previews.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{previews.map((url, index) => (
             <div key={url} className="relative">
               <img src={url} alt={`preview ${index + 1}`} className="h-20 w-20 rounded border object-cover" />
