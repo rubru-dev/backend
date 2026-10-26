@@ -7,6 +7,7 @@ import { config } from "../config";
 import { triggerEventReminder } from "../lib/notify";
 import { sendVisitProjectAssignedReminder } from "../lib/hardcodedReminderScheduler";
 import { reverseGeocode, numOrNull } from "../lib/reverseGeocode";
+import { deleteImageThumbnail, ensureImageThumbnails } from "../lib/imageThumbnail";
 
 const router = Router();
 
@@ -186,6 +187,7 @@ function ensureLaporanPicImagesTable() {
 async function insertLaporanPicImages(laporanId: bigint, files: Express.Multer.File[]) {
   if (files.length === 0) return [];
   await ensureLaporanPicImagesTable();
+  await ensureImageThumbnails(files.map((file) => `/storage/pic-docs/${file.filename}`));
   const rows = await Promise.all(
     files.map((file) => {
       const filePath = `/storage/pic-docs/${file.filename}`;
@@ -1044,6 +1046,7 @@ router.patch(
       for (const imagePath of removedPaths) {
         const filePath = path.resolve(config.storagePath, imagePath.replace(/^\/storage\//, ""));
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        deleteImageThumbnail(imagePath);
       }
       await prisma.clientPortalGaleri.deleteMany({ where: { file_path: { in: removedPaths } } });
     }
@@ -1154,6 +1157,7 @@ router.delete("/laporan-pic/:id", async (req: Request, res: Response) => {
   for (const imagePath of rows[0]?.images ?? []) {
     const filePath = path.resolve(config.storagePath, imagePath.replace(/^\/storage\//, ""));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    deleteImageThumbnail(imagePath);
   }
   await prisma.clientPortalGaleri.deleteMany({ where: { file_path: { in: rows[0]?.images ?? [] } } });
   await prisma.laporanPicProjek.delete({ where: { id } });

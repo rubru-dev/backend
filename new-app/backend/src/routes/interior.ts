@@ -5,6 +5,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import { config } from "../config";
+import { deleteImageThumbnail, ensureImageThumbnails, thumbnailStoragePath } from "../lib/imageThumbnail";
 
 const router = Router();
 
@@ -613,7 +614,11 @@ router.patch("/projeks/termins/:id", async (req: Request, res: Response) => {
   if (rab !== undefined) updates.rab = typeof rab === "number" ? rab : (parseFloat(String(rab).replace(/[^\d]/g, "")) || 0);
   if (tanggal_mulai !== undefined) updates.tanggal_mulai = tanggal_mulai ? new Date(tanggal_mulai) : null;
   if (tanggal_selesai !== undefined) updates.tanggal_selesai = tanggal_selesai ? new Date(tanggal_selesai) : null;
-  await prisma.proyekInteriorTermin.update({ where: { id }, data: updates });
+  const updatedTermin = await prisma.proyekInteriorTermin.update({ where: { id }, data: updates });
+  await prisma.checklistInterior.updateMany({
+    where: { termin_id: id },
+    data: { area_pekerjaan: updatedTermin.nama ?? `Termin ${updatedTermin.urutan}` },
+  });
   return res.json({ message: "Termin diupdate" });
 });
 
@@ -627,6 +632,8 @@ router.delete("/projeks/termins/:id", async (req: Request, res: Response) => {
 // POST /interior/projeks/termins/:id/tasks
 router.post("/projeks/termins/:id/tasks", async (req: Request, res: Response) => {
   const terminId = BigInt(req.params.id);
+  const termin = await prisma.proyekInteriorTermin.findUnique({ where: { id: terminId } });
+  if (!termin) return res.status(404).json({ detail: "Termin tidak ditemukan" });
   const { nama_pekerjaan, tanggal_mulai, tanggal_selesai, status, pic, checklist_jenis } = req.body;
   const task = await prisma.proyekInteriorTask.create({
     data: {
@@ -639,12 +646,29 @@ router.post("/projeks/termins/:id/tasks", async (req: Request, res: Response) =>
       checklist_jenis: checklist_jenis === "TAMBAHAN" ? "TAMBAHAN" : "RAB_AWAL",
     },
   });
+  const maxChecklistOrder = await prisma.checklistInterior.aggregate({
+    where: { proyek_id: termin.proyek_interior_id },
+    _max: { urutan: true },
+  });
+  await prisma.checklistInterior.create({
+    data: {
+      proyek_id: termin.proyek_interior_id,
+      task_id: task.id,
+      termin_id: terminId,
+      item_jenis: task.checklist_jenis,
+      nama_pekerjaan: task.nama_pekerjaan ?? "Pekerjaan tanpa nama",
+      area_pekerjaan: termin.nama ?? `Termin ${termin.urutan}`,
+      urutan: (maxChecklistOrder._max.urutan ?? -1) + 1,
+    },
+  });
   return res.status(201).json({ id: task.id });
 });
 
 // PATCH /interior/projeks/tasks/:id
 router.patch("/projeks/tasks/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
+  const existingTask = await prisma.proyekInteriorTask.findUnique({ where: { id }, include: { termin: true } });
+  if (!existingTask) return res.status(404).json({ detail: "Pekerjaan tidak ditemukan" });
   const { nama_pekerjaan, tanggal_mulai, tanggal_selesai, status, pic, checklist_jenis } = req.body;
   const updates: Record<string, unknown> = {};
   if (nama_pekerjaan !== undefined) updates.nama_pekerjaan = nama_pekerjaan;
@@ -653,7 +677,15 @@ router.patch("/projeks/tasks/:id", async (req: Request, res: Response) => {
   if (tanggal_selesai !== undefined) updates.tanggal_selesai = tanggal_selesai ? new Date(tanggal_selesai) : null;
   if (pic !== undefined) updates.assigned_to = pic ? BigInt(pic) : null;
   if (checklist_jenis !== undefined) updates.checklist_jenis = checklist_jenis === "TAMBAHAN" ? "TAMBAHAN" : "RAB_AWAL";
-  await prisma.proyekInteriorTask.update({ where: { id }, data: updates });
+  const updatedTask = await prisma.proyekInteriorTask.update({ where: { id }, data: updates });
+  await prisma.checklistInterior.updateMany({
+    where: { task_id: id },
+    data: {
+      nama_pekerjaan: updatedTask.nama_pekerjaan ?? "Pekerjaan tanpa nama",
+      item_jenis: updatedTask.checklist_jenis,
+      area_pekerjaan: existingTask.termin.nama ?? `Termin ${existingTask.termin.urutan}`,
+    },
+  });
   return res.json({ message: "Pekerjaan diupdate" });
 });
 
@@ -935,29 +967,17 @@ router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
   });
   if (!proyek) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
   const tasks = proyek.termins.flatMap((termin) => termin.tasks.map((task) => ({ task, termin })));
-  await Promise.all(tasks.map(({ task, termin }, index) => prisma.checklistInterior.upsert({
-    where: { proyek_id_task_id: { proyek_id: proyekId, task_id: task.id } },
-    create: {
-      proyek_id: proyekId, task_id: task.id, termin_id: termin.id,
-      nama_pekerjaan: task.nama_pekerjaan ?? "Pekerjaan tanpa nama",
-      area_pekerjaan: termin.nama ?? `Termin ${termin.urutan}`,
-      item_jenis: task.checklist_jenis,
-      urutan: index,
-    },
-    update: {
-      termin_id: termin.id,
-      nama_pekerjaan: task.nama_pekerjaan ?? "Pekerjaan tanpa nama",
-      area_pekerjaan: termin.nama ?? `Termin ${termin.urutan}`,
-      item_jenis: task.checklist_jenis,
-      urutan: index,
-    },
-  })));
   const taskIds = tasks.map(({ task }) => task.id);
   const [items, reports] = await Promise.all([
     prisma.checklistInterior.findMany({ where: { proyek_id: proyekId, task_id: { in: taskIds } }, orderBy: { urutan: "asc" } }),
     taskIds.length ? prisma.laporanPicProjek.findMany({
       where: { project_type: "interior", project_id: proyekId, OR: [{ task_id: { in: taskIds } }, { tasks: { some: { task_id: { in: taskIds } } } }] },
-      include: { image_files: { orderBy: { id: "asc" } }, tasks: { orderBy: { id: "asc" } } },
+      select: {
+        task_id: true,
+        images: true,
+        image_files: { select: { file_path: true }, orderBy: { id: "asc" } },
+        tasks: { select: { task_id: true }, orderBy: { id: "asc" } },
+      },
       orderBy: [{ tanggal: "desc" }, { created_at: "desc" }],
     }) : [],
   ]);
@@ -983,7 +1003,9 @@ router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
       ...checklist,
       task_id: String(task.id), termin_id: String(termin.id), termin_nama: termin.nama ?? `Termin ${termin.urutan}`,
       nama_pekerjaan: task.nama_pekerjaan ?? "Pekerjaan tanpa nama", item_jenis: task.checklist_jenis,
-      dokumentasi_paths: [...(checklist.gambar_paths ?? []), ...(images.get(String(task.id)) ?? [])], status: task.status,
+      dokumentasi_paths: [...(checklist.gambar_paths ?? []), ...(images.get(String(task.id)) ?? [])],
+      dokumentasi_thumbnails: [...(checklist.gambar_paths ?? []), ...(images.get(String(task.id)) ?? [])].map(thumbnailStoragePath),
+      status: task.status,
     }; }),
   });
 });
@@ -1011,6 +1033,7 @@ router.post("/projeks/:id/checklist", checklistUpload.array("gambar", 10), async
   const maxUrutan = await prisma.checklistInterior.aggregate({ where: { proyek_id: proyekId }, _max: { urutan: true } });
   const files = (req.files as Express.Multer.File[]) ?? [];
   const paths = files.map((f) => `/storage/interior/${f.filename}`);
+  await ensureImageThumbnails(paths);
   const item = await prisma.checklistInterior.create({
     data: {
       proyek_id: proyekId,
@@ -1038,25 +1061,21 @@ router.patch("/projeks/checklist/:cid", checklistUpload.fields([{ name: "gambar"
   const gambarFiles = files?.gambar ?? [];
   if (gambarFiles.length > 0) {
     const oldPaths: string[] = parseGambarPaths(existing.gambar_paths, existing.gambar_path);
-    for (const p of oldPaths) {
-      const fp = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
-    }
     const newPaths = gambarFiles.map((f) => `/storage/interior/${f.filename}`);
-    data.gambar_path = newPaths[0];
-    data.gambar_paths = JSON.stringify(newPaths);
+    await ensureImageThumbnails(newPaths);
+    const combinedPaths = [...oldPaths, ...newPaths];
+    data.gambar_path = combinedPaths[0];
+    data.gambar_paths = JSON.stringify(combinedPaths);
   }
 
   const gambarSelesaiFiles = files?.gambar_selesai ?? [];
   if (gambarSelesaiFiles.length > 0) {
     const oldPaths: string[] = parseGambarPaths(existing.gambar_selesai_paths, existing.gambar_selesai_path);
-    for (const p of oldPaths) {
-      const fp = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
-      if (fs.existsSync(fp)) fs.unlinkSync(fp);
-    }
     const newPaths = gambarSelesaiFiles.map((f) => `/storage/interior/${f.filename}`);
-    data.gambar_selesai_path = newPaths[0];
-    data.gambar_selesai_paths = JSON.stringify(newPaths);
+    await ensureImageThumbnails(newPaths);
+    const combinedPaths = [...oldPaths, ...newPaths];
+    data.gambar_selesai_path = combinedPaths[0];
+    data.gambar_selesai_paths = JSON.stringify(combinedPaths);
   }
 
   const updated = await prisma.checklistInterior.update({ where: { id: cid }, data });
@@ -1075,6 +1094,7 @@ router.delete("/projeks/checklist/:cid", async (req: Request, res: Response) => 
   for (const p of allPaths) {
     const filePath = path.resolve(config.storagePath, p.replace(/^\/storage\//, ""));
     if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    deleteImageThumbnail(p);
   }
   await prisma.checklistInterior.delete({ where: { id: cid } });
   return res.json({ message: "Checklist item dihapus" });

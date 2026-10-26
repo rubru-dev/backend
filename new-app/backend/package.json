@@ -12,6 +12,7 @@
     "sync-ruangkeruang-access": "npx ts-node --transpile-only prisma/ensure-ruangkeruang-access.ts",
     "sync-addendum-access": "npx ts-node --transpile-only prisma/ensure-addendum-access.ts",
     "seed": "npx ts-node --transpile-only prisma/seed.ts",
+    "backfill:checklist-thumbnails": "npx ts-node --transpile-only prisma/backfill-checklist-thumbnails.ts",
     "migrate:task-image": "npx ts-node --transpile-only prisma/migrate-task-image-to-files.ts",
     "update:projek-access": "npx ts-node --transpile-only prisma/update-projek-access.ts",
     "mediamtx:win": "..\\..\\mediamtx.exe ..\\..\\mediamtx.yml",
@@ -31,6 +32,7 @@
     "multer": "^1.4.5-lts.1",
     "node-cron": "^4.2.1",
     "nodemailer": "^9.0.6",
+    "sharp": "0.34.5",
     "web-push": "^3.6.7",
     "xlsx": "^0.18.5"
   },

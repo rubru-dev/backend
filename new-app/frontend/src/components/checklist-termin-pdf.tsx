@@ -83,6 +83,20 @@ export type ChecklistTerminPdfData = {
 };
 
 export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
+  const tableRows = data.items.flatMap((item) => {
+    if (item.dokumentasi_b64s.length <= 12) return [{ ...item, continuation: 0, continuationCount: 1 }];
+    const chunks: string[][] = [];
+    for (let index = 0; index < item.dokumentasi_b64s.length; index += 12) {
+      chunks.push(item.dokumentasi_b64s.slice(index, index + 12));
+    }
+    return chunks.map((images, index) => ({
+      ...item,
+      dokumentasi_b64s: images,
+      continuation: index,
+      continuationCount: chunks.length,
+    }));
+  });
+
   return <Document>
     <Page size="A4" style={s.page}>
       <View style={s.header}>
@@ -108,9 +122,9 @@ export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
           <View style={[s.cell, s.paraf]}><Text style={s.headerText}>Paraf PIC</Text></View>
           <View style={[s.cell, s.paraf, { borderRightWidth: 0 }]}><Text style={s.headerText}>Paraf Client</Text></View>
         </View>
-        {data.items.length === 0 ? <View style={s.row}><View style={[s.cell, { flex: 1, borderRightWidth: 0 }]}><Text style={s.empty}>Belum ada item pekerjaan pada termin ini.</Text></View></View> : data.items.map((item) => <View style={s.row} key={item.no} wrap={false}>
+        {tableRows.length === 0 ? <View style={s.row}><View style={[s.cell, { flex: 1, borderRightWidth: 0 }]}><Text style={s.empty}>Belum ada item pekerjaan pada termin ini.</Text></View></View> : tableRows.map((item) => <View style={s.row} key={`${item.no}-${item.continuation}`} wrap={false}>
           <View style={[s.cell, s.no]}><Text>{item.no}</Text></View>
-          <View style={[s.cell, s.item]}><Text style={s.itemText}>{item.nama_pekerjaan}</Text><Text style={s.typeText}>{item.item_jenis === "TAMBAHAN" ? "PEKERJAAN TAMBAHAN" : "RAB AWAL"}</Text></View>
+          <View style={[s.cell, s.item]}><Text style={s.itemText}>{item.nama_pekerjaan}</Text><Text style={s.typeText}>{item.item_jenis === "TAMBAHAN" ? "PEKERJAAN TAMBAHAN" : "RAB AWAL"}{item.continuationCount > 1 ? ` · FOTO ${item.continuation + 1}/${item.continuationCount}` : ""}</Text></View>
           <View style={[s.cell, s.doc]}>{item.dokumentasi_b64s.length ? <View style={s.photos}>{item.dokumentasi_b64s.map((src, index) => <Image key={index} src={src} style={s.photo} />)}</View> : <Text style={s.empty}>Belum ada dokumentasi</Text>}</View>
           <View style={[s.cell, s.paraf, { backgroundColor: "#fff" }]}><Text style={item.pic_paraf ? s.parafMark : s.parafEmpty}>{item.pic_paraf ? "✓" : " "}</Text></View>
           <View style={[s.cell, s.paraf, { borderRightWidth: 0, backgroundColor: "#fff" }]}><Text style={item.client_paraf ? s.parafMark : s.parafEmpty}>{item.client_paraf ? "✓" : " "}</Text></View>
