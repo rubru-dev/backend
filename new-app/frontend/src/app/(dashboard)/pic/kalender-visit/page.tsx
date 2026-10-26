@@ -57,9 +57,8 @@ const picApi = {
 const EMPTY_FORM = { nama_projek: "", projek_id: "", projek_type: "", tanggal: "", jam: "", keterangan: "", status: "Terjadwal", pic_user_ids: [] as string[] };
 
 export default function KalenderVisitPage() {
-  const { isSuperAdmin, hasPermission, user } = useAuthStore();
+  const { isSuperAdmin, user } = useAuthStore();
   const canCreate = isSuperAdmin();
-  const canManage = isSuperAdmin() || hasPermission("pic", "view");
   const qc = useQueryClient();
 
   const now = new Date();
@@ -73,6 +72,7 @@ export default function KalenderVisitPage() {
   const [form, setForm]                       = useState({ ...EMPTY_FORM });
   const [konfirmasiOpen, setKonfirmasiOpen]   = useState<any | null>(null);
   const [catatanKonfirmasi, setCatatanKonfirmasi] = useState("");
+  const [fotoKonfirmasi, setFotoKonfirmasi]   = useState<{ file: File; lat: number; lng: number; accuracy: number; facing: string; preview: string } | null>(null);
   const [viewFotoUrl, setViewFotoUrl]         = useState<string | null>(null);
   const [filterProjekId, setFilterProjekId]   = useState("");
   const [filterPicId, setFilterPicId]         = useState("");
@@ -186,7 +186,11 @@ export default function KalenderVisitPage() {
     setFormOpen(true);
   }
   function closeForm() { setFormOpen(false); setEditItem(null); setForm({ ...EMPTY_FORM }); }
-  function closeKonfirmasi() { setKonfirmasiOpen(null); setCatatanKonfirmasi(""); }
+  function closeKonfirmasi() {
+    setKonfirmasiOpen(null);
+    setCatatanKonfirmasi("");
+    setFotoKonfirmasi((prev) => { if (prev) URL.revokeObjectURL(prev.preview); return null; });
+  }
 
   function handleProjekChange(val: string) {
     if (!val) { setForm(f => ({ ...f, projek_id: "", projek_type: "", nama_projek: "" })); return; }
@@ -435,7 +439,7 @@ export default function KalenderVisitPage() {
                         ))}
                       </div>
                     </div>
-                    {canManage && (
+                    {canCreate && (
                       <div className="flex gap-1 shrink-0">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEdit(v)}><Pencil className="h-3.5 w-3.5" /></Button>
                         <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"
@@ -567,36 +571,56 @@ export default function KalenderVisitPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <p className="text-sm text-muted-foreground">Pilih kamera depan atau belakang. Kamera HP akan dibuka langsung, lalu GPS, waktu, dan lokasi dicetak otomatis pada foto.</p>
+            <p className="text-sm text-muted-foreground">Kamera HP akan dibuka langsung, lalu GPS, waktu, dan lokasi dicetak otomatis pada foto. Isi catatan dulu untuk bisa mengirim.</p>
             <div>
               <Label>Foto Bukti <span className="text-red-500">*</span></Label>
               <div className="mt-2">
                 <NativeCameraButton
-                  label="Buka Kamera HP"
+                  label={fotoKonfirmasi ? "Ambil Ulang Foto" : "Buka Kamera HP"}
                   requireGps
                   disabled={konfirmasiMut.isPending}
                   watermarkTitle={`${konfirmasiOpen?.kalender_visit?.nama_projek ?? konfirmasiOpen?.nama_projek ?? "Visit Projek"} | ${user?.name ?? "PIC"}`}
-                  onCapture={async (file, lat, lng, metadata) => {
+                  onCapture={(file, lat, lng, metadata) => {
                     if (lat == null || lng == null || metadata.accuracy == null) throw new Error("GPS belum tersedia.");
-                    const formData = new FormData();
-                    formData.append("photo", file);
-                    formData.append("lat", String(lat));
-                    formData.append("lng", String(lng));
-                    formData.append("accuracy", String(metadata.accuracy));
-                    formData.append("facing", metadata.facing);
-                    if (catatanKonfirmasi.trim()) formData.append("catatan", catatanKonfirmasi.trim());
-                    await konfirmasiMut.mutateAsync({ id: String(konfirmasiOpen.kalender_visit_id ?? konfirmasiOpen.id), data: formData });
+                    setFotoKonfirmasi((prev) => {
+                      if (prev) URL.revokeObjectURL(prev.preview);
+                      return { file, lat, lng, accuracy: metadata.accuracy!, facing: metadata.facing, preview: URL.createObjectURL(file) };
+                    });
                   }}
                 />
               </div>
+              {fotoKonfirmasi && (
+                <div className="mt-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={fotoKonfirmasi.preview} alt="Pratinjau foto visit" className="h-40 w-full rounded-md border object-cover" />
+                  <p className="mt-1 text-xs text-green-700 flex items-center gap-1"><CheckCircle className="h-3.5 w-3.5" /> Foto siap dikirim.</p>
+                </div>
+              )}
             </div>
             <div>
-              <Label>Catatan (opsional)</Label>
-              <Textarea className="mt-1" rows={2} placeholder="Catatan tambahan..."
+              <Label>Catatan <span className="text-red-500">*</span></Label>
+              <Textarea className="mt-1" rows={2} placeholder="Tulis catatan hasil visit..."
                 value={catatanKonfirmasi} onChange={e => setCatatanKonfirmasi(e.target.value)} />
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={closeKonfirmasi}>Batal</Button>
+              <Button
+                className="bg-orange-500 hover:bg-orange-600"
+                disabled={!fotoKonfirmasi || !catatanKonfirmasi.trim() || konfirmasiMut.isPending}
+                onClick={async () => {
+                  if (!fotoKonfirmasi) return;
+                  const formData = new FormData();
+                  formData.append("photo", fotoKonfirmasi.file);
+                  formData.append("lat", String(fotoKonfirmasi.lat));
+                  formData.append("lng", String(fotoKonfirmasi.lng));
+                  formData.append("accuracy", String(fotoKonfirmasi.accuracy));
+                  formData.append("facing", fotoKonfirmasi.facing);
+                  formData.append("catatan", catatanKonfirmasi.trim());
+                  await konfirmasiMut.mutateAsync({ id: String(konfirmasiOpen.kalender_visit_id ?? konfirmasiOpen.id), data: formData });
+                }}
+              >
+                {konfirmasiMut.isPending ? "Mengirim..." : "Kirim"}
+              </Button>
             </div>
           </div>
         </DialogContent>
