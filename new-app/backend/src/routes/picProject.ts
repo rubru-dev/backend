@@ -674,6 +674,9 @@ router.get("/kalender-visit", async (req: Request, res: Response) => {
 
 // POST /pic/kalender-visit — buat jadwal baru
 router.post("/kalender-visit", async (req: Request, res: Response) => {
+  if (!isSuperAdmin(req.user)) {
+    return res.status(403).json({ detail: "Hanya Super Admin yang dapat menambah jadwal visit" });
+  }
   const { nama_projek, projek_id, projek_type, tanggal, jam, keterangan, pic_user_ids } = req.body;
   if (!nama_projek || !tanggal) return res.status(400).json({ detail: "nama_projek dan tanggal wajib diisi" });
   if (!Array.isArray(pic_user_ids) || pic_user_ids.length === 0)
@@ -713,63 +716,6 @@ router.patch("/kalender-visit/:id/hasil", async (req: Request, res: Response) =>
     where: { id },
     data: { keterangan_hasil: req.body.keterangan_hasil || null },
   });
-  return res.json(row);
-});
-
-// POST /pic/kalender-visit/:id/clock-in|out — bukti kehadiran (foto + jam + nama lokasi)
-async function kvClock(picId: bigint, type: "in" | "out", req: Request) {
-  const { lat, lng, accuracy, facing } = visitCoordinates(req);
-  const photo = `/storage/pic-docs/${req.file!.filename}`;
-  const location = await reverseGeocode(lat!, lng!);
-  const now = new Date();
-  const data =
-    type === "in"
-      ? { clock_in_photo: photo, clock_in_at: now, clock_in_lat: lat, clock_in_lng: lng, clock_in_location: location, clock_in_accuracy: accuracy, clock_in_camera: facing }
-      : { clock_out_photo: photo, clock_out_at: now, clock_out_lat: lat, clock_out_lng: lng, clock_out_location: location, clock_out_accuracy: accuracy, clock_out_camera: facing };
-  return prisma.kalenderVisitPic.update({ where: { id: picId }, data });
-}
-router.post("/kalender-visit/:id/clock-in", visitPhotoUpload.single("photo"), async (req: Request, res: Response) => {
-  const coordinates = visitCoordinates(req);
-  if (!req.file || !coordinates.valid) {
-    removeUploadedFile(req.file);
-    return res.status(400).json({ detail: "Foto langsung dan GPS yang valid wajib disertakan." });
-  }
-  const pic = await prisma.kalenderVisitPic.findUnique({
-    where: { kalender_visit_id_user_id: { kalender_visit_id: BigInt(req.params.id), user_id: req.user!.id } },
-  });
-  if (!pic) {
-    removeUploadedFile(req.file);
-    return res.status(403).json({ detail: "Anda tidak ditugaskan sebagai PIC pada visit ini." });
-  }
-  if (pic.clock_in_at) {
-    removeUploadedFile(req.file);
-    return res.status(400).json({ detail: "Clock in sudah tercatat." });
-  }
-  const row = await kvClock(pic.id, "in", req);
-  return res.json(row);
-});
-router.post("/kalender-visit/:id/clock-out", visitPhotoUpload.single("photo"), async (req: Request, res: Response) => {
-  const coordinates = visitCoordinates(req);
-  if (!req.file || !coordinates.valid) {
-    removeUploadedFile(req.file);
-    return res.status(400).json({ detail: "Foto langsung dan GPS yang valid wajib disertakan." });
-  }
-  const pic = await prisma.kalenderVisitPic.findUnique({
-    where: { kalender_visit_id_user_id: { kalender_visit_id: BigInt(req.params.id), user_id: req.user!.id } },
-  });
-  if (!pic) {
-    removeUploadedFile(req.file);
-    return res.status(403).json({ detail: "Anda tidak ditugaskan sebagai PIC pada visit ini." });
-  }
-  if (!pic.clock_in_at) {
-    removeUploadedFile(req.file);
-    return res.status(400).json({ detail: "Harus clock in terlebih dahulu." });
-  }
-  if (pic.clock_out_at) {
-    removeUploadedFile(req.file);
-    return res.status(400).json({ detail: "Clock out sudah tercatat." });
-  }
-  const row = await kvClock(pic.id, "out", req);
   return res.json(row);
 });
 
