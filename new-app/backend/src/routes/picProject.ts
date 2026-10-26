@@ -56,6 +56,27 @@ const picUpload = multer({
     else cb(new Error("Hanya file gambar yang diizinkan"));
   },
 });
+const visitPhotoUpload = multer({
+  storage: picStorage,
+  limits: { fileSize: 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (["image/jpeg", "image/png", "image/webp"].includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Foto visit harus berformat JPG, PNG, atau WEBP"));
+  },
+});
+
+function removeUploadedFile(file: Express.Multer.File | undefined) {
+  if (file?.path && fs.existsSync(file.path)) fs.unlinkSync(file.path);
+}
+
+function visitCoordinates(req: Request) {
+  const lat = numOrNull(req.body.lat);
+  const lng = numOrNull(req.body.lng);
+  const accuracy = numOrNull(req.body.accuracy);
+  const facing = req.body.facing === "user" ? "user" : "environment";
+  const valid = lat != null && lng != null && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180 && accuracy != null && accuracy >= 0;
+  return { lat, lng, accuracy, facing, valid };
+}
 
 function normalizeImageList(value: unknown): string[] {
   const normalizePath = (item: string) => {
@@ -97,6 +118,46 @@ const LAPORAN_STATUS = ["On Progress", "Selesai"] as const;
 
 function normalizeLaporanStatus(value: unknown) {
   return value === "Selesai" ? "Selesai" : "On Progress";
+}
+
+function normalizeTaskIds(value: unknown, fallback?: unknown): bigint[] {
+  let raw: unknown[] = [];
+  if (Array.isArray(value)) raw = value;
+  else if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      raw = Array.isArray(parsed) ? parsed : [value];
+    } catch {
+      raw = value.split(",");
+    }
+  } else if (value != null) raw = [value];
+  if (raw.length === 0 && fallback != null) raw = [fallback];
+  return Array.from(new Set(raw.map((item) => String(item).trim()).filter((item) => /^\d+$/.test(item)))).map((item) => BigInt(item));
+}
+
+async function validateLaporanTasks(type: "sipil" | "interior", projectId: bigint, terminId: bigint, taskIds: bigint[], user: any) {
+  if (taskIds.length === 0) throw Object.assign(new Error("Minimal satu nama pekerjaan wajib dipilih"), { status: 400 });
+  if (taskIds.length > 20) throw Object.assign(new Error("Maksimal 20 pekerjaan dalam satu laporan"), { status: 400 });
+  const tasks: any[] = type === "interior"
+    ? await prisma.proyekInteriorTask.findMany({ where: { id: { in: taskIds }, termin_id: terminId }, include: { termin: true } })
+    : await prisma.proyekBerjalanTask.findMany({ where: { id: { in: taskIds }, termin_id: terminId }, include: { termin: true } });
+  if (tasks.length !== taskIds.length) throw Object.assign(new Error("Ada pekerjaan yang tidak sesuai dengan termin yang dipilih"), { status: 400 });
+  for (const task of tasks) {
+    const targetProjectId = type === "interior" ? task.termin.proyek_interior_id : task.termin.proyek_berjalan_id;
+    if (String(targetProjectId) !== String(projectId)) throw Object.assign(new Error("Pekerjaan tidak sesuai dengan projek yang dipilih"), { status: 400 });
+    if (task.status === "Selesai" && !isSuperAdmin(user)) throw Object.assign(new Error(`Pekerjaan ${task.nama_pekerjaan || task.id} sudah selesai`), { status: 400 });
+  }
+  return tasks;
+}
+
+async function updateLaporanTasks(type: "sipil" | "interior", taskIds: bigint[], status: "On Progress" | "Selesai", userId: bigint) {
+  const statusApproval = status === "Selesai" ? "Menunggu Approval" : "Tidak Ada";
+  const data = status === "Selesai"
+    ? { status_approval: statusApproval, status_requested_by: userId, status_requested_at: new Date(), status_rejection_reason: null }
+    : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null };
+  if (type === "interior") await prisma.proyekInteriorTask.updateMany({ where: { id: { in: taskIds } }, data });
+  else await prisma.proyekBerjalanTask.updateMany({ where: { id: { in: taskIds } }, data });
+  return statusApproval;
 }
 
 let laporanPicImagesTableReady: Promise<void> | null = null;
@@ -157,10 +218,21 @@ async function attachLaporanPicImages<T extends { id: bigint; images?: unknown }
     const key = String(image.laporan_id);
     byReport.set(key, [...(byReport.get(key) ?? []), image.file_path]);
   }
+  const taskRows = await prisma.laporanPicProjekTask.findMany({
+    where: { laporan_id: { in: ids } },
+    orderBy: { id: "asc" },
+  });
+  const tasksByReport = new Map<string, { id: string; nama: string | null }[]>();
+  for (const task of taskRows) {
+    const key = String(task.laporan_id);
+    tasksByReport.set(key, [...(tasksByReport.get(key) ?? []), { id: String(task.task_id), nama: task.pekerjaan_nama }]);
+  }
   return rows.map((row) => {
     const relationalImages = byReport.get(String(row.id)) ?? [];
     const legacyImages = normalizeImageList(row.images);
-    return { ...row, images: relationalImages.length > 0 ? relationalImages : legacyImages };
+    const relationalTasks = tasksByReport.get(String(row.id)) ?? [];
+    const legacyTask = (row as any).task_id ? [{ id: String((row as any).task_id), nama: (row as any).pekerjaan_nama ?? null }] : [];
+    return { ...row, images: relationalImages.length > 0 ? relationalImages : legacyImages, tasks: relationalTasks.length > 0 ? relationalTasks : legacyTask };
   });
 }
 
@@ -643,26 +715,59 @@ router.patch("/kalender-visit/:id/hasil", async (req: Request, res: Response) =>
 });
 
 // POST /pic/kalender-visit/:id/clock-in|out — bukti kehadiran (foto + jam + nama lokasi)
-async function kvClock(id: bigint, type: "in" | "out", req: Request) {
-  const lat = numOrNull(req.body.lat);
-  const lng = numOrNull(req.body.lng);
-  const photo = (req as any).file ? `/storage/pic-docs/${(req as any).file.filename}` : null;
-  const location = lat != null && lng != null ? await reverseGeocode(lat, lng) : null;
+async function kvClock(picId: bigint, type: "in" | "out", req: Request) {
+  const { lat, lng, accuracy, facing } = visitCoordinates(req);
+  const photo = `/storage/pic-docs/${req.file!.filename}`;
+  const location = await reverseGeocode(lat!, lng!);
   const now = new Date();
   const data =
     type === "in"
-      ? { clock_in_photo: photo, clock_in_at: now, clock_in_lat: lat, clock_in_lng: lng, clock_in_location: location }
-      : { clock_out_photo: photo, clock_out_at: now, clock_out_lat: lat, clock_out_lng: lng, clock_out_location: location };
-  return prisma.kalenderVisit.update({ where: { id }, data });
+      ? { clock_in_photo: photo, clock_in_at: now, clock_in_lat: lat, clock_in_lng: lng, clock_in_location: location, clock_in_accuracy: accuracy, clock_in_camera: facing }
+      : { clock_out_photo: photo, clock_out_at: now, clock_out_lat: lat, clock_out_lng: lng, clock_out_location: location, clock_out_accuracy: accuracy, clock_out_camera: facing };
+  return prisma.kalenderVisitPic.update({ where: { id: picId }, data });
 }
-router.post("/kalender-visit/:id/clock-in", picUpload.single("photo"), async (req: Request, res: Response) => {
-  const row = await kvClock(BigInt(req.params.id), "in", req);
+router.post("/kalender-visit/:id/clock-in", visitPhotoUpload.single("photo"), async (req: Request, res: Response) => {
+  const coordinates = visitCoordinates(req);
+  if (!req.file || !coordinates.valid) {
+    removeUploadedFile(req.file);
+    return res.status(400).json({ detail: "Foto langsung dan GPS yang valid wajib disertakan." });
+  }
+  const pic = await prisma.kalenderVisitPic.findUnique({
+    where: { kalender_visit_id_user_id: { kalender_visit_id: BigInt(req.params.id), user_id: req.user!.id } },
+  });
+  if (!pic) {
+    removeUploadedFile(req.file);
+    return res.status(403).json({ detail: "Anda tidak ditugaskan sebagai PIC pada visit ini." });
+  }
+  if (pic.clock_in_at) {
+    removeUploadedFile(req.file);
+    return res.status(400).json({ detail: "Clock in sudah tercatat." });
+  }
+  const row = await kvClock(pic.id, "in", req);
   return res.json(row);
 });
-router.post("/kalender-visit/:id/clock-out", picUpload.single("photo"), async (req: Request, res: Response) => {
-  const existing = await prisma.kalenderVisit.findUnique({ where: { id: BigInt(req.params.id) } });
-  if (!existing?.clock_in_at) return res.status(400).json({ detail: "Harus clock in terlebih dahulu." });
-  const row = await kvClock(BigInt(req.params.id), "out", req);
+router.post("/kalender-visit/:id/clock-out", visitPhotoUpload.single("photo"), async (req: Request, res: Response) => {
+  const coordinates = visitCoordinates(req);
+  if (!req.file || !coordinates.valid) {
+    removeUploadedFile(req.file);
+    return res.status(400).json({ detail: "Foto langsung dan GPS yang valid wajib disertakan." });
+  }
+  const pic = await prisma.kalenderVisitPic.findUnique({
+    where: { kalender_visit_id_user_id: { kalender_visit_id: BigInt(req.params.id), user_id: req.user!.id } },
+  });
+  if (!pic) {
+    removeUploadedFile(req.file);
+    return res.status(403).json({ detail: "Anda tidak ditugaskan sebagai PIC pada visit ini." });
+  }
+  if (!pic.clock_in_at) {
+    removeUploadedFile(req.file);
+    return res.status(400).json({ detail: "Harus clock in terlebih dahulu." });
+  }
+  if (pic.clock_out_at) {
+    removeUploadedFile(req.file);
+    return res.status(400).json({ detail: "Clock out sudah tercatat." });
+  }
+  const row = await kvClock(pic.id, "out", req);
   return res.json(row);
 });
 
@@ -717,31 +822,35 @@ router.delete("/kalender-visit/:id", async (req: Request, res: Response) => {
 });
 
 // POST /pic/kalender-visit/:id/konfirmasi — PIC upload foto bukti konfirmasi
-router.post("/kalender-visit/:id/konfirmasi", async (req: Request, res: Response) => {
+router.post("/kalender-visit/:id/konfirmasi", visitPhotoUpload.single("photo"), async (req: Request, res: Response) => {
   const kalenderVisitId = BigInt(req.params.id);
   const userId = req.user!.id;
-  const { foto_bukti, catatan } = req.body;
-  if (!foto_bukti) return res.status(400).json({ detail: "Foto bukti wajib diupload" });
+  const { catatan } = req.body;
+  const coordinates = visitCoordinates(req);
+  if (!req.file || !coordinates.valid) {
+    removeUploadedFile(req.file);
+    return res.status(400).json({ detail: "Foto langsung dan GPS yang valid wajib disertakan." });
+  }
 
   const pic = await prisma.kalenderVisitPic.findUnique({
     where: { kalender_visit_id_user_id: { kalender_visit_id: kalenderVisitId, user_id: userId } },
   });
-  if (!pic) return res.status(404).json({ detail: "Anda tidak terdaftar sebagai PIC untuk jadwal ini" });
-
-  // Simpan foto base64
-  const saveDir = path.resolve(config.storagePath, "kalender-visit");
-  if (!fs.existsSync(saveDir)) fs.mkdirSync(saveDir, { recursive: true });
-  const matches = foto_bukti.match(/^data:(image\/\w+);base64,(.+)$/);
-  if (!matches) return res.status(400).json({ detail: "Format foto tidak valid" });
-  const ext = matches[1].split("/")[1] === "jpeg" ? "jpg" : matches[1].split("/")[1];
-  const filename = `${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  fs.writeFileSync(path.join(saveDir, filename), Buffer.from(matches[2], "base64"));
-  const filePath = `/storage/kalender-visit/${filename}`;
+  if (!pic) {
+    removeUploadedFile(req.file);
+    return res.status(404).json({ detail: "Anda tidak terdaftar sebagai PIC untuk jadwal ini" });
+  }
+  const filePath = `/storage/pic-docs/${req.file.filename}`;
+  const location = await reverseGeocode(coordinates.lat!, coordinates.lng!);
 
   const updated = await prisma.kalenderVisitPic.update({
     where: { id: pic.id },
     data: {
       foto_bukti: filePath,
+      foto_lat: coordinates.lat,
+      foto_lng: coordinates.lng,
+      foto_location: location,
+      foto_accuracy: coordinates.accuracy,
+      foto_camera: coordinates.facing,
       status_konfirmasi: "Dikonfirmasi",
       catatan: catatan || null,
       uploaded_at: new Date(),
@@ -803,7 +912,7 @@ router.post(
   ]),
   async (req: Request, res: Response) => {
   const user = req.user!;
-  const { project_type, project_id, termin_id, task_id, kegiatan, kendala, expected_file_count } = req.body;
+  const { project_type, project_id, termin_id, task_id, task_ids, kegiatan, kendala, expected_file_count } = req.body;
   const statusPekerjaan = normalizeLaporanStatus(req.body.status_pekerjaan);
   const files = getUploadedFiles(req).slice(0, 20);
   const expectedFileCount = Number(expected_file_count ?? 0);
@@ -826,26 +935,16 @@ router.post(
     ? await prisma.proyekInterior.findUnique({ where: { id: pid }, select: { nama_proyek: true } })
     : await prisma.proyekBerjalan.findUnique({ where: { id: pid }, select: { nama_proyek: true } });
   if (!proj) return res.status(404).json({ detail: "Projek tidak ditemukan" });
-  if (!termin_id || !task_id) return res.status(400).json({ detail: "Termin dan nama pekerjaan wajib dipilih" });
+  if (!termin_id) return res.status(400).json({ detail: "Termin wajib dipilih" });
   const tid = BigInt(termin_id);
-  const tkid = BigInt(task_id);
-  const target = type === "interior"
-    ? await prisma.proyekInteriorTask.findFirst({ where: { id: tkid, termin_id: tid }, include: { termin: true } })
-    : await prisma.proyekBerjalanTask.findFirst({ where: { id: tkid, termin_id: tid }, include: { termin: true } });
-  if (!target) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan termin yang dipilih" });
-  const targetProjectId = type === "interior" ? (target as any).termin.proyek_interior_id : (target as any).termin.proyek_berjalan_id;
-  if (String(targetProjectId) !== String(pid)) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan projek yang dipilih" });
-  if (target.status === "Selesai" && !isSuperAdmin(user)) return res.status(400).json({ detail: "Pekerjaan sudah diselesaikan dan tidak dapat diubah oleh PIC" });
-  const statusApproval = statusPekerjaan === "Selesai" ? "Menunggu Approval" : "Tidak Ada";
-  if (type === "interior") {
-    await prisma.proyekInteriorTask.update({ where: { id: tkid }, data: statusPekerjaan === "Selesai"
-      ? { status_approval: statusApproval, status_requested_by: user.id, status_requested_at: new Date(), status_rejection_reason: null }
-      : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null } });
-  } else {
-    await prisma.proyekBerjalanTask.update({ where: { id: tkid }, data: statusPekerjaan === "Selesai"
-      ? { status_approval: statusApproval, status_requested_by: user.id, status_requested_at: new Date(), status_rejection_reason: null }
-      : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null } });
+  const selectedTaskIds = normalizeTaskIds(task_ids, task_id);
+  let targets: any[];
+  try {
+    targets = await validateLaporanTasks(type, pid, tid, selectedTaskIds, user);
+  } catch (error: any) {
+    return res.status(error?.status || 400).json({ detail: error?.message || "Pekerjaan tidak valid" });
   }
+  const firstTarget = targets[0];
   if (expectedFileCount > 0 && files.length === 0) {
     console.warn("[LaporanPIC] upload gagal: frontend kirim file tapi backend tidak menerima file", {
       expected_file_count: expectedFileCount,
@@ -855,6 +954,7 @@ router.post(
       detail: "Foto tidak diterima backend. Coba refresh halaman lalu upload ulang.",
     });
   }
+  const statusApproval = await updateLaporanTasks(type, selectedTaskIds, statusPekerjaan, user.id);
   const row = await prisma.laporanPicProjek.create({
     data: {
       user_id: user.id,
@@ -862,9 +962,9 @@ router.post(
       project_id: pid,
       project_nama: proj?.nama_proyek ?? null,
       termin_id: tid,
-      task_id: tkid,
-      termin_nama: (target as any).termin.nama ?? null,
-      pekerjaan_nama: target.nama_pekerjaan ?? null,
+      task_id: selectedTaskIds[0],
+      termin_nama: firstTarget.termin.nama ?? null,
+      pekerjaan_nama: firstTarget.nama_pekerjaan ?? null,
       kegiatan: String(kegiatan),
       kendala: kendala ? String(kendala) : null,
       status_pekerjaan: statusPekerjaan,
@@ -872,6 +972,9 @@ router.post(
       images: [],
     },
     include: { user: { select: { name: true } } },
+  });
+  await prisma.laporanPicProjekTask.createMany({
+    data: targets.map((target) => ({ laporan_id: row.id, task_id: target.id, pekerjaan_nama: target.nama_pekerjaan ?? null })),
   });
   const images = await insertLaporanPicImages(row.id, files);
   // Mirror foto laporan ke Galeri Web Client jika projek operasional terhubung
@@ -882,7 +985,8 @@ router.post(
   if (operational?.lead_id && images.length > 0) {
     const clientProject = await prisma.clientPortalProject.findUnique({ where: { lead_id: operational.lead_id }, select: { id: true } });
     if (clientProject) {
-      await prisma.clientPortalGaleri.createMany({ data: images.map((file_path) => ({ project_id: clientProject.id, judul: `${(target as any).termin.nama || "Umum"} ‖ ${target.nama_pekerjaan || "Dokumentasi"}`, deskripsi: [kegiatan, kendala ? `Kendala: ${kendala}` : ""].filter(Boolean).join("\n"), file_path, tanggal_foto: new Date(), created_by: user.id })) });
+      const taskLabel = targets.length === 1 ? (firstTarget.nama_pekerjaan || "Dokumentasi") : `${targets.length} item pekerjaan`;
+      await prisma.clientPortalGaleri.createMany({ data: images.map((file_path) => ({ project_id: clientProject.id, judul: `${firstTarget.termin.nama || "Umum"} - ${taskLabel}`, deskripsi: [kegiatan, kendala ? `Kendala: ${kendala}` : ""].filter(Boolean).join("\n"), file_path, tanggal_foto: new Date(), created_by: user.id })) });
     }
   }
   console.log("[LaporanPIC] upload berhasil disimpan", {
@@ -890,7 +994,7 @@ router.post(
     image_count: images.length,
     images,
   });
-  return res.status(201).json({ ...mapLaporanPic(row), images });
+  return res.status(201).json({ ...mapLaporanPic(row), images, tasks: targets.map((target) => ({ id: String(target.id), nama: target.nama_pekerjaan ?? null })) });
 });
 
 // Edit laporan milik sendiri (Super Admin boleh mengedit semua laporan).
@@ -913,24 +1017,22 @@ router.patch(
     const statusPekerjaan = normalizeLaporanStatus(req.body.status_pekerjaan ?? row.status_pekerjaan);
     if (!kegiatan) return res.status(400).json({ detail: "Kegiatan wajib diisi" });
     const tid = req.body.termin_id ? BigInt(req.body.termin_id) : row.termin_id;
-    const tkid = req.body.task_id ? BigInt(req.body.task_id) : row.task_id;
-    if (!tid || !tkid) return res.status(400).json({ detail: "Termin dan nama pekerjaan wajib dipilih" });
-    const target = row.project_type === "interior"
-      ? await prisma.proyekInteriorTask.findFirst({ where: { id: tkid, termin_id: tid }, include: { termin: true } })
-      : await prisma.proyekBerjalanTask.findFirst({ where: { id: tkid, termin_id: tid }, include: { termin: true } });
-    if (!target) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan termin yang dipilih" });
-    const targetProjectId = row.project_type === "interior" ? (target as any).termin.proyek_interior_id : (target as any).termin.proyek_berjalan_id;
-    if (String(targetProjectId) !== String(row.project_id)) return res.status(400).json({ detail: "Pekerjaan tidak sesuai dengan projek laporan" });
-    const statusApproval = statusPekerjaan === "Selesai" ? "Menunggu Approval" : "Tidak Ada";
-    if (row.project_type === "interior") {
-      await prisma.proyekInteriorTask.update({ where: { id: tkid }, data: statusPekerjaan === "Selesai"
-        ? { status_approval: statusApproval, status_requested_by: user.id, status_requested_at: new Date(), status_rejection_reason: null }
-        : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null } });
-    } else {
-      await prisma.proyekBerjalanTask.update({ where: { id: tkid }, data: statusPekerjaan === "Selesai"
-        ? { status_approval: statusApproval, status_requested_by: user.id, status_requested_at: new Date(), status_rejection_reason: null }
-        : { status: "On Progress", status_approval: "Tidak Ada", status_rejection_reason: null } });
+    if (!tid) return res.status(400).json({ detail: "Termin wajib dipilih" });
+    const existingLinks = await prisma.laporanPicProjekTask.findMany({ where: { laporan_id: id }, orderBy: { id: "asc" } });
+    const fallbackIds = existingLinks.length > 0 ? existingLinks.map((link) => String(link.task_id)) : row.task_id ? [String(row.task_id)] : [];
+    const selectedTaskIds = req.body.task_ids !== undefined
+      ? normalizeTaskIds(req.body.task_ids)
+      : req.body.task_id !== undefined
+        ? normalizeTaskIds(req.body.task_id)
+        : normalizeTaskIds(fallbackIds);
+    let targets: any[];
+    try {
+      targets = await validateLaporanTasks(row.project_type as "sipil" | "interior", row.project_id, tid, selectedTaskIds, user);
+    } catch (error: any) {
+      return res.status(error?.status || 400).json({ detail: error?.message || "Pekerjaan tidak valid" });
     }
+    const firstTarget = targets[0];
+    const statusApproval = await updateLaporanTasks(row.project_type as "sipil" | "interior", selectedTaskIds, statusPekerjaan, user.id);
 
     const keepImages = normalizeImageList(req.body.keep_images ?? "[]");
     await ensureLaporanPicImagesTable();
@@ -953,9 +1055,9 @@ router.patch(
       where: { id },
       data: {
         termin_id: tid,
-        task_id: tkid,
-        termin_nama: (target as any).termin.nama ?? null,
-        pekerjaan_nama: target.nama_pekerjaan ?? null,
+        task_id: selectedTaskIds[0],
+        termin_nama: firstTarget.termin.nama ?? null,
+        pekerjaan_nama: firstTarget.nama_pekerjaan ?? null,
         kegiatan,
         kendala: req.body.kendala ? String(req.body.kendala) : null,
         status_pekerjaan: statusPekerjaan,
@@ -964,6 +1066,10 @@ router.patch(
       },
       include: { user: { select: { name: true } } },
     });
+    await prisma.$transaction([
+      prisma.laporanPicProjekTask.deleteMany({ where: { laporan_id: id } }),
+      prisma.laporanPicProjekTask.createMany({ data: targets.map((target) => ({ laporan_id: id, task_id: target.id, pekerjaan_nama: target.nama_pekerjaan ?? null })) }),
+    ]);
 
     const operational = row.project_type === "interior"
       ? await prisma.proyekInterior.findUnique({ where: { id: row.project_id }, select: { lead_id: true } })
@@ -972,10 +1078,11 @@ router.patch(
       const clientProject = await prisma.clientPortalProject.findUnique({ where: { lead_id: operational.lead_id }, select: { id: true } });
       if (clientProject) {
         await prisma.clientPortalGaleri.deleteMany({ where: { file_path: { in: oldPaths } } });
-        if (allImages.length > 0) await prisma.clientPortalGaleri.createMany({ data: allImages.map((file_path) => ({ project_id: clientProject.id, judul: `${(target as any).termin.nama || "Umum"} ‖ ${target.nama_pekerjaan || "Dokumentasi"}`, deskripsi: [kegiatan, req.body.kendala ? `Kendala: ${req.body.kendala}` : ""].filter(Boolean).join("\n"), file_path, tanggal_foto: new Date(), created_by: row.user_id })) });
+        const taskLabel = targets.length === 1 ? (firstTarget.nama_pekerjaan || "Dokumentasi") : `${targets.length} item pekerjaan`;
+        if (allImages.length > 0) await prisma.clientPortalGaleri.createMany({ data: allImages.map((file_path) => ({ project_id: clientProject.id, judul: `${firstTarget.termin.nama || "Umum"} - ${taskLabel}`, deskripsi: [kegiatan, req.body.kendala ? `Kendala: ${req.body.kendala}` : ""].filter(Boolean).join("\n"), file_path, tanggal_foto: new Date(), created_by: row.user_id })) });
       }
     }
-    return res.json({ ...mapLaporanPic(updated), images: allImages });
+    return res.json({ ...mapLaporanPic(updated), images: allImages, tasks: targets.map((target) => ({ id: String(target.id), nama: target.nama_pekerjaan ?? null })) });
   }
 );
 
@@ -989,13 +1096,15 @@ router.patch("/laporan-pic/:id/status-approval", async (req: Request, res: Respo
   if (row.status_pekerjaan !== "Selesai" || row.status_approval !== "Menunggu Approval") {
     return res.status(400).json({ detail: "Laporan ini tidak memiliki pengajuan penyelesaian yang menunggu approval" });
   }
-  if (!row.task_id) return res.status(400).json({ detail: "Laporan tidak terhubung ke item pekerjaan" });
+  const links = await prisma.laporanPicProjekTask.findMany({ where: { laporan_id: id } });
+  const taskIds = links.length > 0 ? links.map((link) => link.task_id) : row.task_id ? [row.task_id] : [];
+  if (taskIds.length === 0) return res.status(400).json({ detail: "Laporan tidak terhubung ke item pekerjaan" });
   const approved = action === "approve";
   const taskData = approved
     ? { status: "Selesai", status_approval: "Disetujui", status_approved_by: req.user!.id, status_approved_at: new Date(), status_rejection_reason: null }
     : { status_approval: "Ditolak", status_rejection_reason: String(req.body.reason || "Pengajuan penyelesaian ditolak") };
-  if (row.project_type === "interior") await prisma.proyekInteriorTask.update({ where: { id: row.task_id }, data: taskData });
-  else await prisma.proyekBerjalanTask.update({ where: { id: row.task_id }, data: taskData });
+  if (row.project_type === "interior") await prisma.proyekInteriorTask.updateMany({ where: { id: { in: taskIds } }, data: taskData });
+  else await prisma.proyekBerjalanTask.updateMany({ where: { id: { in: taskIds } }, data: taskData });
   const updated = await prisma.laporanPicProjek.update({ where: { id }, data: { status_approval: approved ? "Disetujui" : "Ditolak" }, include: { user: { select: { name: true } } } });
   return res.json(mapLaporanPic(updated));
 });

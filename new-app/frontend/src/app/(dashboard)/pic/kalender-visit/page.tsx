@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -19,7 +19,7 @@ import {
   CalendarDays, Plus, Pencil, Trash2, X, Camera, CheckCircle, Clock,
   ChevronLeft, ChevronRight, Users,
 } from "lucide-react";
-import { ClockCameraButton } from "@/components/clock-camera-button";
+import { ClockCameraButton, type CameraCaptureMetadata } from "@/components/clock-camera-button";
 
 const MONTH_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
 const DAY_NAMES   = ["Min","Sen","Sel","Rab","Kam","Jum","Sab"];
@@ -50,7 +50,7 @@ const picApi = {
   create:           (data: any) => apiClient.post("/pic/kalender-visit", data).then(r => r.data),
   update:           (id: string, data: any) => apiClient.patch(`/pic/kalender-visit/${id}`, data).then(r => r.data),
   delete:           (id: string) => apiClient.delete(`/pic/kalender-visit/${id}`).then(r => r.data),
-  konfirmasi:       (id: string, data: any) => apiClient.post(`/pic/kalender-visit/${id}/konfirmasi`, data).then(r => r.data),
+  konfirmasi:       (id: string, data: FormData) => apiClient.post(`/pic/kalender-visit/${id}/konfirmasi`, data, { headers: { "Content-Type": "multipart/form-data" } }).then(r => r.data),
   clockIn:          (id: string, fd: FormData) => apiClient.post(`/pic/kalender-visit/${id}/clock-in`, fd, { headers: { "Content-Type": "multipart/form-data" } }).then(r => r.data),
   clockOut:         (id: string, fd: FormData) => apiClient.post(`/pic/kalender-visit/${id}/clock-out`, fd, { headers: { "Content-Type": "multipart/form-data" } }).then(r => r.data),
   saveHasil:        (id: string, keterangan_hasil: string) => apiClient.patch(`/pic/kalender-visit/${id}/hasil`, { keterangan_hasil }).then(r => r.data),
@@ -75,19 +75,17 @@ export default function KalenderVisitPage() {
   const [editItem, setEditItem]               = useState<any | null>(null);
   const [form, setForm]                       = useState({ ...EMPTY_FORM });
   const [konfirmasiOpen, setKonfirmasiOpen]   = useState<any | null>(null);
-  const [fotoPreview, setFotoPreview]         = useState<string | null>(null);
-  const [fotoBukti, setFotoBukti]             = useState<string | null>(null);
   const [catatanKonfirmasi, setCatatanKonfirmasi] = useState("");
   const [viewFotoUrl, setViewFotoUrl]         = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const [filterProjekId, setFilterProjekId]   = useState("");
   const [filterPicId, setFilterPicId]         = useState("");
   const [visitDetail, setVisitDetail]         = useState<any | null>(null); // clock in/out + keterangan hasil
   const [hasilText, setHasilText]             = useState("");
 
-  const doProjekClock = async (visitId: string, type: "in" | "out", file: File, lat: number, lng: number) => {
+  const doProjekClock = async (visitId: string, type: "in" | "out", file: File, lat: number, lng: number, metadata: CameraCaptureMetadata) => {
     const fd = new FormData();
     fd.append("photo", file); fd.append("lat", String(lat)); fd.append("lng", String(lng));
+    fd.append("accuracy", String(metadata.accuracy)); fd.append("facing", metadata.facing);
     try {
       await (type === "in" ? picApi.clockIn(visitId, fd) : picApi.clockOut(visitId, fd));
       toast.success(type === "in" ? "Clock in tersimpan." : "Clock out tersimpan.");
@@ -204,7 +202,7 @@ export default function KalenderVisitPage() {
     setFormOpen(true);
   }
   function closeForm() { setFormOpen(false); setEditItem(null); setForm({ ...EMPTY_FORM }); }
-  function closeKonfirmasi() { setKonfirmasiOpen(null); setFotoBukti(null); setFotoPreview(null); setCatatanKonfirmasi(""); }
+  function closeKonfirmasi() { setKonfirmasiOpen(null); setCatatanKonfirmasi(""); }
 
   function handleProjekChange(val: string) {
     if (!val) { setForm(f => ({ ...f, projek_id: "", projek_type: "", nama_projek: "" })); return; }
@@ -223,16 +221,6 @@ export default function KalenderVisitPage() {
     const payload = { nama_projek: form.nama_projek, projek_id: form.projek_id||null, projek_type: form.projek_type||null, tanggal: form.tanggal, jam: form.jam||null, keterangan: form.keterangan||null, status: form.status, pic_user_ids: form.pic_user_ids };
     if (editItem) updateMut.mutate({ id: String(editItem.id), data: payload });
     else createMut.mutate(payload);
-  }
-
-  function handleFotoChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2*1024*1024) { toast.error("Ukuran foto maksimal 2MB"); return; }
-    const reader = new FileReader();
-    reader.onload = (ev) => { const r = ev.target?.result as string; setFotoPreview(r); setFotoBukti(r); };
-    reader.readAsDataURL(file);
-    e.target.value = "";
   }
 
   // Stats
@@ -499,7 +487,7 @@ export default function KalenderVisitPage() {
                   {myPic && myPic.status_konfirmasi !== "Dikonfirmasi" && (
                     <Button size="sm" className="h-7 text-xs bg-orange-500 hover:bg-orange-600 gap-1 w-full"
                       onClick={() => setKonfirmasiOpen({ ...myPic, kalender_visit_id: v.id })}>
-                      <Camera className="h-3.5 w-3.5" /> Upload Foto Konfirmasi
+                      <Camera className="h-3.5 w-3.5" /> Ambil Foto Konfirmasi
                     </Button>
                   )}
                   {myPic && myPic.status_konfirmasi === "Dikonfirmasi" && (
@@ -621,27 +609,27 @@ export default function KalenderVisitPage() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4 mt-2">
-            <p className="text-sm text-muted-foreground">Upload foto sebagai bukti kehadiran di lokasi visit.</p>
+            <p className="text-sm text-muted-foreground">Foto harus diambil langsung dari kamera. GPS, waktu, dan lokasi akan dicetak otomatis pada foto.</p>
             <div>
               <Label>Foto Bukti <span className="text-red-500">*</span></Label>
-              {fotoPreview ? (
-                <div className="mt-1 relative border rounded-lg overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={fotoPreview} alt="preview" className="w-full max-h-48 object-cover" />
-                  <button className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1"
-                    onClick={() => { setFotoPreview(null); setFotoBukti(null); }}>
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              ) : (
-                <div className="mt-1 border-2 border-dashed rounded-lg p-6 text-center cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors"
-                  onClick={() => fileRef.current?.click()}>
-                  <Camera className="h-8 w-8 mx-auto mb-2 text-muted-foreground/50" />
-                  <p className="text-sm text-muted-foreground">Klik untuk upload foto</p>
-                  <p className="text-xs text-muted-foreground/70 mt-1">JPG/PNG, maks. 2MB</p>
-                </div>
-              )}
-              <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleFotoChange} />
+              <div className="mt-2">
+                <ClockCameraButton
+                  label="Buka Kamera"
+                  tone="out"
+                  disabled={konfirmasiMut.isPending}
+                  watermarkTitle={`${konfirmasiOpen?.kalender_visit?.nama_projek ?? konfirmasiOpen?.nama_projek ?? "Visit Projek"} · ${user?.name ?? "PIC"}`}
+                  onCapture={async (file, lat, lng, metadata) => {
+                    const formData = new FormData();
+                    formData.append("photo", file);
+                    formData.append("lat", String(lat));
+                    formData.append("lng", String(lng));
+                    formData.append("accuracy", String(metadata.accuracy));
+                    formData.append("facing", metadata.facing);
+                    if (catatanKonfirmasi.trim()) formData.append("catatan", catatanKonfirmasi.trim());
+                    await konfirmasiMut.mutateAsync({ id: String(konfirmasiOpen.kalender_visit_id ?? konfirmasiOpen.id), data: formData });
+                  }}
+                />
+              </div>
             </div>
             <div>
               <Label>Catatan (opsional)</Label>
@@ -650,11 +638,6 @@ export default function KalenderVisitPage() {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={closeKonfirmasi}>Batal</Button>
-              <Button disabled={!fotoBukti || konfirmasiMut.isPending}
-                onClick={() => konfirmasiMut.mutate({ id: String(konfirmasiOpen.kalender_visit_id ?? konfirmasiOpen.id), data: { foto_bukti: fotoBukti, catatan: catatanKonfirmasi||null } })}
-                className="bg-orange-500 hover:bg-orange-600">
-                {konfirmasiMut.isPending ? "Mengirim..." : "Kirim Konfirmasi"}
-              </Button>
             </div>
           </div>
         </DialogContent>
@@ -678,6 +661,8 @@ export default function KalenderVisitPage() {
             const vd = visitDetail ? (allVisits.find((x: any) => String(x.id) === String(visitDetail.id)) ?? visitDetail) : null;
             if (!vd) return null;
             const refresh = () => qc.invalidateQueries({ queryKey: ["kalender-visit"] });
+            const activePic = vd.pics?.find((pic: any) => String(pic.user_id) === String(user?.id));
+            const clockData = activePic?.clock_in_at || activePic?.clock_out_at ? activePic : vd;
             return (
               <>
                 <DialogHeader><DialogTitle>{vd.nama_projek} — Bukti Visit</DialogTitle></DialogHeader>
@@ -685,9 +670,9 @@ export default function KalenderVisitPage() {
                   <p className="text-xs text-muted-foreground">{new Date(vd.tanggal).toLocaleDateString("id-ID")} {vd.jam || ""}</p>
                   <div className="grid grid-cols-2 gap-3">
                     {(["in","out"] as const).map((t) => {
-                      const at = t === "in" ? vd.clock_in_at : vd.clock_out_at;
-                      const loc = t === "in" ? vd.clock_in_location : vd.clock_out_location;
-                      const photo = t === "in" ? vd.clock_in_photo : vd.clock_out_photo;
+                      const at = t === "in" ? clockData.clock_in_at : clockData.clock_out_at;
+                      const loc = t === "in" ? clockData.clock_in_location : clockData.clock_out_location;
+                      const photo = t === "in" ? clockData.clock_in_photo : clockData.clock_out_photo;
                       return (
                         <div key={t} className="rounded-lg border p-3">
                           <p className="mb-1 text-xs font-bold uppercase text-muted-foreground">Clock {t}</p>
@@ -703,9 +688,10 @@ export default function KalenderVisitPage() {
                     })}
                   </div>
                   <div className="flex justify-end gap-2">
-                    {!vd.clock_in_at && <ClockCameraButton label="Clock In" tone="in" onCapture={(f, lat, lng) => doProjekClock(String(vd.id), "in", f, lat, lng)} />}
-                    {vd.clock_in_at && !vd.clock_out_at && <ClockCameraButton label="Clock Out" tone="out" onCapture={(f, lat, lng) => doProjekClock(String(vd.id), "out", f, lat, lng)} />}
-                    {vd.clock_in_at && vd.clock_out_at && <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">✓ Visit selesai</span>}
+                    {!activePic && <span className="text-sm text-muted-foreground">Clock in/out hanya tersedia untuk PIC yang ditugaskan.</span>}
+                    {activePic && !clockData.clock_in_at && <ClockCameraButton label="Clock In" tone="in" watermarkTitle={`${vd.nama_projek} · ${user?.name ?? "PIC"} · Clock In`} onCapture={(f, lat, lng, metadata) => doProjekClock(String(vd.id), "in", f, lat, lng, metadata)} />}
+                    {activePic && clockData.clock_in_at && !clockData.clock_out_at && <ClockCameraButton label="Clock Out" tone="out" watermarkTitle={`${vd.nama_projek} · ${user?.name ?? "PIC"} · Clock Out`} onCapture={(f, lat, lng, metadata) => doProjekClock(String(vd.id), "out", f, lat, lng, metadata)} />}
+                    {activePic && clockData.clock_in_at && clockData.clock_out_at && <span className="rounded-md bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">Visit selesai</span>}
                   </div>
                   <div>
                     <Label>Keterangan Hasil Visit</Label>

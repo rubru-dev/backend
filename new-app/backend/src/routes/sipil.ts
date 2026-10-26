@@ -50,6 +50,14 @@ const fileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFil
   }
 };
 const docsUpload = multer({ storage: docsStorage, limits: { fileSize: 20 * 1024 * 1024 }, fileFilter });
+const checklistImageFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
+  const ext = path.extname(file.originalname).toLowerCase();
+  const allowedMime = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+  const allowedExtensions = [".jpg", ".jpeg", ".png", ".webp", ".gif"];
+  if (allowedMime.includes(file.mimetype) && allowedExtensions.includes(ext)) cb(null, true);
+  else cb(new Error("Checklist hanya menerima gambar JPG, PNG, WEBP, atau GIF."));
+};
+const checklistUpload = multer({ storage: docsStorage, limits: { fileSize: 1024 * 1024 }, fileFilter: checklistImageFilter });
 const documentFileFilter = (_req: Request, file: Express.Multer.File, cb: multer.FileFilterCallback) => {
   const ext = path.extname(file.originalname).toLowerCase();
   const allowedMime = ["image/jpeg", "image/png", "application/pdf"];
@@ -1013,8 +1021,8 @@ router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
   const [items, reports] = await Promise.all([
     prisma.checklistSipil.findMany({ where: { proyek_id: proyekId, task_id: { in: taskIds } }, orderBy: { urutan: "asc" } }),
     taskIds.length ? prisma.laporanPicProjek.findMany({
-      where: { project_type: "sipil", project_id: proyekId, task_id: { in: taskIds } },
-      include: { image_files: { orderBy: { id: "asc" } } },
+      where: { project_type: "sipil", project_id: proyekId, OR: [{ task_id: { in: taskIds } }, { tasks: { some: { task_id: { in: taskIds } } } }] },
+      include: { image_files: { orderBy: { id: "asc" } }, tasks: { orderBy: { id: "asc" } } },
       orderBy: [{ tanggal: "desc" }, { created_at: "desc" }],
     }) : [],
   ]);
@@ -1022,7 +1030,10 @@ router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
   for (const report of reports) {
     const legacy = Array.isArray(report.images) ? report.images.filter((path): path is string => typeof path === "string") : [];
     const paths = report.image_files.length ? report.image_files.map((image) => image.file_path) : legacy;
-    if (paths.length) images.set(String(report.task_id), [...(images.get(String(report.task_id)) ?? []), ...paths]);
+    const reportTaskIds = report.tasks.length ? report.tasks.map((task) => task.task_id) : report.task_id ? [report.task_id] : [];
+    for (const reportTaskId of reportTaskIds) {
+      if (paths.length) images.set(String(reportTaskId), [...(images.get(String(reportTaskId)) ?? []), ...paths]);
+    }
   }
   const itemByTask = new Map(items.map((item) => [String(item.task_id), item]));
   return res.json({
@@ -1056,7 +1067,7 @@ router.patch("/checklist/:cid/paraf", requirePermission("projek_sipil", "checkli
 });
 
 // POST /projeks/:id/checklist
-router.post("/projeks/:id/checklist", requirePermission("projek_sipil", "checklist"), docsUpload.array("gambar", 10), async (req: Request, res: Response) => {
+router.post("/projeks/:id/checklist", requirePermission("projek_sipil", "checklist"), checklistUpload.array("gambar", 10), async (req: Request, res: Response) => {
   const proyekId = BigInt(req.params.id);
   const proyek = await prisma.proyekBerjalan.findUnique({ where: { id: proyekId } });
   if (!proyek) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
@@ -1079,7 +1090,7 @@ router.post("/projeks/:id/checklist", requirePermission("projek_sipil", "checkli
 });
 
 // PATCH /checklist/:cid
-router.patch("/checklist/:cid", requirePermission("projek_sipil", "checklist"), docsUpload.fields([{ name: "gambar", maxCount: 10 }, { name: "gambar_selesai", maxCount: 10 }]), async (req: Request, res: Response) => {
+router.patch("/checklist/:cid", requirePermission("projek_sipil", "checklist"), checklistUpload.fields([{ name: "gambar", maxCount: 10 }, { name: "gambar_selesai", maxCount: 10 }]), async (req: Request, res: Response) => {
   const cid = BigInt(req.params.cid);
   const existing = await prisma.checklistSipil.findUnique({ where: { id: cid } });
   if (!existing) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });

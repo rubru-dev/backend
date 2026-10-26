@@ -89,7 +89,7 @@ export function LaporanPicProjekTab({
 
   const rows = data?.pages.flatMap((p) => p.items) ?? [];
   const grouped = rows.reduce<Record<string, typeof rows>>((groups, row) => {
-    const key = `${row.termin_id ?? "none"}:${row.task_id ?? "none"}`;
+    const key = `${row.termin_id ?? "none"}`;
     (groups[key] ??= []).push(row);
     return groups;
   }, {});
@@ -114,7 +114,7 @@ export function LaporanPicProjekTab({
     <div className="space-y-6">
       {Object.entries(grouped).map(([key, reports]) => {
         const first = reports[0];
-        const reportTitle = `${first.termin_nama || "Tanpa termin"} - ${first.pekerjaan_nama || "Tanpa pekerjaan"}`;
+        const reportTitle = first.termin_nama || "Tanpa termin";
         return <div key={key} className="space-y-2">
           <div className="border-l-4 border-orange-400 pl-3">
             <p className="text-sm font-semibold text-foreground">{reportTitle}</p>
@@ -148,7 +148,11 @@ export function LaporanPicProjekTab({
           </div>
 
           <div className="mt-2">
-            <p className="text-xs text-muted-foreground">{r.termin_nama || "Tanpa termin"} · {r.pekerjaan_nama || "Tanpa pekerjaan"}</p>
+            <div className="mb-2 flex flex-wrap gap-1.5">
+              {(r.tasks?.length ? r.tasks : [{ id: r.task_id ?? "legacy", nama: r.pekerjaan_nama }]).map((task) => (
+                <span key={task.id} className="rounded-md bg-muted px-2 py-1 text-xs text-foreground">{task.nama || "Tanpa pekerjaan"}</span>
+              ))}
+            </div>
             <ReportText text={[r.kegiatan, r.kendala ? `- Kendala: ${r.kendala}` : ""].filter(Boolean).join("\n")} />
           </div>
 

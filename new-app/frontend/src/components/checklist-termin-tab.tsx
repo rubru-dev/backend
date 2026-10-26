@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { storageUrl } from "@/lib/storage-url";
 import { getLogoBase64 } from "@/lib/get-logo";
+import { compressUploadImage, formatUploadSize } from "@/lib/compress-upload-image";
 
 type ChecklistItem = {
   id: string;
@@ -66,6 +67,7 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
   const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => api.getChecklist(projectId) });
   const [exportingTermin, setExportingTermin] = useState<string | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
+  const [imageTask, setImageTask] = useState<{ itemId: string; phase: "compressing" | "uploading"; current: number; total: number } | null>(null);
   const parafMutation = useMutation({
     mutationFn: ({ id, party, value }: { id: string; party: "pic" | "client"; value: boolean }) => api.updateChecklistParaf(id, party, value),
     onSuccess: () => qc.invalidateQueries({ queryKey }),
@@ -73,9 +75,33 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
   });
   const imageMutation = useMutation({
     mutationFn: ({ id, files }: { id: string; files: File[] }) => api.updateChecklistItem(id, { gambars: files }),
-    onSuccess: () => { toast.success("Gambar manual berhasil ditambahkan"); qc.invalidateQueries({ queryKey }); },
-    onError: (error: any) => toast.error(error?.response?.data?.detail ?? "Gambar gagal diunggah"),
+    onSuccess: () => qc.invalidateQueries({ queryKey }),
   });
+
+  async function uploadManualImages(itemId: string, files: File[]) {
+    if (files.length > 10) {
+      toast.error("Maksimal 10 foto dalam sekali upload.");
+      return;
+    }
+
+    const originalBytes = files.reduce((total, file) => total + file.size, 0);
+    const compressed: File[] = [];
+    try {
+      for (let index = 0; index < files.length; index += 1) {
+        setImageTask({ itemId, phase: "compressing", current: index + 1, total: files.length });
+        compressed.push(await compressUploadImage(files[index]));
+      }
+
+      setImageTask({ itemId, phase: "uploading", current: files.length, total: files.length });
+      await imageMutation.mutateAsync({ id: itemId, files: compressed });
+      const compressedBytes = compressed.reduce((total, file) => total + file.size, 0);
+      toast.success(`Foto berhasil diunggah (${formatUploadSize(originalBytes)} menjadi ${formatUploadSize(compressedBytes)})`);
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail ?? error?.message ?? "Gambar gagal diunggah");
+    } finally {
+      setImageTask(null);
+    }
+  }
 
   const items = data?.items ?? [];
   const groups = useMemo(() => {
@@ -189,7 +215,26 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
                           ))}
                         </div>
                       )}
-                      <label className="mt-2 inline-flex cursor-pointer items-center gap-1 text-xs font-medium text-primary hover:underline"><Upload className="h-3.5 w-3.5" />Tambah gambar manual<input type="file" accept="image/*" multiple className="sr-only" disabled={imageMutation.isPending} onChange={(event) => { const files = Array.from(event.target.files ?? []); if (files.length) imageMutation.mutate({ id: item.id, files }); event.currentTarget.value = ""; }} /></label>
+                      <label className={`mt-2 inline-flex items-center gap-1 text-xs font-medium ${imageTask || imageMutation.isPending ? "cursor-not-allowed text-muted-foreground" : "cursor-pointer text-primary hover:underline"}`}>
+                        {imageTask?.itemId === item.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
+                        {imageTask?.itemId === item.id
+                          ? imageTask.phase === "compressing"
+                            ? `Mengompres ${imageTask.current}/${imageTask.total}`
+                            : "Mengunggah..."
+                          : "Tambah gambar manual"}
+                        <input
+                          type="file"
+                          accept="image/jpeg,image/png,image/webp,image/gif"
+                          multiple
+                          className="sr-only"
+                          disabled={!!imageTask || imageMutation.isPending}
+                          onChange={(event) => {
+                            const files = Array.from(event.currentTarget.files ?? []);
+                            event.currentTarget.value = "";
+                            if (files.length) void uploadManualImages(item.id, files);
+                          }}
+                        />
+                      </label>
                     </TableCell>
                     <TableCell className="text-center">
                       <ParafButton value={item.pic_paraf} label="PIC" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "pic", value: !item.pic_paraf })} />

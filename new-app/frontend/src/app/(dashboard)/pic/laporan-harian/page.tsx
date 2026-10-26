@@ -41,7 +41,7 @@ export default function PICLaporanHarianPage() {
   const [projectType, setProjectType] = useState<"sipil" | "interior">("sipil");
   const [projectId, setProjectId] = useState("");
   const [terminId, setTerminId] = useState("");
-  const [taskId, setTaskId] = useState("");
+  const [taskIds, setTaskIds] = useState<string[]>([]);
   const [statusPekerjaan, setStatusPekerjaan] = useState<"On Progress" | "Selesai">("On Progress");
   const [kegiatan, setKegiatan] = useState("");
   const [files, setFiles] = useState<File[]>([]);
@@ -60,11 +60,11 @@ export default function PICLaporanHarianPage() {
   useEffect(() => {
     setProjectId("");
     setTerminId("");
-    setTaskId("");
+    setTaskIds([]);
   }, [projectType]);
   useEffect(() => {
     setTerminId("");
-    setTaskId("");
+    setTaskIds([]);
   }, [projectId]);
 
   const previews = useMemo(() => files.map((file) => URL.createObjectURL(file)), [files]);
@@ -81,7 +81,8 @@ export default function PICLaporanHarianPage() {
       formData.append("project_type", projectType);
       formData.append("project_id", projectId);
       formData.append("termin_id", terminId);
-      formData.append("task_id", taskId);
+      formData.append("task_ids", JSON.stringify(taskIds));
+      if (taskIds[0]) formData.append("task_id", taskIds[0]);
       formData.append("status_pekerjaan", statusPekerjaan);
       formData.append("kegiatan", kegiatan);
       formData.append("expected_file_count", String(files.length));
@@ -93,7 +94,7 @@ export default function PICLaporanHarianPage() {
       setKegiatan("");
       setProjectId("");
       setTerminId("");
-      setTaskId("");
+      setTaskIds([]);
       setStatusPekerjaan("On Progress");
       setFiles([]);
       qc.invalidateQueries({ queryKey: ["laporan-pic"] });
@@ -105,7 +106,7 @@ export default function PICLaporanHarianPage() {
     event.preventDefault();
     if (!projectId) return toast.error("Pilih nama projek terlebih dahulu.");
     if (!terminId) return toast.error("Pilih termin terlebih dahulu.");
-    if (!taskId) return toast.error("Pilih nama pekerjaan terlebih dahulu.");
+    if (taskIds.length === 0) return toast.error("Pilih minimal satu nama pekerjaan.");
     if (!kegiatan.trim()) return toast.error("Isi laporan terlebih dahulu.");
     createMut.mutate();
   };
@@ -143,21 +144,41 @@ export default function PICLaporanHarianPage() {
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium">Termin</label>
-            <select className={inputClass} value={terminId} disabled={!projectId || loadingTermins} onChange={(event) => { setTerminId(event.target.value); setTaskId(""); }}>
+            <select className={inputClass} value={terminId} disabled={!projectId || loadingTermins} onChange={(event) => { setTerminId(event.target.value); setTaskIds([]); }}>
               <option value="">{loadingTermins ? "Memuat termin..." : "Pilih termin"}</option>
               {terminOptions.map((termin) => <option key={termin.id} value={termin.id}>{termin.nama || `Termin ${termin.urutan}`}</option>)}
             </select>
           </div>
           <div>
-            <label className="mb-1.5 block text-sm font-medium">Nama Pekerjaan</label>
-            <select className={inputClass} value={taskId} disabled={!terminId} onChange={(event) => setTaskId(event.target.value)}>
-              <option value="">Pilih pekerjaan</option>
-              {(selectedTermin?.tasks ?? []).map((task) => <option key={task.id} value={task.id}>{task.nama_pekerjaan || `Pekerjaan #${task.id}`}</option>)}
-            </select>
+            <div className="mb-1.5 flex items-center justify-between gap-2">
+              <label className="block text-sm font-medium">Nama Pekerjaan</label>
+              {taskIds.length > 0 && <span className="text-xs text-muted-foreground">{taskIds.length} dipilih</span>}
+            </div>
+            <div className={`max-h-52 overflow-y-auto rounded-md border ${!terminId ? "bg-muted/40 opacity-60" : "bg-background"}`}>
+              {!terminId ? (
+                <p className="p-3 text-sm text-muted-foreground">Pilih termin terlebih dahulu.</p>
+              ) : (selectedTermin?.tasks ?? []).length === 0 ? (
+                <p className="p-3 text-sm text-muted-foreground">Belum ada item pekerjaan pada termin ini.</p>
+              ) : (selectedTermin?.tasks ?? []).map((task) => {
+                const checked = taskIds.includes(task.id);
+                return (
+                  <label key={task.id} className="flex min-h-11 cursor-pointer items-center gap-3 border-b px-3 py-2 text-sm last:border-b-0 hover:bg-muted/50">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => setTaskIds((current) => checked ? current.filter((id) => id !== task.id) : current.length < 20 ? [...current, task.id] : current)}
+                      className="h-4 w-4 accent-orange-500"
+                    />
+                    <span>{task.nama_pekerjaan || `Pekerjaan #${task.id}`}</span>
+                  </label>
+                );
+              })}
+            </div>
+            {taskIds.length >= 20 && <p className="mt-1 text-xs text-amber-700">Maksimal 20 pekerjaan dalam satu laporan.</p>}
           </div>
           <div>
             <label className="mb-1.5 block text-sm font-medium">Status Pekerjaan</label>
-            <select className={inputClass} value={statusPekerjaan} disabled={!taskId} onChange={(event) => setStatusPekerjaan(event.target.value as "On Progress" | "Selesai")}>
+            <select className={inputClass} value={statusPekerjaan} disabled={taskIds.length === 0} onChange={(event) => setStatusPekerjaan(event.target.value as "On Progress" | "Selesai")}>
               <option>On Progress</option>
               <option>Selesai</option>
             </select>

@@ -945,8 +945,8 @@ router.get("/projects/:id/aktivitas-projek", async (req: Request, res: Response)
   const result: any[] = [];
 
   const [laporanSipil, laporanInterior] = await Promise.all([
-    prisma.laporanPicProjek.findMany({ where: { project_type: "sipil", project_id: { in: sipilProyeks.map((p) => p.id) } }, include: { user: { select: { name: true } }, image_files: true }, orderBy: { tanggal: "desc" } }),
-    prisma.laporanPicProjek.findMany({ where: { project_type: "interior", project_id: { in: interiorProyeks.map((p) => p.id) } }, include: { user: { select: { name: true } }, image_files: true }, orderBy: { tanggal: "desc" } }),
+    prisma.laporanPicProjek.findMany({ where: { project_type: "sipil", project_id: { in: sipilProyeks.map((p) => p.id) } }, include: { user: { select: { name: true } }, image_files: true, tasks: { orderBy: { id: "asc" } } }, orderBy: { tanggal: "desc" } }),
+    prisma.laporanPicProjek.findMany({ where: { project_type: "interior", project_id: { in: interiorProyeks.map((p) => p.id) } }, include: { user: { select: { name: true } }, image_files: true, tasks: { orderBy: { id: "asc" } } }, orderBy: { tanggal: "desc" } }),
   ]);
 
   for (const p of sipilProyeks) {
@@ -986,6 +986,8 @@ router.get("/projects/:id/aktivitas-projek", async (req: Request, res: Response)
   }
 
   for (const report of [...laporanSipil, ...laporanInterior]) {
+    const pekerjaanNames = report.tasks.length ? report.tasks.map((task) => task.pekerjaan_nama).filter(Boolean) : [report.pekerjaan_nama].filter(Boolean);
+    const pekerjaanLabel = pekerjaanNames.join(", ") || "Laporan Harian PIC";
     result.push({
       id: `laporan_pic_${report.id}`,
       type: report.project_type,
@@ -993,8 +995,9 @@ router.get("/projects/:id/aktivitas-projek", async (req: Request, res: Response)
       report_id: Number(report.id),
       proyek_nama: report.project_nama,
       termin_nama: report.termin_nama,
-      pekerjaan_nama: report.pekerjaan_nama,
-      judul: report.pekerjaan_nama || "Laporan Harian PIC",
+      pekerjaan_nama: pekerjaanLabel,
+      pekerjaan: report.tasks.map((task) => ({ id: String(task.task_id), nama: task.pekerjaan_nama })),
+      judul: pekerjaanLabel,
       tanggal: report.tanggal,
       tanggal_mulai: report.tanggal,
       tanggal_selesai: report.tanggal,

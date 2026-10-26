@@ -10,6 +10,7 @@ export type LaporanPicItem = {
   project_nama: string | null;
   termin_id: string | null;
   task_id: string | null;
+  tasks: { id: string; nama: string | null }[];
   termin_nama: string | null;
   pekerjaan_nama: string | null;
   tanggal: string;
