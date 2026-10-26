@@ -51,10 +51,8 @@ const picApi = {
   update:           (id: string, data: any) => apiClient.patch(`/pic/kalender-visit/${id}`, data).then(r => r.data),
   delete:           (id: string) => apiClient.delete(`/pic/kalender-visit/${id}`).then(r => r.data),
   konfirmasi:       (id: string, data: FormData) => apiClient.post(`/pic/kalender-visit/${id}/konfirmasi`, data, { headers: { "Content-Type": "multipart/form-data" } }).then(r => r.data),
-  saveHasil:        (id: string, keterangan_hasil: string) => apiClient.patch(`/pic/kalender-visit/${id}/hasil`, { keterangan_hasil }).then(r => r.data),
 };
 
-const visitJam = (d?: string | null) => (d ? new Date(d).toLocaleTimeString("id-ID", { hour: "2-digit", minute: "2-digit" }) : "-");
 
 const EMPTY_FORM = { nama_projek: "", projek_id: "", projek_type: "", tanggal: "", jam: "", keterangan: "", status: "Terjadwal", pic_user_ids: [] as string[] };
 
@@ -78,8 +76,6 @@ export default function KalenderVisitPage() {
   const [viewFotoUrl, setViewFotoUrl]         = useState<string | null>(null);
   const [filterProjekId, setFilterProjekId]   = useState("");
   const [filterPicId, setFilterPicId]         = useState("");
-  const [visitDetail, setVisitDetail]         = useState<any | null>(null);
-  const [hasilText, setHasilText]             = useState("");
 
   const { data: allVisits = [], isLoading } = useQuery({
     queryKey: ["kalender-visit", bulan, tahun],
@@ -388,28 +384,6 @@ export default function KalenderVisitPage() {
         </CardContent>
       </Card>
 
-      {false && (
-        <Card>
-          <CardContent className="divide-y p-0">
-            {(allVisits as any[]).length === 0 ? (
-              <p className="p-6 text-center text-sm text-muted-foreground">Tidak ada jadwal di {MONTH_NAMES[bulan - 1]} {tahun}.</p>
-            ) : [...(allVisits as any[])].sort((a, b) => (String(a.tanggal) < String(b.tanggal) ? -1 : 1)).map((v: any) => (
-              <button key={v.id} onClick={() => { setVisitDetail(v); setHasilText(v.keterangan_hasil ?? ""); }} className="flex w-full items-center gap-3 p-3 text-left hover:bg-muted/40">
-                <div className="flex flex-col items-center justify-center rounded-md bg-orange-50 px-2 py-1 text-orange-700">
-                  <span className="text-[10px] uppercase">{new Date(v.tanggal).toLocaleDateString("id-ID", { month: "short" })}</span>
-                  <span className="text-lg font-bold leading-none">{new Date(v.tanggal).getDate()}</span>
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-semibold">{v.nama_projek}</p>
-                  <p className="text-xs text-muted-foreground">{v.jam || "-"} · {v.pics?.length ?? 0} PIC</p>
-                </div>
-                <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
-
       {/* Selected date detail */}
       {selectedDate && (
         <Card className="border-orange-300 bg-orange-50/40">
@@ -483,10 +457,6 @@ export default function KalenderVisitPage() {
                       <CheckCircle className="h-3.5 w-3.5" /> Foto visit Anda sudah tersimpan
                     </p>
                   )}
-                  <Button size="sm" variant="outline" className="min-h-11 w-full gap-1 text-xs"
-                    onClick={() => { setVisitDetail(v); setHasilText(v.keterangan_hasil ?? ""); }}>
-                    <Camera className="h-3.5 w-3.5" /> Bukti Visit &amp; Hasil
-                  </Button>
                 </div>
               );
             })}
@@ -643,51 +613,6 @@ export default function KalenderVisitPage() {
         </DialogContent>
       </Dialog>
 
-      {/* ── Dialog bukti visit dan keterangan hasil ── */}
-      <Dialog open={!!visitDetail} onOpenChange={v => { if(!v) setVisitDetail(null); }}>
-        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
-          {(() => {
-            const vd = visitDetail ? (allVisits.find((x: any) => String(x.id) === String(visitDetail.id)) ?? visitDetail) : null;
-            if (!vd) return null;
-            const refresh = () => qc.invalidateQueries({ queryKey: ["kalender-visit"] });
-            const confirmedPics = (vd.pics ?? []).filter((pic: any) => pic.foto_bukti);
-            return (
-              <>
-                <DialogHeader><DialogTitle>{vd.nama_projek} | Bukti Visit</DialogTitle></DialogHeader>
-                <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">{new Date(vd.tanggal).toLocaleDateString("id-ID")} {vd.jam || ""}</p>
-                  {confirmedPics.length === 0 ? (
-                    <p className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">Belum ada foto visit.</p>
-                  ) : (
-                    <div className="space-y-3">
-                      {confirmedPics.map((pic: any) => (
-                        <div key={pic.id} className="rounded-lg border p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold">{pic.user?.name ?? "PIC"}</p>
-                            <p className="text-xs text-muted-foreground">{visitJam(pic.uploaded_at)}</p>
-                          </div>
-                          <button type="button" className="mt-2 block w-full" onClick={() => setViewFotoUrl(storageUrl(pic.foto_bukti))}>
-                            <img src={storageUrl(pic.foto_bukti)} alt={`Foto visit ${pic.user?.name ?? "PIC"}`} loading="lazy" className="h-44 w-full rounded object-cover" />
-                          </button>
-                          <p className="mt-2 text-xs text-muted-foreground">{pic.foto_location || "Lokasi tersimpan sebagai koordinat GPS"}</p>
-                          {pic.foto_accuracy != null && <p className="text-xs text-muted-foreground">Akurasi ±{Math.round(pic.foto_accuracy)} meter</p>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  <div>
-                    <Label>Keterangan Hasil Visit</Label>
-                    <Textarea className="mt-1" rows={3} value={hasilText} onChange={e => setHasilText(e.target.value)} placeholder="Hasil kunjungan atau tindak lanjut..." />
-                    <div className="mt-2 flex justify-end">
-                      <Button size="sm" onClick={async () => { try { await picApi.saveHasil(String(vd.id), hasilText); toast.success("Keterangan hasil disimpan."); refresh(); } catch { toast.error("Gagal menyimpan."); } }}>Simpan Keterangan</Button>
-                    </div>
-                  </div>
-                </div>
-              </>
-            );
-          })()}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

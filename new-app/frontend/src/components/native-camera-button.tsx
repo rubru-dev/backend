@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { Camera, Loader2, SwitchCamera } from "lucide-react";
+import { Camera, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
 import { compressUploadImage } from "@/lib/compress-upload-image";
@@ -144,7 +144,7 @@ async function addVisitWatermark(
 export function NativeCameraButton({ label, disabled, requireGps = false, watermarkTitle, onCapture }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
-  const [facing, setFacing] = useState<NativeCameraFacing>("environment");
+  const facing: NativeCameraFacing = "environment";
 
   const openCamera = () => {
     if (disabled || busy) return;
@@ -191,27 +191,7 @@ export function NativeCameraButton({ label, disabled, requireGps = false, waterm
 
   return (
     <div className="space-y-2">
-      <div className="grid grid-cols-2 gap-2" aria-label="Pilih kamera">
-        <button
-          type="button"
-          disabled={disabled || busy}
-          onClick={() => setFacing("environment")}
-          className={`min-h-11 rounded-md border px-3 py-2 text-sm font-medium ${facing === "environment" ? "border-orange-500 bg-orange-50 text-orange-700" : "bg-background text-foreground hover:bg-muted"}`}
-        >
-          Kamera belakang
-        </button>
-        <button
-          type="button"
-          disabled={disabled || busy}
-          onClick={() => setFacing("user")}
-          className={`min-h-11 rounded-md border px-3 py-2 text-sm font-medium ${facing === "user" ? "border-orange-500 bg-orange-50 text-orange-700" : "bg-background text-foreground hover:bg-muted"}`}
-        >
-          Kamera depan
-        </button>
-      </div>
-
       <input
-        key={facing}
         ref={inputRef}
         type="file"
         accept="image/*"
@@ -225,11 +205,11 @@ export function NativeCameraButton({ label, disabled, requireGps = false, waterm
         onClick={openCamera}
         className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : facing === "environment" ? <Camera className="h-4 w-4" /> : <SwitchCamera className="h-4 w-4" />}
+        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
         {busy ? (requireGps ? "Memproses foto dan GPS..." : "Memproses foto...") : label}
       </button>
       <p className="text-xs text-muted-foreground">
-        Kamera {facing === "environment" ? "belakang" : "depan"} akan dibuka langsung. Foto dari galeri tidak digunakan.
+        Kamera HP akan dibuka langsung. Foto dari galeri tidak digunakan.
       </p>
     </div>
   );
