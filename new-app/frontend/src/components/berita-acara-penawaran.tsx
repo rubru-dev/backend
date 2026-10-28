@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Copy, Download, FileCheck2, Pencil, Plus, Save, Trash2 } from "lucide-react";
+import { Copy, Download, FileCheck2, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -17,7 +18,7 @@ const BA_TYPES = ["Pertemuan", "Survei", "Negosiasi", "Kesepakatan", "Perubahan 
 type BAStatus = "Draft" | "Final" | "Ditandatangani";
 type DetailMode = "offer" | "offer_edit" | "manual";
 type BAItem = { id: string; uraian: string; volume: number; satuan: string; hargaSatuan: number };
-type BeritaAcara = {
+export type BeritaAcara = {
   id: string;
   sourceOfferId: string;
   sourceType: PenawaranType;
@@ -137,17 +138,44 @@ function statusClass(status: BAStatus) {
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
-export function BeritaAcaraPenawaran({ type, offer, showAll = false }: { type: PenawaranType; offer?: any; showAll?: boolean }) {
+export function BeritaAcaraPenawaran({ type, offer }: { type: PenawaranType; offer: any }) {
+  const href = `/penawaran/berita-acara/${type}/baru?sourceOfferId=${encodeURIComponent(String(offer.id))}`;
+  return <Button type="button" size="sm" variant="outline" asChild className="min-h-11 whitespace-nowrap">
+    <Link href={href}><FileCheck2 aria-hidden="true" className="mr-1 h-3.5 w-3.5" />Berita Acara</Link>
+  </Button>;
+}
+
+export function BeritaAcaraEditor({ type, recordId, sourceOfferId = "" }: { type: PenawaranType; recordId: string; sourceOfferId?: string }) {
+  const router = useRouter();
   const qc = useQueryClient();
-  const [open, setOpen] = useState(false);
   const [view, setView] = useState<"form" | "preview">("form");
-  const [record, setRecord] = useState<BeritaAcara>(() => emptyRecord(type, offer));
-  const previewId = `ba-preview-${type}-${String(offer?.id ?? "all").replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const [record, setRecord] = useState<BeritaAcara>(() => emptyRecord(type));
+  const initialized = useRef("");
+  const previewId = `ba-preview-${type}-${String(recordId).replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const queryKey = ["penawaran-berita-acara", type];
   const query = useQuery({ queryKey, queryFn: () => penawaranApi.list<BeritaAcara>(type, "berita_acara"), staleTime: 0 });
-  const related = showAll
-    ? (query.data ?? [])
-    : (query.data ?? []).filter((item) => item.sourceOfferId === String(offer?.id ?? ""));
+  const offersQuery = useQuery({
+    queryKey: ["penawaran-offers-for-ba", type],
+    queryFn: () => penawaranApi.list<any>(type, "offer"),
+    enabled: recordId === "baru" && Boolean(sourceOfferId),
+    staleTime: 30_000,
+  });
+  const offer = (offersQuery.data ?? []).find((item) => String(item.id) === sourceOfferId);
+
+  useEffect(() => {
+    if (recordId === "baru") {
+      if (sourceOfferId && !offer) return;
+      const key = `baru:${sourceOfferId || "manual"}`;
+      if (initialized.current === key) return;
+      initialized.current = key;
+      setRecord(emptyRecord(type, offer));
+      return;
+    }
+    const existing = (query.data ?? []).find((item) => item.id === recordId);
+    if (!existing || initialized.current === recordId) return;
+    initialized.current = recordId;
+    setRecord(existing);
+  }, [offer, query.data, recordId, sourceOfferId, type]);
 
   const totals = useMemo(() => {
     const subtotal = record.rincian.reduce((sum, item) => sum + item.volume * item.hargaSatuan, 0);
@@ -158,20 +186,31 @@ export function BeritaAcaraPenawaran({ type, offer, showAll = false }: { type: P
 
   const save = useMutation({
     mutationFn: () => penawaranApi.save(type, "berita_acara", { ...record, poin: record.poin.map((item) => item.trim()).filter(Boolean), rincian: record.sertakanRincian ? record.rincian.filter((item) => item.uraian.trim()) : [] }),
-    onSuccess: (saved) => { setRecord(saved as BeritaAcara); qc.invalidateQueries({ queryKey }); toast.success("Berita Acara tersimpan"); },
+    onSuccess: (saved) => {
+      const savedRecord = saved as BeritaAcara;
+      setRecord(savedRecord);
+      initialized.current = savedRecord.id;
+      qc.setQueryData<BeritaAcara[]>(queryKey, (current = []) => [savedRecord, ...current.filter((item) => item.id !== savedRecord.id)]);
+      qc.invalidateQueries({ queryKey });
+      router.replace(`/penawaran/berita-acara/${type}/${savedRecord.id}`);
+      toast.success("Berita Acara tersimpan");
+    },
     onError: (error: any) => toast.error(error?.response?.data?.detail || "Gagal menyimpan Berita Acara"),
   });
   const remove = useMutation({
     mutationFn: (id: string) => penawaranApi.remove(id),
-    onSuccess: () => { qc.invalidateQueries({ queryKey }); setRecord(emptyRecord(type, offer)); toast.success("Draft Berita Acara dihapus"); },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey });
+      toast.success("Draft Berita Acara dihapus");
+      router.push("/penawaran/berita-acara");
+    },
     onError: (error: any) => toast.error(error?.response?.data?.detail || "Gagal menghapus Berita Acara"),
   });
 
   const update = <K extends keyof BeritaAcara>(key: K, value: BeritaAcara[K]) => setRecord((current) => ({ ...current, [key]: value }));
-  const reset = () => { setRecord(emptyRecord(type, offer)); setView("form"); };
   const duplicate = (item: BeritaAcara) => {
     const copy = { ...item, id: makeId(), nomor: `${item.nomor}-COPY`, status: "Draft" as const, createdAt: new Date().toISOString() };
-    setRecord(copy); setView("form");
+    setRecord(copy); setView("form"); toast.success("Salinan siap disimpan sebagai BA baru");
   };
   const changeDetailMode = (mode: DetailMode) => {
     update("detailMode", mode);
@@ -185,44 +224,42 @@ export function BeritaAcaraPenawaran({ type, offer, showAll = false }: { type: P
       catch (error: any) { toast.error(error?.message || "Gagal membuat PDF Berita Acara"); }
     }, 100);
   };
-  const openManager = () => { reset(); setOpen(true); };
 
-  return <>
-    <Button type="button" size="sm" variant="outline" onClick={openManager} className="min-h-11 whitespace-nowrap">
-      <FileCheck2 aria-hidden="true" className="mr-1 h-3.5 w-3.5" />{showAll ? "Kelola Berita Acara" : "Berita Acara"}{related.length ? ` (${related.length})` : ""}
-    </Button>
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto p-0">
-        <DialogHeader className="border-b px-5 py-4">
-          <DialogTitle>{showAll ? "Kelola Berita Acara" : "Berita Acara dari Penawaran"}</DialogTitle>
-          <DialogDescription>{offer?.id ? `${record.pihakKeduaNama || "Klien"}, ${sourceLabel(offer)}.` : "Buat Berita Acara mandiri atau kelola dokumen yang terhubung ke penawaran."} Rincian pekerjaan dan nilai bersifat opsional.</DialogDescription>
-        </DialogHeader>
+  if (query.isLoading || (recordId === "baru" && sourceOfferId && offersQuery.isLoading)) {
+    return <div role="status" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Memuat form Berita Acara...</div>;
+  }
+  if (query.isError || offersQuery.isError) {
+    return <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-6 text-sm text-destructive">Data Berita Acara gagal dimuat. <button type="button" className="min-h-11 font-semibold underline" onClick={() => { query.refetch(); offersQuery.refetch(); }}>Coba lagi</button></div>;
+  }
+  if (recordId !== "baru" && !(query.data ?? []).some((item) => item.id === recordId)) {
+    return <div className="rounded-lg border bg-background p-6"><p className="text-sm text-muted-foreground">Berita Acara tidak ditemukan.</p><Button asChild variant="outline" className="mt-4 min-h-11"><Link href="/penawaran/berita-acara">Kembali ke daftar</Link></Button></div>;
+  }
+  if (recordId === "baru" && sourceOfferId && !offer) {
+    return <div className="rounded-lg border bg-background p-6"><p className="text-sm text-muted-foreground">Penawaran sumber tidak ditemukan.</p><Button asChild variant="outline" className="mt-4 min-h-11"><Link href="/penawaran/berita-acara">Kembali ke daftar</Link></Button></div>;
+  }
 
-        <div className="space-y-4 px-4 pb-5 sm:px-5">
+  return <div className="space-y-5">
+        <header className="flex flex-col gap-3 border-b pb-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <Button asChild variant="link" className="h-auto min-h-11 px-0"><Link href="/penawaran/berita-acara">Kembali ke daftar Berita Acara</Link></Button>
+            <h1 className="text-2xl font-bold">{recordId === "baru" ? "Buat Berita Acara" : record.judul}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{record.sourceOfferId ? `Terhubung dengan ${record.sourceLabel}.` : "Berita Acara mandiri tanpa referensi Penawaran."}</p>
+          </div>
+          <Badge variant="outline" className={`${statusClass(record.status)} w-fit`}>{record.status}</Badge>
+        </header>
+
+        <div className="space-y-4">
           <div className="flex flex-wrap items-center gap-2 border-b py-3">
             <Button type="button" className="min-h-11" variant={view === "form" ? "default" : "outline"} onClick={() => setView("form")}>Form</Button>
             <Button type="button" className="min-h-11" variant={view === "preview" ? "default" : "outline"} onClick={() => setView("preview")}>Preview</Button>
             <div className="ml-auto flex flex-wrap gap-2">
-              <Button type="button" className="min-h-11" variant="outline" onClick={reset}><Plus aria-hidden="true" className="mr-1 h-4 w-4" />BA Baru</Button>
+              <Button asChild className="min-h-11" variant="outline"><Link href={`/penawaran/berita-acara/${type}/baru`}><Plus aria-hidden="true" className="mr-1 h-4 w-4" />BA Baru</Link></Button>
+              <Button type="button" className="min-h-11" variant="outline" onClick={() => duplicate(record)}><Copy aria-hidden="true" className="mr-1 h-4 w-4" />Duplikat</Button>
               <Button type="button" className="min-h-11" variant="outline" disabled={save.isPending} onClick={() => save.mutate()}><Save aria-hidden="true" className="mr-1 h-4 w-4" />{save.isPending ? "Menyimpan..." : "Simpan"}</Button>
               <Button type="button" className="min-h-11" onClick={() => void downloadPdf()}><Download aria-hidden="true" className="mr-1 h-4 w-4" />PDF</Button>
+              {record.status === "Draft" && recordId !== "baru" && <Button type="button" className="min-h-11" variant="destructive" disabled={remove.isPending} onClick={() => { if (window.confirm(`Hapus draft ${record.nomor}?`)) remove.mutate(record.id); }}><Trash2 aria-hidden="true" className="mr-1 h-4 w-4" />Hapus Draft</Button>}
             </div>
           </div>
-
-          {query.isLoading && <div role="status" className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">Memuat daftar Berita Acara...</div>}
-          {query.isError && <div role="alert" className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">Daftar Berita Acara gagal dimuat. <button type="button" className="min-h-11 font-semibold underline" onClick={() => query.refetch()}>Coba lagi</button></div>}
-          {!query.isLoading && !query.isError && related.length === 0 && <div className="rounded-md border bg-muted/20 p-3 text-sm text-muted-foreground">Belum ada Berita Acara untuk penawaran ini.</div>}
-          {related.length > 0 && <section className="rounded-lg border bg-muted/20 p-3">
-            <div className="mb-2 text-sm font-semibold">Dokumen dari penawaran ini</div>
-            <div className="space-y-2">{related.map((item) => <div key={item.id} className="flex flex-wrap items-center gap-2 rounded-md border bg-background p-2 text-sm">
-              <div className="min-w-0 flex-1"><div className="truncate font-medium">{item.nomor}: {item.judul}</div><div className="text-xs text-muted-foreground">{dateLong(item.tanggal)}</div></div>
-              <Badge variant="outline" className={statusClass(item.status)}>{item.status}</Badge>
-              <Button type="button" size="sm" className="min-h-11" variant="outline" onClick={() => { setRecord(item); setView("form"); }}><Pencil aria-hidden="true" className="mr-1 h-3.5 w-3.5" />Buka</Button>
-              <Button type="button" size="sm" className="min-h-11" variant="outline" onClick={() => void downloadPdf(item)}><Download aria-hidden="true" className="mr-1 h-3.5 w-3.5" />PDF</Button>
-              <Button type="button" size="sm" className="min-h-11" variant="outline" onClick={() => duplicate(item)}><Copy aria-hidden="true" className="mr-1 h-3.5 w-3.5" />Duplikat</Button>
-              {item.status === "Draft" && <Button type="button" size="icon" variant="ghost" aria-label={`Hapus ${item.nomor}`} className="h-11 w-11 text-destructive" disabled={remove.isPending} onClick={() => { if (window.confirm(`Hapus draft ${item.nomor}?`)) remove.mutate(item.id); }}><Trash2 aria-hidden="true" className="h-4 w-4" /></Button>}
-            </div>)}</div>
-          </section>}
 
           {view === "form" ? <div className="space-y-5">
             <FormSection title="Informasi Dokumen">
@@ -282,9 +319,7 @@ export function BeritaAcaraPenawaran({ type, offer, showAll = false }: { type: P
             </section>
           </div> : <Preview id={previewId} type={type} record={record} totals={totals} />}
         </div>
-      </DialogContent>
-    </Dialog>
-  </>;
+  </div>;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
