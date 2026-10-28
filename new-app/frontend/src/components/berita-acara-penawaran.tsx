@@ -77,7 +77,10 @@ function dateLong(value: string) {
   return new Date(`${value}T00:00:00`).toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
 }
 
-function sourceItems(offer: any): BAItem[] {
+function sourceItems(offer?: any): BAItem[] {
+  if (!offer?.id) {
+    return [{ id: makeId("item"), uraian: "", volume: 1, satuan: "unit", hargaSatuan: 0 }];
+  }
   if (Array.isArray(offer?.rows) && offer.rows.length) {
     return offer.rows.map((row: any) => ({
       id: makeId("item"),
@@ -109,19 +112,20 @@ function logoFor(type: PenawaranType) {
   return "/images/logo.png";
 }
 
-function sourceLabel(offer: any) {
-  return String(offer?.jenisPenawaran ?? offer?.paketName ?? "Penawaran");
+function sourceLabel(offer?: any) {
+  return String(offer?.jenisPenawaran ?? offer?.paketName ?? "Tanpa referensi penawaran");
 }
 
-function emptyRecord(type: PenawaranType, offer: any): BeritaAcara {
+function emptyRecord(type: PenawaranType, offer?: any): BeritaAcara {
   const date = todayJakarta();
   const suffix = `${date.replace(/-/g, "")}-${String(Date.now()).slice(-5)}`;
+  const hasOffer = Boolean(offer?.id);
   return {
-    id: makeId(), sourceOfferId: String(offer.id), sourceType: type, sourceLabel: sourceLabel(offer), createdAt: new Date().toISOString(),
+    id: makeId(), sourceOfferId: hasOffer ? String(offer.id) : "", sourceType: type, sourceLabel: sourceLabel(offer), createdAt: new Date().toISOString(),
     jenis: "Pertemuan", judul: "Berita Acara Pertemuan", nomor: `BA-${type.toUpperCase()}-${suffix}`, tanggal: date, lokasi: "", status: "Draft",
-    pihakPertamaNama: String(offer.roName ?? ""), pihakPertamaJabatan: "Relationship Officer", pihakPertamaPerusahaan: companyFor(type), pihakPertamaAlamat: "",
-    pihakKeduaNama: String(offer.clientName ?? offer.nama ?? offer.klien ?? ""), pihakKeduaJabatan: "", pihakKeduaPerusahaan: "", pihakKeduaAlamat: "",
-    poin: [""], sertakanRincian: false, detailMode: "offer", tampilkanVolume: true, tampilkanHarga: true, tampilkanRingkasan: true,
+    pihakPertamaNama: String(offer?.roName ?? ""), pihakPertamaJabatan: "Relationship Officer", pihakPertamaPerusahaan: companyFor(type), pihakPertamaAlamat: "",
+    pihakKeduaNama: String(offer?.clientName ?? offer?.nama ?? offer?.klien ?? ""), pihakKeduaJabatan: "", pihakKeduaPerusahaan: "", pihakKeduaAlamat: "",
+    poin: [""], sertakanRincian: false, detailMode: hasOffer ? "offer" : "manual", tampilkanVolume: true, tampilkanHarga: true, tampilkanRingkasan: true,
     rincian: sourceItems(offer), diskon: 0, pajak: 0, catatan: "", tindakLanjut: "", penanggungJawab: "", batasWaktu: "",
     sertakanSaksi: false, saksiNama: "", saksiJabatan: "",
   };
@@ -133,15 +137,17 @@ function statusClass(status: BAStatus) {
   return "border-amber-200 bg-amber-50 text-amber-700";
 }
 
-export function BeritaAcaraPenawaran({ type, offer }: { type: PenawaranType; offer: any }) {
+export function BeritaAcaraPenawaran({ type, offer, showAll = false }: { type: PenawaranType; offer?: any; showAll?: boolean }) {
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<"form" | "preview">("form");
   const [record, setRecord] = useState<BeritaAcara>(() => emptyRecord(type, offer));
-  const previewId = `ba-preview-${type}-${String(offer.id).replace(/[^a-zA-Z0-9_-]/g, "")}`;
+  const previewId = `ba-preview-${type}-${String(offer?.id ?? "all").replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const queryKey = ["penawaran-berita-acara", type];
   const query = useQuery({ queryKey, queryFn: () => penawaranApi.list<BeritaAcara>(type, "berita_acara"), staleTime: 0 });
-  const related = (query.data ?? []).filter((item) => item.sourceOfferId === String(offer.id));
+  const related = showAll
+    ? (query.data ?? [])
+    : (query.data ?? []).filter((item) => item.sourceOfferId === String(offer?.id ?? ""));
 
   const totals = useMemo(() => {
     const subtotal = record.rincian.reduce((sum, item) => sum + item.volume * item.hargaSatuan, 0);
@@ -183,13 +189,13 @@ export function BeritaAcaraPenawaran({ type, offer }: { type: PenawaranType; off
 
   return <>
     <Button type="button" size="sm" variant="outline" onClick={openManager} className="min-h-11 whitespace-nowrap">
-      <FileCheck2 aria-hidden="true" className="mr-1 h-3.5 w-3.5" />Berita Acara{related.length ? ` (${related.length})` : ""}
+      <FileCheck2 aria-hidden="true" className="mr-1 h-3.5 w-3.5" />{showAll ? "Kelola Berita Acara" : "Berita Acara"}{related.length ? ` (${related.length})` : ""}
     </Button>
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto p-0">
         <DialogHeader className="border-b px-5 py-4">
-          <DialogTitle>Berita Acara dari Penawaran</DialogTitle>
-          <DialogDescription>{record.pihakKeduaNama || "Klien"}, {sourceLabel(offer)}. Rincian pekerjaan dan nilai bersifat opsional.</DialogDescription>
+          <DialogTitle>{showAll ? "Kelola Berita Acara" : "Berita Acara dari Penawaran"}</DialogTitle>
+          <DialogDescription>{offer?.id ? `${record.pihakKeduaNama || "Klien"}, ${sourceLabel(offer)}.` : "Buat Berita Acara mandiri atau kelola dokumen yang terhubung ke penawaran."} Rincian pekerjaan dan nilai bersifat opsional.</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 px-4 pb-5 sm:px-5">
@@ -246,7 +252,7 @@ export function BeritaAcaraPenawaran({ type, offer }: { type: PenawaranType; off
               <label className="flex min-h-11 cursor-pointer items-center gap-3"><input type="checkbox" className="h-5 w-5 accent-orange-500" checked={record.sertakanRincian} onChange={(event) => update("sertakanRincian", event.target.checked)} /><span><span className="block text-sm font-semibold">Sertakan rincian pekerjaan</span><span className="block text-xs text-muted-foreground">Tabel dapat diambil dari penawaran atau diisi manual.</span></span></label>
               {record.sertakanRincian && <>
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Field label="Sumber rincian"><select className="h-11 w-full rounded-md border bg-background px-3 text-sm" value={record.detailMode} onChange={(event) => changeDetailMode(event.target.value as DetailMode)}><option value="offer">Ambil dari Penawaran</option><option value="offer_edit">Ambil lalu Edit</option><option value="manual">Isi Manual</option></select></Field>
+                  <Field label="Sumber rincian"><select className="h-11 w-full rounded-md border bg-background px-3 text-sm" value={record.detailMode} onChange={(event) => changeDetailMode(event.target.value as DetailMode)}>{offer?.id ? <><option value="offer">Ambil dari Penawaran</option><option value="offer_edit">Ambil lalu Edit</option><option value="manual">Isi Manual</option></> : <><option value="manual">Isi Manual</option>{record.detailMode !== "manual" && <option value={record.detailMode}>Rincian tersimpan dari Penawaran</option>}</>}</select></Field>
                   <CheckOption label="Volume dan satuan" checked={record.tampilkanVolume} onChange={(value) => update("tampilkanVolume", value)} />
                   <CheckOption label="Harga" checked={record.tampilkanHarga} onChange={(value) => setRecord((current) => ({ ...current, tampilkanHarga: value, tampilkanRingkasan: value ? current.tampilkanRingkasan : false }))} />
                   <CheckOption label="Ringkasan nilai" checked={record.tampilkanRingkasan} disabled={!record.tampilkanHarga} onChange={(value) => update("tampilkanRingkasan", value)} />
@@ -319,7 +325,7 @@ function Preview({ id, type, record, totals }: { id: string; type: PenawaranType
       <p className="mt-5 text-justify">Demikian Berita Acara ini dibuat berdasarkan keadaan, kegiatan, dan pembahasan yang sebenarnya. Dokumen ini dibuat untuk dipergunakan sebagaimana mestinya dan ditandatangani oleh para pihak yang berkepentingan.</p>
       <p className="mt-5 text-right">{record.lokasi || "[kota]"}, {dateLong(record.tanggal).replace(/^\w+,\s*/, "")}</p>
       <div className={`mt-6 grid ${partyColumns} gap-6 text-center`}><SignaturePreview label="PIHAK PERTAMA" name={record.pihakPertamaNama} role={record.pihakPertamaJabatan} /><SignaturePreview label="PIHAK KEDUA" name={record.pihakKeduaNama} role={record.pihakKeduaJabatan} />{record.sertakanSaksi && <SignaturePreview label="SAKSI" name={record.saksiNama} role={record.saksiJabatan} />}</div>
-      <footer className="mt-8 border-t pt-2 text-[9px] text-slate-500">Referensi: {record.sourceLabel}, ID {record.sourceOfferId}</footer>
+      {record.sourceOfferId && <footer className="mt-8 border-t pt-2 text-[9px] text-slate-500">Referensi: {record.sourceLabel}, ID {record.sourceOfferId}</footer>}
     </article>
   </div>;
 }

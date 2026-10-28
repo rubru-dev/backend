@@ -32,7 +32,6 @@ function validKind(kind: string) {
 }
 
 function validateBeritaAcara(data: any) {
-  if (!String(data.sourceOfferId ?? "").trim()) return "Referensi penawaran wajib tersedia";
   if (!String(data.judul ?? "").trim()) return "Judul Berita Acara wajib diisi";
   if (!String(data.nomor ?? "").trim()) return "Nomor Berita Acara wajib diisi";
   if (!String(data.tanggal ?? "").trim()) return "Tanggal Berita Acara wajib diisi";
@@ -87,7 +86,7 @@ router.post("/:type/offers", async (req: Request, res: Response) => {
   }
 
   await ensureTable();
-  if (kind === "berita_acara") {
+  if (kind === "berita_acara" && String(data.sourceOfferId ?? "").trim()) {
     const sourceRows = await prisma.$queryRaw<any[]>`
       SELECT id FROM penawaran_offers
       WHERE id = ${String(data.sourceOfferId)} AND type = ${type} AND kind = 'offer'
