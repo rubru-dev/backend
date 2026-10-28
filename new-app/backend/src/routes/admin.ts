@@ -269,6 +269,11 @@ router.put("/roles/:id/permissions", requireRole("Super Admin"), async (req: Req
 const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }> = [
   { name: "pic.kalender_visit", module: "pic", label: "Sub-menu: Kalender Visit PIC" },
   { name: "pic.dokumentasi", module: "pic", label: "Sub-menu: Upload Dokumentasi Projek" },
+  { name: "pic.pb_projek", module: "pic", label: "Sub-menu: PB Projek PIC" },
+  { name: "finance.pb_projek", module: "finance", label: "Sub-menu: PB Projek Finance" },
+  { name: "project_stock.view", module: "project_stock", label: "Stock Projek: Lihat" },
+  { name: "project_stock.manage", module: "project_stock", label: "Stock Projek: Kelola" },
+  { name: "project_stock.receive", module: "project_stock", label: "Stock Projek: Terima Barang" },
   { name: "projek.gudang_workshop", module: "projek", label: "Sub-menu: Gudang/Workshop" },
   { name: "projek.form_bast", module: "projek", label: "Sub-menu: Form BAST" },
   // Projek Sipil tab-level (dijamin muncul di matrix Roles)
@@ -285,6 +290,7 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "projek_interior.gantt",        module: "projek_interior", label: "Tab: Gantt Chart Interior" },
   { name: "projek_interior.rapp",         module: "projek_interior", label: "Tab: RAPP Interior" },
   { name: "projek_interior.docs",         module: "projek_interior", label: "Tab: Docs/Link Interior" },
+  { name: "projek_interior.stock_opname", module: "projek_interior", label: "Tab: Stock Opname Interior" },
   { name: "projek_interior.dokumentasi",  module: "projek_interior", label: "Tab: Dokumentasi Foto Interior" },
   { name: "projek_interior.checklist",    module: "projek_interior", label: "Tab: Form Checklist Interior" },
   { name: "projek_interior.laporan_pic",  module: "projek_interior", label: "Tab: Laporan PIC Project Interior" },

@@ -17,6 +17,7 @@ export type NativeCameraMetadata = {
 type Props = {
   label: string;
   disabled?: boolean;
+  helperText?: string;
   requireGps?: boolean;
   watermarkTitle?: string;
   onCapture: (file: File, lat: number | null, lng: number | null, metadata: NativeCameraMetadata) => Promise<void> | void;
@@ -141,7 +142,7 @@ async function addVisitWatermark(
   }
 }
 
-export function NativeCameraButton({ label, disabled, requireGps = false, watermarkTitle, onCapture }: Props) {
+export function NativeCameraButton({ label, disabled, helperText = "Kamera HP akan dibuka langsung. Foto dari galeri tidak digunakan.", requireGps = false, watermarkTitle, onCapture }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const facing: NativeCameraFacing = "environment";
@@ -205,12 +206,10 @@ export function NativeCameraButton({ label, disabled, requireGps = false, waterm
         onClick={openCamera}
         className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
       >
-        {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
+        {busy ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Camera aria-hidden="true" className="h-4 w-4" />}
         {busy ? (requireGps ? "Memproses foto dan GPS..." : "Memproses foto...") : label}
       </button>
-      <p className="text-xs text-muted-foreground">
-        Kamera HP akan dibuka langsung. Foto dari galeri tidak digunakan.
-      </p>
+      {helperText && <p className="text-xs text-muted-foreground">{helperText}</p>}
     </div>
   );
 }

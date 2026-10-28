@@ -4,8 +4,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { laporanPicApi } from "@/lib/api/laporanPic";
-import { HardHat, Home, List, X, Building2 } from "lucide-react";
+import { HardHat, Home, Images, List, Loader2, X, Building2 } from "lucide-react";
 import { NativeCameraButton } from "@/components/native-camera-button";
+import { compressUploadImage } from "@/lib/compress-upload-image";
 
 function insertBullet(ref: React.RefObject<HTMLTextAreaElement | null>, value: string, onChange: (value: string) => void) {
   const textarea = ref.current;
@@ -46,6 +47,8 @@ export default function PICLaporanHarianPage() {
   const [statusPekerjaan, setStatusPekerjaan] = useState<"On Progress" | "Selesai">("On Progress");
   const [kegiatan, setKegiatan] = useState("");
   const [files, setFiles] = useState<File[]>([]);
+  const [processingGallery, setProcessingGallery] = useState(false);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
 
   const { data: options = [] } = useQuery({
     queryKey: ["laporan-pic-options", projectType],
@@ -73,6 +76,31 @@ export default function PICLaporanHarianPage() {
 
   const addFile = (file: File) => {
     setFiles((previous) => (previous.length < 20 ? [...previous, file] : previous));
+  };
+
+  const addGalleryFiles = async (selected: FileList | null) => {
+    if (!selected?.length || processingGallery) return;
+    const remainingSlots = Math.max(0, 20 - files.length);
+    if (remainingSlots === 0) return;
+    const candidates = Array.from(selected).slice(0, remainingSlots);
+    setProcessingGallery(true);
+    try {
+      const processed: File[] = [];
+      const failures: string[] = [];
+      for (const file of candidates) {
+        try {
+          processed.push(await compressUploadImage(file));
+        } catch (error: any) {
+          failures.push(error?.message || `${file.name} gagal diproses.`);
+        }
+      }
+      if (processed.length) setFiles((previous) => [...previous, ...processed].slice(0, 20));
+      if (failures.length) toast.error(`${failures.length} foto gagal ditambahkan. ${failures[0]}`);
+      if (selected.length > remainingSlots) toast.info(`Hanya ${remainingSlots} foto yang ditambahkan karena batas maksimal 20 foto.`);
+    } finally {
+      setProcessingGallery(false);
+      if (galleryInputRef.current) galleryInputRef.current.value = "";
+    }
   };
 
   const createMut = useMutation({
@@ -104,6 +132,7 @@ export default function PICLaporanHarianPage() {
 
   const submit = (event: React.FormEvent) => {
     event.preventDefault();
+    if (processingGallery) return toast.error("Tunggu sampai foto dari galeri selesai diproses.");
     if (!projectId) return toast.error("Pilih nama projek terlebih dahulu.");
     if (!terminId) return toast.error("Pilih termin terlebih dahulu.");
     if (taskIds.length === 0) return toast.error("Pilih minimal satu nama pekerjaan.");
@@ -192,12 +221,35 @@ export default function PICLaporanHarianPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-sm font-medium">Foto Dokumentasi (dari kamera HP, bisa lebih dari satu)</label>
-          <NativeCameraButton
-            label="Buka Kamera HP"
-            disabled={createMut.isPending || files.length >= 20}
-            onCapture={(file) => addFile(file)}
-          />
+          <label className="mb-1.5 block text-sm font-medium">Foto Dokumentasi (maksimal 20 foto)</label>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <NativeCameraButton
+              label="Ambil dari Kamera"
+              helperText="Membuka kamera belakang HP untuk mengambil foto baru."
+              disabled={createMut.isPending || processingGallery || files.length >= 20}
+              onCapture={(file) => addFile(file)}
+            />
+            <div className="space-y-2">
+              <input
+                ref={galleryInputRef}
+                type="file"
+                accept="image/*,.heic,.heif"
+                multiple
+                className="hidden"
+                onChange={(event) => void addGalleryFiles(event.target.files)}
+              />
+              <button
+                type="button"
+                disabled={createMut.isPending || processingGallery || files.length >= 20}
+                onClick={() => galleryInputRef.current?.click()}
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-md border border-orange-300 bg-background px-4 py-2 text-sm font-semibold text-orange-700 hover:bg-orange-50 disabled:opacity-60"
+              >
+                {processingGallery ? <Loader2 aria-hidden="true" className="h-4 w-4 animate-spin" /> : <Images aria-hidden="true" className="h-4 w-4" />}
+                {processingGallery ? "Memproses foto..." : "Pilih dari Galeri"}
+              </button>
+              <p className="text-xs text-muted-foreground">Pilih satu atau beberapa foto yang sudah tersimpan di HP.</p>
+            </div>
+          </div>
           {files.length >= 20 && <p className="mt-2 text-xs text-amber-700">Maksimal 20 foto dalam satu laporan.</p>}
           {previews.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{previews.map((url, index) => (
             <div key={url} className="relative">
@@ -208,7 +260,7 @@ export default function PICLaporanHarianPage() {
         </div>
 
         <div className="flex justify-end">
-          <button type="submit" disabled={createMut.isPending} className="rounded-md bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60">{createMut.isPending ? "Menyimpan..." : "Simpan Laporan"}</button>
+          <button type="submit" disabled={createMut.isPending || processingGallery} className="min-h-11 rounded-md bg-orange-500 px-5 py-2 text-sm font-semibold text-white hover:bg-orange-600 disabled:opacity-60">{createMut.isPending ? "Menyimpan..." : processingGallery ? "Memproses foto..." : "Simpan Laporan"}</button>
         </div>
       </form>
     </div>

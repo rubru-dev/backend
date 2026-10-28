@@ -11,6 +11,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useAuthStore } from "@/store/authStore";
 import { useIdleTimeout } from "@/hooks/useIdleTimeout";
+import { getMe } from "@/lib/api/auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 const WARN_SECONDS = 60; // countdown yang ditampilkan di dialog
 
@@ -22,7 +24,8 @@ const WARN_SECONDS = 60; // countdown yang ditampilkan di dialog
  */
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
-  const { isAuthenticated, _hasHydrated, logout } = useAuthStore();
+  const queryClient = useQueryClient();
+  const { isAuthenticated, _hasHydrated, logout, setUser } = useAuthStore();
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // ── Idle logout state ──────────────────────────────────────────────────────
@@ -52,9 +55,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     stopCountdown();
     setShowIdleWarning(false);
     logout();
+    queryClient.clear();
     document.cookie = "is_authed=; path=/; max-age=0"; document.cookie = "is_tukang=; path=/; max-age=0";
     router.replace("/login");
-  }, [logout, router, stopCountdown]);
+  }, [logout, queryClient, router, stopCountdown]);
 
   const handleWarn = useCallback(() => {
     setShowIdleWarning(true);
@@ -84,6 +88,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       router.replace("/login");
     }
   }, [isAuthenticated, _hasHydrated, router]);
+
+  useEffect(() => {
+    if (!_hasHydrated || !isAuthenticated) return;
+    let active = true;
+    getMe()
+      .then((freshUser) => { if (active) setUser(freshUser); })
+      .catch(() => {
+        if (!active) return;
+        queryClient.clear();
+        logout();
+        router.replace("/login");
+      });
+    return () => { active = false; };
+  }, [_hasHydrated, isAuthenticated, logout, queryClient, router, setUser]);
 
   // Show nothing while store is hydrating to avoid flash
   if (!_hasHydrated) return <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">Memuat aplikasi...</div>;

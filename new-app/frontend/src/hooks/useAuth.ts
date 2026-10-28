@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/authStore";
 import { login as apiLogin, logout as apiLogout } from "@/lib/api/auth";
 import type { LoginPayload } from "@/lib/api/auth";
+import { useQueryClient } from "@tanstack/react-query";
 
 /**
  * useAuth — convenience hook that wraps the Zustand auth store
@@ -11,10 +12,12 @@ import type { LoginPayload } from "@/lib/api/auth";
  */
 export function useAuth() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const store = useAuthStore();
 
   async function login(payload: LoginPayload) {
     const data = await apiLogin(payload);
+    queryClient.clear();
     store.setAuth(data.user, {
       access_token: data.access_token,
       refresh_token: data.refresh_token,
@@ -31,6 +34,7 @@ export function useAuth() {
       // Silently ignore server errors on logout
     } finally {
       store.logout();
+      queryClient.clear();
       router.push("/login");
       router.refresh();
     }

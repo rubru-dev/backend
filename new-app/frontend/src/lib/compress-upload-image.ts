@@ -2,7 +2,7 @@ const TARGET_IMAGE_BYTES = 900 * 1024;
 const MAX_IMAGE_EDGE = 1920;
 const MIN_IMAGE_EDGE = 640;
 const OUTPUT_MIME_TYPE = "image/jpeg";
-const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const SUPPORTED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "image/heic", "image/heif"]);
 
 type DecodedImage = {
   source: CanvasImageSource;
@@ -45,7 +45,7 @@ async function decodeImage(file: File): Promise<DecodedImage> {
     await image.decode();
   } catch {
     URL.revokeObjectURL(objectUrl);
-    throw new Error(`Foto ${file.name} tidak dapat dibaca. Gunakan JPG, PNG, atau WEBP.`);
+    throw new Error(`Foto ${file.name} tidak dapat dibaca oleh browser ini. Coba gunakan JPG, PNG, atau WEBP.`);
   }
 
   return {
@@ -63,7 +63,7 @@ function jpegFilename(filename: string): string {
 
 export async function compressUploadImage(file: File): Promise<File> {
   if (!SUPPORTED_IMAGE_TYPES.has(file.type)) {
-    throw new Error(`Format ${file.name} tidak didukung. Gunakan JPG, PNG, WEBP, atau GIF.`);
+    throw new Error(`Format ${file.name} tidak didukung. Gunakan JPG, PNG, WEBP, GIF, HEIC, atau HEIF.`);
   }
 
   const decoded = await decodeImage(file);

@@ -1,7 +1,7 @@
 import { apiClient } from "@/lib/api/client";
 
 export type PenawaranType = "desain" | "rkr" | "rubru";
-export type PenawaranKind = "offer" | "discount";
+export type PenawaranKind = "offer" | "discount" | "berita_acara";
 
 type PenawaranRecord<T> = {
   id: string;

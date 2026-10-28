@@ -1928,7 +1928,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
   const [prSigDialog, setPrSigDialog] = useState<{ open: boolean; prId: number | null }>({ open: false, prId: null });
   const [prPage, setPrPage] = useState(0);
   const [editPrPage, setEditPrPage] = useState(0);
-  type PRItem = { mode: "manual" | "rapp"; nama_item: string; satuan: string; qty: number; harga_perkiraan: number; diskon_harga_satuan: number; rapp_qty?: number; rapp_harga?: number; termin_id?: number; termin_nama?: string; kategori_nama?: string; rapp_key?: string };
+  type PRItem = { mode: "manual" | "rapp"; nama_item: string; satuan: string; qty: number; harga_perkiraan: number; diskon_harga_satuan: number; rapp_qty?: number; rapp_harga?: number; termin_id?: number; termin_nama?: string; kategori_nama?: string; rapp_key?: string; project_pb_item_id?: string };
   const emptyItem = (): PRItem => ({ mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0, diskon_harga_satuan: 0 });
   const emptyForm = { tanggal: today, nama_toko: "", items: [emptyItem()], diskon_harga_keseluruhan: 0 };
   const [form, setForm] = useState<{ tanggal: string; nama_toko: string; items: PRItem[]; diskon_harga_keseluruhan: number }>(emptyForm);
@@ -2224,6 +2224,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
         rapp_harga: it.rapp_harga != null ? Number(it.rapp_harga) : undefined,
         termin_id: it.termin_id != null ? Number(it.termin_id) : undefined,
         termin_nama: it.termin?.nama ?? (it.termin?.urutan != null ? `Termin ${it.termin.urutan}` : undefined),
+        project_pb_item_id: it.project_pb_item_id != null ? String(it.project_pb_item_id) : undefined,
       })),
     });
     setEditPRId(pr.id);
@@ -2249,6 +2250,7 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
           rapp_qty: it.rapp_qty ?? null,
           rapp_harga: it.rapp_harga ?? null,
           termin_id: it.termin_id ?? null,
+          project_pb_item_id: it.project_pb_item_id ?? null,
         })),
       },
     });
@@ -2735,19 +2737,21 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
                               <span className="text-xs text-muted-foreground">Sumber:</span>
                               <div className="flex rounded-md border overflow-hidden text-xs">
                                 <button type="button"
+                                  disabled={!!it.project_pb_item_id}
                                   className={`px-3 py-1 transition-colors ${it.mode === "manual" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
                                   onClick={() => setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { mode: "manual", nama_item: "", satuan: "", qty: 1, harga_perkiraan: 0, diskon_harga_satuan: 0 } : x) })}>
                                   Ketik Manual
                                 </button>
                                 {proyekBerjalanId && (
                                   <button type="button"
+                                    disabled={!!it.project_pb_item_id}
                                     className={`px-3 py-1 border-l transition-colors ${it.mode === "rapp" ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted"}`}
                                     onClick={() => setEditForm({ ...editForm, items: editForm.items.map((x, i) => i === idx ? { ...x, mode: "rapp", nama_item: "", satuan: "" } : x) })}>
                                     <ClipboardList className="h-3 w-3 inline mr-1" />Dari RAPP
                                   </button>
                                 )}
                               </div>
-                              {editForm.items.length > 1 && (
+                              {editForm.items.length > 1 && !it.project_pb_item_id && (
                                 <Button variant="ghost" size="icon" className="h-6 w-6 text-destructive ml-auto"
                                   onClick={() => removeEditRow(idx)}>
                                   <Trash2 className="h-3 w-3" />
@@ -2778,12 +2782,12 @@ function PRTab({ proyekId, proyekBerjalanId }: { proyekId: number; proyekBerjala
                               <div className="col-span-2">
                                 <Label className="text-xs">Nama Item</Label>
                                 <Input className="h-8 text-sm" placeholder="Nama item" value={it.nama_item}
-                                  readOnly={it.mode === "rapp"} onChange={(e) => updateEdit("nama_item", e.target.value)} />
+                                  readOnly={it.mode === "rapp" || !!it.project_pb_item_id} onChange={(e) => updateEdit("nama_item", e.target.value)} />
                               </div>
                               <div>
                                 <Label className="text-xs">Satuan</Label>
                                 <Input className="h-8 text-sm" placeholder="pcs" value={it.satuan}
-                                  readOnly={it.mode === "rapp"} onChange={(e) => updateEdit("satuan", e.target.value)} />
+                                  readOnly={it.mode === "rapp" || !!it.project_pb_item_id} onChange={(e) => updateEdit("satuan", e.target.value)} />
                               </div>
                               <div />
                               <div>

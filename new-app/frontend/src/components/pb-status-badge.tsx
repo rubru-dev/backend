@@ -5,6 +5,7 @@ const STATUS_CLASS: Record<string, string> = {
   Disetujui: "bg-blue-50 text-blue-700",
   Ditolak: "bg-red-50 text-red-700",
   "Diproses PR": "bg-teal-50 text-teal-700",
+  "Sebagian Diterima": "bg-cyan-50 text-cyan-800",
   Selesai: "bg-emerald-50 text-emerald-700",
 };
 
@@ -17,4 +18,4 @@ export function PBStatusBadge({ status, revisi }: { status: string; revisi?: boo
   return <span className={`inline-flex whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_CLASS[status] ?? "bg-muted text-muted-foreground"}`}>{STATUS_LABEL[status] ?? status}</span>;
 }
 
-export const PB_STATUS_OPTIONS = ["Draft", "Diajukan", "Disetujui Finance", "Disetujui", "Ditolak", "Diproses PR", "Selesai"];
+export const PB_STATUS_OPTIONS = ["Draft", "Diajukan", "Disetujui Finance", "Disetujui", "Ditolak", "Diproses PR", "Sebagian Diterima", "Selesai"];

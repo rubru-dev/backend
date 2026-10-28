@@ -35,6 +35,8 @@ CREATE TABLE roles (
 CREATE TABLE permissions (
     id          BIGSERIAL PRIMARY KEY,
     name        VARCHAR(100) NOT NULL UNIQUE,
+    module      VARCHAR(50) NOT NULL DEFAULT 'general',
+    label       VARCHAR(255) NOT NULL DEFAULT '',
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );

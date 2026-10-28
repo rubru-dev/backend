@@ -191,7 +191,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Invoice & Kwitansi",      href: "/finance/invoice-kwitansi",    icon: "FileText",       permission: "finance.invoice" },
       { label: "AR (Tagihan Outstanding)", href: "/finance/ar-outstanding",      icon: "AlertCircle",    permission: "finance.ar" },
       { label: "Administrasi Projek",     href: "/finance/administrasi-projek", icon: "Calculator",     permission: "finance.adm_projek" },
-      { label: "PB Projek",                href: "/finance/pb-projek",           icon: "ClipboardCheck", permission: "finance.adm_projek" },
+      { label: "PB Projek",                href: "/finance/pb-projek",           icon: "ClipboardCheck", permission: "finance.pb_projek", roles: ["Finance", "Head Finance", "Admin Finance"] },
       { label: "Administrasi Kantor",     href: "/finance/administrasi-kantor", icon: "Folder",         permission: "finance.adm_kantor" },
       { label: "Absen Karyawan",          href: "/finance/absen-karyawan",      icon: "ClipboardCheck", permission: "absen.manage" },
       { label: "Form BAST",               href: "/finance/form-bast",           icon: "FileText",       superAdminOnly: true },
@@ -208,7 +208,7 @@ export const NAV_GROUPS: NavGroup[] = [
     roles: ["PIC Project"],
     items: [
       { label: "Laporan Harian", href: "/pic/laporan-harian", icon: "ClipboardList", permission: "pic.laporan_harian" },
-      { label: "PB Projek", href: "/pic/pb-projek", icon: "PackagePlus", permission: "pic.laporan_harian" },
+      { label: "PB Projek", href: "/pic/pb-projek", icon: "PackagePlus", permission: "pic.pb_projek", roles: ["PIC Project"] },
     ],
   },
 

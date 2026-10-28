@@ -2,6 +2,13 @@ import { Router, Request, Response } from "express";
 import { Prisma } from "@prisma/client";
 import { prisma } from "../lib/prisma";
 import { sendNotifToRoles, sendNotifToSuperAdmins, sendNotifToUserIds, FRONTEND_URL } from "../lib/notify";
+import {
+  PB_DRAFT,
+  canReceiveFromPBStatus,
+  pbCountsTowardQuota,
+  receiptStatus,
+  remainingQuantity,
+} from "../lib/projectStockPolicy";
 
 const router = Router();
 const VALID_TYPES = ["sipil", "interior"];
@@ -13,14 +20,7 @@ const FINANCE_ROLES = ["Head Finance", "Admin Finance", "Finance"];
 //   Draft ──(PIC kirim)──▶ Diajukan ──(Finance)──▶ Disetujui Finance ──(Super Admin)──▶ Disetujui
 //   ──(create-pr)──▶ Diproses PR ──(receive)──▶ Selesai
 // Sebelum ada PR, Finance/Super Admin bisa "Ditolak" atau "Minta Revisi" (kembali ke Draft).
-const PB_DRAFT = "Draft";
 const PB_REVIEWABLE = ["Diajukan", "Disetujui Finance", "Disetujui"];
-
-// Draft belum memakan kuota (masih bisa diedit PIC); kuota dicek ulang saat dikirim.
-// Selain itu semua PB yang tidak ditolak memakan kuota Qty Total.
-function pbCountsTowardQuota(status: string) {
-  return status !== "Ditolak" && status !== PB_DRAFT;
-}
 
 class HttpError extends Error {
   constructor(public statusCode: number, message: string, public extra?: Record<string, unknown>) { super(message); }
@@ -36,18 +36,47 @@ function isSuperAdmin(req: Request) {
   return req.user?.roles.some((r: any) => r.role.name === "Super Admin") ?? false;
 }
 
-// Akses Finance ditentukan oleh role Finance ATAU permission finance.adm_projek,
-// sama dengan yang dipakai sidebar untuk menampilkan menu PB Projek Finance.
+// Permission lama tetap diterima agar rollout tidak langsung memutus user aktif.
 function isFinanceUser(req: Request) {
   return isSuperAdmin(req)
     || req.user?.roles.some((r: any) => FINANCE_ROLES.includes(r.role.name)) === true
+    || req.userPermissions?.has("finance.pb_projek") === true
     || req.userPermissions?.has("finance.adm_projek") === true;
+}
+
+function hasPermission(req: Request, permission: string) {
+  return isSuperAdmin(req) || req.userPermissions?.has(permission) === true;
+}
+
+function canManageProjectStock(req: Request, projectType: string) {
+  return isSuperAdmin(req)
+    || hasPermission(req, "project_stock.manage")
+    || hasPermission(req, `projek_${projectType}.stock_opname`);
+}
+
+function canReadProjectStock(req: Request, projectType: string) {
+  return canManageProjectStock(req, projectType)
+    || hasPermission(req, "project_stock.view")
+    || hasPermission(req, "pic.pb_projek")
+    || hasPermission(req, "pic.laporan_harian");
+}
+
+function canReceiveProjectStock(req: Request) {
+  return isSuperAdmin(req)
+    || hasPermission(req, "project_stock.receive")
+    || hasPermission(req, "pic.pb_projek")
+    || hasPermission(req, "pic.laporan_harian");
+}
+
+function canCreateProjectPB(req: Request) {
+  return isSuperAdmin(req) || hasPermission(req, "pic.pb_projek") || hasPermission(req, "pic.laporan_harian");
 }
 
 // Tahap approval Finance harus oleh user Finance sungguhan (bukan Super Admin
 // saja), supaya alur Finance → Super Admin tidak bisa dilompati.
 function hasFinanceRole(req: Request) {
   return req.user?.roles.some((r: any) => FINANCE_ROLES.includes(r.role.name)) === true
+    || req.userPermissions?.has("finance.pb_projek") === true
     || req.userPermissions?.has("finance.adm_projek") === true;
 }
 
@@ -82,7 +111,11 @@ function serializePB(pb: PBWithRelations) {
     sa_approver: pb.sa_approver?.name ?? null, sa_approved_at: pb.sa_approved_at,
     reviewer: pb.reviewer?.name ?? null, reviewed_at: pb.reviewed_at, catatan_review: pb.catatan_review,
     pr_id: pb.pr_id ? String(pb.pr_id) : null,
-    items: pb.items.map((i) => ({ id: String(i.id), stock_item_id: String(i.stock_item_id), nama_item: i.stock_item.nama_item, jenis: i.stock_item.jenis, satuan: i.stock_item.satuan, qty: num(i.qty), catatan: i.catatan })),
+    items: pb.items.map((i) => ({
+      id: String(i.id), stock_item_id: String(i.stock_item_id), nama_item: i.stock_item.nama_item,
+      jenis: i.stock_item.jenis, satuan: i.stock_item.satuan, qty: num(i.qty),
+      qty_received: num(i.qty_received), qty_remaining: remainingQuantity(num(i.qty), num(i.qty_received)), catatan: i.catatan,
+    })),
   };
 }
 
@@ -141,6 +174,22 @@ async function canAccessProject(req: Request, projectType: string, projectId: bi
   return isProjectPIC(req.user!.id, projectType, projectId);
 }
 
+async function requireProjectRead(req: Request, res: Response, projectType: string, projectId: bigint) {
+  if (!canReadProjectStock(req, projectType) || !(await canAccessProject(req, projectType, projectId))) {
+    res.status(403).json({ detail: "Tidak memiliki akses Stock Opname projek ini" });
+    return false;
+  }
+  return true;
+}
+
+async function requireProjectManage(req: Request, res: Response, projectType: string, projectId: bigint) {
+  if (!canManageProjectStock(req, projectType) || !(await canAccessProject(req, projectType, projectId))) {
+    res.status(403).json({ detail: "Tidak memiliki akses mengubah Stock Opname projek ini" });
+    return false;
+  }
+  return true;
+}
+
 async function isProjectPIC(userId: bigint, projectType: string, projectId: bigint) {
   if (projectType === "interior") {
     const project = await prisma.proyekInterior.findUnique({ where: { id: projectId }, select: { pic_user_id: true, pic_assignments: { where: { user_id: userId }, select: { user_id: true } } } });
@@ -179,7 +228,7 @@ async function stockSummary(projectType: string, projectId: bigint) {
 router.get("/:projectType(sipil|interior)/:projectId", async (req, res) => {
   const projectType = cleanType(req.params.projectType);
   const projectId = BigInt(req.params.projectId);
-  if (!(await canAccessProject(req, projectType, projectId))) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
+  if (!(await requireProjectRead(req, res, projectType, projectId))) return;
   return res.json(await stockSummary(projectType, projectId));
 });
 
@@ -189,8 +238,9 @@ router.get("/pb", async (req, res) => {
 
   // Non-Finance: PB dari projek tempat user menjadi PIC (aturan yang sama dengan
   // canAccessProject) ditambah PB yang ia ajukan sendiri.
-  // Finance: Draft milik PIC belum dikirim, jadi tidak ditampilkan.
-  let where: Prisma.ProjectPBWhereInput = { OR: [{ status: { not: PB_DRAFT } }, { created_by: userId }] };
+  // Finance dan Super Admin melihat seluruh PB, termasuk Draft, agar pekerjaan
+  // yang belum dikirim tidak dianggap hilang saat koordinasi lintas user.
+  let where: Prisma.ProjectPBWhereInput = {};
   if (!all) {
     const picWhere = { OR: [{ pic_user_id: userId }, { pic_assignments: { some: { user_id: userId } } }] };
     const [sipilIds, interiorIds] = await Promise.all([
@@ -229,7 +279,10 @@ router.get("/pb", async (req, res) => {
   }));
 });
 
-router.get("/warehouses", async (_req, res) => {
+router.get("/warehouses", async (req, res) => {
+  if (!(isFinanceUser(req) || hasPermission(req, "project_stock.view") || hasPermission(req, "project_stock.manage") || hasPermission(req, "pic.pb_projek") || hasPermission(req, "pic.laporan_harian"))) {
+    return res.status(403).json({ detail: "Tidak memiliki akses data Warehouse" });
+  }
   const warehouses = await prisma.warehouse.findMany({ include: { stok: true }, orderBy: { nama: "asc" } });
   return res.json(warehouses.map((warehouse) => ({
     id: String(warehouse.id),
@@ -242,6 +295,7 @@ router.get("/warehouses", async (_req, res) => {
 });
 
 router.get("/warehouse/:id/allocations", async (req, res) => {
+  if (!(isFinanceUser(req) || hasPermission(req, "project_stock.manage"))) return res.status(403).json({ detail: "Tidak memiliki akses alokasi Warehouse" });
   const warehouseId = BigInt(req.params.id);
   const movements = await prisma.projectStockMovement.findMany({ where: { warehouse_id: warehouseId }, include: { stock_item: true }, orderBy: { tanggal: "desc" } });
   const sipilIds = [...new Set(movements.filter((m) => m.project_type === "sipil").map((m) => m.project_id))];
@@ -257,7 +311,7 @@ router.get("/warehouse/:id/allocations", async (req, res) => {
 router.post("/:projectType(sipil|interior)/:projectId/items", async (req: Request, res: Response) => {
   const projectType = cleanType(req.params.projectType);
   const projectId = BigInt(req.params.projectId);
-  if (!(await canAccessProject(req, projectType, projectId))) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
+  if (!(await requireProjectManage(req, res, projectType, projectId))) return;
   const { jenis, nama_item, satuan, qty_total, keterangan } = req.body;
   if (!VALID_JENIS.includes(jenis) || !nama_item?.trim() || !satuan?.trim()) return res.status(400).json({ detail: "Jenis, nama item, dan satuan wajib diisi" });
   const qty = num(qty_total);
@@ -271,7 +325,12 @@ router.patch("/items/:id", async (req: Request, res: Response) => {
   const { jenis, nama_item, satuan, qty_total, keterangan } = req.body;
   const item = await prisma.projectStockItem.findUnique({ where: { id }, include: { movements: true, pb_items: true } });
   if (!item) return res.status(404).json({ detail: "Item Stock Opname tidak ditemukan" });
+  if (!(await requireProjectManage(req, res, item.project_type, item.project_id))) return;
   if (item.movements.length || item.pb_items.length) return res.status(400).json({ detail: "Item yang sudah memiliki transaksi tidak dapat diubah" });
+  if (jenis !== undefined && !VALID_JENIS.includes(jenis)) return res.status(400).json({ detail: "Jenis item tidak valid" });
+  if (nama_item !== undefined && !String(nama_item).trim()) return res.status(400).json({ detail: "Nama item wajib diisi" });
+  if (satuan !== undefined && !String(satuan).trim()) return res.status(400).json({ detail: "Satuan wajib diisi" });
+  if (qty_total !== undefined && (!Number.isFinite(num(qty_total)) || num(qty_total) <= 0)) return res.status(400).json({ detail: "Qty Total harus lebih besar dari 0" });
   await prisma.projectStockItem.update({ where: { id }, data: { ...(jenis && { jenis }), ...(nama_item && { nama_item: String(nama_item).trim() }), ...(satuan && { satuan: String(satuan).trim() }), ...(qty_total !== undefined && { qty_total: num(qty_total) }), ...(keterangan !== undefined && { keterangan: keterangan || null }) } });
   return res.json({ message: "Item diupdate" });
 });
@@ -280,20 +339,32 @@ router.post("/items/:id/movements", async (req: Request, res: Response) => {
   const stockItemId = BigInt(req.params.id);
   const item = await prisma.projectStockItem.findUnique({ where: { id: stockItemId } });
   if (!item) return res.status(404).json({ detail: "Item Stock Opname tidak ditemukan" });
+  if (!(await requireProjectManage(req, res, item.project_type, item.project_id))) return;
   const { movement_type, qty, tanggal, warehouse_id, warehouse_stock_id, reference_type, reference_id, catatan } = req.body;
   const amount = num(qty);
   if (!VALID_MOVEMENTS.includes(movement_type) || amount <= 0) return res.status(400).json({ detail: "Jenis transaksi dan qty wajib valid" });
-  const current = await stockSummary(item.project_type, item.project_id);
-  const row = current.find((x) => x.id === String(stockItemId));
-  if (movement_type === "BARANG_KELUAR" && amount > (row?.sisa_fisik ?? 0)) return res.status(400).json({ detail: "Barang Keluar melebihi sisa fisik" });
   if (movement_type === "DIKEMBALIKAN" && !warehouse_id) return res.status(400).json({ detail: "Warehouse tujuan wajib dipilih untuk pengembalian" });
   if (movement_type === "BARANG_MASUK" && warehouse_id && !warehouse_stock_id) return res.status(400).json({ detail: "Item Warehouse sumber wajib dipilih" });
+  const movementDate = tanggal ? new Date(tanggal) : new Date();
+  if (Number.isNaN(movementDate.getTime())) return res.status(400).json({ detail: "Tanggal transaksi tidak valid" });
 
   let movement;
   try {
     movement = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM project_stock_items WHERE id = ${stockItemId} FOR UPDATE`;
+    const totals = await tx.projectStockMovement.groupBy({ by: ["movement_type"], where: { stock_item_id: stockItemId }, _sum: { qty: true } });
+    const total = (kind: string) => num(totals.find((row) => row.movement_type === kind)?._sum.qty);
+    const masuk = total("BARANG_MASUK");
+    const sisaFisik = masuk - total("BARANG_KELUAR") - total("DIKEMBALIKAN");
+    if ((movement_type === "BARANG_KELUAR" || movement_type === "DIKEMBALIKAN") && amount > sisaFisik) {
+      throw new HttpError(400, `${movement_type === "DIKEMBALIKAN" ? "Pengembalian" : "Barang Keluar"} melebihi sisa fisik (${Math.max(0, sisaFisik)} ${item.satuan})`);
+    }
+    if (movement_type === "BARANG_MASUK" && masuk + amount > num(item.qty_total)) {
+      throw new HttpError(400, `Barang Masuk melebihi Qty Total (${item.qty_total} ${item.satuan})`);
+    }
     let warehouseStockId: bigint | null = warehouse_stock_id ? BigInt(warehouse_stock_id) : null;
     if (movement_type === "BARANG_MASUK" && warehouse_id) {
+      await tx.$queryRaw`SELECT id FROM stok_warehouses WHERE id = ${warehouseStockId!} FOR UPDATE`;
       const source = await tx.stokWarehouse.findFirst({ where: { id: warehouseStockId!, warehouse_id: BigInt(warehouse_id) } });
       if (!source) throw new Error("Item Warehouse sumber tidak ditemukan");
       if ((source.nama_barang ?? "").trim().toLowerCase() !== item.nama_item.trim().toLowerCase() || source.jenis !== item.jenis) throw new Error("Item Warehouse tidak sesuai dengan item projek");
@@ -311,19 +382,20 @@ router.post("/items/:id/movements", async (req: Request, res: Response) => {
       }
       warehouseStockId = target.id;
     }
-    return tx.projectStockMovement.create({ data: { stock_item_id: stockItemId, movement_type, qty: amount, project_type: item.project_type, project_id: item.project_id, tanggal: tanggal ? new Date(tanggal) : new Date(), warehouse_id: warehouse_id ? BigInt(warehouse_id) : null, warehouse_stock_id: warehouseStockId, reference_type: reference_type || null, reference_id: reference_id ? BigInt(reference_id) : null, catatan: catatan || null, created_by: req.user!.id } });
+    return tx.projectStockMovement.create({ data: { stock_item_id: stockItemId, movement_type, qty: amount, project_type: item.project_type, project_id: item.project_id, tanggal: movementDate, warehouse_id: warehouse_id ? BigInt(warehouse_id) : null, warehouse_stock_id: warehouseStockId, reference_type: reference_type || null, reference_id: reference_id ? BigInt(reference_id) : null, catatan: catatan || null, created_by: req.user!.id } });
   }).catch((error: any) => {
-    if (["Item Warehouse sumber tidak ditemukan", "Item Warehouse tidak sesuai dengan item projek", "Quantity Warehouse tidak mencukupi"].includes(error?.message)) throw Object.assign(new Error(error.message), { statusCode: 400 });
+    if (error instanceof HttpError) throw error;
+    if (["Item Warehouse sumber tidak ditemukan", "Item Warehouse tidak sesuai dengan item projek", "Quantity Warehouse tidak mencukupi"].includes(error?.message)) throw new HttpError(400, error.message);
     throw error;
     });
   } catch (error: any) {
-    return res.status(error?.statusCode === 400 ? 400 : 500).json({ detail: error?.message || "Gagal mencatat transaksi stok" });
+    return sendError(res, error, "Gagal mencatat transaksi stok");
   }
   return res.status(201).json({ id: String(movement.id) });
 });
 
 router.get("/:projectType(sipil|interior)/:projectId/pb", async (req, res) => {
-  if (!(await canAccessProject(req, cleanType(req.params.projectType), BigInt(req.params.projectId)))) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
+  if (!(await requireProjectRead(req, res, cleanType(req.params.projectType), BigInt(req.params.projectId)))) return;
   const rows = await prisma.projectPB.findMany({ where: { project_type: cleanType(req.params.projectType), project_id: BigInt(req.params.projectId) }, include: PB_INCLUDE, orderBy: { created_at: "desc" } });
   return res.json(rows.map(serializePB));
 });
@@ -332,7 +404,7 @@ router.get("/:projectType(sipil|interior)/:projectId/pb", async (req, res) => {
 router.post("/:projectType(sipil|interior)/:projectId/pb", async (req: Request, res: Response) => {
   const projectType = cleanType(req.params.projectType);
   const projectId = BigInt(req.params.projectId);
-  if (!(await isProjectPIC(req.user!.id, projectType, projectId)) && !isSuperAdmin(req)) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
+  if (!canCreateProjectPB(req) || (!(await isProjectPIC(req.user!.id, projectType, projectId)) && !isSuperAdmin(req))) return res.status(403).json({ detail: "Tidak memiliki akses membuat PB projek ini" });
 
   try {
     const items = parsePBItems(req.body);
@@ -419,9 +491,10 @@ async function findFinanceProject(projectType: string, projectId: bigint) {
   });
   if (direct) return direct;
 
-  // Fallback for older finance projects that were created before the explicit
-  // project relation existed.
-  return prisma.admFinanceProject.findFirst({ where: { nama_proyek: project.nama_proyek ?? undefined } });
+  // Data lama belum memiliki relasi eksplisit. Nama hanya aman dipakai jika
+  // menghasilkan tepat satu kandidat, agar PB tidak masuk ke projek yang salah.
+  const legacyMatches = await prisma.admFinanceProject.findMany({ where: { nama_proyek: project.nama_proyek ?? undefined }, take: 2 });
+  return legacyMatches.length === 1 ? legacyMatches[0] : null;
 }
 
 router.post("/pb/:id/create-pr", async (req: Request, res: Response) => {
@@ -471,6 +544,7 @@ router.post("/pb/:id/create-pr", async (req: Request, res: Response) => {
             harga_perkiraan: 0,
             diskon_harga_satuan: 0,
             is_from_rapp: false,
+            project_pb_item_id: item.id,
           })),
         },
       },
@@ -491,41 +565,94 @@ router.post("/pb/:id/create-pr", async (req: Request, res: Response) => {
 // Barang dari PR sudah sampai di projek: catat Barang Masuk per item lalu PB selesai.
 router.post("/pb/:id/receive", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
-  const pb = await prisma.projectPB.findUnique({ where: { id }, include: { items: true } });
+  const pb = await prisma.projectPB.findUnique({ where: { id }, include: { items: { include: { stock_item: true } } } });
   if (!pb) return res.status(404).json({ detail: "PB tidak ditemukan" });
-  if (!(await canAccessProject(req, pb.project_type, pb.project_id))) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
-  if (pb.status !== "Diproses PR" || !pb.pr_id) return res.status(400).json({ detail: "Hanya PB yang sudah dibuatkan PR yang bisa ditandai diterima" });
+  if (!canReceiveProjectStock(req) || !(await canAccessProject(req, pb.project_type, pb.project_id))) return res.status(403).json({ detail: "Tidak memiliki akses menerima barang projek ini" });
+  if (!canReceiveFromPBStatus(pb.status) || !pb.pr_id) return res.status(400).json({ detail: "Hanya PB yang sudah dibuatkan PR yang bisa menerima barang" });
   const tanggal = req.body?.tanggal ? new Date(req.body.tanggal) : new Date();
   if (Number.isNaN(tanggal.getTime())) return res.status(400).json({ detail: "Tanggal penerimaan tidak valid" });
 
+  const pr = await prisma.projekPR.findUnique({ where: { id: pb.pr_id }, include: { items: true } });
+  if (!pr) return res.status(409).json({ detail: "PR terkait PB tidak ditemukan" });
+  if (pr.status !== "Disetujui" || !pr.hf_signed_at) return res.status(400).json({ detail: "PR harus berstatus Disetujui dan ditandatangani Head Finance sebelum barang diterima" });
+
+  const inputRows = Array.isArray(req.body?.items) ? req.body.items : null;
+  if (inputRows && new Set(inputRows.map((row: any) => String(row.pb_item_id))).size !== inputRows.length) return res.status(400).json({ detail: "Item penerimaan tidak boleh duplikat" });
+  let receipts: Array<{ pbItemId: bigint; stockItemId: bigint; qty: number; ordered: number; currentReceived: number; name: string; unit: string }>;
+  try {
+    receipts = pb.items.map((item) => {
+      const prItem = pr.items.find((row) => row.project_pb_item_id === item.id)
+        ?? pr.items.find((row) => row.nama_item.trim().toLowerCase() === item.stock_item.nama_item.trim().toLowerCase() && String(row.satuan ?? "").trim().toLowerCase() === item.stock_item.satuan.trim().toLowerCase());
+      if (!prItem) throw new HttpError(409, `Item PR untuk ${item.stock_item.nama_item} tidak ditemukan`);
+      const ordered = Math.min(num(item.qty), num(prItem.qty));
+      const remaining = remainingQuantity(ordered, num(item.qty_received));
+      const requested = inputRows?.find((row: any) => String(row.pb_item_id) === String(item.id));
+      const qty = inputRows ? (requested ? num(requested.qty) : 0) : remaining;
+      return { pbItemId: item.id, stockItemId: item.stock_item_id, qty, ordered, currentReceived: num(item.qty_received), name: item.stock_item.nama_item, unit: item.stock_item.satuan };
+    }).filter((row) => row.qty > 0);
+  } catch (error) {
+    return sendError(res, error, "Data penerimaan barang tidak valid");
+  }
+  if (!receipts.length) return res.status(400).json({ detail: "Minimal satu qty penerimaan harus lebih besar dari 0" });
+  for (const row of receipts) {
+    const remaining = remainingQuantity(row.ordered, row.currentReceived);
+    if (!Number.isFinite(row.qty) || row.qty <= 0 || row.qty > remaining) return res.status(400).json({ detail: `Qty diterima ${row.name} melebihi sisa PR (${remaining} ${row.unit})` });
+  }
+
   try {
     await prisma.$transaction(async (tx) => {
-      const claimed = await tx.projectPB.updateMany({ where: { id, status: "Diproses PR" }, data: { status: "Selesai" } });
-      if (!claimed.count) throw new HttpError(409, "PB ini sudah ditandai diterima");
+      await tx.$queryRaw`SELECT id FROM project_pbs WHERE id = ${id} FOR UPDATE`;
+      const current = await tx.projectPB.findUnique({ where: { id }, include: { items: true } });
+      if (!current || !canReceiveFromPBStatus(current.status)) throw new HttpError(409, "Status PB sudah berubah, muat ulang halaman");
+      for (const row of receipts) {
+        const currentItem = current.items.find((item) => item.id === row.pbItemId);
+        if (!currentItem) throw new HttpError(409, `Item ${row.name} sudah berubah, muat ulang halaman`);
+        const remaining = remainingQuantity(row.ordered, num(currentItem.qty_received));
+        if (row.qty > remaining) throw new HttpError(409, `Sisa penerimaan ${row.name} hanya ${remaining} ${row.unit}`);
+      }
       // PB lama (sebelum perbaikan) sudah otomatis mencatat Barang Masuk saat PR
       // dibuat — jangan dicatat dua kali.
-      const legacy = await tx.projectStockMovement.count({ where: { reference_type: "PR", reference_id: pb.pr_id!, stock_item_id: { in: pb.items.map((i) => i.stock_item_id) } } });
-      if (legacy) return;
-      const pr = await tx.projekPR.findUnique({ where: { id: pb.pr_id! }, select: { nomor_pr: true } });
       await tx.projectStockMovement.createMany({
-        data: pb.items.map((item) => ({
-          stock_item_id: item.stock_item_id,
+        data: receipts.map((item) => ({
+          stock_item_id: item.stockItemId,
           movement_type: "BARANG_MASUK",
-          qty: Number(item.qty),
+          qty: item.qty,
           project_type: pb.project_type,
           project_id: pb.project_id,
           tanggal,
           reference_type: "PR",
           reference_id: pb.pr_id!,
-          catatan: `Barang masuk dari ${pr?.nomor_pr ?? "PR"} (${pb.nomor_pb ?? `PB-${pb.id}`})`,
+          catatan: `Barang masuk dari ${pr.nomor_pr} (${pb.nomor_pb ?? `PB-${pb.id}`})`,
           created_by: req.user!.id,
         })),
       });
+      for (const row of receipts) {
+        await tx.projectPBItem.update({
+          where: { id: row.pbItemId },
+          data: { qty_received: { increment: row.qty } },
+        });
+      }
+      const nextStatus = receiptStatus(current.items.map((item) => {
+        const receipt = receipts.find((row) => row.pbItemId === item.id);
+        const original = pb.items.find((row) => row.id === item.id);
+        const prItem = pr.items.find((row) => row.project_pb_item_id === item.id)
+          ?? (original ? pr.items.find((row) => row.nama_item.trim().toLowerCase() === original.stock_item.nama_item.trim().toLowerCase() && String(row.satuan ?? "").trim().toLowerCase() === original.stock_item.satuan.trim().toLowerCase()) : undefined);
+        return {
+          ordered: receipt?.ordered ?? Math.min(num(item.qty), num(prItem?.qty ?? item.qty)),
+          received: num(item.qty_received) + (receipt?.qty ?? 0),
+        };
+      }));
+      const updated = await tx.projectPB.updateMany({
+        where: { id, status: current.status },
+        data: { status: nextStatus },
+      });
+      if (!updated.count) throw new HttpError(409, "Status PB sudah berubah, muat ulang halaman");
     });
   } catch (error) {
     return sendError(res, error, "Gagal mencatat penerimaan barang");
   }
-  return res.json({ id: String(id), status: "Selesai" });
+  const updated = await prisma.projectPB.findUnique({ where: { id }, select: { status: true } });
+  return res.json({ id: String(id), status: updated?.status });
 });
 
 // Review Finance / Super Admin. Body: { status, catatan }

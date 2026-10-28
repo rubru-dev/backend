@@ -15,6 +15,11 @@ const prisma = new PrismaClient();
 const NEW_PERMISSIONS: Array<{ name: string; module: string; label: string }> = [
   // Sub-menu PIC
   { name: "pic.dokumentasi", module: "pic", label: "Sub-menu: Upload Dokumentasi Projek" },
+  { name: "pic.pb_projek", module: "pic", label: "Sub-menu: PB Projek PIC" },
+  { name: "finance.pb_projek", module: "finance", label: "Sub-menu: PB Projek Finance" },
+  { name: "project_stock.view", module: "project_stock", label: "Stock Projek: Lihat" },
+  { name: "project_stock.manage", module: "project_stock", label: "Stock Projek: Kelola" },
+  { name: "project_stock.receive", module: "project_stock", label: "Stock Projek: Terima Barang" },
   // Projek Sipil tab-level
   { name: "projek_sipil.termin",       module: "projek_sipil", label: "Tab: Daftar Termin Sipil" },
   { name: "projek_sipil.gantt",        module: "projek_sipil", label: "Tab: Gantt Chart Sipil" },
@@ -29,6 +34,7 @@ const NEW_PERMISSIONS: Array<{ name: string; module: string; label: string }> = 
   { name: "projek_interior.gantt",       module: "projek_interior", label: "Tab: Gantt Chart Interior" },
   { name: "projek_interior.rapp",        module: "projek_interior", label: "Tab: RAPP Interior" },
   { name: "projek_interior.docs",        module: "projek_interior", label: "Tab: Docs/Link Interior" },
+  { name: "projek_interior.stock_opname", module: "projek_interior", label: "Tab: Stock Opname Interior" },
   { name: "projek_interior.dokumentasi", module: "projek_interior", label: "Tab: Dokumentasi Foto Interior" },
   { name: "projek_interior.checklist",   module: "projek_interior", label: "Tab: Form Checklist Interior" },
   { name: "projek_interior.laporan_pic", module: "projek_interior", label: "Tab: Laporan PIC Project Interior" },
@@ -39,7 +45,8 @@ const NEW_PERMISSIONS: Array<{ name: string; module: string; label: string }> = 
 ];
 
 // Permission yang langsung diberikan ke role "PIC Project" (fitur yang diminta)
-const GRANT_TO_PIC = ["pic.dokumentasi", "projek_sipil.laporan_pic", "projek_interior.laporan_pic"];
+const GRANT_TO_PIC = ["pic.dokumentasi", "pic.pb_projek", "project_stock.view", "project_stock.manage", "project_stock.receive", "projek_sipil.stock_opname", "projek_interior.stock_opname", "projek_sipil.laporan_pic", "projek_interior.laporan_pic"];
+const GRANT_TO_FINANCE = ["finance.pb_projek", "project_stock.view"];
 
 async function main() {
   // 1) Tabel laporan_pic_projeks (untuk fitur Laporan PIC Project) — additive, aman.
@@ -110,6 +117,20 @@ async function main() {
     }
     console.log(`✓ Role 'PIC Project' mendapat ${granted} permission baru (${GRANT_TO_PIC.join(", ")})`);
   }
+
+  for (const roleName of ["Finance", "Head Finance", "Admin Finance"]) {
+    const financeRole = await prisma.role.findFirst({ where: { name: roleName } });
+    if (!financeRole) continue;
+    for (const name of GRANT_TO_FINANCE) {
+      const perm = await prisma.permission.findUnique({ where: { name } });
+      if (perm) await prisma.rolePermission.upsert({
+        where: { role_id_permission_id: { role_id: financeRole.id, permission_id: perm.id } },
+        update: {},
+        create: { role_id: financeRole.id, permission_id: perm.id },
+      });
+    }
+  }
+  console.log(`âœ“ Permission PB diberikan ke role Finance yang tersedia`);
 
   console.log("Selesai. Tidak ada data lain yang tersentuh.");
 }

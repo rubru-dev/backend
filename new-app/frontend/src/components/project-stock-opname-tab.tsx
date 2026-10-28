@@ -38,6 +38,9 @@ export function ProjectStockOpnameTab({ projectType, projectId }: Props) {
       <p className="text-xs text-muted-foreground">PB diajukan oleh PIC dari menu PIC Project → PB Projek.</p>
     </div>
 
+    {stockQuery.isError && <div role="alert" className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"><span>Data Stock Opname gagal dimuat.</span><button type="button" className="min-h-10 rounded-md border px-3 font-semibold" onClick={() => stockQuery.refetch()}>Coba lagi</button></div>}
+    {stockQuery.isLoading && <p className="py-6 text-center text-sm text-muted-foreground">Memuat Stock Opname...</p>}
+
     <div className="rounded-lg border bg-muted/20 p-3">
       <p className="mb-2 text-sm font-semibold">Tambah {jenisTab}</p>
       <div className="grid gap-2 sm:grid-cols-[2fr_1fr_1fr_2fr_auto]">
@@ -61,6 +64,7 @@ export function ProjectStockOpnameTab({ projectType, projectId }: Props) {
         <input className="h-10 rounded-md border bg-background px-3 text-sm" placeholder="Catatan" value={movementForm.catatan} onChange={(e) => setMovementForm({ ...movementForm, catatan: e.target.value })} />
         <button type="button" className="h-10 rounded-md bg-slate-800 px-3 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-60" disabled={addMovement.isPending || !movementForm.stock_item_id || Number(movementForm.qty) <= 0 || (movementForm.movement_type === "DIKEMBALIKAN" && !movementForm.warehouse_id) || (movementForm.movement_type === "BARANG_MASUK" && Boolean(movementForm.warehouse_id) && !movementForm.warehouse_stock_id)} onClick={() => addMovement.mutate()}>Catat</button>
       </div>
+      {warehousesQuery.isError && <p role="alert" className="mt-2 text-sm text-destructive">Daftar warehouse gagal dimuat. <button type="button" className="font-semibold underline" onClick={() => warehousesQuery.refetch()}>Coba lagi</button></p>}
     </div>
 
     <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[980px] text-sm"><thead className="bg-muted/50"><tr><th className="w-8 px-3 py-3" /><th className="px-3 py-3 text-left">Nama Alat/Material</th><th className="px-3 py-3 text-left">Satuan</th><th className="px-3 py-3 text-right">Qty Total</th><th className="px-3 py-3 text-right">PB</th><th className="px-3 py-3 text-right">Sisa Pengajuan</th><th className="px-3 py-3 text-right">Barang Masuk</th><th className="px-3 py-3 text-right">Barang Keluar</th><th className="px-3 py-3 text-right">Dikembalikan</th><th className="px-3 py-3 text-right">Sisa Fisik</th></tr></thead><tbody className="divide-y">
@@ -71,6 +75,6 @@ export function ProjectStockOpnameTab({ projectType, projectId }: Props) {
       {!items.length && <tr><td colSpan={11} className="px-4 py-10 text-center text-muted-foreground">Belum ada item {jenisTab.toLowerCase()}.</td></tr>}
     </tbody></table></div>
 
-    <div className="rounded-lg border p-4"><h3 className="mb-3 font-semibold">Daftar PB Projek</h3>{pbQuery.isLoading ? <p className="text-sm text-muted-foreground">Memuat PB...</p> : (pbQuery.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">Belum ada PB.</p> : <div className="space-y-2">{(pbQuery.data ?? []).map((pb: any) => <div key={pb.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm"><span className="font-medium">{pb.nomor_pb}</span><span>{pb.items.map((i: any) => `${i.nama_item} (${i.qty} ${i.satuan})`).join(", ")}</span><PBStatusBadge status={pb.status} /></div>)}</div>}</div>
+    <div className="rounded-lg border p-4"><h3 className="mb-3 font-semibold">Daftar PB Projek</h3>{pbQuery.isLoading ? <p className="text-sm text-muted-foreground">Memuat PB...</p> : pbQuery.isError ? <p role="alert" className="text-sm text-destructive">Daftar PB gagal dimuat. <button type="button" className="font-semibold underline" onClick={() => pbQuery.refetch()}>Coba lagi</button></p> : (pbQuery.data ?? []).length === 0 ? <p className="text-sm text-muted-foreground">Belum ada PB.</p> : <div className="space-y-2">{(pbQuery.data ?? []).map((pb: any) => <div key={pb.id} className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-muted/30 px-3 py-2 text-sm"><span className="font-medium">{pb.nomor_pb}</span><span>{pb.items.map((i: any) => `${i.nama_item} (${i.qty} ${i.satuan})`).join(", ")}</span><PBStatusBadge status={pb.status} /></div>)}</div>}</div>
   </div>;
 }

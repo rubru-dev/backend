@@ -5,7 +5,8 @@ import { triggerEventReminder } from "../lib/notify";
 
 const router = Router();
 const TYPES = new Set(["desain", "rkr", "rubru"]);
-const KINDS = new Set(["offer", "discount"]);
+const KINDS = new Set(["offer", "discount", "berita_acara"]);
+const BA_STATUSES = new Set(["Draft", "Final", "Ditandatangani"]);
 
 async function ensureTable() {
   await prisma.$executeRaw`
@@ -28,6 +29,24 @@ function validType(type: string) {
 
 function validKind(kind: string) {
   return KINDS.has(kind);
+}
+
+function validateBeritaAcara(data: any) {
+  if (!String(data.sourceOfferId ?? "").trim()) return "Referensi penawaran wajib tersedia";
+  if (!String(data.judul ?? "").trim()) return "Judul Berita Acara wajib diisi";
+  if (!String(data.nomor ?? "").trim()) return "Nomor Berita Acara wajib diisi";
+  if (!String(data.tanggal ?? "").trim()) return "Tanggal Berita Acara wajib diisi";
+  if (!BA_STATUSES.has(String(data.status ?? ""))) return "Status Berita Acara tidak valid";
+  if (data.status === "Ditandatangani" && (!String(data.pihakPertamaNama ?? "").trim() || !String(data.pihakKeduaNama ?? "").trim())) {
+    return "Nama kedua pihak wajib diisi untuk status Ditandatangani";
+  }
+  if (!Array.isArray(data.poin) || !data.poin.some((item: unknown) => String(item ?? "").trim())) return "Minimal satu poin Berita Acara wajib diisi";
+  if (data.poin.length > 50) return "Poin Berita Acara maksimal 50";
+  if (data.sertakanRincian) {
+    if (!Array.isArray(data.rincian) || !data.rincian.some((item: any) => String(item?.uraian ?? "").trim())) return "Minimal satu rincian pekerjaan wajib diisi";
+    if (data.rincian.length > 100) return "Rincian pekerjaan maksimal 100 baris";
+  }
+  return null;
 }
 
 function mapRow(row: any) {
@@ -62,9 +81,25 @@ router.post("/:type/offers", async (req: Request, res: Response) => {
   const data = req.body?.data;
   if (!validType(type) || !validKind(kind)) return res.status(400).json({ detail: "Tipe penawaran tidak valid" });
   if (!data || typeof data !== "object" || Array.isArray(data)) return res.status(400).json({ detail: "Data penawaran wajib diisi" });
+  if (kind === "berita_acara") {
+    const validationError = validateBeritaAcara(data);
+    if (validationError) return res.status(400).json({ detail: validationError });
+  }
 
   await ensureTable();
+  if (kind === "berita_acara") {
+    const sourceRows = await prisma.$queryRaw<any[]>`
+      SELECT id FROM penawaran_offers
+      WHERE id = ${String(data.sourceOfferId)} AND type = ${type} AND kind = 'offer'
+      LIMIT 1
+    `;
+    if (!sourceRows.length) return res.status(400).json({ detail: "Penawaran sumber tidak ditemukan" });
+  }
   const id = String(data.id || randomUUID());
+  const existingRows = await prisma.$queryRaw<any[]>`SELECT type, kind FROM penawaran_offers WHERE id = ${id} LIMIT 1`;
+  if (existingRows.length && (existingRows[0].type !== type || existingRows[0].kind !== kind)) {
+    return res.status(409).json({ detail: "ID dokumen sudah digunakan oleh jenis dokumen lain" });
+  }
   const normalizedData = { ...data, id };
   const rows = await prisma.$queryRaw<any[]>`
     INSERT INTO penawaran_offers (id, type, kind, data, created_by)
@@ -77,10 +112,10 @@ router.post("/:type/offers", async (req: Request, res: Response) => {
     RETURNING id, type, kind, data, created_by, created_at, updated_at
   `;
   const result = mapRow(rows[0]);
-  triggerEventReminder("penawaran_baru", {
+  if (kind === "offer") triggerEventReminder("penawaran_baru", {
     jenis: type,
     kind,
-    nama: String(data.klien ?? data.nama ?? data.client ?? "—"),
+    nama: String(data.klien ?? data.nama ?? data.client ?? "-"),
   }).catch(() => {});
   return res.status(201).json(result);
 });
@@ -88,8 +123,23 @@ router.post("/:type/offers", async (req: Request, res: Response) => {
 router.delete("/offers/:id", async (req: Request, res: Response) => {
   await ensureTable();
   const id = String(req.params.id);
+  const rows = await prisma.$queryRaw<any[]>`SELECT kind, data FROM penawaran_offers WHERE id = ${id} LIMIT 1`;
+  if (!rows.length) return res.status(404).json({ detail: "Dokumen tidak ditemukan" });
+  if (rows[0].kind === "berita_acara" && rows[0].data?.status !== "Draft") {
+    return res.status(409).json({ detail: "Hanya Berita Acara berstatus Draft yang dapat dihapus" });
+  }
+  if (rows[0].kind === "offer") {
+    const dependentRows = await prisma.$queryRaw<any[]>`
+      SELECT id FROM penawaran_offers
+      WHERE kind = 'berita_acara' AND data->>'sourceOfferId' = ${id}
+      LIMIT 1
+    `;
+    if (dependentRows.length) {
+      return res.status(409).json({ detail: "Penawaran tidak dapat dihapus karena masih memiliki Berita Acara" });
+    }
+  }
   await prisma.$executeRaw`DELETE FROM penawaran_offers WHERE id = ${id}`;
-  return res.json({ message: "Penawaran dihapus" });
+  return res.json({ message: rows[0].kind === "berita_acara" ? "Berita Acara dihapus" : "Penawaran dihapus" });
 });
 
 export default router;

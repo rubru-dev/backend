@@ -141,6 +141,7 @@ async function main() {
     // Finance sub-menus
     { name: "finance.invoice",       module: "finance", label: "Sub-menu: Invoice & Kwitansi" },
     { name: "finance.adm_projek",    module: "finance", label: "Sub-menu: Administrasi Projek" },
+    { name: "finance.pb_projek",     module: "finance", label: "Sub-menu: PB Projek" },
     { name: "finance.adm_kantor",    module: "finance", label: "Sub-menu: Administrasi Kantor" },
     { name: "finance.laporan_harian",module: "finance", label: "Sub-menu: Laporan Harian Finance" },
     // Finance tab-level (dalam halaman Administrasi Projek)
@@ -151,8 +152,12 @@ async function main() {
     { name: "finance.tukang",         module: "finance", label: "Tab: Tukang (Gaji & Absen)" },
     // PIC sub-menus
     { name: "pic.laporan_harian",   module: "pic", label: "Sub-menu: Laporan Harian PIC" },
+    { name: "pic.pb_projek",        module: "pic", label: "Sub-menu: PB Projek PIC" },
     { name: "pic.kalender_visit",   module: "pic", label: "Sub-menu: Kalender Visit PIC" },
     { name: "pic.dokumentasi",      module: "pic", label: "Sub-menu: Upload Dokumentasi Projek" },
+    { name: "project_stock.view",    module: "project_stock", label: "Stock Projek: Lihat" },
+    { name: "project_stock.manage",  module: "project_stock", label: "Stock Projek: Kelola" },
+    { name: "project_stock.receive", module: "project_stock", label: "Stock Projek: Terima Barang" },
     // Admin sub-menus
     { name: "admin.users",    module: "admin", label: "Sub-menu: Users" },
     { name: "admin.roles",    module: "admin", label: "Sub-menu: Roles & Permission" },
@@ -173,6 +178,7 @@ async function main() {
     // Projek Interior tab-level
     { name: "projek_interior.termin",   module: "projek_interior", label: "Tab: Daftar Termin Interior" },
     { name: "projek_interior.gantt",    module: "projek_interior", label: "Tab: Gantt Chart Interior" },
+    { name: "projek_interior.stock_opname", module: "projek_interior", label: "Tab: Stock Opname Interior" },
     { name: "projek_interior.rapp",     module: "projek_interior", label: "Tab: RAPP Interior" },
     // Tukang
     { name: "tukang.absen_submit", module: "tukang", label: "Submit Absen Tukang" },
@@ -302,13 +308,13 @@ async function main() {
     "Desain":       ["desain.follow_up","desain.kanban_paket","desain.laporan_harian","absen.submit", ...TUTORIAL_PERMS],
     "Sales":        ["sales.kanban","sales.laporan_harian","sales.addendum","absen.submit", ...TUTORIAL_PERMS],
     "Finance": [
-      "finance.invoice","finance.adm_projek","finance.adm_kantor","finance.laporan_harian",
+      "finance.invoice","finance.adm_projek","finance.pb_projek","finance.adm_kantor","finance.laporan_harian","project_stock.view",
       "finance.cashflow","finance.pr","finance.upload_dokumen","finance.surat_jalan","finance.tukang",
       "absen.submit", ...TUTORIAL_PERMS,
     ],
-    "Head Finance":  ["finance.invoice","finance.adm_projek","absen.submit","absen.manage", ...TUTORIAL_PERMS],
-    "Admin Finance": ["finance.invoice","finance.adm_projek","finance.adm_kantor","absen.submit","absen.manage", ...TUTORIAL_PERMS],
-    "PIC Project":   ["pic.laporan_harian","pic.kalender_visit","pic.dokumentasi","absen.submit", ...TUTORIAL_PERMS],
+    "Head Finance":  ["finance.invoice","finance.adm_projek","finance.pb_projek","project_stock.view","absen.submit","absen.manage", ...TUTORIAL_PERMS],
+    "Admin Finance": ["finance.invoice","finance.adm_projek","finance.pb_projek","finance.adm_kantor","project_stock.view","absen.submit","absen.manage", ...TUTORIAL_PERMS],
+    "PIC Project":   ["pic.laporan_harian","pic.pb_projek","pic.kalender_visit","pic.dokumentasi","project_stock.view","project_stock.manage","project_stock.receive","projek_sipil.stock_opname","projek_interior.stock_opname","absen.submit", ...TUTORIAL_PERMS],
     "Tukang":        ["tukang.absen_submit"],
   };
 

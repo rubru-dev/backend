@@ -1933,53 +1933,68 @@ router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
 
 // PUT /finance/adm-projek/:id/pr/:pid — edit PR (signature is invalidated on edit)
 router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
+  const financeProjectId = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
-  const existing = await prisma.projekPR.findUnique({ where: { id: pid } });
+  const existing = await prisma.projekPR.findUnique({ where: { id: pid }, include: { items: true } });
   if (!existing) return res.status(404).json({ detail: "PR tidak ditemukan" });
+  if (existing.adm_finance_project_id !== financeProjectId) return res.status(404).json({ detail: "PR tidak ditemukan pada projek ini" });
 
   const { tanggal, nama_toko, catatan, items, diskon_harga_keseluruhan } = req.body;
   if (!tanggal) return res.status(400).json({ detail: "tanggal wajib diisi" });
+  if (!Array.isArray(items) || !items.length) return res.status(400).json({ detail: "Minimal satu item PR wajib diisi" });
 
-  // Delete old items then re-create. Editing a signed PR invalidates the
-  // previous approval/signature because the signed content has changed.
-  await prisma.projekPRItem.deleteMany({ where: { projek_pr_id: pid } });
-  const pr = await prisma.projekPR.update({
-    where: { id: pid },
-    data: {
-      tanggal: new Date(tanggal),
-      nama_toko: nama_toko || null,
-      catatan: catatan || null,
-      status: "Pending",
-      diskon_harga_keseluruhan: Number(diskon_harga_keseluruhan) || 0,
-      hf_signed_at: null,
-      hf_signed_by: null,
-      hf_name: null,
-      hf_signature: null,
-      items: {
-        create: (items || []).map((it: any) => ({
-          nama_item: it.nama_item,
-          satuan: it.satuan || null,
-          qty: Number(it.qty) || 0,
+  const linkedIds = existing.items.filter((item) => item.project_pb_item_id).map((item) => String(item.project_pb_item_id));
+  const submittedLinkedIds = items.filter((item: any) => item.project_pb_item_id != null).map((item: any) => String(item.project_pb_item_id));
+  if (new Set(submittedLinkedIds).size !== submittedLinkedIds.length) return res.status(400).json({ detail: "Item PB pada PR tidak boleh duplikat" });
+  if (linkedIds.length !== submittedLinkedIds.length || linkedIds.some((id) => !submittedLinkedIds.includes(id))) {
+    return res.status(400).json({ detail: "Item yang berasal dari PB tidak boleh dihapus atau diganti" });
+  }
+  if (linkedIds.length) {
+    const pbItems = await prisma.projectPBItem.findMany({ where: { id: { in: linkedIds.map(BigInt) } } });
+    for (const item of items as any[]) {
+      if (item.project_pb_item_id == null) continue;
+      const pbItem = pbItems.find((row) => row.id === BigInt(item.project_pb_item_id));
+      const qty = Number(item.qty);
+      if (!pbItem || !Number.isFinite(qty) || qty <= 0 || qty > Number(pbItem.qty) || qty < Number(pbItem.qty_received)) {
+        return res.status(400).json({ detail: "Qty item PB harus positif, tidak melebihi PB, dan tidak boleh di bawah qty yang sudah diterima" });
+      }
+    }
+  }
+
+  const pr = await prisma.$transaction(async (tx) => {
+    await tx.projekPRItem.deleteMany({ where: { projek_pr_id: pid } });
+    return tx.projekPR.update({
+      where: { id: pid },
+      data: {
+        tanggal: new Date(tanggal), nama_toko: nama_toko || null, catatan: catatan || null,
+        status: "Pending", diskon_harga_keseluruhan: Number(diskon_harga_keseluruhan) || 0,
+        hf_signed_at: null, hf_signed_by: null, hf_name: null, hf_signature: null,
+        items: { create: items.map((it: any) => ({
+          nama_item: it.nama_item, satuan: it.satuan || null, qty: Number(it.qty) || 0,
           harga_perkiraan: Number(it.harga_perkiraan) || 0,
           diskon_harga_satuan: Number(it.diskon_harga_satuan) || 0,
-          is_from_rapp: !!it.is_from_rapp,
-          termin_id: it.termin_id != null ? BigInt(it.termin_id) : null,
+          is_from_rapp: !!it.is_from_rapp, termin_id: it.termin_id != null ? BigInt(it.termin_id) : null,
           rapp_qty: it.rapp_qty != null ? Number(it.rapp_qty) : null,
           rapp_harga: it.rapp_harga != null ? Number(it.rapp_harga) : null,
-        })),
+          project_pb_item_id: it.project_pb_item_id != null ? BigInt(it.project_pb_item_id) : null,
+        })) },
       },
-    },
-    include: { items: { include: { termin: true } } },
+      include: { items: { include: { termin: true } } },
+    });
   });
   return res.json({ message: "PR diperbarui", data: pr });
 });
 
 // PATCH /finance/adm-projek/:id/pr/:pid/status
 router.patch("/adm-projek/:id/pr/:pid/status", async (req: Request, res: Response) => {
+  const financeProjectId = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
   const { status, catatan } = req.body;
+  if (!["Pending", "Disetujui", "Ditolak"].includes(status)) return res.status(400).json({ detail: "Status PR tidak valid" });
+  const found = await prisma.projekPR.findFirst({ where: { id: pid, adm_finance_project_id: financeProjectId }, select: { id: true } });
+  if (!found) return res.status(404).json({ detail: "PR tidak ditemukan pada projek ini" });
   const pr = await prisma.projekPR.update({
-    where: { id: pid },
+    where: { id: found.id },
     data: { status: status || "Pending", catatan: catatan || undefined },
     include: { items: true },
   });
@@ -1988,16 +2003,18 @@ router.patch("/adm-projek/:id/pr/:pid/status", async (req: Request, res: Respons
 
 // DELETE /finance/adm-projek/:id/pr/:pid
 router.delete("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
+  const financeProjectId = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
+  const existing = await prisma.projekPR.findFirst({ where: { id: pid, adm_finance_project_id: financeProjectId }, select: { id: true } });
+  if (!existing) return res.status(404).json({ detail: "PR tidak ditemukan pada projek ini" });
+  const receivedPb = await prisma.projectPB.findFirst({ where: { pr_id: pid, status: { in: ["Sebagian Diterima", "Selesai"] } }, select: { id: true } });
+  if (receivedPb) return res.status(409).json({ detail: "PR tidak bisa dihapus karena barang PB sudah diterima" });
   await prisma.$transaction(async (tx) => {
     // PB Projek yang PR-nya dihapus (barang belum diterima) kembali ke "Disetujui"
     // supaya Finance bisa membuat PR baru. Barang Masuk otomatis dari PB versi
     // lama ikut dihapus karena barangnya tidak pernah datang.
     const openPbs = await tx.projectPB.findMany({ where: { pr_id: pid, status: "Diproses PR" }, include: { items: { select: { stock_item_id: true } } } });
-    if (openPbs.length) {
-      await tx.projectStockMovement.deleteMany({ where: { reference_type: "PR", reference_id: pid, stock_item_id: { in: openPbs.flatMap((pb) => pb.items.map((i) => i.stock_item_id)) } } });
-      await tx.projectPB.updateMany({ where: { id: { in: openPbs.map((pb) => pb.id) } }, data: { status: "Disetujui", pr_id: null } });
-    }
+    if (openPbs.length) await tx.projectPB.updateMany({ where: { id: { in: openPbs.map((pb) => pb.id) } }, data: { status: "Disetujui", pr_id: null } });
     await tx.projekPR.delete({ where: { id: pid } });
   });
   return res.json({ message: "PR dihapus" });
@@ -2443,10 +2460,14 @@ router.get("/adm-projek/:id/pr/available", async (req: Request, res: Response) =
 
 // POST /finance/adm-projek/:id/pr/:pid/sign — HF sign PR
 router.post("/adm-projek/:id/pr/:pid/sign", async (req: Request, res: Response) => {
+  const financeProjectId = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
   const user = (req as any).user;
   const { hf_signature } = req.body;
-  const pr = await prisma.projekPR.findUnique({ where: { id: pid } });
+  const maySign = req.user?.roles.some((role: any) => ["Head Finance", "Super Admin"].includes(role.role.name));
+  if (!maySign) return res.status(403).json({ detail: "Hanya Head Finance yang dapat menandatangani PR" });
+  if (!String(hf_signature ?? "").trim()) return res.status(400).json({ detail: "Tanda tangan Head Finance wajib diisi" });
+  const pr = await prisma.projekPR.findFirst({ where: { id: pid, adm_finance_project_id: financeProjectId } });
   if (!pr) return res.status(404).json({ detail: "PR tidak ditemukan" });
   if (pr.status !== "Disetujui") return res.status(400).json({ detail: "PR harus berstatus Disetujui terlebih dahulu" });
   const updated = await prisma.projekPR.update({

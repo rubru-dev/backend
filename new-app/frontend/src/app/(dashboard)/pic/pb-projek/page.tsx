@@ -9,6 +9,7 @@ import { projectStockApi } from "@/lib/api/projectStock";
 import { PBStatusBadge } from "@/components/pb-status-badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { PBReceiveDialog } from "@/components/pb-receive-dialog";
 
 type ProjectType = "sipil" | "interior";
 type FormRow = { key: number; stock_item_id: string; qty: string; catatan: string };
@@ -74,7 +75,7 @@ export default function PBProjekPage() {
     onError: apiError("Gagal menghapus PB"),
   });
   const receive = useMutation({
-    mutationFn: (id: string) => projectStockApi.receivePB(id),
+    mutationFn: ({ id, tanggal, items }: { id: string; tanggal: string; items: { pb_item_id: string; qty: number }[] }) => projectStockApi.receivePB(id, tanggal, items),
     onSuccess: () => { toast.success("Barang diterima, Barang Masuk tercatat di Stock Opname"); setReceiveTarget(null); refreshAll(); },
     onError: apiError("Gagal mencatat penerimaan barang"),
   });
@@ -128,7 +129,7 @@ export default function PBProjekPage() {
                 <div>
                   <select aria-label={`Item baris ${index + 1}`} className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={row.stock_item_id} onChange={(e) => updateRow(row.key, { stock_item_id: e.target.value, qty: "" })}>
                     <option value="">Pilih alat / material</option>
-                    {(["Alat", "Material"] as const).map((jenis) => <optgroup key={jenis} label={jenis}>{stockItems.filter((s) => s.jenis === jenis).map((s) => <option key={s.id} value={String(s.id)} disabled={taken.has(String(s.id)) || (s.sisa_pengajuan <= 0 && String(s.id) !== row.stock_item_id)}>{s.nama_item} — sisa {s.sisa_pengajuan} {s.satuan}{taken.has(String(s.id)) ? " (sudah dipilih)" : ""}</option>)}</optgroup>)}
+                    {(["Alat", "Material"] as const).map((jenis) => <optgroup key={jenis} label={jenis}>{stockItems.filter((s) => s.jenis === jenis).map((s) => <option key={s.id} value={String(s.id)} disabled={taken.has(String(s.id)) || (s.sisa_pengajuan <= 0 && String(s.id) !== row.stock_item_id)}>{s.nama_item}, sisa {s.sisa_pengajuan} {s.satuan}{taken.has(String(s.id)) ? " (sudah dipilih)" : ""}</option>)}</optgroup>)}
                   </select>
                   {item && <p className="mt-1 text-xs text-muted-foreground">Qty Total {item.qty_total} {item.satuan} · Sisa pengajuan <b>{item.sisa_pengajuan} {item.satuan}</b></p>}
                 </div>
@@ -155,7 +156,7 @@ export default function PBProjekPage() {
       <tbody className="divide-y">{(pbList.data ?? []).map((pb) => <tr key={pb.id} className="align-top">
         <td className="px-3 py-3 font-medium">{pb.nomor_pb}<div className="text-xs font-normal text-muted-foreground">{fmtDate(pb.created_at)}</div></td>
         <td className="px-3 py-3">{pb.project_name}<div className="text-xs text-muted-foreground">{pb.project_type === "interior" ? "Interior" : "Sipil"}</div></td>
-        <td className="max-w-[300px] px-3 py-3"><ul className="space-y-0.5">{pb.items.map((i: any) => <li key={i.id}>{i.nama_item}: <b>{i.qty} {i.satuan}</b>{i.catatan && <span className="text-xs text-muted-foreground"> — {i.catatan}</span>}</li>)}</ul></td>
+        <td className="max-w-[300px] px-3 py-3"><ul className="space-y-0.5">{pb.items.map((i: any) => <li key={i.id}>{i.nama_item}: <b>{i.qty} {i.satuan}</b>{i.catatan && <span className="text-xs text-muted-foreground">, {i.catatan}</span>}</li>)}</ul></td>
         <td className="px-3 py-3"><PBStatusBadge status={pb.status} revisi={pb.status === "Draft" && Boolean(pb.catatan_review)} />{pb.catatan_review && ["Draft", "Ditolak"].includes(pb.status) && <div className="mt-1.5 max-w-[220px] rounded bg-orange-50 px-2 py-1 text-xs text-orange-800"><b>{pb.status === "Ditolak" ? "Alasan" : "Revisi"} ({pb.reviewer}):</b> {pb.catatan_review}</div>}</td>
         <td className="px-3 py-3 text-xs"><ApprovalLine label="Finance" name={pb.finance_approver} at={pb.finance_approved_at} /><ApprovalLine label="Super Admin" name={pb.sa_approver} at={pb.sa_approved_at} /></td>
         <td className="px-3 py-3">{pb.pr_id ? (pb.nomor_pr || "PR dibuat") : "-"}</td>
@@ -165,7 +166,7 @@ export default function PBProjekPage() {
             <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" onClick={() => setDeleteTarget(pb)}><Trash2 className="h-3.5 w-3.5" />Hapus</button>
             <button type="button" className="inline-flex items-center gap-1 rounded-md bg-orange-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-orange-600" onClick={() => { setSubmitChecked(false); setSubmitTarget(pb); }}><Send className="h-3.5 w-3.5" />Kirim ke Finance</button>
           </>}
-          {pb.status === "Diproses PR" && <button type="button" className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white" onClick={() => setReceiveTarget(pb)}><PackageCheck className="h-3.5 w-3.5" />Barang Diterima</button>}
+          {["Diproses PR", "Sebagian Diterima"].includes(pb.status) && <button type="button" className="inline-flex min-h-10 items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white" onClick={() => setReceiveTarget(pb)}><PackageCheck className="h-3.5 w-3.5" />Catat Penerimaan</button>}
         </div></td>
       </tr>)}
       {pbList.isLoading && <tr><td colSpan={7} className="px-4 py-10 text-center">Memuat daftar PB...</td></tr>}
@@ -192,11 +193,7 @@ export default function PBProjekPage() {
       </DialogContent>
     </Dialog>
 
-    <Dialog open={Boolean(receiveTarget)} onOpenChange={(open) => !open && setReceiveTarget(null)}>
-      <DialogContent className="max-w-sm"><DialogHeader><DialogTitle>Barang {receiveTarget?.nomor_pb} sudah diterima?</DialogTitle><DialogDescription>Barang Masuk akan tercatat di Stock Opname projek sesuai qty PB.</DialogDescription></DialogHeader>
-        <DialogFooter className="gap-2"><Button type="button" variant="outline" onClick={() => setReceiveTarget(null)}>Batal</Button><Button type="button" className="bg-emerald-600 hover:bg-emerald-700" disabled={receive.isPending} onClick={() => receive.mutate(receiveTarget.id)}><PackageCheck className="mr-1 h-4 w-4" />Ya, Diterima</Button></DialogFooter>
-      </DialogContent>
-    </Dialog>
+    <PBReceiveDialog pb={receiveTarget} pending={receive.isPending} onClose={() => setReceiveTarget(null)} onSubmit={(tanggal, items) => receiveTarget && receive.mutate({ id: receiveTarget.id, tanggal, items })} />
   </div>;
 }
 

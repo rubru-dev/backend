@@ -17,9 +17,11 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuthStore } from "@/store/authStore";
 import { logout as apiLogout } from "@/lib/api/auth";
 import { getInitials } from "@/lib/utils";
+import { useQueryClient } from "@tanstack/react-query";
 
 export function UserMenu() {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const { user, logout } = useAuthStore();
   const [isLoggingOut, setIsLoggingOut] = useState(false);
 
@@ -31,6 +33,7 @@ export function UserMenu() {
       // ignore server-side errors
     } finally {
       logout();
+      queryClient.clear();
       // Clear the middleware auth cookie
       document.cookie = "is_authed=; path=/; max-age=0"; document.cookie = "is_tukang=; path=/; max-age=0";
       router.push("/login");

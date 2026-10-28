@@ -8,6 +8,24 @@
 set -e
 
 ACTION=${1:-fresh}
+INITIAL_MIGRATION="20261028000000_project_pb_reliability"
+
+run_migrations() {
+  local output
+  if output=$(docker compose exec backend npx prisma migrate deploy 2>&1); then
+    echo "$output"
+    return 0
+  fi
+  echo "$output"
+  if echo "$output" | grep -q "P3005"; then
+    echo "Database lama terdeteksi. Terapkan migration awal dan buat baseline..."
+    docker compose exec backend npx prisma db execute --file "prisma/migrations/$INITIAL_MIGRATION/migration.sql" --schema prisma/schema.prisma
+    docker compose exec backend npx prisma migrate resolve --applied "$INITIAL_MIGRATION"
+    docker compose exec backend npx prisma migrate deploy
+    return 0
+  fi
+  return 1
+}
 
 echo "=== RubahRumah Deploy ($ACTION) ==="
 
@@ -27,8 +45,9 @@ if [ "$ACTION" = "fresh" ]; then
   sleep 5
 
   echo "[3/3] Jalankan Prisma migrate & seed..."
-  docker compose exec backend npx prisma migrate deploy
+  run_migrations
   docker compose exec backend npm run seed
+  docker compose exec backend npm run update:projek-access
   docker compose exec backend npm run sync-addendum-access
 
   echo ""
@@ -45,9 +64,10 @@ elif [ "$ACTION" = "update" ]; then
   docker compose up -d --build --no-deps
 
   echo "[3/4] Jalankan Prisma migrate..."
-  docker compose exec backend npx prisma migrate deploy
+  run_migrations
 
   echo "[3.5/4] Sinkronisasi akses Addendum..."
+  docker compose exec backend npm run update:projek-access
   docker compose exec backend npm run sync-addendum-access
 
   echo "[4/4] Restart services..."
