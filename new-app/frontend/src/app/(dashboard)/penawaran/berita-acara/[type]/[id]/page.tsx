@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import { BeritaAcaraEditor } from "@/components/berita-acara-penawaran";
 import type { PenawaranType } from "@/lib/api/penawaran";
 
-const VALID_TYPES = new Set<PenawaranType>(["rubru", "rkr", "desain"]);
+const VALID_TYPES = new Set<PenawaranType>(["rubru", "rkr"]);
 
 export default function BeritaAcaraDetailPage({
   params,

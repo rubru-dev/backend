@@ -11,7 +11,6 @@ import { penawaranApi, type PenawaranType } from "@/lib/api/penawaran";
 const UNITS: Array<{ type: PenawaranType; name: string }> = [
   { type: "rubru", name: "Rubah Rumah" },
   { type: "rkr", name: "Ruangkeruang" },
-  { type: "desain", name: "Desain" },
 ];
 
 type ListedBeritaAcara = BeritaAcara & { sourceType: PenawaranType };

@@ -13,7 +13,6 @@ import { useAuthStore } from "@/store/authStore";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SignatureDialog } from "@/components/signature-dialog";
-import { BeritaAcaraPenawaran } from "@/components/berita-acara-penawaran";
 import { penawaranApi } from "@/lib/api/penawaran";
 
 const PACKAGES = {
@@ -550,11 +549,11 @@ export default function PenawaranDesainPage() {
         </TabsContent>
         <TabsContent value="list" className="mt-4">
           <div className="overflow-x-auto rounded-lg border bg-white">
-            <div className="grid min-w-[1040px] grid-cols-[1.2fr_1fr_1fr_1fr_330px] gap-3 border-b px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
+            <div className="grid min-w-[900px] grid-cols-[1.2fr_1fr_1fr_1fr_190px] gap-3 border-b px-4 py-3 text-xs font-semibold uppercase text-muted-foreground">
               <span>Client</span><span>Tanggal</span><span>Paket</span><span>Total</span><span className="text-right">Aksi</span>
             </div>
             {savedOffers.length ? savedOffers.map((offer) => (
-              <div key={offer.id} className="grid min-w-[1040px] grid-cols-[1.2fr_1fr_1fr_1fr_330px] items-center gap-3 border-b px-4 py-3 text-sm last:border-b-0">
+              <div key={offer.id} className="grid min-w-[900px] grid-cols-[1.2fr_1fr_1fr_1fr_190px] items-center gap-3 border-b px-4 py-3 text-sm last:border-b-0">
                 <span className="font-medium">{offer.salutation} {offer.clientName}</span>
                 <span>{formatDateID(offer.tanggal)}</span>
                 <span>{offer.paketName}</span>
@@ -562,7 +561,6 @@ export default function PenawaranDesainPage() {
                 <div className="flex justify-end gap-1">
                   <Button size="sm" variant="outline" onClick={() => askConfirm({ title: "Konfirmasi Buka", description: "Muat data penawaran ini ke form?", confirmLabel: "Buka", onConfirm: () => loadOffer(offer) })}>Buka</Button>
                   <Button size="sm" onClick={() => askConfirm({ title: "Konfirmasi PDF", description: "Muat dan download PDF penawaran ini?", confirmLabel: "Download PDF", onConfirm: () => loadOffer(offer, true) })} disabled={downloadingPdf}><Download className="h-3.5 w-3.5 mr-1" /> PDF</Button>
-                  <BeritaAcaraPenawaran type="desain" offer={offer} />
                   {isSuperAdmin && (
                     <Button size="icon" variant="ghost" onClick={() => askConfirm({ title: "Konfirmasi Hapus", description: "Hapus penawaran desain ini dari daftar?", confirmLabel: "Hapus", variant: "destructive", onConfirm: () => deleteOffer(offer.id) })}><Trash2 className="h-4 w-4 text-red-500" /></Button>
                   )}

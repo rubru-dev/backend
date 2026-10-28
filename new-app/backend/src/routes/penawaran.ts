@@ -80,6 +80,9 @@ router.post("/:type/offers", async (req: Request, res: Response) => {
   const data = req.body?.data;
   if (!validType(type) || !validKind(kind)) return res.status(400).json({ detail: "Tipe penawaran tidak valid" });
   if (!data || typeof data !== "object" || Array.isArray(data)) return res.status(400).json({ detail: "Data penawaran wajib diisi" });
+  if (kind === "berita_acara" && type === "desain") {
+    return res.status(400).json({ detail: "Berita Acara hanya tersedia untuk Rubah Rumah dan Ruangkeruang" });
+  }
   if (kind === "berita_acara") {
     const validationError = validateBeritaAcara(data);
     if (validationError) return res.status(400).json({ detail: validationError });
