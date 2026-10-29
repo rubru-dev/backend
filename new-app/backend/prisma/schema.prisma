@@ -2001,6 +2001,7 @@ model ProjectStockMovement {
   tanggal            DateTime         @db.Date
   catatan            String?
   created_by         BigInt?
+  receipt_key        String?          @db.VarChar(100)
   created_at         DateTime         @default(now()) @db.Timestamptz(6)
   stock_item         ProjectStockItem @relation(fields: [stock_item_id], references: [id], onDelete: Cascade)
   warehouse_stock    StokWarehouse?   @relation(fields: [warehouse_stock_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
@@ -2008,6 +2009,7 @@ model ProjectStockMovement {
 
   @@index([stock_item_id, movement_type], map: "idx_project_stock_movements_item_type")
   @@index([project_type, project_id], map: "idx_project_stock_movements_project")
+  @@unique([receipt_key, stock_item_id], map: "uq_project_stock_movement_receipt_item")
   @@map("project_stock_movements")
 }
 
@@ -2015,7 +2017,7 @@ model ProjectPB {
   id                  BigInt          @id @default(autoincrement())
   project_type        String          @db.VarChar(20)
   project_id          BigInt
-  nomor_pb            String?         @db.VarChar(100)
+  nomor_pb            String?         @unique(map: "project_pbs_nomor_pb_key") @db.VarChar(100)
   status              String          @default("Diajukan") @db.VarChar(30)
   catatan             String?
   created_by          BigInt?

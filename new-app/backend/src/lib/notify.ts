@@ -155,6 +155,18 @@ export async function sendNotifToRoles(roleNames: string[], message: string, sub
   await deliverMany(users, message, subject);
 }
 
+/** Kirim ke semua user yang role-nya memiliki permission tertentu. */
+export async function sendNotifToPermission(permissionName: string, message: string, subject?: string) {
+  const users = await prisma.user.findMany({
+    where: {
+      roles: { some: { role: { permissions: { some: { permission: { name: permissionName } } } } } },
+      NOT: { email: { startsWith: "deleted+" } },
+    },
+    select: NOTIFY_USER_SELECT,
+  });
+  await deliverMany(users, message, subject);
+}
+
 /** Kirim ke user berdasarkan ID */
 export async function sendNotifToUserIds(userIds: bigint[], message: string, subject?: string) {
   if (userIds.length === 0) return;

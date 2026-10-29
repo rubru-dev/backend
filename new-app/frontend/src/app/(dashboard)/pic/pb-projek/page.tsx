@@ -10,6 +10,7 @@ import { PBStatusBadge } from "@/components/pb-status-badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PBReceiveDialog } from "@/components/pb-receive-dialog";
+import { useAuthStore } from "@/store/authStore";
 
 type ProjectType = "sipil" | "interior";
 type FormRow = { key: number; stock_item_id: string; qty: string; catatan: string };
@@ -20,6 +21,8 @@ const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleDate
 
 export default function PBProjekPage() {
   const qc = useQueryClient();
+  const hasHydrated = useAuthStore((state) => state._hasHydrated);
+  const canAccess = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("pic", "pb_projek"));
   const [tab, setTab] = useState<"form" | "list">("form");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [projectType, setProjectType] = useState<ProjectType>("sipil");
@@ -31,11 +34,11 @@ export default function PBProjekPage() {
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<any | null>(null);
 
-  const projects = useQuery({ queryKey: ["pb-project-options", projectType], queryFn: () => laporanPicApi.projekOptions(projectType) });
-  const stock = useQuery<any[]>({ queryKey: ["pb-stock-options", projectType, projectId], queryFn: () => projectStockApi.list(projectType, projectId), enabled: Boolean(projectId), staleTime: 0 });
+  const projects = useQuery({ queryKey: ["pb-project-options", projectType], queryFn: () => laporanPicApi.projekOptions(projectType), enabled: hasHydrated && canAccess });
+  const stock = useQuery<any[]>({ queryKey: ["pb-stock-options", projectType, projectId], queryFn: () => projectStockApi.list(projectType, projectId), enabled: hasHydrated && canAccess && Boolean(projectId), staleTime: 0 });
   // Jangan pakai initialData: dengan staleTime global 60 detik, initialData kosong
   // dianggap fresh sehingga daftar PB tidak pernah diambil dari server.
-  const pbList = useQuery<any[]>({ queryKey: ["pb-list-all"], queryFn: projectStockApi.listPBAll, enabled: tab === "list", staleTime: 0 });
+  const pbList = useQuery<any[]>({ queryKey: ["pb-list-all"], queryFn: projectStockApi.listPBAll, enabled: hasHydrated && canAccess && tab === "list", staleTime: 0 });
 
   const stockItems = stock.data ?? [];
   const stockById = useMemo(() => new Map(stockItems.map((item) => [String(item.id), item])), [stockItems]);
@@ -75,7 +78,7 @@ export default function PBProjekPage() {
     onError: apiError("Gagal menghapus PB"),
   });
   const receive = useMutation({
-    mutationFn: ({ id, tanggal, items }: { id: string; tanggal: string; items: { pb_item_id: string; qty: number }[] }) => projectStockApi.receivePB(id, tanggal, items),
+    mutationFn: ({ id, tanggal, items, requestId }: { id: string; tanggal: string; items: { pb_item_id: string; qty: number }[]; requestId: string }) => projectStockApi.receivePB(id, tanggal, items, requestId),
     onSuccess: () => { toast.success("Barang diterima, Barang Masuk tercatat di Stock Opname"); setReceiveTarget(null); refreshAll(); },
     onError: apiError("Gagal mencatat penerimaan barang"),
   });
@@ -100,6 +103,9 @@ export default function PBProjekPage() {
   };
 
   const projectLocked = Boolean(editingId);
+
+  if (!hasHydrated) return <div role="status" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Memeriksa akses PB Projek...</div>;
+  if (!canAccess) return <div role="alert" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Anda tidak memiliki akses PB Projek PIC. Hubungi Super Admin untuk mengaktifkan permission.</div>;
 
   return <div className="mx-auto max-w-6xl space-y-5 p-4 md:p-6">
     <div><h1 className="flex items-center gap-2 text-2xl font-bold"><PackagePlus className="h-6 w-6 text-orange-500" /> PB Projek</h1><p className="mt-1 text-sm text-muted-foreground">Ajukan kebutuhan alat atau material untuk projek yang ditugaskan kepada Anda. PB disimpan sebagai Draft dulu, lalu dikirim ke Finance setelah dicek.</p></div>
@@ -166,7 +172,9 @@ export default function PBProjekPage() {
             <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" onClick={() => setDeleteTarget(pb)}><Trash2 className="h-3.5 w-3.5" />Hapus</button>
             <button type="button" className="inline-flex items-center gap-1 rounded-md bg-orange-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-orange-600" onClick={() => { setSubmitChecked(false); setSubmitTarget(pb); }}><Send className="h-3.5 w-3.5" />Kirim ke Finance</button>
           </>}
-          {["Diproses PR", "Sebagian Diterima"].includes(pb.status) && <button type="button" className="inline-flex min-h-10 items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white" onClick={() => setReceiveTarget(pb)}><PackageCheck className="h-3.5 w-3.5" />Catat Penerimaan</button>}
+          {["Diproses PR", "Sebagian Diterima"].includes(pb.status) && (pb.pr_ready_to_receive
+            ? <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white" onClick={() => setReceiveTarget(pb)}><PackageCheck className="h-3.5 w-3.5" />Catat Penerimaan</button>
+            : <span className="max-w-44 text-right text-xs text-muted-foreground">Menunggu PR disetujui dan ditandatangani Head Finance</span>)}
         </div></td>
       </tr>)}
       {pbList.isLoading && <tr><td colSpan={7} className="px-4 py-10 text-center">Memuat daftar PB...</td></tr>}
@@ -193,7 +201,7 @@ export default function PBProjekPage() {
       </DialogContent>
     </Dialog>
 
-    <PBReceiveDialog pb={receiveTarget} pending={receive.isPending} onClose={() => setReceiveTarget(null)} onSubmit={(tanggal, items) => receiveTarget && receive.mutate({ id: receiveTarget.id, tanggal, items })} />
+    <PBReceiveDialog pb={receiveTarget} pending={receive.isPending} onClose={() => setReceiveTarget(null)} onSubmit={(tanggal, items, requestId) => receiveTarget && receive.mutate({ id: receiveTarget.id, tanggal, items, requestId })} />
   </div>;
 }
 

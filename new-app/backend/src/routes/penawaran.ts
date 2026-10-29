@@ -31,6 +31,17 @@ function validKind(kind: string) {
   return KINDS.has(kind);
 }
 
+function canAccessBeritaAcara(req: Request) {
+  return req.user?.roles.some((role: any) => role.role.name === "Super Admin") === true
+    || req.userPermissions?.has("penawaran.berita_acara") === true;
+}
+
+function requireBeritaAcaraAccess(req: Request, res: Response, kind: string) {
+  if (kind !== "berita_acara" || canAccessBeritaAcara(req)) return true;
+  res.status(403).json({ detail: "Tidak memiliki akses Berita Acara" });
+  return false;
+}
+
 function validateBeritaAcara(data: any) {
   if (!String(data.judul ?? "").trim()) return "Judul Berita Acara wajib diisi";
   if (!String(data.nomor ?? "").trim()) return "Nomor Berita Acara wajib diisi";
@@ -64,6 +75,7 @@ router.get("/:type/offers", async (req: Request, res: Response) => {
   const type = String(req.params.type);
   const kind = String(req.query.kind ?? "offer");
   if (!validType(type) || !validKind(kind)) return res.status(400).json({ detail: "Tipe penawaran tidak valid" });
+  if (!requireBeritaAcaraAccess(req, res, kind)) return;
   await ensureTable();
   const rows = await prisma.$queryRaw<any[]>`
     SELECT id, type, kind, data, created_by, created_at, updated_at
@@ -79,6 +91,7 @@ router.post("/:type/offers", async (req: Request, res: Response) => {
   const kind = String(req.body?.kind ?? "offer");
   const data = req.body?.data;
   if (!validType(type) || !validKind(kind)) return res.status(400).json({ detail: "Tipe penawaran tidak valid" });
+  if (!requireBeritaAcaraAccess(req, res, kind)) return;
   if (!data || typeof data !== "object" || Array.isArray(data)) return res.status(400).json({ detail: "Data penawaran wajib diisi" });
   if (kind === "berita_acara" && type === "desain") {
     return res.status(400).json({ detail: "Berita Acara hanya tersedia untuk Rubah Rumah dan Ruangkeruang" });
@@ -127,6 +140,7 @@ router.delete("/offers/:id", async (req: Request, res: Response) => {
   const id = String(req.params.id);
   const rows = await prisma.$queryRaw<any[]>`SELECT kind, data FROM penawaran_offers WHERE id = ${id} LIMIT 1`;
   if (!rows.length) return res.status(404).json({ detail: "Dokumen tidak ditemukan" });
+  if (!requireBeritaAcaraAccess(req, res, rows[0].kind)) return;
   if (rows[0].kind === "berita_acara" && rows[0].data?.status !== "Draft") {
     return res.status(409).json({ detail: "Hanya Berita Acara berstatus Draft yang dapat dihapus" });
   }

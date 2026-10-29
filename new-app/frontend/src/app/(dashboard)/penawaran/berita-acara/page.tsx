@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { BeritaAcara } from "@/components/berita-acara-penawaran";
 import { penawaranApi, type PenawaranType } from "@/lib/api/penawaran";
+import { useAuthStore } from "@/store/authStore";
 
 const UNITS: Array<{ type: PenawaranType; name: string }> = [
   { type: "rubru", name: "Rubah Rumah" },
@@ -54,6 +55,8 @@ function DocumentList({ items, emptyText, actionLabel }: { items: ListedBeritaAc
 }
 
 export default function BeritaAcaraPage() {
+  const hasHydrated = useAuthStore((state) => state._hasHydrated);
+  const canAccess = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("penawaran", "berita_acara"));
   const query = useQuery({
     queryKey: ["penawaran-berita-acara-all"],
     queryFn: async () => {
@@ -64,10 +67,14 @@ export default function BeritaAcaraPage() {
       );
       return groups.flat().sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
     },
+    enabled: hasHydrated && canAccess,
   });
 
   const items: ListedBeritaAcara[] = query.data ?? [];
   const reviewItems = items.filter((item) => item.status === "Draft");
+
+  if (!hasHydrated) return <div role="status" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Memeriksa akses Berita Acara...</div>;
+  if (!canAccess) return <div role="alert" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Anda tidak memiliki akses Berita Acara. Hubungi Super Admin untuk mengaktifkan permission.</div>;
 
   return (
     <div className="space-y-6">

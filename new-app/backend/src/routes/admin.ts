@@ -325,6 +325,7 @@ const ENSURED_PERMISSIONS: Array<{ name: string; module: string; label: string }
   { name: "penawaran.desain",      module: "penawaran", label: "Sub-menu: Penawaran Desain" },
   { name: "penawaran.rkr",         module: "penawaran", label: "Sub-menu: Penawaran RKR" },
   { name: "penawaran.rubru",       module: "penawaran", label: "Sub-menu: Penawaran Rubru" },
+  { name: "penawaran.berita_acara", module: "penawaran", label: "Sub-menu: Berita Acara" },
   { name: "sales.addendum",       module: "sales", label: "Sub-menu: Addendum Kontrak" },
   { name: "ruangkeruang.view",    module: "ruangkeruang", label: "Lihat menu Ruangkeruang" },
   { name: "ruangkeruang.manage",  module: "ruangkeruang", label: "Kelola pengaturan Front End Ruangkeruang" },

@@ -1,14 +1,16 @@
 import { Router, Request, Response } from "express";
 import { prisma } from "../lib/prisma";
-import { requireRole, requirePermission, requireModuleAccess } from "../middleware/requireRole";
+import { requireRole, requirePermission, requireModuleAccess, requireAnyPermission } from "../middleware/requireRole";
 import { getPagination, paginateResponse } from "../middleware/pagination";
 import { sendNotifToRoles, sendNotifToSuperAdmins, triggerEventReminder, FRONTEND_URL } from "../lib/notify";
 import fs from "fs";
 import path from "path";
 import multer from "multer";
 import { config } from "../config";
+import { quantitiesMatch } from "../lib/projectStockPolicy";
 
 const router = Router();
+const requirePRAccess = requireAnyPermission("finance.pr", "finance.adm_projek");
 const MAX_STORED_IMAGE_BYTES = 8 * 1024 * 1024;
 
 const cashflowAttachmentDir = path.resolve(config.storagePath, "cashflow-attachments");
@@ -1881,7 +1883,7 @@ router.delete("/adm-projek/:id/list-material/:mid/items/:iid", async (req: Reque
 // ─── Purchase Request (PR) ────────────────────────────────────────────────────
 
 // GET /finance/adm-projek/:id/pr
-router.get("/adm-projek/:id/pr", async (req: Request, res: Response) => {
+router.get("/adm-projek/:id/pr", requirePRAccess, async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const items = await prisma.projekPR.findMany({
     where: { adm_finance_project_id: id },
@@ -1892,7 +1894,7 @@ router.get("/adm-projek/:id/pr", async (req: Request, res: Response) => {
 });
 
 // POST /finance/adm-projek/:id/pr
-router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
+router.post("/adm-projek/:id/pr", requirePRAccess, async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { tanggal, nama_toko, catatan, items, diskon_harga_keseluruhan } = req.body;
   if (!tanggal) return res.status(400).json({ detail: "tanggal wajib diisi" });
@@ -1932,12 +1934,14 @@ router.post("/adm-projek/:id/pr", async (req: Request, res: Response) => {
 });
 
 // PUT /finance/adm-projek/:id/pr/:pid — edit PR (signature is invalidated on edit)
-router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
+router.put("/adm-projek/:id/pr/:pid", requirePRAccess, async (req: Request, res: Response) => {
   const financeProjectId = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
   const existing = await prisma.projekPR.findUnique({ where: { id: pid }, include: { items: true } });
   if (!existing) return res.status(404).json({ detail: "PR tidak ditemukan" });
   if (existing.adm_finance_project_id !== financeProjectId) return res.status(404).json({ detail: "PR tidak ditemukan pada projek ini" });
+  const receivedPb = await prisma.projectPB.findFirst({ where: { pr_id: pid, items: { some: { qty_received: { gt: 0 } } } }, select: { id: true } });
+  if (receivedPb) return res.status(409).json({ detail: "PR tidak bisa diubah karena sebagian barang PB sudah diterima" });
 
   const { tanggal, nama_toko, catatan, items, diskon_harga_keseluruhan } = req.body;
   if (!tanggal) return res.status(400).json({ detail: "tanggal wajib diisi" });
@@ -1955,13 +1959,17 @@ router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
       if (item.project_pb_item_id == null) continue;
       const pbItem = pbItems.find((row) => row.id === BigInt(item.project_pb_item_id));
       const qty = Number(item.qty);
-      if (!pbItem || !Number.isFinite(qty) || qty <= 0 || qty > Number(pbItem.qty) || qty < Number(pbItem.qty_received)) {
-        return res.status(400).json({ detail: "Qty item PB harus positif, tidak melebihi PB, dan tidak boleh di bawah qty yang sudah diterima" });
+      if (!pbItem || !quantitiesMatch(qty, Number(pbItem.qty))) {
+        return res.status(400).json({ detail: "Qty item yang berasal dari PB harus sama dengan qty PB" });
       }
     }
   }
 
   const pr = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM project_pbs WHERE pr_id = ${pid} ORDER BY id FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM projek_prs WHERE id = ${pid} FOR UPDATE`;
+    const receivedDuringEdit = await tx.projectPB.findFirst({ where: { pr_id: pid, items: { some: { qty_received: { gt: 0 } } } }, select: { id: true } });
+    if (receivedDuringEdit) throw new Error("PR_RECEIPT_EXISTS");
     await tx.projekPRItem.deleteMany({ where: { projek_pr_id: pid } });
     return tx.projekPR.update({
       where: { id: pid },
@@ -1981,42 +1989,76 @@ router.put("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
       },
       include: { items: { include: { termin: true } } },
     });
+  }).catch((error: any) => {
+    if (error?.message === "PR_RECEIPT_EXISTS") return null;
+    throw error;
   });
+  if (!pr) return res.status(409).json({ detail: "PR tidak bisa diubah karena penerimaan barang baru saja dicatat" });
   return res.json({ message: "PR diperbarui", data: pr });
 });
 
 // PATCH /finance/adm-projek/:id/pr/:pid/status
-router.patch("/adm-projek/:id/pr/:pid/status", async (req: Request, res: Response) => {
+router.patch("/adm-projek/:id/pr/:pid/status", requirePRAccess, async (req: Request, res: Response) => {
   const financeProjectId = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
   const { status, catatan } = req.body;
   if (!["Pending", "Disetujui", "Ditolak"].includes(status)) return res.status(400).json({ detail: "Status PR tidak valid" });
-  const found = await prisma.projekPR.findFirst({ where: { id: pid, adm_finance_project_id: financeProjectId }, select: { id: true } });
-  if (!found) return res.status(404).json({ detail: "PR tidak ditemukan pada projek ini" });
-  const pr = await prisma.projekPR.update({
-    where: { id: found.id },
-    data: { status: status || "Pending", catatan: catatan || undefined },
-    include: { items: true },
-  });
+  let pr;
+  try {
+    pr = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM project_pbs WHERE pr_id = ${pid} ORDER BY id FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM projek_prs WHERE id = ${pid} FOR UPDATE`;
+      const found = await tx.projekPR.findFirst({ where: { id: pid, adm_finance_project_id: financeProjectId } });
+      if (!found) throw new Error("PR_NOT_FOUND");
+      const linkedPbs = await tx.projectPB.findMany({ where: { pr_id: pid }, include: { items: { select: { qty_received: true } } } });
+      const hasReceivedItems = linkedPbs.some((pb) => pb.items.some((item) => Number(item.qty_received) > 0));
+      const isRecoveryApproval = found.status === "Pending" && status === "Disetujui";
+      if (hasReceivedItems && status !== found.status && !isRecoveryApproval) throw new Error("PR_ALREADY_RECEIVED");
+
+      const updated = await tx.projekPR.update({
+        where: { id: found.id },
+        data: {
+          status,
+          catatan: catatan || undefined,
+          ...(status !== "Disetujui" ? { hf_signed_at: null, hf_signed_by: null, hf_name: null, hf_signature: null } : {}),
+        },
+        include: { items: true },
+      });
+
+      if (status === "Ditolak" && linkedPbs.length) {
+        await tx.projekPRItem.updateMany({ where: { projek_pr_id: pid, project_pb_item_id: { not: null } }, data: { project_pb_item_id: null } });
+        await tx.projectPB.updateMany({ where: { pr_id: pid, status: "Diproses PR" }, data: { status: "Disetujui", pr_id: null } });
+      }
+      return updated;
+    });
+  } catch (error: any) {
+    if (error?.message === "PR_NOT_FOUND") return res.status(404).json({ detail: "PR tidak ditemukan pada projek ini" });
+    if (error?.message === "PR_ALREADY_RECEIVED") return res.status(409).json({ detail: "Status PR tidak bisa diubah karena barang PB sudah diterima" });
+    throw error;
+  }
   return res.json({ message: "Status PR diperbarui", data: pr });
 });
 
 // DELETE /finance/adm-projek/:id/pr/:pid
-router.delete("/adm-projek/:id/pr/:pid", async (req: Request, res: Response) => {
+router.delete("/adm-projek/:id/pr/:pid", requirePRAccess, async (req: Request, res: Response) => {
   const financeProjectId = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
   const existing = await prisma.projekPR.findFirst({ where: { id: pid, adm_finance_project_id: financeProjectId }, select: { id: true } });
   if (!existing) return res.status(404).json({ detail: "PR tidak ditemukan pada projek ini" });
-  const receivedPb = await prisma.projectPB.findFirst({ where: { pr_id: pid, status: { in: ["Sebagian Diterima", "Selesai"] } }, select: { id: true } });
+  const receivedPb = await prisma.projectPB.findFirst({ where: { pr_id: pid, items: { some: { qty_received: { gt: 0 } } } }, select: { id: true } });
   if (receivedPb) return res.status(409).json({ detail: "PR tidak bisa dihapus karena barang PB sudah diterima" });
-  await prisma.$transaction(async (tx) => {
-    // PB Projek yang PR-nya dihapus (barang belum diterima) kembali ke "Disetujui"
-    // supaya Finance bisa membuat PR baru. Barang Masuk otomatis dari PB versi
-    // lama ikut dihapus karena barangnya tidak pernah datang.
+  const deleted = await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT id FROM project_pbs WHERE pr_id = ${pid} ORDER BY id FOR UPDATE`;
+    await tx.$queryRaw`SELECT id FROM projek_prs WHERE id = ${pid} FOR UPDATE`;
+    const receivedDuringDelete = await tx.projectPB.findFirst({ where: { pr_id: pid, items: { some: { qty_received: { gt: 0 } } } }, select: { id: true } });
+    if (receivedDuringDelete) return false;
+    // PB yang PR-nya dihapus sebelum penerimaan kembali siap dibuatkan PR.
     const openPbs = await tx.projectPB.findMany({ where: { pr_id: pid, status: "Diproses PR" }, include: { items: { select: { stock_item_id: true } } } });
     if (openPbs.length) await tx.projectPB.updateMany({ where: { id: { in: openPbs.map((pb) => pb.id) } }, data: { status: "Disetujui", pr_id: null } });
     await tx.projekPR.delete({ where: { id: pid } });
+    return true;
   });
+  if (!deleted) return res.status(409).json({ detail: "PR tidak bisa dihapus karena penerimaan barang baru saja dicatat" });
   return res.json({ message: "PR dihapus" });
 });
 
@@ -2444,7 +2486,7 @@ router.post("/adm-projek/:id/termins/:tid/cashflow/gajian", cashflowAttachmentUp
 // ─── PR Sign + Available ──────────────────────────────────────────────────────
 
 // GET /finance/adm-projek/:id/pr/available — PRs that are Disetujui + HF signed
-router.get("/adm-projek/:id/pr/available", async (req: Request, res: Response) => {
+router.get("/adm-projek/:id/pr/available", requirePRAccess, async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const prs = await prisma.projekPR.findMany({
     where: { adm_finance_project_id: id, status: "Disetujui", hf_signed_at: { not: null } },
@@ -2459,7 +2501,7 @@ router.get("/adm-projek/:id/pr/available", async (req: Request, res: Response) =
 });
 
 // POST /finance/adm-projek/:id/pr/:pid/sign — HF sign PR
-router.post("/adm-projek/:id/pr/:pid/sign", async (req: Request, res: Response) => {
+router.post("/adm-projek/:id/pr/:pid/sign", requirePRAccess, async (req: Request, res: Response) => {
   const financeProjectId = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
   const user = (req as any).user;
@@ -2506,7 +2548,7 @@ router.get("/adm-projek/:id/termins/:tid/pdf-data", async (req: Request, res: Re
 });
 
 // GET /finance/adm-projek/:id/pr/:pid/pdf-data
-router.get("/adm-projek/:id/pr/pdf-data", async (req: Request, res: Response) => {
+router.get("/adm-projek/:id/pr/pdf-data", requirePRAccess, async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const { tanggal_start, tanggal_end, bulan, tahun } = req.query as Record<string, string>;
   const where: any = { adm_finance_project_id: id };
@@ -2547,7 +2589,7 @@ router.get("/adm-projek/:id/pr/pdf-data", async (req: Request, res: Response) =>
   });
 });
 
-router.get("/adm-projek/:id/pr/:pid/pdf-data", async (req: Request, res: Response) => {
+router.get("/adm-projek/:id/pr/:pid/pdf-data", requirePRAccess, async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const pid = BigInt(req.params.pid);
   const [project, pr] = await Promise.all([

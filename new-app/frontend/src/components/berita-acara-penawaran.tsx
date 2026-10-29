@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, Download, FileCheck2, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -13,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 import { penawaranApi, type PenawaranType } from "@/lib/api/penawaran";
+import { useAuthStore } from "@/store/authStore";
 
 const BA_TYPES = ["Pertemuan", "Survei", "Negosiasi", "Kesepakatan", "Perubahan Pekerjaan", "Pemeriksaan Pekerjaan", "Serah Terima", "Lainnya"] as const;
 type BAStatus = "Draft" | "Final" | "Ditandatangani";
@@ -139,6 +141,9 @@ function statusClass(status: BAStatus) {
 }
 
 export function BeritaAcaraPenawaran({ type, offer }: { type: PenawaranType; offer: any }) {
+  const hasHydrated = useAuthStore((state) => state._hasHydrated);
+  const canAccess = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("penawaran", "berita_acara"));
+  if (!hasHydrated || !canAccess) return null;
   const href = `/penawaran/berita-acara/${type}/baru?sourceOfferId=${encodeURIComponent(String(offer.id))}`;
   return <Button type="button" size="sm" variant="outline" asChild className="min-h-11 whitespace-nowrap">
     <Link href={href}><FileCheck2 aria-hidden="true" className="mr-1 h-3.5 w-3.5" />Berita Acara</Link>
@@ -148,16 +153,18 @@ export function BeritaAcaraPenawaran({ type, offer }: { type: PenawaranType; off
 export function BeritaAcaraEditor({ type, recordId, sourceOfferId = "" }: { type: PenawaranType; recordId: string; sourceOfferId?: string }) {
   const router = useRouter();
   const qc = useQueryClient();
+  const hasHydrated = useAuthStore((state) => state._hasHydrated);
+  const canAccess = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("penawaran", "berita_acara"));
   const [view, setView] = useState<"form" | "preview">("form");
   const [record, setRecord] = useState<BeritaAcara>(() => emptyRecord(type));
   const initialized = useRef("");
   const previewId = `ba-preview-${type}-${String(recordId).replace(/[^a-zA-Z0-9_-]/g, "")}`;
   const queryKey = ["penawaran-berita-acara", type];
-  const query = useQuery({ queryKey, queryFn: () => penawaranApi.list<BeritaAcara>(type, "berita_acara"), staleTime: 0 });
+  const query = useQuery({ queryKey, queryFn: () => penawaranApi.list<BeritaAcara>(type, "berita_acara"), enabled: hasHydrated && canAccess, staleTime: 0 });
   const offersQuery = useQuery({
     queryKey: ["penawaran-offers-for-ba", type],
     queryFn: () => penawaranApi.list<any>(type, "offer"),
-    enabled: recordId === "baru" && Boolean(sourceOfferId),
+    enabled: hasHydrated && canAccess && recordId === "baru" && Boolean(sourceOfferId),
     staleTime: 30_000,
   });
   const offer = (offersQuery.data ?? []).find((item) => String(item.id) === sourceOfferId);
@@ -216,15 +223,18 @@ export function BeritaAcaraEditor({ type, recordId, sourceOfferId = "" }: { type
     update("detailMode", mode);
     update("rincian", mode === "manual" ? [{ id: makeId("item"), uraian: "", volume: 1, satuan: "unit", hargaSatuan: 0 }] : sourceItems(offer));
   };
-  const downloadPdf = async (item: BeritaAcara = record) => {
-    setRecord(item);
-    setView("preview");
-    window.setTimeout(async () => {
-      try { await downloadOfferPdf(`#${previewId}`, `${item.judul} - ${item.pihakKeduaNama || "Tanpa Nama"}`); }
-      catch (error: any) { toast.error(error?.message || "Gagal membuat PDF Berita Acara"); }
-    }, 100);
+  const downloadPdf = async () => {
+    flushSync(() => setView("preview"));
+    try { await downloadOfferPdf(`#${previewId}`, `${record.judul} - ${record.pihakKeduaNama || "Tanpa Nama"}`); }
+    catch (error: any) { toast.error(error?.message || "Gagal membuat PDF Berita Acara"); }
   };
 
+  if (!hasHydrated) {
+    return <div role="status" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Memeriksa akses Berita Acara...</div>;
+  }
+  if (!canAccess) {
+    return <div role="alert" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Anda tidak memiliki akses Berita Acara. Hubungi Super Admin untuk mengaktifkan permission.</div>;
+  }
   if (query.isLoading || (recordId === "baru" && sourceOfferId && offersQuery.isLoading)) {
     return <div role="status" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Memuat form Berita Acara...</div>;
   }

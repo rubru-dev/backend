@@ -11,15 +11,18 @@ export function PBReceiveDialog({ pb, pending, onClose, onSubmit }: {
   pb: any | null;
   pending: boolean;
   onClose: () => void;
-  onSubmit: (tanggal: string, items: ReceiptRow[]) => void;
+  onSubmit: (tanggal: string, items: ReceiptRow[], requestId: string) => void;
 }) {
   const [tanggal, setTanggal] = useState("");
   const [quantities, setQuantities] = useState<Record<string, string>>({});
+  const [requestId, setRequestId] = useState("");
 
   useEffect(() => {
     if (!pb) return;
-    setTanggal(new Date().toISOString().slice(0, 10));
-    setQuantities(Object.fromEntries((pb.items ?? []).map((item: any) => [String(item.id), String(Math.max(0, Number(item.qty_remaining ?? item.qty) || 0))])));
+    const now = new Date();
+    setTanggal(new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 10));
+    setQuantities(Object.fromEntries((pb.items ?? []).map((item: any) => [String(item.id), "0"])));
+    setRequestId(globalThis.crypto?.randomUUID?.() ?? `${Date.now()}_${Math.random().toString(36).slice(2)}`);
   }, [pb]);
 
   const items = (pb?.items ?? []).map((item: any) => ({
@@ -41,7 +44,7 @@ export function PBReceiveDialog({ pb, pending, onClose, onSubmit }: {
       </label>
       <div className="space-y-2">
         {items.map((item: any) => <div key={item.id} className="grid gap-2 rounded-md border p-3 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-end">
-          <div><div className="text-sm font-medium">{item.nama_item}</div><div className="text-xs text-muted-foreground">Sudah diterima {item.qty_received ?? 0} dari {item.qty} {item.satuan}. Sisa {item.remaining} {item.satuan}.</div></div>
+          <div><div className="text-sm font-medium">{item.nama_item}</div><div className="text-xs text-muted-foreground">Sudah diterima {item.qty_received ?? 0} dari {item.ordered_qty ?? item.qty} {item.satuan}. Sisa {item.remaining} {item.satuan}.</div></div>
           <label className="space-y-1 text-xs font-medium">Qty diterima
             <input aria-label={`Qty diterima ${item.nama_item}`} type="number" min="0" max={item.remaining} step="any" className="min-h-11 w-full rounded-md border bg-background px-3 text-right text-sm font-normal" value={quantities[String(item.id)] ?? ""} onChange={(event) => setQuantities((current) => ({ ...current, [String(item.id)]: event.target.value }))} />
           </label>
@@ -50,7 +53,7 @@ export function PBReceiveDialog({ pb, pending, onClose, onSubmit }: {
       {invalid && <p role="alert" className="text-sm text-destructive">Qty tidak boleh negatif atau melebihi sisa penerimaan.</p>}
       <DialogFooter className="gap-2">
         <Button type="button" variant="outline" onClick={onClose}>Batal</Button>
-        <Button type="button" className="bg-emerald-600 hover:bg-emerald-700" disabled={pending || invalid || !hasReceipt || !tanggal} onClick={() => onSubmit(tanggal, items.filter((item: any) => item.receive > 0).map((item: any) => ({ pb_item_id: String(item.id), qty: item.receive })))}>
+        <Button type="button" className="min-h-11 bg-emerald-600 hover:bg-emerald-700" disabled={pending || invalid || !hasReceipt || !tanggal || !requestId} onClick={() => onSubmit(tanggal, items.filter((item: any) => item.receive > 0).map((item: any) => ({ pb_item_id: String(item.id), qty: item.receive })), requestId)}>
           <PackageCheck className="mr-1 h-4 w-4" />{pending ? "Menyimpan..." : "Catat Penerimaan"}
         </Button>
       </DialogFooter>

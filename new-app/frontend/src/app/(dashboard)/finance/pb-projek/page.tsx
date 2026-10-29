@@ -13,7 +13,6 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Button } from "@/components/ui/button";
 import { PBReceiveDialog } from "@/components/pb-receive-dialog";
 
-const FINANCE_ROLES = ["Head Finance", "Admin Finance", "Finance"];
 const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 const prLink = (admId: string) => `/finance/administrasi-projek?proyek=${admId}&tab=pr`;
 
@@ -22,10 +21,11 @@ type ReviewAction = { pb: any; status: "Ditolak" | "Draft" };
 export default function FinancePBProjekPage() {
   const qc = useQueryClient();
   const router = useRouter();
-  const user = useAuthStore((s) => s.user);
-  const isSuperAdmin = user?.roles.some((r) => r.name === "Super Admin") ?? false;
-  const isFinance = (user?.roles.some((r) => FINANCE_ROLES.includes(r.name)) ?? false) || (user?.permissions?.includes("finance.pb_projek") ?? false) || (user?.permissions?.includes("finance.adm_projek") ?? false);
-  const canReceive = isSuperAdmin || (user?.permissions?.includes("project_stock.receive") ?? false);
+  const hasHydrated = useAuthStore((state) => state._hasHydrated);
+  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
+  const isFinance = useAuthStore((state) => state.hasPermission("finance", "pb_projek"));
+  const canAccess = isSuperAdmin || isFinance;
+  const canReceive = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("project_stock", "receive"));
 
   const [projectFilter, setProjectFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -36,7 +36,7 @@ export default function FinancePBProjekPage() {
 
   // Jangan pakai initialData: dengan staleTime global 60 detik, initialData kosong
   // dianggap fresh sehingga PB dari PIC tidak pernah diambil dari server.
-  const rows = useQuery<any[]>({ queryKey: ["finance-pb-projek"], queryFn: projectStockApi.listPBAll, staleTime: 0 });
+  const rows = useQuery<any[]>({ queryKey: ["finance-pb-projek"], queryFn: projectStockApi.listPBAll, enabled: hasHydrated && canAccess, staleTime: 0 });
   const refresh = () => { for (const key of ["finance-pb-projek", "pb-list-all", "project-pb", "project-stock", "pb-stock-options"]) qc.invalidateQueries({ queryKey: [key] }); };
   const onError = (fallback: string) => (e: any) => { toast.error(e?.response?.data?.detail || fallback); refresh(); };
 
@@ -54,7 +54,7 @@ export default function FinancePBProjekPage() {
     onError: onError("Gagal membuat PR dari PB"),
   });
   const receive = useMutation({
-    mutationFn: ({ id, tanggal, items }: { id: string; tanggal: string; items: { pb_item_id: string; qty: number }[] }) => projectStockApi.receivePB(id, tanggal, items),
+    mutationFn: ({ id, tanggal, items, requestId }: { id: string; tanggal: string; items: { pb_item_id: string; qty: number }[]; requestId: string }) => projectStockApi.receivePB(id, tanggal, items, requestId),
     onSuccess: () => { toast.success("Barang diterima, Barang Masuk tercatat di Stock Opname"); setReceiveTarget(null); refresh(); },
     onError: onError("Gagal mencatat penerimaan barang"),
   });
@@ -86,10 +86,15 @@ export default function FinancePBProjekPage() {
         <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-50 disabled:opacity-60" disabled={busy} onClick={() => openReview(pb, "Draft")}><RotateCcw className="h-3.5 w-3.5" />Minta Revisi</button>
         <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60" disabled={busy} onClick={() => openReview(pb, "Ditolak")}><XCircle className="h-3.5 w-3.5" />Tolak</button>
       </>}
-      {canReceive && ["Diproses PR", "Sebagian Diterima"].includes(pb.status) && <button type="button" className="inline-flex min-h-10 items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-60" disabled={busy} onClick={() => setReceiveTarget(pb)}><PackageCheck className="h-3.5 w-3.5" />Catat Penerimaan</button>}
+      {canReceive && ["Diproses PR", "Sebagian Diterima"].includes(pb.status) && (pb.pr_ready_to_receive
+        ? <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-60" disabled={busy} onClick={() => setReceiveTarget(pb)}><PackageCheck className="h-3.5 w-3.5" />Catat Penerimaan</button>
+        : <span className="max-w-44 self-center text-right text-xs text-muted-foreground">Menunggu PR disetujui dan ditandatangani Head Finance</span>)}
       {pb.pr_id && pb.adm_finance_project_id && <Link href={prLink(pb.adm_finance_project_id)} className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" />Lihat PR</Link>}
     </div>;
   };
+
+  if (!hasHydrated) return <div role="status" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Memeriksa akses PB Projek...</div>;
+  if (!canAccess) return <div role="alert" className="rounded-lg border bg-background p-6 text-sm text-muted-foreground">Anda tidak memiliki akses PB Projek Finance. Hubungi Super Admin untuk mengaktifkan permission.</div>;
 
   return <div className="space-y-5 p-4 md:p-6">
     <div><h1 className="flex items-center gap-2 text-2xl font-bold"><ClipboardCheck className="h-6 w-6 text-teal-600" /> PB Projek</h1><p className="mt-1 text-sm text-muted-foreground">PB dari PIC disetujui Finance, lalu Super Admin, baru bisa dibuat menjadi PR.</p></div>
@@ -98,11 +103,11 @@ export default function FinancePBProjekPage() {
       {[{ label: "Menunggu Finance", value: counts.finance, status: "Diajukan" }, { label: "Menunggu Super Admin", value: counts.sa, status: "Disetujui Finance" }, { label: "Siap Dibuat PR", value: counts.pr, status: "Disetujui" }].map((c) => <button key={c.label} type="button" onClick={() => setStatusFilter(statusFilter === c.status ? "" : c.status)} className={`rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/40 ${statusFilter === c.status ? "border-teal-500 ring-1 ring-teal-500" : ""}`}><div className="text-xs text-muted-foreground">{c.label}</div><div className="text-2xl font-bold">{c.value}</div></button>)}
     </div>
 
-    <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2"><label className="space-y-1 text-sm font-medium">Filter Projek<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="">Semua projek</option>{projects.map((name) => <option key={name} value={name}>{name}</option>)}</select></label><label className="space-y-1 text-sm font-medium">Filter Status<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Semua status</option>{PB_STATUS_OPTIONS.filter((s) => s !== "Draft").map((status) => <option key={status} value={status}>{status === "Disetujui" ? "Disetujui Super Admin" : status}</option>)}</select></label></div>
+    <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2"><label className="space-y-1 text-sm font-medium">Filter Projek<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="">Semua projek</option>{projects.map((name) => <option key={name} value={name}>{name}</option>)}</select></label><label className="space-y-1 text-sm font-medium">Filter Status<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Semua status</option>{PB_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status === "Disetujui" ? "Disetujui Super Admin" : status}</option>)}</select></label></div>
 
     <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[1240px] text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-3 text-left">No. PB</th><th className="px-3 py-3 text-left">Nama Projek</th><th className="px-3 py-3 text-left">PIC / Pengaju</th><th className="px-3 py-3 text-left">Item</th><th className="px-3 py-3 text-left">Status PB</th><th className="px-3 py-3 text-left">Approval</th><th className="px-3 py-3 text-left">PR</th><th className="px-3 py-3 text-right">Aksi</th></tr></thead>
       <tbody className="divide-y">{filtered.map((pb) => <tr key={pb.id} className="align-top">
-        <td className="px-3 py-3 font-medium">{pb.nomor_pb}<div className="text-xs font-normal text-muted-foreground">Dikirim {fmtDate(pb.submitted_at ?? pb.created_at)}</div></td>
+        <td className="px-3 py-3 font-medium">{pb.nomor_pb}<div className="text-xs font-normal text-muted-foreground">{pb.submitted_at ? "Dikirim" : "Disimpan"} {fmtDate(pb.submitted_at ?? pb.created_at)}</div></td>
         <td className="px-3 py-3"><div className="font-medium">{pb.project_name}</div><div className="text-xs text-muted-foreground">{pb.project_type === "interior" ? "Interior" : "Sipil"} · #{pb.project_id}</div></td>
         <td className="px-3 py-3">{(pb.pic_names ?? []).join(", ") || "-"}<div className="text-xs text-muted-foreground">Pengaju: {pb.creator || "-"}</div></td>
         <td className="max-w-[300px] px-3 py-3"><ul className="space-y-0.5">{pb.items.map((i: any) => <li key={i.id}>{i.nama_item}: <b>{i.qty} {i.satuan}</b>{i.catatan && <span className="text-xs text-muted-foreground">, {i.catatan}</span>}</li>)}</ul>{pb.catatan && <div className="mt-1 text-xs text-muted-foreground">Catatan: {pb.catatan}</div>}</td>
@@ -132,7 +137,7 @@ export default function FinancePBProjekPage() {
       </DialogContent>
     </Dialog>
 
-    <PBReceiveDialog pb={receiveTarget} pending={receive.isPending} onClose={() => setReceiveTarget(null)} onSubmit={(tanggal, items) => receiveTarget && receive.mutate({ id: receiveTarget.id, tanggal, items })} />
+    <PBReceiveDialog pb={receiveTarget} pending={receive.isPending} onClose={() => setReceiveTarget(null)} onSubmit={(tanggal, items, requestId) => receiveTarget && receive.mutate({ id: receiveTarget.id, tanggal, items, requestId })} />
   </div>;
 }
 

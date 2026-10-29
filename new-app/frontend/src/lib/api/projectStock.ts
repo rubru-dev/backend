@@ -16,6 +16,6 @@ export const projectStockApi = {
   submitPB: (id: string) => apiClient.post(`/project-stock/pb/${id}/submit`).then((r) => r.data),
   updatePBStatus: (id: string, status: string, catatan?: string) => apiClient.patch(`/project-stock/pb/${id}/status`, { status, catatan }).then((r) => r.data),
   createPRFromPB: (id: string) => apiClient.post(`/project-stock/pb/${id}/create-pr`).then((r) => r.data),
-  receivePB: (id: string, tanggal?: string, items?: { pb_item_id: string; qty: number }[]) => apiClient.post(`/project-stock/pb/${id}/receive`, { tanggal, items }).then((r) => r.data),
+  receivePB: (id: string, tanggal: string, items: { pb_item_id: string; qty: number }[], requestId: string) => apiClient.post(`/project-stock/pb/${id}/receive`, { tanggal, items, request_id: requestId }).then((r) => r.data),
   warehouses: () => apiClient.get("/project-stock/warehouses").then((r) => r.data),
 };
