@@ -73,10 +73,10 @@ function canViewPB(req: Request) {
   return canCreateProjectPB(req) || isFinanceUser(req);
 }
 
-// Tahap approval Finance membutuhkan permission khusus. Super Admin tetap
-// menangani approval final agar alur Finance ke Super Admin tidak dilompati.
+// Tahap pertama membutuhkan permission Finance, dengan bypass Super Admin.
+// Transisi status tetap dua tahap agar jejak approval tidak terlewati.
 function hasFinancePBPermission(req: Request) {
-  return req.userPermissions?.has("finance.pb_projek") === true;
+  return isSuperAdmin(req) || req.userPermissions?.has("finance.pb_projek") === true;
 }
 
 function canApprovePB(req: Request) {
