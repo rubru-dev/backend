@@ -213,10 +213,11 @@ async function stockSummary(projectType: string, projectId: bigint) {
     const masuk = movement("BARANG_MASUK");
     const keluar = movement("BARANG_KELUAR");
     const dikembalikan = movement("DIKEMBALIKAN");
+    const penyesuaian = movement("PENYESUAIAN");
     return {
       id: String(item.id), project_type: item.project_type, project_id: String(item.project_id), jenis: item.jenis,
       nama_item: item.nama_item, satuan: item.satuan, qty_total: num(item.qty_total), pb, sisa_pengajuan: Math.max(0, num(item.qty_total) - pb),
-      barang_masuk: masuk, barang_keluar: keluar, dikembalikan, sisa_fisik: Math.max(0, masuk - keluar - dikembalikan),
+      barang_masuk: masuk, barang_keluar: keluar, dikembalikan, sisa_fisik: Math.max(0, masuk - keluar - dikembalikan + penyesuaian),
       keterangan: item.keterangan,
       pb_history: item.pb_items.map((p) => ({ id: String(p.pb.id), nomor_pb: p.pb.nomor_pb, status: p.pb.status, qty: num(p.qty), created_at: p.pb.created_at })),
       history: item.movements.map((m) => ({ id: String(m.id), type: m.movement_type, qty: num(m.qty), tanggal: m.tanggal, reference_type: m.reference_type, reference_id: m.reference_id ? String(m.reference_id) : null, warehouse_id: m.warehouse_id ? String(m.warehouse_id) : null, catatan: m.catatan, created_by: m.created_by ? String(m.created_by) : null })),
@@ -380,7 +381,7 @@ router.post("/items/:id/movements", async (req: Request, res: Response) => {
     const totals = await tx.projectStockMovement.groupBy({ by: ["movement_type"], where: { stock_item_id: stockItemId }, _sum: { qty: true } });
     const total = (kind: string) => num(totals.find((row) => row.movement_type === kind)?._sum.qty);
     const masuk = total("BARANG_MASUK");
-    const sisaFisik = masuk - total("BARANG_KELUAR") - total("DIKEMBALIKAN");
+    const sisaFisik = masuk - total("BARANG_KELUAR") - total("DIKEMBALIKAN") + total("PENYESUAIAN");
     if ((movement_type === "BARANG_KELUAR" || movement_type === "DIKEMBALIKAN") && amount > sisaFisik) {
       throw new HttpError(400, `${movement_type === "DIKEMBALIKAN" ? "Pengembalian" : "Barang Keluar"} melebihi sisa fisik (${Math.max(0, sisaFisik)} ${item.satuan})`);
     }
@@ -417,6 +418,50 @@ router.post("/items/:id/movements", async (req: Request, res: Response) => {
     return sendError(res, error, "Gagal mencatat transaksi stok");
   }
   return res.status(201).json({ id: String(movement.id) });
+});
+
+// PIC cukup mencatat hasil hitung fisik saat ini. Selisih disimpan sebagai
+// penyesuaian internal agar transaksi PB/penerimaan lama tetap dapat diaudit.
+router.post("/items/:id/physical-stock", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const target = num(req.body?.qty);
+  if (!Number.isFinite(target) || target < 0) return res.status(400).json({ detail: "Sisa fisik harus berupa angka 0 atau lebih" });
+
+  const item = await prisma.projectStockItem.findUnique({ where: { id } });
+  if (!item) return res.status(404).json({ detail: "Item Stock Opname tidak ditemukan" });
+  const assignedPic = await isProjectPIC(req.user!.id, item.project_type, item.project_id);
+  if (!canManageProjectStock(req, item.project_type) || (!isSuperAdmin(req) && !assignedPic)) {
+    return res.status(403).json({ detail: "Sisa fisik hanya dapat diperbarui PIC projek atau Super Admin" });
+  }
+  if (target > num(item.qty_total)) return res.status(400).json({ detail: `Sisa fisik tidak boleh melebihi Qty Total (${item.qty_total} ${item.satuan})` });
+
+  try {
+    const result = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM project_stock_items WHERE id = ${id} FOR UPDATE`;
+      const totals = await tx.projectStockMovement.groupBy({ by: ["movement_type"], where: { stock_item_id: id }, _sum: { qty: true } });
+      const total = (kind: string) => num(totals.find((row) => row.movement_type === kind)?._sum.qty);
+      const current = Math.max(0, total("BARANG_MASUK") - total("BARANG_KELUAR") - total("DIKEMBALIKAN") + total("PENYESUAIAN"));
+      const adjustment = target - current;
+      if (Math.abs(adjustment) <= 0.000001) return { updated: false, sisa_fisik: target };
+      await tx.projectStockMovement.create({
+        data: {
+          stock_item_id: id,
+          movement_type: "PENYESUAIAN",
+          qty: adjustment,
+          project_type: item.project_type,
+          project_id: item.project_id,
+          tanggal: new Date(),
+          reference_type: "STOCK_OPNAME_MANUAL",
+          catatan: String(req.body?.catatan ?? "").trim() || `Penyesuaian stok fisik dari ${current} menjadi ${target} ${item.satuan}`,
+          created_by: req.user!.id,
+        },
+      });
+      return { updated: true, sisa_fisik: target };
+    });
+    return res.json(result);
+  } catch (error) {
+    return sendError(res, error, "Gagal memperbarui sisa fisik");
+  }
 });
 
 router.get("/:projectType(sipil|interior)/:projectId/pb", async (req, res) => {
@@ -599,7 +644,8 @@ router.post("/pb/:id/receive", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const pb = await prisma.projectPB.findUnique({ where: { id }, include: { items: { include: { stock_item: true } } } });
   if (!pb) return res.status(404).json({ detail: "PB tidak ditemukan" });
-  if (!canReceiveProjectStock(req) || !(await canAccessProject(req, pb.project_type, pb.project_id))) return res.status(403).json({ detail: "Tidak memiliki akses menerima barang projek ini" });
+  const assignedPic = await isProjectPIC(req.user!.id, pb.project_type, pb.project_id);
+  if (!canReceiveProjectStock(req) || (!isSuperAdmin(req) && !assignedPic)) return res.status(403).json({ detail: "Penerimaan barang hanya dapat dicatat PIC projek atau Super Admin" });
   const tanggal = req.body?.tanggal ? new Date(req.body.tanggal) : new Date();
   if (Number.isNaN(tanggal.getTime())) return res.status(400).json({ detail: "Tanggal penerimaan tidak valid" });
   const receiptKey = String(req.body?.request_id ?? "").trim();

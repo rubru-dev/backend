@@ -23,6 +23,7 @@ export default function PBProjekPage() {
   const qc = useQueryClient();
   const hasHydrated = useAuthStore((state) => state._hasHydrated);
   const canAccess = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("pic", "pb_projek"));
+  const canReceive = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("project_stock", "receive"));
   const [tab, setTab] = useState<"form" | "list">("form");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [projectType, setProjectType] = useState<ProjectType>("sipil");
@@ -172,7 +173,7 @@ export default function PBProjekPage() {
             <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" onClick={() => setDeleteTarget(pb)}><Trash2 className="h-3.5 w-3.5" />Hapus</button>
             <button type="button" className="inline-flex items-center gap-1 rounded-md bg-orange-500 px-2.5 py-1.5 text-xs font-semibold text-white hover:bg-orange-600" onClick={() => { setSubmitChecked(false); setSubmitTarget(pb); }}><Send className="h-3.5 w-3.5" />Kirim ke Finance</button>
           </>}
-          {["Diproses PR", "Sebagian Diterima"].includes(pb.status) && (pb.pr_ready_to_receive
+          {canReceive && ["Diproses PR", "Sebagian Diterima"].includes(pb.status) && (pb.pr_ready_to_receive
             ? <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white" onClick={() => setReceiveTarget(pb)}><PackageCheck className="h-3.5 w-3.5" />Catat Penerimaan</button>
             : <span className="max-w-44 text-right text-xs text-muted-foreground">Menunggu PR disetujui dan ditandatangani Head Finance</span>)}
         </div></td>

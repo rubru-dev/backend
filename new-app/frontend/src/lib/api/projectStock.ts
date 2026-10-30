@@ -7,6 +7,7 @@ export const projectStockApi = {
   list: (type: ProjectStockType, projectId: string | number) => apiClient.get(`/project-stock/${type}/${projectId}`).then((r) => r.data),
   addItem: (type: ProjectStockType, projectId: string | number, data: any) => apiClient.post(`/project-stock/${type}/${projectId}/items`, data).then((r) => r.data),
   movement: (itemId: string, data: any) => apiClient.post(`/project-stock/items/${itemId}/movements`, data).then((r) => r.data),
+  updatePhysicalStock: (itemId: string, qty: number) => apiClient.post(`/project-stock/items/${itemId}/physical-stock`, { qty }).then((r) => r.data),
   listPB: (type: ProjectStockType, projectId: string | number) => apiClient.get(`/project-stock/${type}/${projectId}/pb`).then((r) => r.data),
   listPBAll: () => apiClient.get("/project-stock/pb").then((r) => r.data),
   createPB: (type: ProjectStockType, projectId: string | number, data: PBFormPayload) => apiClient.post(`/project-stock/${type}/${projectId}/pb`, data).then((r) => r.data),

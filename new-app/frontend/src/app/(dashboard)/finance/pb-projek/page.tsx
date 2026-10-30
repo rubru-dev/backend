@@ -4,14 +4,13 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ClipboardCheck, ExternalLink, FilePlus2, PackageCheck, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, ExternalLink, FilePlus2, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { projectStockApi } from "@/lib/api/projectStock";
 import { PBStatusBadge, PB_STATUS_OPTIONS } from "@/components/pb-status-badge";
 import { useAuthStore } from "@/store/authStore";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { PBReceiveDialog } from "@/components/pb-receive-dialog";
 
 const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 const prLink = (admId: string) => `/finance/administrasi-projek?proyek=${admId}&tab=pr`;
@@ -25,14 +24,12 @@ export default function FinancePBProjekPage() {
   const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
   const isFinance = useAuthStore((state) => state.hasPermission("finance", "pb_projek"));
   const canAccess = isSuperAdmin || isFinance;
-  const canReceive = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("project_stock", "receive"));
 
   const [projectFilter, setProjectFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [review, setReview] = useState<ReviewAction | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [approveTarget, setApproveTarget] = useState<{ pb: any; status: "Disetujui Finance" | "Disetujui" } | null>(null);
-  const [receiveTarget, setReceiveTarget] = useState<any | null>(null);
 
   // Jangan pakai initialData: dengan staleTime global 60 detik, initialData kosong
   // dianggap fresh sehingga PB dari PIC tidak pernah diambil dari server.
@@ -53,12 +50,7 @@ export default function FinancePBProjekPage() {
     onSuccess: (result) => { toast.success(`PR ${result.nomor_pr} berhasil dibuat`); refresh(); router.push(prLink(result.adm_finance_project_id)); },
     onError: onError("Gagal membuat PR dari PB"),
   });
-  const receive = useMutation({
-    mutationFn: ({ id, tanggal, items, requestId }: { id: string; tanggal: string; items: { pb_item_id: string; qty: number }[]; requestId: string }) => projectStockApi.receivePB(id, tanggal, items, requestId),
-    onSuccess: () => { toast.success("Barang diterima, Barang Masuk tercatat di Stock Opname"); setReceiveTarget(null); refresh(); },
-    onError: onError("Gagal mencatat penerimaan barang"),
-  });
-  const busy = update.isPending || createPr.isPending || receive.isPending;
+  const busy = update.isPending || createPr.isPending;
 
   const data = rows.data ?? [];
   const projects = useMemo(() => [...new Set(data.map((pb) => pb.project_name).filter(Boolean))].sort(), [data]);
@@ -86,9 +78,6 @@ export default function FinancePBProjekPage() {
         <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-50 disabled:opacity-60" disabled={busy} onClick={() => openReview(pb, "Draft")}><RotateCcw className="h-3.5 w-3.5" />Minta Revisi</button>
         <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60" disabled={busy} onClick={() => openReview(pb, "Ditolak")}><XCircle className="h-3.5 w-3.5" />Tolak</button>
       </>}
-      {canReceive && ["Diproses PR", "Sebagian Diterima"].includes(pb.status) && (pb.pr_ready_to_receive
-        ? <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-60" disabled={busy} onClick={() => setReceiveTarget(pb)}><PackageCheck className="h-3.5 w-3.5" />Catat Penerimaan</button>
-        : <span className="max-w-44 self-center text-right text-xs text-muted-foreground">Menunggu PR disetujui dan ditandatangani Head Finance</span>)}
       {pb.pr_id && pb.adm_finance_project_id && <Link href={prLink(pb.adm_finance_project_id)} className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" />Lihat PR</Link>}
     </div>;
   };
@@ -137,7 +126,6 @@ export default function FinancePBProjekPage() {
       </DialogContent>
     </Dialog>
 
-    <PBReceiveDialog pb={receiveTarget} pending={receive.isPending} onClose={() => setReceiveTarget(null)} onSubmit={(tanggal, items, requestId) => receiveTarget && receive.mutate({ id: receiveTarget.id, tanggal, items, requestId })} />
   </div>;
 }
 
