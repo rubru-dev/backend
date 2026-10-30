@@ -351,6 +351,69 @@ router.patch("/items/:id", async (req: Request, res: Response) => {
   return res.json({ message: "Item diupdate" });
 });
 
+router.delete("/items/:id", async (req: Request, res: Response) => {
+  const id = BigInt(req.params.id);
+  const item = await prisma.projectStockItem.findUnique({ where: { id } });
+  if (!item) return res.status(404).json({ detail: "Item Stock Opname tidak ditemukan" });
+  if (!(await requireProjectManage(req, res, item.project_type, item.project_id))) return;
+
+  try {
+    await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM project_stock_items WHERE id = ${id} FOR UPDATE`;
+      const current = await tx.projectStockItem.findUnique({
+        where: { id },
+        include: {
+          movements: { select: { movement_type: true, qty: true, warehouse_id: true, warehouse_stock_id: true } },
+          pb_items: { include: { pb: { select: { id: true, nomor_pb: true, status: true, pr_id: true } } } },
+        },
+      });
+      if (!current) throw new HttpError(404, "Item Stock Opname tidak ditemukan");
+      const lockedPB = current.pb_items.find(({ pb }) => pb.status !== PB_DRAFT || pb.pr_id !== null);
+      if (!isSuperAdmin(req) && lockedPB) throw new HttpError(409, `Item tidak dapat dihapus karena sudah terkait ${lockedPB.pb.nomor_pb ?? "PB"} berstatus ${lockedPB.pb.status}. Hubungi Super Admin jika histori PB/PR memang harus ikut dihapus.`);
+      if (!isSuperAdmin(req) && current.movements.some((movement) => movement.warehouse_id !== null || movement.warehouse_stock_id !== null)) throw new HttpError(409, "Item tidak dapat dihapus karena sudah memengaruhi stok Warehouse");
+
+      const draftPbIds = [...new Set(current.pb_items.map(({ pb_id }) => pb_id))];
+      const pbItemIds = current.pb_items.map(({ id: pbItemId }) => pbItemId);
+      const linkedPrItems = pbItemIds.length
+        ? await tx.projekPRItem.findMany({ where: { project_pb_item_id: { in: pbItemIds } }, select: { id: true, projek_pr_id: true } })
+        : [];
+      const relatedPrIds = [...new Set([
+        ...current.pb_items.map(({ pb }) => pb.pr_id).filter((prId): prId is bigint => prId !== null),
+        ...linkedPrItems.map(({ projek_pr_id }) => projek_pr_id),
+      ])];
+
+      if (isSuperAdmin(req)) {
+        for (const movement of current.movements) {
+          if (!movement.warehouse_stock_id) continue;
+          if (movement.movement_type === "BARANG_MASUK") {
+            await tx.stokWarehouse.update({ where: { id: movement.warehouse_stock_id }, data: { quantity: { increment: movement.qty } } });
+          } else if (movement.movement_type === "DIKEMBALIKAN") {
+            const warehouseStock = await tx.stokWarehouse.findUnique({ where: { id: movement.warehouse_stock_id }, select: { quantity: true } });
+            if (warehouseStock && num(warehouseStock.quantity) < num(movement.qty)) throw new HttpError(409, "Penghapusan dibatalkan karena stok Warehouse hasil pengembalian sudah terpakai");
+            if (warehouseStock) await tx.stokWarehouse.update({ where: { id: movement.warehouse_stock_id }, data: { quantity: { decrement: movement.qty } } });
+          }
+        }
+        if (linkedPrItems.length) await tx.projekPRItem.deleteMany({ where: { id: { in: linkedPrItems.map(({ id: prItemId }) => prItemId) } } });
+      }
+
+      await tx.projectStockItem.delete({ where: { id } });
+      for (const pbId of draftPbIds) {
+        const remaining = await tx.projectPBItem.count({ where: { pb_id: pbId } });
+        if (remaining === 0) await tx.projectPB.deleteMany({ where: isSuperAdmin(req) ? { id: pbId } : { id: pbId, status: PB_DRAFT, pr_id: null } });
+      }
+      if (isSuperAdmin(req)) {
+        for (const prId of relatedPrIds) {
+          const remaining = await tx.projekPRItem.count({ where: { projek_pr_id: prId } });
+          if (remaining === 0) await tx.projekPR.deleteMany({ where: { id: prId } });
+        }
+      }
+    });
+    return res.json({ message: isSuperAdmin(req) ? "Item Stock Opname serta data PB/PR terkait dihapus" : "Item Stock Opname dan data Draft PB terkait dihapus" });
+  } catch (error) {
+    return sendError(res, error, "Gagal menghapus item Stock Opname");
+  }
+});
+
 router.post("/items/:id/movements", async (req: Request, res: Response) => {
   const stockItemId = BigInt(req.params.id);
   const item = await prisma.projectStockItem.findUnique({ where: { id: stockItemId } });
@@ -430,7 +493,7 @@ router.post("/items/:id/physical-stock", async (req: Request, res: Response) => 
   const item = await prisma.projectStockItem.findUnique({ where: { id } });
   if (!item) return res.status(404).json({ detail: "Item Stock Opname tidak ditemukan" });
   const assignedPic = await isProjectPIC(req.user!.id, item.project_type, item.project_id);
-  if (!canManageProjectStock(req, item.project_type) || (!isSuperAdmin(req) && !assignedPic)) {
+  if (!(canManageProjectStock(req, item.project_type) || canCreateProjectPB(req)) || (!isSuperAdmin(req) && !assignedPic)) {
     return res.status(403).json({ detail: "Sisa fisik hanya dapat diperbarui PIC projek atau Super Admin" });
   }
   if (target > num(item.qty_total)) return res.status(400).json({ detail: `Sisa fisik tidak boleh melebihi Qty Total (${item.qty_total} ${item.satuan})` });

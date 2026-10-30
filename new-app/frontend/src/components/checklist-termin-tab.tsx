@@ -25,6 +25,7 @@ type ChecklistItem = {
   dokumentasi_thumbnails?: string[];
   pic_paraf: boolean;
   client_paraf: boolean;
+  head_teknik_paraf: boolean;
   status: string | null;
 };
 
@@ -35,7 +36,7 @@ type ChecklistData = {
 
 type ChecklistApi = {
   getChecklist: (projectId: string) => Promise<ChecklistData>;
-  updateChecklistParaf: (id: string, party: "pic" | "client", value: boolean) => Promise<unknown>;
+  updateChecklistParaf: (id: string, party: "pic" | "client" | "head_teknik", value: boolean) => Promise<unknown>;
   updateChecklistItem: (id: string, data: { gambars?: File[] }) => Promise<unknown>;
 };
 
@@ -86,13 +87,13 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
   const qc = useQueryClient();
   const queryKey = ["checklist-termin", projectId];
   const { data, isLoading, isError } = useQuery({ queryKey, queryFn: () => api.getChecklist(projectId), staleTime: 3 * 60 * 1000 });
-  const [exportingTermin, setExportingTermin] = useState<{ id: string; done: number; total: number } | null>(null);
+  const [exportingTermin, setExportingTermin] = useState<{ id: string; audience: "client" | "internal"; done: number; total: number } | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [expandedTermins, setExpandedTermins] = useState<Record<string, boolean>>({});
   const [gallery, setGallery] = useState<{ title: string; paths: string[]; thumbnails: string[] } | null>(null);
   const [imageTask, setImageTask] = useState<{ itemId: string; phase: "compressing" | "uploading"; current: number; total: number } | null>(null);
   const parafMutation = useMutation({
-    mutationFn: ({ id, party, value }: { id: string; party: "pic" | "client"; value: boolean }) => api.updateChecklistParaf(id, party, value),
+    mutationFn: ({ id, party, value }: { id: string; party: "pic" | "client" | "head_teknik"; value: boolean }) => api.updateChecklistParaf(id, party, value),
     onSuccess: () => qc.invalidateQueries({ queryKey }),
     onError: (error: any) => toast.error(error?.response?.data?.detail ?? "Paraf gagal disimpan"),
   });
@@ -157,9 +158,9 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
     throw new Error(`Foto gagal dimuat setelah ${attempts} percobaan: ${url}. ${lastError instanceof Error ? lastError.message : ""}`);
   }
 
-  async function exportTermin(group: { id: string; name: string; items: ChecklistItem[] }) {
+  async function exportTermin(group: { id: string; name: string; items: ChecklistItem[] }, audience: "client" | "internal") {
     const allPaths = group.items.flatMap((item) => item.dokumentasi_paths);
-    setExportingTermin({ id: group.id, done: 0, total: allPaths.length });
+    setExportingTermin({ id: group.id, audience, done: 0, total: allPaths.length });
     try {
       const { ChecklistTerminPDF } = await import("@/components/checklist-termin-pdf");
       const logoUrl = await getLogoBase64();
@@ -171,7 +172,7 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
         batch.forEach((imagePath, index) => imagesByPath.set(imagePath, values[index]));
         const completedUnique = Math.min(offset + batch.length, uniquePaths.length);
         const completedReferences = allPaths.filter((imagePath) => imagesByPath.has(imagePath)).length;
-        setExportingTermin({ id: group.id, done: completedUnique === uniquePaths.length ? allPaths.length : completedReferences, total: allPaths.length });
+        setExportingTermin({ id: group.id, audience, done: completedUnique === uniquePaths.length ? allPaths.length : completedReferences, total: allPaths.length });
       }
       const pdfItems = group.items.map((item, index) => ({
         no: index + 1,
@@ -184,6 +185,7 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
         }),
         pic_paraf: item.pic_paraf,
         client_paraf: item.client_paraf,
+        head_teknik_paraf: item.head_teknik_paraf,
       }));
       const blob = await pdf(<ChecklistTerminPDF data={{
         namaProyek: projectInfo?.nama_proyek ?? "Proyek",
@@ -193,10 +195,11 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
         lokasi: projectInfo?.lokasi,
         signatories: data?.signatories ?? {},
         catatan: notes[group.name] ?? "",
+        audience,
         items: pdfItems,
         logoUrl,
       }} />).toBlob();
-      saveAs(blob, `Checklist-${group.name}-${projectInfo?.nama_proyek ?? "Proyek"}.pdf`.replace(/[\\/:*?"<>|]/g, "-"));
+      saveAs(blob, `Checklist-${audience === "internal" ? "Internal" : "Client"}-${group.name}-${projectInfo?.nama_proyek ?? "Proyek"}.pdf`.replace(/[\\/:*?"<>|]/g, "-"));
     } catch (error) {
       console.error(error);
       toast.error(error instanceof Error ? `PDF dibatalkan agar tidak ada data hilang. ${error.message}` : "PDF dibatalkan karena foto tidak lengkap");
@@ -287,10 +290,16 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
               <span className="truncate font-semibold">{group.name}</span>
               <span className="shrink-0 text-xs text-muted-foreground">{group.items.length} pekerjaan</span>
             </button>
-            <Button type="button" variant="outline" size="sm" className="min-h-11 gap-1.5" disabled={exportingTermin !== null} onClick={() => exportTermin(group)}>
-              {exportProgress ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-              {exportProgress ? `Foto ${exportProgress.done}/${exportProgress.total}` : "Export PDF"}
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              <Button type="button" variant="outline" size="sm" className="min-h-11 gap-1.5" disabled={exportingTermin !== null} onClick={() => exportTermin(group, "client")}>
+                {exportProgress?.audience === "client" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {exportProgress?.audience === "client" ? `Foto ${exportProgress.done}/${exportProgress.total}` : "Ekspor PDF Client"}
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="min-h-11 gap-1.5" disabled={exportingTermin !== null} onClick={() => exportTermin(group, "internal")}>
+                {exportProgress?.audience === "internal" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+                {exportProgress?.audience === "internal" ? `Foto ${exportProgress.done}/${exportProgress.total}` : "Ekspor PDF Internal"}
+              </Button>
+            </div>
           </div>
           {expanded && <>
           <div className="border-b px-3 py-3 sm:px-4"><label className="text-xs font-semibold text-muted-foreground">Catatan / Pekerjaan yang Masih Kurang <span className="font-normal">(opsional, ikut masuk ke PDF)</span></label><textarea className="mt-1 min-h-16 w-full rounded-md border bg-background px-3 py-2 text-sm" value={notes[group.name] ?? ""} onChange={(event) => setNotes((current) => ({ ...current, [group.name]: event.target.value }))} placeholder="Tulis pekerjaan yang masih kurang atau catatan pemeriksaan..." /></div>
@@ -302,15 +311,16 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
                   <Badge variant={item.item_jenis === "TAMBAHAN" ? "secondary" : "outline"} className={item.item_jenis === "TAMBAHAN" ? "shrink-0 bg-amber-100 text-amber-800 hover:bg-amber-100" : "shrink-0"}>{item.item_jenis === "TAMBAHAN" ? "Tambahan" : "RAB Awal"}</Badge>
                 </div>
                 <div>{documentation(item)}{uploadControl(item)}</div>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                   <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf PIC</p><ParafButton value={item.pic_paraf} label="PIC" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "pic", value: !item.pic_paraf })} /></div>
                   <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf Client</p><ParafButton value={item.client_paraf} label="Client" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "client", value: !item.client_paraf })} /></div>
+                  <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf Head Teknik</p><ParafButton value={item.head_teknik_paraf} label="Head Teknik" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "head_teknik", value: !item.head_teknik_paraf })} /></div>
                 </div>
               </article>
             ))}
           </div>
           <div className="hidden overflow-x-auto md:block">
-            <Table className="min-w-[900px]">
+            <Table className="min-w-[1020px]">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-14 text-center">No</TableHead>
@@ -319,6 +329,7 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
                   <TableHead className="min-w-[220px]">Dokumentasi</TableHead>
                   <TableHead className="w-32 text-center">Paraf PIC</TableHead>
                   <TableHead className="w-32 text-center">Paraf Client</TableHead>
+                  <TableHead className="w-36 text-center">Paraf Head Teknik</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -341,6 +352,9 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
                     <TableCell className="text-center">
                       <ParafButton value={item.client_paraf} label="Client" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "client", value: !item.client_paraf })} />
                     </TableCell>
+                    <TableCell className="text-center">
+                      <ParafButton value={item.head_teknik_paraf} label="Head Teknik" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "head_teknik", value: !item.head_teknik_paraf })} />
+                    </TableCell>
                   </TableRow>
                 ))}
               </TableBody>
@@ -349,23 +363,6 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
           </>}
         </section>
       ); })}
-
-      <section className="rounded-lg border p-5">
-        <h4 className="mb-5 text-center text-sm font-semibold">Mengetahui</h4>
-        <div className="grid grid-cols-1 gap-8 text-center sm:grid-cols-3">
-          {[
-            ["RO", data?.signatories.ro],
-            ["PIC Project", data?.signatories.pic_project],
-            ["Client", data?.signatories.client],
-          ].map(([label, name]) => (
-            <div key={label} className="min-h-24">
-              <div className="flex min-h-16 items-end justify-center border-b border-dashed border-foreground/50 pb-2 text-sm text-muted-foreground">Tanda tangan</div>
-              <p className="mt-2 text-sm font-medium">{name || "Belum diinput"}</p>
-              <p className="text-xs text-muted-foreground">{label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
 
       <Dialog open={gallery !== null} onOpenChange={(open) => { if (!open) setGallery(null); }}>
         <DialogContent className="max-w-4xl">

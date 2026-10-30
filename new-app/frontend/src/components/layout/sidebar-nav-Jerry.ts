@@ -7,6 +7,7 @@ export interface NavItem {
   label: string;
   href: string;
   icon: string;
+  permission?: string;
   superAdminOnly?: boolean;
 }
 
@@ -121,7 +122,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "Invoice & Kwitansi",    href: "/finance/invoice-kwitansi",    icon: "FileText" },
       { label: "Administrasi Projek",   href: "/finance/administrasi-projek", icon: "Calculator" },
       { label: "Administrasi Kantor",   href: "/finance/administrasi-kantor", icon: "Folder" },
-      { label: "Form BAST",             href: "/finance/form-bast",           icon: "FileText", superAdminOnly: true },
+      { label: "Form BAST",             href: "/finance/form-bast",           icon: "FileText", permission: "projek.form_bast" },
       { label: "Laporan Harian",        href: "/finance/laporan-harian",      icon: "ClipboardList" },
     ],
   },

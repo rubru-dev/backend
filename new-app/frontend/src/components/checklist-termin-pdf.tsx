@@ -47,6 +47,7 @@ const s = StyleSheet.create({
   signatures: { marginTop: 24, borderWidth: 1, borderColor: "#d6d3d1", paddingVertical: 10, paddingHorizontal: 14 },
   signatureGrid: { flexDirection: "row", justifyContent: "space-between" },
   signature: { width: "40%", textAlign: "center" },
+  signatureInternal: { width: "23%", textAlign: "center" },
   // Label di atas kolom; kolom RO sengaja kosong tapi tetap setinggi label agar garis sejajar.
   signatureLabel: { height: 12, fontSize: 8, fontWeight: "bold", textAlign: "center" },
   // Area tanda tangan; logo RO hanya berada di dalam area ini (di atas garis), tidak menimpa nama.
@@ -68,6 +69,7 @@ export type ChecklistTerminPdfItem = {
   dokumentasi_b64s: string[];
   pic_paraf: boolean;
   client_paraf: boolean;
+  head_teknik_paraf: boolean;
 };
 
 export type ChecklistTerminPdfData = {
@@ -80,9 +82,11 @@ export type ChecklistTerminPdfData = {
   items: ChecklistTerminPdfItem[];
   logoUrl?: string | null;
   catatan?: string | null;
+  audience: "client" | "internal";
 };
 
 export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
+  const internal = data.audience === "internal";
   const tableRows = data.items.flatMap((item) => {
     if (item.dokumentasi_b64s.length <= 12) return [{ ...item, continuation: 0, continuationCount: 1 }];
     const chunks: string[][] = [];
@@ -120,21 +124,27 @@ export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
           <View style={[s.cell, s.item]}><Text style={s.headerText}>Item Pekerjaan</Text></View>
           <View style={[s.cell, s.doc]}><Text style={s.headerText}>Dokumentasi</Text></View>
           <View style={[s.cell, s.paraf]}><Text style={s.headerText}>Paraf PIC</Text></View>
-          <View style={[s.cell, s.paraf, { borderRightWidth: 0 }]}><Text style={s.headerText}>Paraf Client</Text></View>
+          <View style={[s.cell, s.paraf, { borderRightWidth: 0 }]}><Text style={s.headerText}>{internal ? "Paraf Head Teknik" : "Paraf Client"}</Text></View>
         </View>
         {tableRows.length === 0 ? <View style={s.row}><View style={[s.cell, { flex: 1, borderRightWidth: 0 }]}><Text style={s.empty}>Belum ada item pekerjaan pada termin ini.</Text></View></View> : tableRows.map((item) => <View style={s.row} key={`${item.no}-${item.continuation}`} wrap={false}>
           <View style={[s.cell, s.no]}><Text>{item.no}</Text></View>
           <View style={[s.cell, s.item]}><Text style={s.itemText}>{item.nama_pekerjaan}</Text><Text style={s.typeText}>{item.item_jenis === "TAMBAHAN" ? "PEKERJAAN TAMBAHAN" : "RAB AWAL"}{item.continuationCount > 1 ? ` · FOTO ${item.continuation + 1}/${item.continuationCount}` : ""}</Text></View>
           <View style={[s.cell, s.doc]}>{item.dokumentasi_b64s.length ? <View style={s.photos}>{item.dokumentasi_b64s.map((src, index) => <Image key={index} src={src} style={s.photo} />)}</View> : <Text style={s.empty}>Belum ada dokumentasi</Text>}</View>
           <View style={[s.cell, s.paraf, { backgroundColor: "#fff" }]}><Text style={item.pic_paraf ? s.parafMark : s.parafEmpty}>{item.pic_paraf ? "✓" : " "}</Text></View>
-          <View style={[s.cell, s.paraf, { borderRightWidth: 0, backgroundColor: "#fff" }]}><Text style={item.client_paraf ? s.parafMark : s.parafEmpty}>{item.client_paraf ? "✓" : " "}</Text></View>
+          <View style={[s.cell, s.paraf, { borderRightWidth: 0, backgroundColor: "#fff" }]}><Text style={(internal ? item.head_teknik_paraf : item.client_paraf) ? s.parafMark : s.parafEmpty}>{(internal ? item.head_teknik_paraf : item.client_paraf) ? "✓" : " "}</Text></View>
         </View>)}
       </View>
 
       <View style={s.noteBox}><Text style={s.noteTitle}>Catatan / Pekerjaan yang Masih Kurang</Text><Text style={s.noteText}>{data.catatan || " "}</Text></View>
 
       <View style={s.signatures} wrap={false}>
-        <View style={s.signatureGrid}>
+        {internal ? <View style={s.signatureGrid}>
+          {["PIC", "Tukang", "Mandor", "Head Teknik"].map((role) => <View key={role} style={s.signatureInternal}>
+            <Text style={s.signatureLabel}>Tanda tangan {role}</Text>
+            <View style={s.signatureArea} />
+            <Text style={s.signatureRole}>{role}</Text>
+          </View>)}
+        </View> : <View style={s.signatureGrid}>
           <View style={s.signature}>
             <Text style={s.signatureLabel}> </Text>
             <View style={s.signatureArea}>{data.logoUrl && <Image src={data.logoUrl} style={s.signatureLogo} />}</View>
@@ -147,7 +157,7 @@ export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
             <Text style={s.signatureName}>{data.signatories.client || data.klien || "Belum diinput"}</Text>
             <Text style={s.signatureRole}>Client</Text>
           </View>
-        </View>
+        </View>}
       </View>
 
       <View style={s.footer} fixed><Text style={s.footerText}>{COMPANY.name} — Form Checklist</Text><Text style={s.footerText} render={({ pageNumber, totalPages }) => `Hal ${pageNumber}/${totalPages}`} /></View>

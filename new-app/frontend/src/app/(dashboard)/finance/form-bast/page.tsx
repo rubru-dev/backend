@@ -1,8 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { apiClient } from "@/lib/api/client";
+import { useState } from "react";
 import { downloadOfferPdf } from "@/lib/download-offer-pdf";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
@@ -11,24 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Eye, FileText, Save, Search, Trash2 } from "lucide-react";
-
-type LeadOption = {
-  id: string;
-  nama: string;
-  display_name?: string | null;
-  telepon?: string | null;
-  nomor_telepon?: string | null;
-  alamat?: string | null;
-  jenis?: string | null;
-  status?: string | null;
-};
+import { Download, Eye, FileText, Plus, Save, Trash2 } from "lucide-react";
 
 type SavedBast = {
   id: string;
   createdAt: string;
   nomor: string;
-  leadId: string;
+  leadId?: string;
   namaClient: string;
   alamatClient: string;
   teleponClient: string;
@@ -37,6 +24,7 @@ type SavedBast = {
   jenisPekerjaan: string;
   tanggalGaransiRenovasiBerakhir: string;
   tanggalGaransiBocoranBerakhir: string;
+  poin?: string[];
 };
 
 const STORAGE_KEY = "rubahrumah.projek.form-bast";
@@ -88,30 +76,22 @@ function defaultNomor(date: string) {
   return `RR/AR-02/${month}/${year}`;
 }
 
-function normalizeSearch(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
-function cleanClientName(value?: string | null) {
-  return String(value ?? "").replace(/^(Mr|Mrs)\.?\s+/i, "").trim();
-}
-
 export default function FormBastPage() {
-  const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
+  const canAccess = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("projek", "form_bast"));
   const [activeTab, setActiveTab] = useState("generate");
   const [showPreview, setShowPreview] = useState(true);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
-  const [clientSearch, setClientSearch] = useState("");
 
   const [tanggalBast, setTanggalBast] = useState(todayInput());
   const [nomor, setNomor] = useState(defaultNomor(todayInput()));
-  const [leadId, setLeadId] = useState("");
+  const [namaClient, setNamaClient] = useState("");
   const [alamatClient, setAlamatClient] = useState("");
   const [teleponClient, setTeleponClient] = useState("");
   const [tanggalSerahTerima, setTanggalSerahTerima] = useState(todayInput());
   const [jenisPekerjaan, setJenisPekerjaan] = useState<(typeof JENIS_PEKERJAAN)[number]>("Pekerjaan Renovasi Rumah");
   const [tanggalGaransiRenovasiBerakhir, setTanggalGaransiRenovasiBerakhir] = useState(addDays(todayInput(), 30));
   const [tanggalGaransiBocoranBerakhir, setTanggalGaransiBocoranBerakhir] = useState(addMonths(todayInput(), 6));
+  const [poin, setPoin] = useState<string[]>([""]);
   const [savedBasts, setSavedBasts] = useState<SavedBast[]>(() => {
     if (typeof window === "undefined") return [];
     try {
@@ -121,40 +101,10 @@ export default function FormBastPage() {
     }
   });
 
-  const { data: leads = [] } = useQuery<LeadOption[]>({
-    queryKey: ["form-bast-sales-admin-follow-up-leads"],
-    queryFn: () =>
-      apiClient
-        .get("/bd/sales-admin/leads", { params: { limit: 500 } })
-        .then((response) => response.data?.items ?? response.data ?? []),
-    enabled: isSuperAdmin,
-    staleTime: 5 * 60_000,
-  });
-
-  const selectedLead = leads.find((lead) => String(lead.id) === leadId) ?? leads[0];
-  const selectedLeadPhone = selectedLead?.telepon ?? selectedLead?.nomor_telepon ?? "";
-  const namaClient = cleanClientName(selectedLead?.display_name ?? selectedLead?.nama) || "........................";
-  const effectiveLeadId = leadId || String(selectedLead?.id ?? "");
-
-  useEffect(() => {
-    if (leadId || !selectedLead) return;
-    setLeadId(String(selectedLead.id));
-    setTeleponClient(selectedLeadPhone);
-    setAlamatClient(selectedLead.alamat ?? "");
-  }, [leadId, selectedLead, selectedLeadPhone]);
-
-  const filteredLeads = useMemo(() => {
-    const needle = normalizeSearch(clientSearch);
-    if (!needle) return leads;
-    return leads.filter((lead) =>
-      normalizeSearch(`${lead.display_name ?? lead.nama} ${lead.telepon ?? lead.nomor_telepon ?? ""} ${lead.alamat ?? ""}`).includes(needle)
-    );
-  }, [clientSearch, leads]);
-
-  if (!isSuperAdmin) {
+  if (!canAccess) {
     return (
       <div className="p-10 text-center text-muted-foreground">
-        Halaman Form BAST hanya dapat diakses oleh Super Admin.
+        Anda tidak memiliki akses Form BAST.
       </div>
     );
   }
@@ -167,13 +117,6 @@ export default function FormBastPage() {
     setTanggalGaransiBocoranBerakhir(addMonths(value, 6));
   }
 
-  function pickLead(value: string) {
-    setLeadId(value);
-    const picked = leads.find((lead) => String(lead.id) === value);
-    setTeleponClient(picked?.telepon ?? picked?.nomor_telepon ?? "");
-    setAlamatClient(picked?.alamat ?? "");
-  }
-
   function persist(next: SavedBast[]) {
     setSavedBasts(next);
     window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -184,8 +127,7 @@ export default function FormBastPage() {
       id: crypto.randomUUID(),
       createdAt: new Date().toISOString(),
       nomor,
-      leadId: effectiveLeadId,
-      namaClient,
+      namaClient: namaClient.trim(),
       alamatClient,
       teleponClient,
       tanggalBast,
@@ -193,6 +135,7 @@ export default function FormBastPage() {
       jenisPekerjaan,
       tanggalGaransiRenovasiBerakhir,
       tanggalGaransiBocoranBerakhir,
+      poin: poin.map((item) => item.trim()).filter(Boolean),
     };
     persist([draft, ...savedBasts]);
     setActiveTab("list");
@@ -200,7 +143,7 @@ export default function FormBastPage() {
 
   function loadBast(draft: SavedBast, shouldPrint = false) {
     setNomor(draft.nomor);
-    setLeadId(draft.leadId);
+    setNamaClient(draft.namaClient ?? "");
     setAlamatClient(draft.alamatClient);
     setTeleponClient(draft.teleponClient);
     setTanggalBast(draft.tanggalBast);
@@ -212,6 +155,7 @@ export default function FormBastPage() {
     );
     setTanggalGaransiRenovasiBerakhir(draft.tanggalGaransiRenovasiBerakhir);
     setTanggalGaransiBocoranBerakhir(draft.tanggalGaransiBocoranBerakhir);
+    setPoin(draft.poin?.length ? draft.poin : [""]);
     setShowPreview(true);
     setActiveTab("generate");
     if (shouldPrint) {
@@ -306,28 +250,8 @@ export default function FormBastPage() {
 
             <div className="mt-4 grid gap-4 md:grid-cols-4">
               <div className="md:col-span-2">
-                <Label>Nama Client dari Follow Up Leads Sales Admin</Label>
-                <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    className="pl-9"
-                    value={clientSearch}
-                    onChange={(event) => setClientSearch(event.target.value)}
-                    placeholder="Cari nama client"
-                  />
-                </div>
-                <Select value={effectiveLeadId} onValueChange={pickLead}>
-                  <SelectTrigger className="mt-2"><SelectValue placeholder="Pilih client" /></SelectTrigger>
-                  <SelectContent>
-                    {filteredLeads.length ? filteredLeads.map((lead) => (
-                      <SelectItem key={lead.id} value={String(lead.id)}>
-                        {cleanClientName(lead.display_name ?? lead.nama)}
-                      </SelectItem>
-                    )) : (
-                      <div className="px-3 py-2 text-sm text-muted-foreground">Client tidak ditemukan</div>
-                    )}
-                  </SelectContent>
-                </Select>
+                <Label>Nama Client</Label>
+                <Input value={namaClient} onChange={(event) => setNamaClient(event.target.value)} placeholder="Tulis nama client" />
               </div>
               <div>
                 <Label>No. Telepon Client</Label>
@@ -356,6 +280,10 @@ export default function FormBastPage() {
                   onChange={(event) => setTanggalGaransiBocoranBerakhir(event.target.value)}
                 />
               </div>
+            </div>
+            <div className="mt-5 border-t pt-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2"><div><Label>Catatan BAST</Label><p className="text-xs text-muted-foreground">Catatan tampil sebagai daftar bernomor pada preview dan PDF.</p></div><Button type="button" size="sm" variant="outline" className="min-h-11" onClick={() => setPoin((current) => [...current, ""])}><Plus className="mr-1 h-4 w-4" />Tambah Poin</Button></div>
+              <div className="space-y-3">{poin.map((item, index) => <div key={index} className="grid grid-cols-[2rem_minmax(0,1fr)_2.75rem] items-start gap-2"><span className="pt-3 text-center text-sm font-semibold">{index + 1}.</span><textarea aria-label={`Catatan ${index + 1}`} className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm" value={item} onChange={(event) => setPoin((current) => current.map((point, pointIndex) => pointIndex === index ? event.target.value : point))} placeholder="Tuliskan catatan serah terima" /><Button type="button" size="icon" variant="ghost" className="h-11 w-11 text-destructive" aria-label={`Hapus catatan ${index + 1}`} disabled={poin.length === 1} onClick={() => setPoin((current) => current.filter((_, pointIndex) => pointIndex !== index))}><Trash2 className="h-4 w-4" /></Button></div>)}</div>
             </div>
           </div>
         </TabsContent>
@@ -440,7 +368,7 @@ export default function FormBastPage() {
           <p className="mt-3">Selanjutnya di sebut sebagai <span className="font-bold">"Pihak Pertama"</span></p>
 
           <div className="mt-7 grid grid-cols-[92px_1fr] gap-y-2">
-            <span>Nama</span><span>: {namaClient}</span>
+            <span>Nama</span><span>: {namaClient.trim() || "........................"}</span>
             <span>Alamat</span><span>: {alamatClient || "........................"}</span>
             <span>No. Telepon</span><span>: {teleponClient || "........................"}</span>
           </div>
@@ -455,6 +383,7 @@ export default function FormBastPage() {
               Dengan adanya berita acara serah terima pekerjaan ini maka segala kewajiban <span className="font-bold">Pihak Pertama</span> tentang yang berlaku dipekerjaan renovasi rumah ini dinyatakan telah berakhir dan tidak ada perkerjaan lagi yang harus diselesaikan atau pekerjaan telah selesai.
               Adapun garansi pekerjaan renovasi selama 30 hari kalender yang berakhir pada {formatDateID(tanggalGaransiRenovasiBerakhir)} dan pekerjaan garansi kebocoran Selama 6 Bulan yang berakhir pada tanggal {formatDateID(tanggalGaransiBocoranBerakhir)}.
             </p>
+            {poin.some((item) => item.trim()) && <ol className="list-decimal space-y-2 pl-8">{poin.filter((item) => item.trim()).map((item, index) => <li key={index} className="whitespace-pre-wrap">{item}</li>)}</ol>}
             <p className="indent-8">
               Demikian berita acara serah terima ini dibuat dan untuk dipergunakan sebagaimana mestinya. Atas perhatian Bapak dan Ibu, kami ucapkan terima kasih.
             </p>

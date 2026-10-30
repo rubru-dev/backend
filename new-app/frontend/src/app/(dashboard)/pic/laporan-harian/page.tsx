@@ -58,6 +58,8 @@ export default function PICLaporanHarianPage() {
     queryKey: ["laporan-pic-termin-options", projectType, projectId],
     queryFn: () => laporanPicApi.terminOptions(projectType, projectId),
     enabled: Boolean(projectId),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   const selectedTermin = terminOptions.find((termin) => termin.id === terminId);
 
@@ -187,7 +189,7 @@ export default function PICLaporanHarianPage() {
               {!terminId ? (
                 <p className="p-3 text-sm text-muted-foreground">Pilih termin terlebih dahulu.</p>
               ) : (selectedTermin?.tasks ?? []).length === 0 ? (
-                <p className="p-3 text-sm text-muted-foreground">Belum ada item pekerjaan pada termin ini.</p>
+                <p className="p-3 text-sm text-muted-foreground">Semua pekerjaan pada termin ini sudah selesai atau belum ada item pekerjaan.</p>
               ) : (selectedTermin?.tasks ?? []).map((task) => {
                 const checked = taskIds.includes(task.id);
                 return (

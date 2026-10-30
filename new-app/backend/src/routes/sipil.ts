@@ -1075,12 +1075,14 @@ router.patch("/checklist/:cid/paraf", requirePermission("projek_sipil", "checkli
   const cid = BigInt(req.params.cid);
   const item = await prisma.checklistSipil.findUnique({ where: { id: cid } });
   if (!item) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
-  const party = req.body.party === "client" ? "client" : req.body.party === "pic" ? "pic" : null;
-  if (!party) return res.status(400).json({ detail: "party harus pic atau client" });
+  const party = ["pic", "client", "head_teknik"].includes(req.body.party) ? req.body.party as "pic" | "client" | "head_teknik" : null;
+  if (!party) return res.status(400).json({ detail: "party harus pic, client, atau head_teknik" });
   const value = req.body.value === true || req.body.value === "true";
   const data = party === "pic"
     ? { pic_paraf: value, pic_paraf_by: value ? req.user!.id : null, pic_paraf_at: value ? new Date() : null }
-    : { client_paraf: value, client_paraf_by: value ? req.user!.id : null, client_paraf_at: value ? new Date() : null };
+    : party === "client"
+      ? { client_paraf: value, client_paraf_by: value ? req.user!.id : null, client_paraf_at: value ? new Date() : null }
+      : { head_teknik_paraf: value, head_teknik_paraf_by: value ? req.user!.id : null, head_teknik_paraf_at: value ? new Date() : null };
   return res.json(serializeChecklist(await prisma.checklistSipil.update({ where: { id: cid }, data })));
 });
 

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ClipboardList, PackageCheck, PackagePlus, Pencil, Plus, Save, Send, Trash2 } from "lucide-react";
+import { CheckCircle2, ClipboardList, PackageCheck, PackagePlus, PackageSearch, Pencil, Plus, Save, Send, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { laporanPicApi } from "@/lib/api/laporanPic";
 import { projectStockApi } from "@/lib/api/projectStock";
@@ -24,7 +24,7 @@ export default function PBProjekPage() {
   const hasHydrated = useAuthStore((state) => state._hasHydrated);
   const canAccess = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("pic", "pb_projek"));
   const canReceive = useAuthStore((state) => state.isSuperAdmin() || state.hasPermission("project_stock", "receive"));
-  const [tab, setTab] = useState<"form" | "list">("form");
+  const [tab, setTab] = useState<"form" | "list" | "stock">("form");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [projectType, setProjectType] = useState<ProjectType>("sipil");
   const [projectId, setProjectId] = useState("");
@@ -34,6 +34,8 @@ export default function PBProjekPage() {
   const [submitChecked, setSubmitChecked] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
   const [receiveTarget, setReceiveTarget] = useState<any | null>(null);
+  const [physicalDrafts, setPhysicalDrafts] = useState<Record<string, string>>({});
+  const [stockJenis, setStockJenis] = useState<"Alat" | "Material">("Alat");
 
   const projects = useQuery({ queryKey: ["pb-project-options", projectType], queryFn: () => laporanPicApi.projekOptions(projectType), enabled: hasHydrated && canAccess });
   const stock = useQuery<any[]>({ queryKey: ["pb-stock-options", projectType, projectId], queryFn: () => projectStockApi.list(projectType, projectId), enabled: hasHydrated && canAccess && Boolean(projectId), staleTime: 0 });
@@ -80,12 +82,21 @@ export default function PBProjekPage() {
   });
   const receive = useMutation({
     mutationFn: ({ id, tanggal, items, requestId }: { id: string; tanggal: string; items: { pb_item_id: string; qty: number }[]; requestId: string }) => projectStockApi.receivePB(id, tanggal, items, requestId),
-    onSuccess: () => { toast.success("Barang diterima, Barang Masuk tercatat di Stock Opname"); setReceiveTarget(null); refreshAll(); },
+    onSuccess: () => { toast.success("Penerimaan barang berhasil dicatat"); setReceiveTarget(null); refreshAll(); },
     onError: apiError("Gagal mencatat penerimaan barang"),
   });
+  const updatePhysical = useMutation({
+    mutationFn: ({ id, qty }: { id: string; qty: number }) => projectStockApi.updatePhysicalStock(id, qty),
+    onSuccess: (_result, variables) => {
+      toast.success("Jumlah fisik berhasil diperbarui");
+      setPhysicalDrafts((current) => { const next = { ...current }; delete next[variables.id]; return next; });
+      refreshAll();
+    },
+    onError: apiError("Gagal memperbarui jumlah fisik"),
+  });
 
-  const changeProjectType = (value: ProjectType) => { setProjectType(value); setProjectId(""); setRows([emptyRow()]); };
-  const changeProject = (value: string) => { setProjectId(value); setRows([emptyRow()]); };
+  const changeProjectType = (value: ProjectType) => { setProjectType(value); setProjectId(""); setRows([emptyRow()]); setPhysicalDrafts({}); };
+  const changeProject = (value: string) => { setProjectId(value); setRows([emptyRow()]); setPhysicalDrafts({}); };
   const updateRow = (key: number, patch: Partial<FormRow>) => setRows((prev) => prev.map((row) => (row.key === key ? { ...row, ...patch } : row)));
   const removeRow = (key: number) => setRows((prev) => (prev.length === 1 ? [emptyRow()] : prev.filter((row) => row.key !== key)));
   const setRowQty = (row: FormRow, value: string) => {
@@ -113,6 +124,7 @@ export default function PBProjekPage() {
     <div className="flex gap-1 border-b" role="tablist" aria-label="Menu PB Projek">
       <button type="button" role="tab" aria-selected={tab === "form"} className={`border-b-2 px-4 py-2.5 text-sm font-semibold ${tab === "form" ? "border-orange-500 text-orange-600" : "border-transparent text-muted-foreground"}`} onClick={() => setTab("form")}><PackagePlus className="mr-1.5 inline h-4 w-4" />{editingId ? "Edit PB" : "Buat PB"}</button>
       <button type="button" role="tab" aria-selected={tab === "list"} className={`border-b-2 px-4 py-2.5 text-sm font-semibold ${tab === "list" ? "border-orange-500 text-orange-600" : "border-transparent text-muted-foreground"}`} onClick={() => setTab("list")}><ClipboardList className="mr-1.5 inline h-4 w-4" />Daftar PB</button>
+      <button type="button" role="tab" aria-selected={tab === "stock"} className={`border-b-2 px-4 py-2.5 text-sm font-semibold ${tab === "stock" ? "border-orange-500 text-orange-600" : "border-transparent text-muted-foreground"}`} onClick={() => setTab("stock")}><PackageSearch className="mr-1.5 inline h-4 w-4" />Stok Fisik</button>
     </div>
 
     {tab === "form" ? <div className="space-y-4">
@@ -159,11 +171,12 @@ export default function PBProjekPage() {
       </div>}
     </div>
 
-    : <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[1100px] text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-3 text-left">No. PB</th><th className="px-3 py-3 text-left">Projek</th><th className="px-3 py-3 text-left">Item</th><th className="px-3 py-3 text-left">Status</th><th className="px-3 py-3 text-left">Approval</th><th className="px-3 py-3 text-left">PR</th><th className="px-3 py-3 text-right">Aksi</th></tr></thead>
+    : tab === "list" ? <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[1220px] text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-3 text-left">No. PB</th><th className="px-3 py-3 text-left">Projek</th><th className="px-3 py-3 text-left">Item</th><th className="px-3 py-3 text-left">Catatan PB</th><th className="px-3 py-3 text-left">Status</th><th className="px-3 py-3 text-left">Approval</th><th className="px-3 py-3 text-left">PR</th><th className="px-3 py-3 text-right">Aksi</th></tr></thead>
       <tbody className="divide-y">{(pbList.data ?? []).map((pb) => <tr key={pb.id} className="align-top">
         <td className="px-3 py-3 font-medium">{pb.nomor_pb}<div className="text-xs font-normal text-muted-foreground">{fmtDate(pb.created_at)}</div></td>
         <td className="px-3 py-3">{pb.project_name}<div className="text-xs text-muted-foreground">{pb.project_type === "interior" ? "Interior" : "Sipil"}</div></td>
         <td className="max-w-[300px] px-3 py-3"><ul className="space-y-0.5">{pb.items.map((i: any) => <li key={i.id}>{i.nama_item}: <b>{i.qty} {i.satuan}</b>{i.catatan && <span className="text-xs text-muted-foreground">, {i.catatan}</span>}</li>)}</ul></td>
+        <td className="max-w-[240px] whitespace-pre-wrap px-3 py-3 text-xs text-muted-foreground">{pb.catatan || "-"}</td>
         <td className="px-3 py-3"><PBStatusBadge status={pb.status} revisi={pb.status === "Draft" && Boolean(pb.catatan_review)} />{pb.catatan_review && ["Draft", "Ditolak"].includes(pb.status) && <div className="mt-1.5 max-w-[220px] rounded bg-orange-50 px-2 py-1 text-xs text-orange-800"><b>{pb.status === "Ditolak" ? "Alasan" : "Revisi"} ({pb.reviewer}):</b> {pb.catatan_review}</div>}</td>
         <td className="px-3 py-3 text-xs"><ApprovalLine label="Finance" name={pb.finance_approver} at={pb.finance_approved_at} /><ApprovalLine label="Super Admin" name={pb.sa_approver} at={pb.sa_approved_at} /></td>
         <td className="px-3 py-3">{pb.pr_id ? (pb.nomor_pr || "PR dibuat") : "-"}</td>
@@ -178,10 +191,22 @@ export default function PBProjekPage() {
             : <span className="max-w-44 text-right text-xs text-muted-foreground">Menunggu PR disetujui dan ditandatangani Head Finance</span>)}
         </div></td>
       </tr>)}
-      {pbList.isLoading && <tr><td colSpan={7} className="px-4 py-10 text-center">Memuat daftar PB...</td></tr>}
-      {pbList.isError && <tr><td colSpan={7} className="px-4 py-10 text-center text-red-600">Gagal memuat daftar PB. <button type="button" className="underline" onClick={() => pbList.refetch()}>Coba lagi</button></td></tr>}
-      {pbList.isSuccess && !(pbList.data ?? []).length && <tr><td colSpan={7} className="px-4 py-10 text-center text-muted-foreground">Belum ada PB dari projek yang ditugaskan kepada Anda.</td></tr>}
-      </tbody></table></div>}
+      {pbList.isLoading && <tr><td colSpan={8} className="px-4 py-10 text-center">Memuat daftar PB...</td></tr>}
+      {pbList.isError && <tr><td colSpan={8} className="px-4 py-10 text-center text-red-600">Gagal memuat daftar PB. <button type="button" className="underline" onClick={() => pbList.refetch()}>Coba lagi</button></td></tr>}
+      {pbList.isSuccess && !(pbList.data ?? []).length && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Belum ada PB dari projek yang ditugaskan kepada Anda.</td></tr>}
+      </tbody></table></div> : null}
+
+    {tab === "stock" && <div className="space-y-4">
+      <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2">
+        <label className="space-y-1 text-sm font-medium">Jenis Projek<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={projectType} onChange={(event) => changeProjectType(event.target.value as ProjectType)}><option value="sipil">Projek Sipil</option><option value="interior">Projek Interior</option></select></label>
+        <label className="space-y-1 text-sm font-medium">Nama Projek<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={projectId} onChange={(event) => changeProject(event.target.value)}><option value="">Pilih projek yang ditugaskan</option>{(projects.data ?? []).map((project) => <option key={project.id} value={String(project.id)}>{project.nama}</option>)}</select></label>
+      </div>
+      {projectId && <div className="space-y-3 rounded-lg border bg-card p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2"><div><h2 className="font-semibold">Jumlah Fisik Aktual</h2><p className="text-xs text-muted-foreground">Isi berdasarkan hasil hitung langsung di lokasi projek.</p></div><div className="flex gap-1 rounded-md border p-1">{(["Alat", "Material"] as const).map((jenis) => <button key={jenis} type="button" className={`min-h-10 rounded px-3 text-sm font-semibold ${stockJenis === jenis ? "bg-orange-500 text-white" : "text-muted-foreground hover:bg-muted"}`} onClick={() => setStockJenis(jenis)}>{jenis}</button>)}</div></div>
+        {stock.isLoading ? <p className="py-8 text-center text-sm text-muted-foreground">Memuat item projek...</p> : stock.isError ? <div role="alert" className="rounded-md border border-destructive/30 p-3 text-sm text-destructive">Item projek gagal dimuat. <button type="button" className="font-semibold underline" onClick={() => stock.refetch()}>Coba lagi</button></div> : stockItems.filter((item) => item.jenis === stockJenis).length === 0 ? <p className="py-8 text-center text-sm text-muted-foreground">Belum ada {stockJenis.toLowerCase()} pada Stock Opname projek ini.</p> : <div className="overflow-x-auto rounded-md border"><table className="w-full min-w-[680px] text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-3 text-left">Nama Item</th><th className="px-3 py-3 text-right">Qty Total</th><th className="px-3 py-3 text-right">Sisa Fisik Saat Ini</th><th className="px-3 py-3 text-right">Jumlah Fisik Aktual</th><th className="px-3 py-3 text-right">Aksi</th></tr></thead><tbody className="divide-y">{stockItems.filter((item) => item.jenis === stockJenis).map((item) => { const draft = physicalDrafts[item.id] ?? String(item.sisa_fisik); const qty = Number(draft); const invalid = draft === "" || !Number.isFinite(qty) || qty < 0 || qty > item.qty_total; const saving = updatePhysical.isPending && updatePhysical.variables?.id === item.id; return <tr key={item.id}><td className="px-3 py-2 font-medium">{item.nama_item}<div className="text-xs font-normal text-muted-foreground">{item.satuan}</div></td><td className="px-3 py-2 text-right">{item.qty_total} {item.satuan}</td><td className="px-3 py-2 text-right">{item.sisa_fisik} {item.satuan}</td><td className="px-3 py-2"><label className="ml-auto flex w-40 items-center gap-2"><span className="sr-only">Jumlah fisik {item.nama_item}</span><input className="h-10 min-w-0 flex-1 rounded-md border bg-background px-3 text-right" type="number" min="0" max={item.qty_total} step="any" value={draft} onChange={(event) => setPhysicalDrafts((current) => ({ ...current, [item.id]: event.target.value }))} /><span className="text-xs text-muted-foreground">{item.satuan}</span></label></td><td className="px-3 py-2 text-right"><Button type="button" size="sm" className="min-h-10 bg-orange-500 hover:bg-orange-600" disabled={invalid || qty === item.sisa_fisik || updatePhysical.isPending} onClick={() => updatePhysical.mutate({ id: item.id, qty })}><Save className="mr-1 h-4 w-4" />{saving ? "Menyimpan..." : "Simpan"}</Button></td></tr>; })}</tbody></table></div>}
+      </div>}
+      {!projectId && <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">Pilih projek untuk memperbarui jumlah fisik.</div>}
+    </div>}
 
     {/* Konfirmasi kedua: review isi PB sebelum dikirim ke Finance */}
     <Dialog open={Boolean(submitTarget)} onOpenChange={(open) => !open && setSubmitTarget(null)}>

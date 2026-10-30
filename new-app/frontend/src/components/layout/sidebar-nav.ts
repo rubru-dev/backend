@@ -195,7 +195,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { label: "PB Projek",                href: "/finance/pb-projek",           icon: "ClipboardCheck", permission: "finance.pb_projek" },
       { label: "Administrasi Kantor",     href: "/finance/administrasi-kantor", icon: "Folder",         permission: "finance.adm_kantor" },
       { label: "Absen Karyawan",          href: "/finance/absen-karyawan",      icon: "ClipboardCheck", permission: "absen.manage" },
-      { label: "Form BAST",               href: "/finance/form-bast",           icon: "FileText",       superAdminOnly: true },
+      { label: "Form BAST",               href: "/finance/form-bast",           icon: "FileText",       permission: "projek.form_bast" },
       { label: "Laporan Harian",          href: "/finance/laporan-harian",      icon: "ClipboardList",  permission: "finance.laporan_harian" },
     ],
   },

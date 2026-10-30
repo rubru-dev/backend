@@ -838,12 +838,14 @@ router.get("/laporan-pic/termin-options", async (req: Request, res: Response) =>
   const projectId = String(req.query.project_id || "");
   if (!projectId) return res.status(400).json({ detail: "project_id wajib diisi" });
   const id = BigInt(projectId);
+  const userId = req.user!.id;
+  const accessWhere = canBrowseAllProjects(req) ? {} : { OR: [{ pic_user_id: userId }, { pic_assignments: { some: { user_id: userId } } }] };
   if (type === "interior") {
-    const project = await prisma.proyekInterior.findUnique({ where: { id }, include: { termins: { orderBy: { urutan: "asc" }, include: { tasks: { orderBy: { id: "asc" } } } } } });
+    const project = await prisma.proyekInterior.findFirst({ where: { id, ...accessWhere }, include: { termins: { orderBy: { urutan: "asc" }, include: { tasks: { where: { status: { not: "Selesai" } }, orderBy: { id: "asc" } } } } } });
     if (!project) return res.status(404).json({ detail: "Projek tidak ditemukan" });
     return res.json(project.termins.map((t) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama, tasks: t.tasks.map((task) => ({ id: String(task.id), nama_pekerjaan: task.nama_pekerjaan })) })));
   }
-  const project = await prisma.proyekBerjalan.findUnique({ where: { id }, include: { termins: { orderBy: { urutan: "asc" }, include: { tasks: { orderBy: { id: "asc" } } } } } });
+  const project = await prisma.proyekBerjalan.findFirst({ where: { id, ...accessWhere }, include: { termins: { orderBy: { urutan: "asc" }, include: { tasks: { where: { status: { not: "Selesai" } }, orderBy: { id: "asc" } } } } } });
   if (!project) return res.status(404).json({ detail: "Projek tidak ditemukan" });
   return res.json(project.termins.map((t) => ({ id: String(t.id), urutan: t.urutan, nama: t.nama, tasks: t.tasks.map((task) => ({ id: String(task.id), nama_pekerjaan: task.nama_pekerjaan })) })));
 });

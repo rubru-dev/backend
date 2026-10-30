@@ -192,7 +192,7 @@ export const sipilApi = {
   deleteRabItem: (itemId: string) => apiClient.delete(`/sipil/rab/${itemId}`).then((r) => r.data),
   // Checklist
   getChecklist: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/checklist`).then((r) => r.data),
-  updateChecklistParaf: (cid: string, party: "pic" | "client", value: boolean) => apiClient.patch(`/sipil/checklist/${cid}/paraf`, { party, value }).then((r) => r.data),
+  updateChecklistParaf: (cid: string, party: "pic" | "client" | "head_teknik", value: boolean) => apiClient.patch(`/sipil/checklist/${cid}/paraf`, { party, value }).then((r) => r.data),
   addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => {
     const form = new FormData();
     form.append("nama_pekerjaan", data.nama_pekerjaan);
@@ -256,7 +256,7 @@ export const interiorProjekApi = {
   getDokumentasiPic: (id: string) => apiClient.get(`/pic/projeks/interior/${id}/termins`).then((r) => r.data),
   // Checklist
   getChecklist: (projekId: string) => apiClient.get(`/interior/projeks/${projekId}/checklist`).then((r) => r.data),
-  updateChecklistParaf: (cid: string, party: "pic" | "client", value: boolean) => apiClient.patch(`/interior/projeks/checklist/${cid}/paraf`, { party, value }).then((r) => r.data),
+  updateChecklistParaf: (cid: string, party: "pic" | "client" | "head_teknik", value: boolean) => apiClient.patch(`/interior/projeks/checklist/${cid}/paraf`, { party, value }).then((r) => r.data),
   addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => {
     const form = new FormData();
     form.append("nama_pekerjaan", data.nama_pekerjaan);
