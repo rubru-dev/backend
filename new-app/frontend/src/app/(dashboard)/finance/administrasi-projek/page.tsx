@@ -2,6 +2,7 @@
 import { getLogoBase64 } from "@/lib/get-logo";
 
 import { Fragment, useEffect, useState, useRef } from "react";
+import { formatInTimeZone } from "date-fns-tz";
 import { useQuery, useMutation, useQueryClient, useQueries } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -995,6 +996,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
   const [depositForm, setDepositForm] = useState({ deposit_awal: 0 });
   const [extraDepositForm, setExtraDepositForm] = useState({ jumlah: 0, catatan: "" });
   const [selectedPRId, setSelectedPRId] = useState<number | null>(null);
+  const [pullPRTanggal, setPullPRTanggal] = useState(() => formatInTimeZone(new Date(), "Asia/Jakarta", "yyyy-MM-dd"));
   const [pullPRNotaImage, setPullPRNotaImage] = useState<string | null>(null);
   // Signature dialog state
   const [sigDialog, setSigDialog] = useState<{ open: boolean; mode: "deposit" | "extraDeposit" | "pr"; targetId?: number }>({ open: false, mode: "deposit" });
@@ -1083,7 +1085,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
   });
 
   const pullPRMut = useMutation({
-    mutationFn: () => admApi.pullPRtoCashflow(proyekId, selectedTerminId!, { projek_pr_id: selectedPRId, tanggal: today, nota_image: pullPRNotaImage }),
+    mutationFn: () => admApi.pullPRtoCashflow(proyekId, selectedTerminId!, { projek_pr_id: selectedPRId, tanggal: pullPRTanggal, nota_image: pullPRNotaImage }),
     onSuccess: () => {
       toast.success("PR ditarik ke cashflow");
       qc.invalidateQueries({ queryKey: ["adm-termin-cf", proyekId, selectedTerminId] });
@@ -1303,7 +1305,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
           <div className="flex items-center justify-between">
             <h3 className="font-semibold text-sm">Rincian Pengeluaran PR</h3>
             <div className="flex gap-2">
-              <Button size="sm" variant="outline" onClick={() => setOpenPullPR(true)}>
+              <Button size="sm" variant="outline" onClick={() => { setPullPRTanggal(formatInTimeZone(new Date(), "Asia/Jakarta", "yyyy-MM-dd")); setOpenPullPR(true); }}>
                 <Plus className="h-3.5 w-3.5 mr-1" /> Tarik PR
               </Button>
               <Button variant="outline" size="sm" onClick={() => { setSelectedGajianId(null); setOpenPullGajian(true); }} disabled={!selectedTerminId}>
@@ -1460,6 +1462,18 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
             {Array.isArray(availablePRs) && availablePRs.length === 0 && (
               <p className="text-sm text-center text-muted-foreground py-2">Tidak ada PR yang tersedia</p>
             )}
+            <div>
+              <Label htmlFor="pull-pr-tanggal">Tanggal Cashflow</Label>
+              <Input
+                id="pull-pr-tanggal"
+                type="date"
+                required
+                min="0001-01-01"
+                max="9999-12-31"
+                value={pullPRTanggal}
+                onChange={(e) => setPullPRTanggal(e.target.value)}
+              />
+            </div>
             {/* Nota upload */}
             <div>
               <Label>Upload Nota (opsional)</Label>
@@ -1488,7 +1502,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setOpenPullPR(false); setSelectedPRId(null); setPullPRNotaImage(null); }}>Batal</Button>
-              <Button disabled={!selectedPRId || pullPRMut.isPending} onClick={() => pullPRMut.mutate()}>
+              <Button disabled={!selectedPRId || !pullPRTanggal || pullPRMut.isPending} onClick={() => pullPRMut.mutate()}>
                 {pullPRMut.isPending ? "Menarik..." : "Tarik ke Cashflow"}
               </Button>
             </div>

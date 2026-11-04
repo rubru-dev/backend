@@ -2379,6 +2379,13 @@ router.post("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: R
   const tid = BigInt(req.params.tid);
   const { projek_pr_id, tanggal, nota_image } = req.body;
   if (!projek_pr_id) return res.status(400).json({ detail: "projek_pr_id wajib diisi" });
+  if (typeof tanggal !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
+    return res.status(400).json({ detail: "Tanggal cashflow wajib diisi dengan format YYYY-MM-DD" });
+  }
+  const cashflowDate = new Date(`${tanggal}T00:00:00.000Z`);
+  if (!Number.isFinite(cashflowDate.getTime()) || cashflowDate.toISOString().slice(0, 10) !== tanggal || cashflowDate.getUTCFullYear() < 1) {
+    return res.status(400).json({ detail: "Tanggal cashflow tidak valid" });
+  }
   const prId = BigInt(projek_pr_id);
   const pr = await prisma.projekPR.findUnique({ where: { id: prId }, include: { items: true } });
   if (!pr) return res.status(404).json({ detail: "PR tidak ditemukan" });
@@ -2390,7 +2397,7 @@ router.post("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: R
       adm_finance_project_id: pid,
       adm_finance_termin_id: tid,
       projek_pr_id: prId,
-      tanggal: tanggal ? new Date(tanggal) : new Date(),
+      tanggal: cashflowDate,
       no_pr: pr.nomor_pr || null,
       keterangan: pr.nama_toko || pr.keperluan || null,
       debit: total,

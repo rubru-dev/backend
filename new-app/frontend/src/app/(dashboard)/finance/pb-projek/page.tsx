@@ -97,7 +97,17 @@ export default function FinancePBProjekPage() {
     <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[1240px] text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-3 text-left">No. PB</th><th className="px-3 py-3 text-left">Nama Projek</th><th className="px-3 py-3 text-left">PIC / Pengaju</th><th className="px-3 py-3 text-left">Item</th><th className="px-3 py-3 text-left">Status PB</th><th className="px-3 py-3 text-left">Approval</th><th className="px-3 py-3 text-left">PR</th><th className="px-3 py-3 text-right">Aksi</th></tr></thead>
       <tbody className="divide-y">{filtered.map((pb) => <tr key={pb.id} className="align-top">
         <td className="px-3 py-3 font-medium">{pb.nomor_pb}<div className="text-xs font-normal text-muted-foreground">{pb.submitted_at ? "Dikirim" : "Disimpan"} {fmtDate(pb.submitted_at ?? pb.created_at)}</div></td>
-        <td className="px-3 py-3"><div className="font-medium">{pb.project_name}</div><div className="text-xs text-muted-foreground">{pb.project_type === "interior" ? "Interior" : "Sipil"} · #{pb.project_id}</div></td>
+        <td className="px-3 py-3">
+          <Link
+            href={`/projek/${pb.project_type === "interior" ? "interior" : "sipil"}/${encodeURIComponent(String(pb.project_id))}`}
+            className="inline-flex items-center gap-1 rounded-sm font-medium text-teal-700 underline underline-offset-4 hover:text-teal-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
+            aria-label={`Buka proyek ${pb.project_name}`}
+          >
+            {pb.project_name}
+            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+          </Link>
+          <div className="text-xs text-muted-foreground">{pb.project_type === "interior" ? "Interior" : "Sipil"} · #{pb.project_id}</div>
+        </td>
         <td className="px-3 py-3">{(pb.pic_names ?? []).join(", ") || "-"}<div className="text-xs text-muted-foreground">Pengaju: {pb.creator || "-"}</div></td>
         <td className="max-w-[300px] px-3 py-3"><ul className="space-y-0.5">{pb.items.map((i: any) => <li key={i.id}>{i.nama_item}: <b>{i.qty} {i.satuan}</b>{i.catatan && <span className="text-xs text-muted-foreground">, {i.catatan}</span>}</li>)}</ul>{pb.catatan && <div className="mt-1 text-xs text-muted-foreground">Catatan: {pb.catatan}</div>}</td>
         <td className="px-3 py-3"><PBStatusBadge status={pb.status} />{pb.status === "Ditolak" && pb.catatan_review && <div className="mt-1.5 max-w-[200px] rounded bg-red-50 px-2 py-1 text-xs text-red-800"><b>Alasan ({pb.reviewer}):</b> {pb.catatan_review}</div>}</td>
