@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
 import { AbsenPhotos } from "@/components/absen-photos";
@@ -13,10 +13,9 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {
   CheckCircle, XCircle, Clock, Settings, Users, AlertTriangle,
-  MapPin, Eye, ChevronLeft, ChevronRight, Loader2,
+  MapPin, ChevronDown, ChevronLeft, ChevronRight, Loader2,
 } from "lucide-react";
 
 const api = {
@@ -47,7 +46,7 @@ function formatTgl(d: string | Date) {
 }
 
 // ── Detail dialog ─────────────────────────────────────────────────────────────
-function AbsenDetailDialog({ record, onClose, onApprove, onReject }: {
+function AbsenDetail({ record, onClose, onApprove, onReject }: {
   record: any; onClose: () => void;
   onApprove: () => void; onReject: (catatan: string) => void;
 }) {
@@ -56,10 +55,8 @@ function AbsenDetailDialog({ record, onClose, onApprove, onReject }: {
   const s = STATUS_STYLE[record.status] ?? STATUS_STYLE["Hadir"];
 
   return (
-    <DialogContent className="max-w-sm">
-      <DialogHeader>
-        <DialogTitle className="text-base">Detail Absen — {record.user?.name}</DialogTitle>
-      </DialogHeader>
+    <div className="max-w-2xl space-y-3 p-4">
+      <h3 className="text-base font-semibold">Detail Absen — {record.user?.name}</h3>
       <div className="space-y-4 text-sm">
         <div className="flex items-center justify-between">
           <span className="text-muted-foreground">{formatTgl(record.tanggal)}</span>
@@ -138,7 +135,7 @@ function AbsenDetailDialog({ record, onClose, onApprove, onReject }: {
 
         <Button variant="outline" size="sm" className="w-full" onClick={onClose}>Tutup</Button>
       </div>
-    </DialogContent>
+    </div>
   );
 }
 
@@ -250,7 +247,8 @@ function PendingTab() {
     <>
       <div className="divide-y border rounded-xl overflow-hidden">
         {pending.map((r: any) => (
-          <div key={r.id} className="flex items-center gap-3 px-4 py-3 bg-white hover:bg-muted/30 transition-colors">
+          <div key={r.id}>
+          <div className="flex items-center gap-3 px-4 py-3 bg-white hover:bg-muted/30 transition-colors cursor-pointer" onClick={() => setDetailRecord(detailRecord?.id === r.id ? null : r)}>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold">{r.user?.name ?? "—"}</p>
               <p className="text-xs text-muted-foreground">{formatTgl(r.tanggal)} · {formatJam(r.jam_masuk)}</p>
@@ -260,9 +258,9 @@ function PendingTab() {
                 </p>
               )}
             </div>
-            <div className="flex gap-2 flex-shrink-0">
-              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setDetailRecord(r)}>
-                <Eye className="h-4 w-4" />
+            <div className="flex gap-2 flex-shrink-0" onClick={(event) => event.stopPropagation()}>
+              <Button size="sm" variant="ghost" className="h-8 w-8 p-0" aria-label={`Detail absensi ${r.user?.name ?? "karyawan"}`} aria-expanded={detailRecord?.id === r.id} onClick={() => setDetailRecord(detailRecord?.id === r.id ? null : r)}>
+                <ChevronDown className={`h-4 w-4 ${detailRecord?.id === r.id ? "rotate-180" : ""}`} />
               </Button>
               <Button size="sm" className="h-8 bg-green-600 hover:bg-green-700 px-2"
                 disabled={approveMut.isPending}
@@ -275,19 +273,11 @@ function PendingTab() {
               </Button>
             </div>
           </div>
+          {detailRecord?.id === r.id && <AbsenDetail record={r} onClose={() => setDetailRecord(null)} onApprove={() => approveMut.mutate(String(r.id))} onReject={(catatan) => rejectMut.mutate({ id: String(r.id), catatan })} />}
+          </div>
         ))}
       </div>
 
-      <Dialog open={!!detailRecord} onOpenChange={(o) => !o && setDetailRecord(null)}>
-        {detailRecord && (
-          <AbsenDetailDialog
-            record={detailRecord}
-            onClose={() => setDetailRecord(null)}
-            onApprove={() => approveMut.mutate(String(detailRecord.id))}
-            onReject={(catatan) => rejectMut.mutate({ id: String(detailRecord.id), catatan })}
-          />
-        )}
-      </Dialog>
     </>
   );
 }
@@ -403,7 +393,8 @@ function RekapTab() {
                 {items.map((r: any) => {
                   const s = STATUS_STYLE[r.status] ?? STATUS_STYLE["Hadir"];
                   return (
-                    <tr key={r.id} className="hover:bg-muted/20 transition-colors">
+                    <Fragment key={r.id}>
+                    <tr className="hover:bg-muted/20 transition-colors cursor-pointer" onClick={() => setDetailRecord(detailRecord?.id === r.id ? null : r)}>
                       <td className="px-4 py-2.5 font-medium">{r.user?.name ?? "—"}</td>
                       <td className="px-3 py-2.5 text-muted-foreground">{formatTgl(r.tanggal)}</td>
                       <td className="px-3 py-2.5">
@@ -417,11 +408,13 @@ function RekapTab() {
                         </span>
                       </td>
                       <td className="px-3 py-2.5">
-                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" onClick={() => setDetailRecord(r)}>
-                          <Eye className="h-3.5 w-3.5" />
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0" aria-label={`Detail absensi ${r.user?.name ?? "karyawan"}`} aria-expanded={detailRecord?.id === r.id} onClick={(event) => { event.stopPropagation(); setDetailRecord(detailRecord?.id === r.id ? null : r); }}>
+                          <ChevronDown className={`h-3.5 w-3.5 ${detailRecord?.id === r.id ? "rotate-180" : ""}`} />
                         </Button>
                       </td>
                     </tr>
+                    {detailRecord?.id === r.id && <tr><td colSpan={6} className="bg-muted/20"><AbsenDetail record={r} onClose={() => setDetailRecord(null)} onApprove={() => approveMut.mutate(String(r.id))} onReject={(catatan) => rejectMut.mutate({ id: String(r.id), catatan })} /></td></tr>}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -446,17 +439,6 @@ function RekapTab() {
         </div>
       )}
 
-      {/* Detail dialog */}
-      <Dialog open={!!detailRecord} onOpenChange={(o) => !o && setDetailRecord(null)}>
-        {detailRecord && (
-          <AbsenDetailDialog
-            record={detailRecord}
-            onClose={() => setDetailRecord(null)}
-            onApprove={() => approveMut.mutate(String(detailRecord.id))}
-            onReject={(catatan) => rejectMut.mutate({ id: String(detailRecord.id), catatan })}
-          />
-        )}
-      </Dialog>
     </div>
   );
 }

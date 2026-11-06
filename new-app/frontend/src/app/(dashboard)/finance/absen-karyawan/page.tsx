@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
@@ -16,7 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, MapPin, X, Eye, Settings, FileDown, Pencil, FileText, Image as ImageIcon, UserPlus,
+  ClipboardCheck, Clock, CheckCircle, XCircle, Camera, ChevronDown, MapPin, X, Eye, Settings, FileDown, Pencil, FileText, Image as ImageIcon, UserPlus,
 } from "lucide-react";
 
 const BULAN_NAMES = ["Januari","Februari","Maret","April","Mei","Juni","Juli","Agustus","September","Oktober","November","Desember"];
@@ -222,7 +222,8 @@ export default function FinanceAbsenKaryawanPage() {
   const [filterBulan, setFilterBulan]       = useState("");
   const [filterTahun, setFilterTahun]       = useState("");
   const [filterStatus, setFilterStatus]     = useState("");
-  const [photoDialog, setPhotoDialog]       = useState<{ id: string | number; name?: string } | null>(null);
+  const [expandedAbsen, setExpandedAbsen] = useState<string | null>(null);
+  const toggleAbsen = (key: string) => setExpandedAbsen((current) => current === key ? null : key);
   const [rejectOpen, setRejectOpen]         = useState<{ id: number; catatan: string } | null>(null);
   const [editOpen, setEditOpen]             = useState<{
     id: number; tanggal: string; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean;
@@ -364,7 +365,8 @@ export default function FinanceAbsenKaryawanPage() {
             </h3>
             <div className="space-y-2">
               {pending.map((p: any) => (
-                <div key={p.id} className="flex items-center justify-between gap-3 bg-white rounded-lg border p-3">
+                <div key={p.id} className="bg-white rounded-lg border">
+                <div className="flex items-center justify-between gap-3 p-3 cursor-pointer" onClick={() => toggleAbsen(`pending:${p.id}`)}>
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-sm truncate">{p.user?.name ?? "—"}</p>
                     <p className="text-xs text-muted-foreground">
@@ -377,11 +379,12 @@ export default function FinanceAbsenKaryawanPage() {
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-1.5 shrink-0">
+                  <div className="flex gap-1.5 shrink-0" onClick={(event) => event.stopPropagation()}>
                     <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
-                      aria-label={`Lihat foto absensi ${p.user?.name ?? "karyawan"}`}
-                      onClick={() => setPhotoDialog({ id: p.id, name: p.user?.name })}>
-                      <Eye className="h-3.5 w-3.5" />
+                      aria-label={`Detail absensi ${p.user?.name ?? "karyawan"}`}
+                      aria-expanded={expandedAbsen === `pending:${p.id}`}
+                      onClick={() => toggleAbsen(`pending:${p.id}`)}>
+                      <ChevronDown className={`h-3.5 w-3.5 ${expandedAbsen === `pending:${p.id}` ? "rotate-180" : ""}`} />
                     </Button>
                     <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 gap-1"
                       disabled={approveMut.isPending}
@@ -393,6 +396,8 @@ export default function FinanceAbsenKaryawanPage() {
                       <XCircle className="h-3.5 w-3.5" /> Tolak
                     </Button>
                   </div>
+                </div>
+                {expandedAbsen === `pending:${p.id}` && <div className="border-t p-4"><AbsenPhotos recordId={p.id} /></div>}
                 </div>
               ))}
             </div>
@@ -496,7 +501,8 @@ export default function FinanceAbsenKaryawanPage() {
                     </TableRow>
                   ))
                 : records.map((r: any) => (
-                    <TableRow key={r.id}>
+                    <Fragment key={r.id}>
+                    <TableRow className="cursor-pointer" onClick={() => toggleAbsen(`rekap:${r.id}`)}>
                       <TableCell className="whitespace-nowrap text-sm">{fmtTgl(r.tanggal)}</TableCell>
                       <TableCell className="font-medium text-sm">{r.user?.name ?? "—"}</TableCell>
                       <TableCell className="text-sm">{fmtJam(r.jam_masuk)}</TableCell>
@@ -511,10 +517,12 @@ export default function FinanceAbsenKaryawanPage() {
                         }
                       </TableCell>
                       <TableCell>
-                        <div className="flex gap-1">
+                        <div className="flex gap-1" onClick={(event) => event.stopPropagation()}>
                           <Button size="sm" variant="ghost" className="h-7 gap-1"
-                            onClick={() => setPhotoDialog({ id: r.id, name: r.user?.name })}>
-                            <Camera className="h-3.5 w-3.5" /> Foto
+                            aria-label={`Detail absensi ${r.user?.name ?? "karyawan"}`}
+                            aria-expanded={expandedAbsen === `rekap:${r.id}`}
+                            onClick={() => toggleAbsen(`rekap:${r.id}`)}>
+                            <ChevronDown className={`h-3.5 w-3.5 ${expandedAbsen === `rekap:${r.id}` ? "rotate-180" : ""}`} />
                           </Button>
                           {canOverride && (
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700"
@@ -533,6 +541,8 @@ export default function FinanceAbsenKaryawanPage() {
                         </div>
                       </TableCell>
                     </TableRow>
+                    {expandedAbsen === `rekap:${r.id}` && <TableRow><TableCell colSpan={7} className="bg-muted/20 p-4"><AbsenPhotos recordId={r.id} /></TableCell></TableRow>}
+                    </Fragment>
                   ))
               }
               {!isLoading && records.length === 0 && (
@@ -620,18 +630,6 @@ export default function FinanceAbsenKaryawanPage() {
               </Button>
             </div>
           </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* Photo Dialog */}
-      <Dialog open={!!photoDialog} onOpenChange={v => { if (!v) setPhotoDialog(null); }}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2">
-              <Camera className="h-5 w-5" /> Foto Absen — {photoDialog?.name}
-            </DialogTitle>
-          </DialogHeader>
-          {photoDialog && <AbsenPhotos recordId={photoDialog.id} />}
         </DialogContent>
       </Dialog>
 
