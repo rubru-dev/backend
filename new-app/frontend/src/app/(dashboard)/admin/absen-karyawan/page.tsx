@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient } from "@/lib/api/client";
+import { AbsenPhotos } from "@/components/absen-photos";
 import { useAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,6 @@ import {
   CheckCircle, XCircle, Clock, Settings, Users, AlertTriangle,
   MapPin, Eye, ChevronLeft, ChevronRight, Loader2,
 } from "lucide-react";
-
-// URL relatif agar melewati proxy Next (/api/v1/* → backend). JANGAN pakai NEXT_PUBLIC_API_URL
-// di sini: nilainya di-bake saat build (mis. http://localhost:8000) dan di browser production
-// jadi src gambar yang broken/mixed-content. Path foto dari backend berbentuk "/storage/...".
-const API_URL = "/api/v1";
 
 const api = {
   getConfig: () => apiClient.get("/absen-karyawan/config").then((r) => r.data),
@@ -94,26 +90,7 @@ function AbsenDetailDialog({ record, onClose, onApprove, onReject }: {
         </div>
 
         {/* Foto masuk + keluar */}
-        <div className="grid grid-cols-2 gap-2">
-          {record.foto_masuk && (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Foto Masuk</p>
-              <a href={`${API_URL}${record.foto_masuk}`} target="_blank" rel="noreferrer">
-                <img src={`${API_URL}${record.foto_masuk}`} alt="masuk"
-                  className="w-full h-28 object-cover rounded-lg border hover:opacity-90 transition-opacity" />
-              </a>
-            </div>
-          )}
-          {record.foto_keluar && (
-            <div className="space-y-1">
-              <p className="text-xs text-muted-foreground">Foto Keluar</p>
-              <a href={`${API_URL}${record.foto_keluar}`} target="_blank" rel="noreferrer">
-                <img src={`${API_URL}${record.foto_keluar}`} alt="keluar"
-                  className="w-full h-28 object-cover rounded-lg border hover:opacity-90 transition-opacity" />
-              </a>
-            </div>
-          )}
-        </div>
+        <AbsenPhotos recordId={record.id} />
 
         {record.di_luar_kantor && (
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 space-y-1">

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api/client";
+import { AbsenPhotos } from "@/components/absen-photos";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -221,7 +222,7 @@ export default function FinanceAbsenKaryawanPage() {
   const [filterBulan, setFilterBulan]       = useState("");
   const [filterTahun, setFilterTahun]       = useState("");
   const [filterStatus, setFilterStatus]     = useState("");
-  const [photoDialog, setPhotoDialog]       = useState<{ masuk?: string; keluar?: string; name?: string } | null>(null);
+  const [photoDialog, setPhotoDialog]       = useState<{ id: string | number; name?: string } | null>(null);
   const [rejectOpen, setRejectOpen]         = useState<{ id: number; catatan: string } | null>(null);
   const [editOpen, setEditOpen]             = useState<{
     id: number; tanggal: string; jam_masuk: string; jam_keluar: string; status: string; terlambat: boolean;
@@ -377,12 +378,11 @@ export default function FinanceAbsenKaryawanPage() {
                     )}
                   </div>
                   <div className="flex gap-1.5 shrink-0">
-                    {p.foto_masuk && (
-                      <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
-                        onClick={() => setPhotoDialog({ masuk: p.foto_masuk, keluar: p.foto_keluar, name: p.user?.name })}>
-                        <Eye className="h-3.5 w-3.5" />
-                      </Button>
-                    )}
+                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0"
+                      aria-label={`Lihat foto absensi ${p.user?.name ?? "karyawan"}`}
+                      onClick={() => setPhotoDialog({ id: p.id, name: p.user?.name })}>
+                      <Eye className="h-3.5 w-3.5" />
+                    </Button>
                     <Button size="sm" className="h-7 bg-green-600 hover:bg-green-700 gap-1"
                       disabled={approveMut.isPending}
                       onClick={() => approveMut.mutate(p.id)}>
@@ -512,12 +512,10 @@ export default function FinanceAbsenKaryawanPage() {
                       </TableCell>
                       <TableCell>
                         <div className="flex gap-1">
-                          {(r.foto_masuk || r.foto_keluar) && (
-                            <Button size="sm" variant="ghost" className="h-7 gap-1"
-                              onClick={() => setPhotoDialog({ masuk: r.foto_masuk, keluar: r.foto_keluar, name: r.user?.name })}>
-                              <Camera className="h-3.5 w-3.5" /> Foto
-                            </Button>
-                          )}
+                          <Button size="sm" variant="ghost" className="h-7 gap-1"
+                            onClick={() => setPhotoDialog({ id: r.id, name: r.user?.name })}>
+                            <Camera className="h-3.5 w-3.5" /> Foto
+                          </Button>
                           {canOverride && (
                             <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700"
                               title="Edit Absen"
@@ -633,22 +631,7 @@ export default function FinanceAbsenKaryawanPage() {
               <Camera className="h-5 w-5" /> Foto Absen — {photoDialog?.name}
             </DialogTitle>
           </DialogHeader>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">Foto Masuk</p>
-              {photoDialog?.masuk
-                ? <img src={photoDialog.masuk} alt="foto masuk" className="w-full rounded-lg border" />
-                : <div className="h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground text-xs">Belum ada foto</div>
-              }
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-muted-foreground mb-2">Foto Keluar</p>
-              {photoDialog?.keluar
-                ? <img src={photoDialog.keluar} alt="foto keluar" className="w-full rounded-lg border" />
-                : <div className="h-48 bg-muted rounded-lg flex items-center justify-center text-muted-foreground text-xs">Belum ada foto</div>
-              }
-            </div>
-          </div>
+          {photoDialog && <AbsenPhotos recordId={photoDialog.id} />}
         </DialogContent>
       </Dialog>
 
