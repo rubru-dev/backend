@@ -46,6 +46,7 @@ const api = {
   getKwitansi: (id: number) =>
     apiClient.get(`/finance/invoices/${id}/kwitansi`).then(r => r.data),
   bankAccounts: () => apiClient.get("/finance/bank-accounts").then(r => r.data),
+  admProjects: () => apiClient.get("/finance/adm-projek", { params: { per_page: 100 } }).then(r => r.data),
   createBankAccount: (data: any) => apiClient.post("/finance/bank-accounts", data).then(r => r.data),
   updateBankAccount: (id: number, data: any) => apiClient.patch(`/finance/bank-accounts/${id}`, data).then(r => r.data),
   deleteBankAccount: (id: number) => apiClient.delete(`/finance/bank-accounts/${id}`).then(r => r.data),
@@ -239,6 +240,7 @@ const EMPTY_FORM = {
   kategori: "",
   paket_desain: "",
   rab_item_id: "",
+  adm_finance_project_id: "",
   items: [{ keterangan: "", jumlah: 1, harga_satuan: 0 }],
   bank_account_id: "",
   overdue_date: "",
@@ -423,11 +425,20 @@ export default function InvoiceKwitansiPage() {
   const [leadSearch, setLeadSearch] = useState("");
   const [showLeadDropdown, setShowLeadDropdown] = useState(false);
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
-  const [rabItems, setRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string }[]>([]);
+  const [rabItems, setRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string; adm_finance_project_id?: number | null }[]>([]);
 
   useEffect(() => {
     if (form.kategori === "Payment Projek" && form.lead_id) {
-      apiClient.get(`/finance/leads/${form.lead_id}/rab-items`).then((r) => setRabItems(r.data)).catch(() => setRabItems([]));
+      apiClient.get(`/finance/leads/${form.lead_id}/rab-items`).then((r) => {
+        const items = r.data as typeof rabItems;
+        setRabItems(items);
+        const projectIds = [...new Set(items.map((item) => item.adm_finance_project_id).filter(Boolean))];
+        if (projectIds.length === 1) {
+          setForm((current: any) => current.adm_finance_project_id
+            ? current
+            : { ...current, adm_finance_project_id: String(projectIds[0]) });
+        }
+      }).catch(() => setRabItems([]));
     } else {
       setRabItems([]);
     }
@@ -454,12 +465,21 @@ export default function InvoiceKwitansiPage() {
 
   // Set Kategori dialog state
   const [kategoriTarget, setKategoriTarget] = useState<{ id: number; lead_id: string } | null>(null);
-  const [kategoriForm, setKategoriForm] = useState({ kategori: "", paket_desain: "", rab_item_id: "" });
-  const [kategoriRabItems, setKategoriRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string }[]>([]);
+  const [kategoriForm, setKategoriForm] = useState({ kategori: "", paket_desain: "", rab_item_id: "", adm_finance_project_id: "" });
+  const [kategoriRabItems, setKategoriRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string; adm_finance_project_id?: number | null }[]>([]);
 
   useEffect(() => {
     if (kategoriTarget && kategoriForm.kategori === "Payment Projek" && kategoriTarget.lead_id) {
-      apiClient.get(`/finance/leads/${kategoriTarget.lead_id}/rab-items`).then((r) => setKategoriRabItems(r.data)).catch(() => setKategoriRabItems([]));
+      apiClient.get(`/finance/leads/${kategoriTarget.lead_id}/rab-items`).then((r) => {
+        const items = r.data as typeof kategoriRabItems;
+        setKategoriRabItems(items);
+        const projectIds = [...new Set(items.map((item) => item.adm_finance_project_id).filter(Boolean))];
+        if (projectIds.length === 1) {
+          setKategoriForm((current) => current.adm_finance_project_id
+            ? current
+            : { ...current, adm_finance_project_id: String(projectIds[0]) });
+        }
+      }).catch(() => setKategoriRabItems([]));
     } else {
       setKategoriRabItems([]);
     }
@@ -516,6 +536,11 @@ export default function InvoiceKwitansiPage() {
     queryFn: api.bankAccounts,
   });
   const bankAccounts: any[] = Array.isArray(bankAccountsData) ? bankAccountsData : [];
+  const { data: admProjectsData } = useQuery({
+    queryKey: ["invoice-adm-projects"],
+    queryFn: api.admProjects,
+  });
+  const admProjects: any[] = admProjectsData?.items ?? [];
 
   // Auto-generate nomor invoice when kategori, lead, paket, or tanggal changes
   useEffect(() => {
@@ -564,7 +589,7 @@ export default function InvoiceKwitansiPage() {
       toast.success("Kategori berhasil diperbarui");
       qc.invalidateQueries({ queryKey: ["invoices"] });
       setKategoriTarget(null);
-      setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" });
+      setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "", adm_finance_project_id: "" });
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui kategori"),
   });
@@ -649,8 +674,14 @@ export default function InvoiceKwitansiPage() {
   });
 
   function handleSelectLead(lead: any) {
+    const matchingProjects = admProjects.filter((project: any) => String(project.lead_id ?? "") === String(lead.id));
     setSelectedLead(lead);
-    setForm((f: any) => ({ ...f, lead_id: String(lead.id), _nomorManual: false }));
+    setForm((f: any) => ({
+      ...f,
+      lead_id: String(lead.id),
+      adm_finance_project_id: matchingProjects.length === 1 ? String(matchingProjects[0].id) : "",
+      _nomorManual: false,
+    }));
     setLeadSearch(leadDisplayName(lead));
     setShowLeadDropdown(false);
   }
@@ -671,6 +702,7 @@ export default function InvoiceKwitansiPage() {
       catatan: nextCatatan,
       paket_desain: kategori === "Payment Desain" ? (form.paket_desain || "Basic") : "",
       rab_item_id: "",
+      adm_finance_project_id: "",
       _nomorManual: false,
     });
   }
@@ -928,6 +960,7 @@ export default function InvoiceKwitansiPage() {
                                       kategori: inv.kategori || "",
                                       paket_desain: inv.paket_desain || "",
                                       rab_item_id: inv.rab_item_id ? String(inv.rab_item_id) : "",
+                                      adm_finance_project_id: inv.adm_finance_project_id ? String(inv.adm_finance_project_id) : "",
                                     });
                                   }}>
                                   <Pencil className="h-3 w-3" /> Kategori
@@ -972,6 +1005,7 @@ export default function InvoiceKwitansiPage() {
                                         kategori: inv.kategori || "",
                                         paket_desain: inv.paket_desain || "",
                                         rab_item_id: inv.rab_item_id ? String(inv.rab_item_id) : "",
+                                        adm_finance_project_id: inv.adm_finance_project_id ? String(inv.adm_finance_project_id) : "",
                                         _nomorManual: true,
                                       });
                                       setSelectedLead(inv.lead ?? null);
@@ -1229,6 +1263,33 @@ export default function InvoiceKwitansiPage() {
               </div>
             )}
 
+            {["Payment Projek", "Payment RKR"].includes(form.kategori) && (
+              <div>
+                <Label>Administrasi Projek *</Label>
+                <select
+                  className="mt-1 min-h-11 w-full rounded-md border px-3 py-2 text-sm"
+                  value={form.adm_finance_project_id}
+                  onChange={e => setForm({ ...form, adm_finance_project_id: e.target.value })}
+                >
+                  <option value="">— Pilih Administrasi Projek —</option>
+                  {[...admProjects]
+                    .sort((a, b) => {
+                      const aMatch = String(a.lead_id ?? "") === String(form.lead_id) ? 1 : 0;
+                      const bMatch = String(b.lead_id ?? "") === String(form.lead_id) ? 1 : 0;
+                      return bMatch - aMatch;
+                    })
+                    .map((project: any) => (
+                      <option key={project.id} value={project.id}>
+                        {project.nama_proyek || "Projek tanpa nama"}{project.klien ? ` — ${project.klien}` : ""}
+                      </option>
+                    ))}
+                </select>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Relasi ini menentukan invoice dan kwitansi yang tampil pada portal klien.
+                </p>
+              </div>
+            )}
+
             {form.kategori === "Payment Projek" && (
               <div>
                 <Label>Termin / Item RAB</Label>
@@ -1239,7 +1300,16 @@ export default function InvoiceKwitansiPage() {
                 ) : (
                   <select className="w-full border rounded-md px-3 py-2 text-sm mt-1"
                     value={form.rab_item_id}
-                    onChange={e => setForm({ ...form, rab_item_id: e.target.value })}>
+                    onChange={e => {
+                      const item = rabItems.find((candidate) => String(candidate.id) === e.target.value);
+                      setForm({
+                        ...form,
+                        rab_item_id: e.target.value,
+                        adm_finance_project_id: item?.adm_finance_project_id
+                          ? String(item.adm_finance_project_id)
+                          : form.adm_finance_project_id,
+                      });
+                    }}>
                     <option value="">— Pilih termin —</option>
                     {rabItems.map((ri) => (
                       <option key={ri.id} value={ri.id}>
@@ -1270,7 +1340,7 @@ export default function InvoiceKwitansiPage() {
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => { setOpen(false); setEditId(null); setForm(EMPTY_FORM); setLeadSearch(""); setSelectedLead(null); }}>Batal</Button>
               <Button
-                disabled={!form.kategori || !form.lead_id || !form.nomor_invoice || createMut.isPending || updateMut.isPending}
+                disabled={!form.kategori || !form.lead_id || !form.nomor_invoice || (["Payment Projek", "Payment RKR"].includes(form.kategori) && !form.adm_finance_project_id) || createMut.isPending || updateMut.isPending}
                 onClick={() => {
                   const payload = {
                     lead_id: form.lead_id,
@@ -1283,6 +1353,7 @@ export default function InvoiceKwitansiPage() {
                     kategori: form.kategori || undefined,
                     paket_desain: form.kategori === "Payment Desain" ? (form.paket_desain || undefined) : undefined,
                     rab_item_id: form.kategori === "Payment Projek" ? (form.rab_item_id || undefined) : undefined,
+                    adm_finance_project_id: ["Payment Projek", "Payment RKR"].includes(form.kategori) ? (form.adm_finance_project_id || undefined) : undefined,
                     items: form.items,
                   };
                   if (editId) updateMut.mutate({ id: editId, data: payload });
@@ -1392,7 +1463,7 @@ export default function InvoiceKwitansiPage() {
       </Dialog>
 
       {/* Set Kategori Dialog */}
-      <Dialog open={!!kategoriTarget} onOpenChange={(v) => { if (!v) { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" }); } }}>
+      <Dialog open={!!kategoriTarget} onOpenChange={(v) => { if (!v) { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "", adm_finance_project_id: "" }); } }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1406,7 +1477,7 @@ export default function InvoiceKwitansiPage() {
               <select
                 className="w-full border rounded-md px-3 py-2 text-sm mt-1"
                 value={kategoriForm.kategori}
-                onChange={(e) => setKategoriForm({ kategori: e.target.value, paket_desain: "", rab_item_id: "" })}
+                onChange={(e) => setKategoriForm({ kategori: e.target.value, paket_desain: "", rab_item_id: "", adm_finance_project_id: "" })}
               >
                 <option value="">— Pilih kategori —</option>
                 <option value="Payment Desain">Payment Desain</option>
@@ -1431,6 +1502,23 @@ export default function InvoiceKwitansiPage() {
                 </select>
               </div>
             )}
+            {["Payment Projek", "Payment RKR"].includes(kategoriForm.kategori) && (
+              <div>
+                <Label>Administrasi Projek *</Label>
+                <select
+                  className="mt-1 min-h-11 w-full rounded-md border px-3 py-2 text-sm"
+                  value={kategoriForm.adm_finance_project_id}
+                  onChange={(e) => setKategoriForm((current) => ({ ...current, adm_finance_project_id: e.target.value }))}
+                >
+                  <option value="">— Pilih Administrasi Projek —</option>
+                  {admProjects.map((project: any) => (
+                    <option key={project.id} value={project.id}>
+                      {project.nama_proyek || "Projek tanpa nama"}{project.klien ? ` — ${project.klien}` : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
             {kategoriForm.kategori === "Payment Projek" && (
               <div>
                 <Label>Termin / Item RAB</Label>
@@ -1442,7 +1530,16 @@ export default function InvoiceKwitansiPage() {
                   <select
                     className="w-full border rounded-md px-3 py-2 text-sm mt-1"
                     value={kategoriForm.rab_item_id}
-                    onChange={(e) => setKategoriForm((f) => ({ ...f, rab_item_id: e.target.value }))}
+                    onChange={(e) => {
+                      const item = kategoriRabItems.find((candidate) => String(candidate.id) === e.target.value);
+                      setKategoriForm((current) => ({
+                        ...current,
+                        rab_item_id: e.target.value,
+                        adm_finance_project_id: item?.adm_finance_project_id
+                          ? String(item.adm_finance_project_id)
+                          : current.adm_finance_project_id,
+                      }));
+                    }}
                   >
                     <option value="">— Pilih termin —</option>
                     {kategoriRabItems.map((ri) => (
@@ -1456,9 +1553,9 @@ export default function InvoiceKwitansiPage() {
               </div>
             )}
             <div className="flex justify-end gap-2 pt-1">
-              <Button variant="outline" onClick={() => { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "" }); }}>Batal</Button>
+              <Button variant="outline" onClick={() => { setKategoriTarget(null); setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "", adm_finance_project_id: "" }); }}>Batal</Button>
               <Button
-                disabled={!kategoriForm.kategori || setKategoriMut.isPending}
+                disabled={!kategoriForm.kategori || (["Payment Projek", "Payment RKR"].includes(kategoriForm.kategori) && !kategoriForm.adm_finance_project_id) || setKategoriMut.isPending}
                 onClick={() => {
                   if (!kategoriTarget) return;
                   setKategoriMut.mutate({
@@ -1467,6 +1564,7 @@ export default function InvoiceKwitansiPage() {
                       kategori: kategoriForm.kategori,
                       paket_desain: kategoriForm.kategori === "Payment Desain" ? kategoriForm.paket_desain : undefined,
                       rab_item_id: kategoriForm.kategori === "Payment Projek" ? (kategoriForm.rab_item_id || undefined) : undefined,
+                      adm_finance_project_id: ["Payment Projek", "Payment RKR"].includes(kategoriForm.kategori) ? (kategoriForm.adm_finance_project_id || undefined) : undefined,
                     },
                   });
                 }}

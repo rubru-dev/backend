@@ -235,6 +235,7 @@ function invoiceDictFrontend(inv: any) {
     kategori: inv.kategori || null,
     paket_desain: inv.paket_desain || null,
     rab_item_id: inv.rab_item_id ? Number(inv.rab_item_id) : null,
+    adm_finance_project_id: inv.adm_finance_project_id ? Number(inv.adm_finance_project_id) : null,
     nominal_locked: inv.nominal_locked ?? false,
     items: (inv.items || []).map((item: any) => ({
       id: item.id,
@@ -243,6 +244,48 @@ function invoiceDictFrontend(inv: any) {
       harga_satuan: parseFloat(String(item.unit_price ?? 0)),
     })),
   };
+}
+
+async function resolveInvoiceAdmProjectId(
+  explicitId: unknown,
+  rabItemId: unknown,
+  leadId: unknown,
+): Promise<bigint | null> {
+  if (explicitId) return BigInt(String(explicitId));
+
+  if (rabItemId) {
+    const rab = await prisma.sipilRabItem.findUnique({
+      where: { id: BigInt(String(rabItemId)) },
+      select: {
+        proyek: {
+          select: {
+            adm_finance_projects: { select: { id: true }, orderBy: { updated_at: "desc" }, take: 2 },
+          },
+        },
+      },
+    });
+    const matches = rab?.proyek.adm_finance_projects ?? [];
+    if (matches.length === 1) return matches[0].id;
+  }
+
+  if (leadId) {
+    const id = BigInt(String(leadId));
+    const matches = await prisma.admFinanceProject.findMany({
+      where: {
+        OR: [
+          { lead_id: id },
+          { proyek_berjalan: { is: { lead_id: id } } },
+          { proyek_interior: { is: { lead_id: id } } },
+        ],
+      },
+      select: { id: true },
+      orderBy: { updated_at: "desc" },
+      take: 2,
+    });
+    if (matches.length === 1) return matches[0].id;
+  }
+
+  return null;
 }
 
 // ── Invoice ───────────────────────────────────────────────────────────────────
@@ -1023,7 +1066,7 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
   const isSalesAdmin = req.user!.roles.some((r: any) => r.role.name === "Sales Admin");
   const isSuperAdmin = req.user!.roles.some((r: any) => r.role.name === "Super Admin");
   const isFinanceRole = req.user!.roles.some((r: any) => ["Head Finance", "Admin Finance"].includes(r.role.name));
-  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, items = [] } = req.body;
+  const { lead_id, nomor_invoice, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, adm_finance_project_id, items = [] } = req.body;
   if (isSalesAdmin && !isSuperAdmin && !isFinanceRole) {
     const allowed = ["Payment Desain", "Payment Survey"];
     if (kategori && !allowed.includes(kategori)) {
@@ -1053,6 +1096,10 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
     return { description: item.keterangan ?? null, quantity: qty, unit_price: price, subtotal: sub };
   });
   const ppnAmt = subtotal * ppnPct / 100;
+  const admFinanceProjectId = await resolveInvoiceAdmProjectId(adm_finance_project_id, rab_item_id, lead_id);
+  if (["Payment Projek", "Payment RKR"].includes(kategori) && !admFinanceProjectId) {
+    return res.status(400).json({ detail: "Administrasi Projek wajib dipilih untuk invoice proyek" });
+  }
   const inv = await prisma.invoice.create({
     data: {
       invoice_number: invoiceNumber,
@@ -1066,6 +1113,7 @@ router.post("/invoices", requirePermission("finance", "view"), async (req: Reque
       kategori: kategori || null,
       paket_desain: paket_desain || null,
       rab_item_id: rab_item_id ? BigInt(rab_item_id) : null,
+      adm_finance_project_id: admFinanceProjectId,
       created_by: req.user!.id,
       items: { create: itemsData },
     },
@@ -1081,13 +1129,20 @@ router.patch("/invoices/:id/set-kategori", requirePermission("finance", "view"),
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id } });
   if (!inv) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
-  const { kategori, paket_desain, rab_item_id } = req.body;
+  const { kategori, paket_desain, rab_item_id, adm_finance_project_id } = req.body;
+  const admFinanceProjectId = ["Payment Projek", "Payment RKR"].includes(kategori)
+    ? await resolveInvoiceAdmProjectId(adm_finance_project_id, rab_item_id, inv.lead_id)
+    : null;
+  if (["Payment Projek", "Payment RKR"].includes(kategori) && !admFinanceProjectId) {
+    return res.status(400).json({ detail: "Administrasi Projek wajib dipilih untuk invoice proyek" });
+  }
   const updated = await prisma.invoice.update({
     where: { id },
     data: {
       kategori: kategori || null,
       paket_desain: kategori === "Payment Desain" ? (paket_desain || null) : null,
       rab_item_id: kategori === "Payment Projek" ? (rab_item_id ? BigInt(rab_item_id) : null) : null,
+      adm_finance_project_id: admFinanceProjectId,
     },
     include: { items: true, lead: true, head_finance: true, admin_finance: true, bank_account: true },
   });
@@ -1135,7 +1190,7 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   if (!hasFullEditAccess && (inv.head_finance_id || inv.admin_finance_id)) {
     return res.status(400).json({ detail: "Invoice yang sudah ditandatangani tidak bisa diubah" });
   }
-  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, items } = req.body;
+  const { nomor_invoice, lead_id, tanggal, overdue_date, catatan, ppn_percentage, bank_account_id, kategori, paket_desain, rab_item_id, adm_finance_project_id, items } = req.body;
   const updates: Record<string, unknown> = {};
   if (nomor_invoice !== undefined) updates.invoice_number = nomor_invoice;
   if (lead_id !== undefined) updates.lead_id = lead_id ? BigInt(lead_id) : null;
@@ -1146,6 +1201,18 @@ router.patch("/invoices/:id", async (req: Request, res: Response) => {
   if (kategori !== undefined) updates.kategori = kategori || null;
   if (paket_desain !== undefined) updates.paket_desain = paket_desain || null;
   if (rab_item_id !== undefined) updates.rab_item_id = rab_item_id ? BigInt(rab_item_id) : null;
+  if (adm_finance_project_id !== undefined || rab_item_id !== undefined || lead_id !== undefined || kategori !== undefined) {
+    const effectiveKategori = kategori !== undefined ? kategori : inv.kategori;
+    const effectiveRabItemId = rab_item_id !== undefined ? rab_item_id : inv.rab_item_id;
+    const effectiveLeadId = lead_id !== undefined ? lead_id : inv.lead_id;
+    const resolvedProjectId = ["Payment Projek", "Payment RKR"].includes(effectiveKategori || "")
+      ? await resolveInvoiceAdmProjectId(adm_finance_project_id, effectiveRabItemId, effectiveLeadId)
+      : null;
+    if (["Payment Projek", "Payment RKR"].includes(effectiveKategori || "") && !resolvedProjectId) {
+      return res.status(400).json({ detail: "Administrasi Projek wajib dipilih untuk invoice proyek" });
+    }
+    updates.adm_finance_project_id = resolvedProjectId;
+  }
 
   // Recalculate subtotal/ppn/grand_total bila items atau ppn_percentage berubah
   let newSubtotal: number | null = null;
@@ -1596,6 +1663,7 @@ function mapAdmProject(p: any) {
     tanggal_selesai: p.tanggal_selesai,
     lead: p.lead ? { nama: p.lead.nama } : null,
     proyek_berjalan_id: p.proyek_berjalan_id,
+    lead_id: p.lead_id,
     proyek_berjalan: p.proyek_berjalan ? { id: p.proyek_berjalan.id, nama_proyek: p.proyek_berjalan.nama_proyek } : null,
   };
 }
@@ -3580,14 +3648,23 @@ router.get("/leads/:leadId/rab-items", requirePermission("finance", "view"), asy
   const { leadId } = req.params;
   const proyek = await prisma.proyekBerjalan.findFirst({
     where: { lead_id: BigInt(leadId) },
-    select: { id: true, nama_proyek: true, rab_items: { orderBy: { urutan: "asc" } } },
+    select: {
+      id: true,
+      nama_proyek: true,
+      adm_finance_projects: { select: { id: true }, orderBy: { updated_at: "desc" }, take: 2 },
+      rab_items: { orderBy: { urutan: "asc" } },
+    },
   });
   if (!proyek) return res.json([]);
+  const admFinanceProjectId = proyek.adm_finance_projects.length === 1
+    ? Number(proyek.adm_finance_projects[0].id)
+    : null;
   return res.json(proyek.rab_items.map((ri) => ({
     id: Number(ri.id),
     label: ri.label,
     nilai: parseFloat(String(ri.nilai)),
     tipe: ri.tipe,
+    adm_finance_project_id: admFinanceProjectId,
   })));
 });
 

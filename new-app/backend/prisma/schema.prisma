@@ -173,6 +173,7 @@ model AdmFinanceProject {
   surat_jalans          SuratJalan[]
   tukang_registries     TukangRegistry[]
   client_portal_project ClientPortalProject?
+  invoices              Invoice[]
 
   @@map("adm_finance_projects")
 }
@@ -689,6 +690,7 @@ model Invoice {
   kategori                 String?              @db.VarChar(100)
   paket_desain             String?              @db.VarChar(50)
   rab_item_id              BigInt?
+  adm_finance_project_id   BigInt?
   approved_by              BigInt?
   approved_at              DateTime?            @db.Timestamptz(6)
   signature_path           String?              @db.VarChar(500)
@@ -714,7 +716,9 @@ model Invoice {
   kwitansi                 Kwitansi?
   client_portal_project    ClientPortalProject? @relation(fields: [client_portal_project_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   rab_item                 SipilRabItem?        @relation(fields: [rab_item_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
+  adm_finance_project      AdmFinanceProject?   @relation(fields: [adm_finance_project_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
 
+  @@index([adm_finance_project_id], map: "idx_invoices_adm_finance_project")
   @@map("invoices")
 }
 

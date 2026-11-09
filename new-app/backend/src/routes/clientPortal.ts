@@ -6,6 +6,7 @@ import { verifyPassword, createClientPortalToken } from "../lib/security";
 import { authenticateClientPortal } from "../middleware/auth";
 import { deliver, NOTIFY_USER_SELECT, type NotifyRecipient } from "../lib/notify";
 import { paidClientInvoiceWhere, resolveClientPortalScope, visibleClientInvoiceWhere } from "../lib/clientPortalScope";
+import { thumbnailStoragePath } from "../lib/imageThumbnail";
 
 const router = Router();
 
@@ -32,30 +33,17 @@ function progressFromCounts(done: number, total: number) {
 async function getLiveProjectProgress(leadId: bigint | null | undefined) {
   if (!leadId) return { progress: null as number | null, totalItems: 0, doneItems: 0 };
 
-  const [sipilProyeks, interiorProyeks] = await Promise.all([
-    prisma.proyekBerjalan.findMany({
-      where: { lead_id: leadId },
-      select: {
-        id: true,
-        termins: { select: { tasks: { select: { status: true } } } },
-      },
-    }),
-    prisma.proyekInterior.findMany({
-      where: { lead_id: leadId },
-      select: {
-        id: true,
-        termins: { select: { tasks: { select: { status: true } } } },
-      },
-    }),
-  ]);
+  const sipilProyeks = await prisma.proyekBerjalan.findMany({
+    where: { lead_id: leadId },
+    select: {
+      id: true,
+      termins: { select: { tasks: { select: { status: true } } } },
+    },
+  });
 
-  const sipilIds = sipilProyeks.map((p) => p.id);
-  const interiorIds = interiorProyeks.map((p) => p.id);
-
-  const taskStatuses = [
-    ...sipilProyeks.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status))),
-    ...interiorProyeks.flatMap((p) => p.termins.flatMap((t) => t.tasks.map((task) => task.status))),
-  ];
+  const taskStatuses = sipilProyeks.flatMap((p) =>
+    p.termins.flatMap((t) => t.tasks.map((task) => task.status))
+  );
   if (taskStatuses.length > 0) {
     const taskDone = taskStatuses.filter((status) => status === "Selesai").length;
     return {
@@ -64,29 +52,7 @@ async function getLiveProjectProgress(leadId: bigint | null | undefined) {
       doneItems: taskDone,
     };
   }
-
-  const [checklistSipilTotal, checklistSipilDone, checklistInteriorTotal, checklistInteriorDone] = await Promise.all([
-    sipilIds.length ? prisma.checklistSipil.count({ where: { proyek_id: { in: sipilIds } } }) : 0,
-    sipilIds.length ? prisma.checklistSipil.count({ where: { proyek_id: { in: sipilIds }, is_checked: true } }) : 0,
-    interiorIds.length ? prisma.checklistInterior.count({ where: { proyek_id: { in: interiorIds } } }) : 0,
-    interiorIds.length ? prisma.checklistInterior.count({ where: { proyek_id: { in: interiorIds }, is_checked: true } }) : 0,
-  ]);
-
-  const checklistTotal = checklistSipilTotal + checklistInteriorTotal;
-  const checklistDone = checklistSipilDone + checklistInteriorDone;
-  if (checklistTotal > 0) {
-    return {
-      progress: progressFromCounts(checklistDone, checklistTotal),
-      totalItems: checklistTotal,
-      doneItems: checklistDone,
-    };
-  }
-
-  return {
-    progress: null,
-    totalItems: 0,
-    doneItems: 0,
-  };
+  return { progress: 0, totalItems: 0, doneItems: 0 };
 }
 
 async function getLiveProjectSummary(leadId: bigint | null | undefined) {
@@ -165,13 +131,19 @@ router.get("/me", async (req: Request, res: Response) => {
   const liveProgress = await getLiveProjectProgress(project.lead_id);
   const liveProject = await getLiveProjectSummary(project.lead_id);
   const scope = await resolveClientPortalScope(project);
+  const sipilProjectIds = scope.operationalProjects
+    .filter((item) => item.type === "sipil")
+    .map((item) => item.id);
 
   // Hitung summary
-  const [paymentCount, paidCount, galeriCount, dokumenCount, aktivitasCount, invCount, invLunasCount] = await Promise.all([
+  const [paymentCount, paidCount, galeriCount, dokumenManualCount, laporanPicCount, aktivitasCount, invCount, invLunasCount] = await Promise.all([
     prisma.clientPortalPayment.count({ where: { project_id: projectId } }),
     prisma.clientPortalPayment.count({ where: { project_id: projectId, status: "Sudah Dibayar" } }),
     prisma.clientPortalGaleri.count({ where: { project_id: projectId } }),
     prisma.clientPortalDokumen.count({ where: { project_id: projectId } }),
+    sipilProjectIds.length
+      ? prisma.laporanPicProjek.count({ where: { project_type: "sipil", project_id: { in: sipilProjectIds } } })
+      : 0,
     prisma.clientPortalAktivitas.count({ where: { project_id: projectId } }),
     prisma.invoice.count({ where: visibleClientInvoiceWhere(scope) }),
     prisma.invoice.count({ where: paidClientInvoiceWhere(scope) }),
@@ -192,7 +164,7 @@ router.get("/me", async (req: Request, res: Response) => {
       total_termin: invCount > 0 ? invCount : paymentCount,
       termin_lunas: invCount > 0 ? invLunasCount : paidCount,
       total_foto: galeriCount,
-      total_dokumen: dokumenCount,
+      total_dokumen: laporanPicCount + dokumenManualCount,
       total_aktivitas: liveProgress.totalItems || aktivitasCount,
       aktivitas_selesai: liveProgress.doneItems,
     },
@@ -361,16 +333,54 @@ router.get("/galeri", async (req: Request, res: Response) => {
 router.get("/dokumen", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const { search, kategori } = req.query;
-  const items = await prisma.clientPortalDokumen.findMany({
-    where: {
-      project_id: projectId,
-      ...(search && { nama_file: { contains: search as string, mode: "insensitive" } }),
-      ...(kategori && { kategori: kategori as string }),
-    },
-    orderBy: { tanggal_upload: "desc" },
-  });
-  return res.json(items.map((d) => ({
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  const scope = await resolveClientPortalScope(project);
+  const sipilProjectIds = scope.operationalProjects
+    .filter((item) => item.type === "sipil")
+    .map((item) => item.id);
+  const query = typeof search === "string" ? search.trim() : "";
+  const category = typeof kategori === "string" ? kategori : "";
+
+  const [manualItems, reports] = await Promise.all([
+    category === "Laporan PIC"
+      ? []
+      : prisma.clientPortalDokumen.findMany({
+          where: {
+            project_id: projectId,
+            ...(query && { nama_file: { contains: query, mode: "insensitive" } }),
+            ...(category && { kategori: category }),
+          },
+          orderBy: { tanggal_upload: "desc" },
+        }),
+    category && category !== "Laporan PIC"
+      ? []
+      : sipilProjectIds.length
+        ? prisma.laporanPicProjek.findMany({
+            where: {
+              project_type: "sipil",
+              project_id: { in: sipilProjectIds },
+              ...(query && {
+                OR: [
+                  { kegiatan: { contains: query, mode: "insensitive" } },
+                  { pekerjaan_nama: { contains: query, mode: "insensitive" } },
+                  { termin_nama: { contains: query, mode: "insensitive" } },
+                ],
+              }),
+            },
+            include: {
+              user: { select: { name: true } },
+              tasks: { orderBy: { id: "asc" } },
+              _count: { select: { image_files: true } },
+            },
+            orderBy: [{ tanggal: "desc" }, { created_at: "desc" }],
+          })
+        : [],
+  ]);
+
+  const manualDocuments = manualItems.map((d) => ({
     id: d.id,
+    source: "manual",
     nama_file: d.nama_file,
     folder_name: (d as any).folder_name ?? null,
     deskripsi: d.deskripsi,
@@ -380,7 +390,72 @@ router.get("/dokumen", async (req: Request, res: Response) => {
     file_url: d.file_path
       ? (d.file_path.startsWith("/storage/") ? d.file_path : `/storage/client-portal/dokumen/${path.basename(d.file_path)}`)
       : null,
-  })));
+  }));
+  const reportDocuments = reports.map((report) => {
+    const taskNames = report.tasks.map((task) => task.pekerjaan_nama).filter(Boolean);
+    const pekerjaan = taskNames.join(", ") || report.pekerjaan_nama || "Laporan Harian PIC";
+    return {
+      id: `laporan-${report.id}`,
+      report_id: String(report.id),
+      source: "laporan_pic",
+      nama_file: `${pekerjaan} - ${report.tanggal.toISOString().slice(0, 10)}`,
+      folder_name: report.termin_nama || "Laporan PIC",
+      deskripsi: report.kegiatan,
+      kategori: "Laporan PIC",
+      file_type: "report",
+      tanggal_upload: report.tanggal,
+      file_url: null,
+      image_count: report._count.image_files,
+      pic_nama: report.user?.name ?? "PIC",
+      status: report.status_pekerjaan,
+    };
+  });
+
+  return res.json([...reportDocuments, ...manualDocuments].sort((a, b) =>
+    new Date(b.tanggal_upload).getTime() - new Date(a.tanggal_upload).getTime()
+  ));
+});
+
+router.get("/dokumen/:reportId", async (req: Request, res: Response) => {
+  if (!/^\d+$/.test(req.params.reportId)) return res.status(400).json({ detail: "ID laporan tidak valid" });
+  const projectId = req.clientPortal!.projectId;
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  const scope = await resolveClientPortalScope(project);
+  const sipilProjectIds = scope.operationalProjects
+    .filter((item) => item.type === "sipil")
+    .map((item) => item.id);
+  const report = await prisma.laporanPicProjek.findFirst({
+    where: {
+      id: BigInt(req.params.reportId),
+      project_type: "sipil",
+      project_id: { in: sipilProjectIds },
+    },
+    include: {
+      user: { select: { name: true } },
+      tasks: { orderBy: { id: "asc" } },
+      image_files: { orderBy: { id: "asc" } },
+    },
+  });
+  if (!report) return res.status(404).json({ detail: "Laporan PIC tidak ditemukan" });
+  const relationalImages = report.image_files.map((image) => image.file_path);
+  const legacyImages = Array.isArray(report.images)
+    ? report.images.filter((item): item is string => typeof item === "string")
+    : [];
+  const images = relationalImages.length > 0 ? relationalImages : legacyImages;
+  return res.json({
+    id: String(report.id),
+    proyek_nama: report.project_nama,
+    termin_nama: report.termin_nama,
+    pekerjaan: report.tasks.map((task) => ({ id: String(task.task_id), nama: task.pekerjaan_nama })),
+    tanggal: report.tanggal,
+    kegiatan: report.kegiatan,
+    kendala: report.kendala,
+    status: report.status_pekerjaan,
+    pic_nama: report.user?.name ?? "PIC",
+    images,
+    thumbnails: images.map(thumbnailStoragePath),
+  });
 });
 
 // ── GET /aktivitas ────────────────────────────────────────────────────────────
@@ -600,8 +675,7 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
 
   const leadId = project.lead_id;
 
-  const [sipilProyeks, interiorProyeks] = await Promise.all([
-    prisma.proyekBerjalan.findMany({
+  const sipilProyeks = await prisma.proyekBerjalan.findMany({
       where: { lead_id: leadId },
       include: {
         termins: {
@@ -609,24 +683,9 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
           include: { tasks: { orderBy: { created_at: "asc" } } },
         },
       },
-    }),
-    prisma.proyekInterior.findMany({
-      where: { lead_id: leadId },
-      include: {
-        termins: {
-          orderBy: { urutan: "asc" },
-          include: { tasks: { orderBy: { created_at: "asc" } } },
-        },
-      },
-    }),
-  ]);
+    });
 
   const result: any[] = [];
-
-  const [laporanSipil, laporanInterior] = await Promise.all([
-    prisma.laporanPicProjek.findMany({ where: { project_type: "sipil", project_id: { in: sipilProyeks.map((p) => p.id) } }, include: { user: { select: { name: true } }, image_files: true, tasks: { orderBy: { id: "asc" } } }, orderBy: { tanggal: "desc" } }),
-    prisma.laporanPicProjek.findMany({ where: { project_type: "interior", project_id: { in: interiorProyeks.map((p) => p.id) } }, include: { user: { select: { name: true } }, image_files: true, tasks: { orderBy: { id: "asc" } } }, orderBy: { tanggal: "desc" } }),
-  ]);
 
   for (const p of sipilProyeks) {
     for (const t of p.termins) {
@@ -647,53 +706,9 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
     }
   }
 
-  for (const p of interiorProyeks) {
-    for (const t of p.termins) {
-      for (const task of t.tasks) {
-        result.push({
-          id: `interior_${task.id}`,
-          type: "interior",
-          task_id: Number(task.id),
-          proyek_nama: p.nama_proyek,
-          termin_nama: t.nama,
-          judul: task.nama_pekerjaan,
-          tanggal_mulai: task.tanggal_mulai,
-          tanggal_selesai: clientTargetDate(task.tanggal_selesai),
-          status: clientTaskStatus(task.status),
-          timeline_buffer_days: CLIENT_TIMELINE_BUFFER_DAYS,
-        });
-      }
-    }
-  }
-
-  for (const report of [...laporanSipil, ...laporanInterior]) {
-    const pekerjaanNames = report.tasks.length ? report.tasks.map((task) => task.pekerjaan_nama).filter(Boolean) : [report.pekerjaan_nama].filter(Boolean);
-    const pekerjaanLabel = pekerjaanNames.join(", ") || "Laporan Harian PIC";
-    result.push({
-      id: `laporan_pic_${report.id}`,
-      type: report.project_type,
-      is_laporan_pic: true,
-      report_id: Number(report.id),
-      proyek_nama: report.project_nama,
-      termin_nama: report.termin_nama,
-      pekerjaan_nama: pekerjaanLabel,
-      pekerjaan: report.tasks.map((task) => ({ id: String(task.task_id), nama: task.pekerjaan_nama })),
-      judul: pekerjaanLabel,
-      tanggal: report.tanggal,
-      tanggal_mulai: report.tanggal,
-      tanggal_selesai: report.tanggal,
-      status: "Laporan PIC",
-      deskripsi: report.kegiatan,
-      kendala: report.kendala,
-      pic_nama: report.user?.name ?? "PIC",
-      images: report.image_files.map((image) => image.file_path),
-    });
-  }
-
-  // Sort: belum selesai dulu, lalu urut deadline
+  // Hanya task Gantt Sipil. Laporan PIC disajikan di menu Dokumen Projek.
   result.sort((a, b) => {
     const done = (s: string) => s === "Selesai";
-    if (a.is_laporan_pic !== b.is_laporan_pic) return a.is_laporan_pic ? -1 : 1;
     if (done(a.status) !== done(b.status)) return done(a.status) ? 1 : -1;
     if (!a.tanggal_selesai) return 1;
     if (!b.tanggal_selesai) return -1;

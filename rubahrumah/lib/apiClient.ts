@@ -74,6 +74,7 @@ export const portalApi = {
     const qs = p.toString();
     return apiFetch(`/dokumen${qs ? `?${qs}` : ""}`);
   },
+  dokumenDetail: (reportId: string) => apiFetch(`/dokumen/${reportId}`),
 
   aktivitas: (search?: string, status?: string) => {
     const p = new URLSearchParams();

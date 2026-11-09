@@ -3,7 +3,9 @@ import { useState, useEffect, useCallback } from "react";
 import { portalApi, STORAGE_BASE } from "@/lib/apiClient";
 
 interface DokumenItem {
-  id: number;
+  id: number | string;
+  source?: "manual" | "laporan_pic";
+  report_id?: string;
   nama_file: string;
   folder_name: string | null;
   deskripsi: string | null;
@@ -11,6 +13,23 @@ interface DokumenItem {
   file_type: string | null;
   tanggal_upload: string | null;
   file_url: string | null;
+  image_count?: number;
+  pic_nama?: string;
+  status?: string;
+}
+
+interface LaporanDetail {
+  id: string;
+  proyek_nama: string | null;
+  termin_nama: string | null;
+  pekerjaan: { id: string; nama: string | null }[];
+  tanggal: string;
+  kegiatan: string;
+  kendala: string | null;
+  status: string;
+  pic_nama: string;
+  images: string[];
+  thumbnails: string[];
 }
 
 interface Folder {
@@ -43,12 +62,86 @@ function getFileIcon(fileType: string | null) {
   return "#6366f1";
 }
 
-const KATEGORIS = ["Semua", "RAB", "Kontrak", "Invoice", "Foto", "Lainnya"];
+const KATEGORIS = ["Semua", "Laporan PIC", "RAB", "Kontrak", "Invoice", "Foto", "Lainnya"];
 
 const FOLDER_COLORS = [
   "#f97316", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899",
   "#14b8a6", "#ef4444", "#0ea5e9", "#84cc16",
 ];
+
+function LaporanModal({ detail, onClose }: { detail: LaporanDetail; onClose: () => void }) {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  return (
+    <>
+    <style jsx global>{`
+      @media print {
+        body * { visibility: hidden !important; }
+        #report-print-area, #report-print-area * { visibility: visible !important; }
+        #report-print-area { position: absolute; inset: 0; width: 100%; }
+      }
+    `}</style>
+    <div className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 px-3 py-6 print:static print:bg-white print:p-0" role="dialog" aria-modal="true" aria-label="Detail laporan PIC">
+      <div className="mx-auto max-w-4xl overflow-hidden rounded-2xl bg-white shadow-xl print:max-w-none print:rounded-none print:shadow-none">
+        <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
+          <p className="font-semibold text-slate-800">Laporan PIC Project</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => window.print()} className="min-h-11 rounded-xl bg-orange-500 px-4 text-sm font-semibold text-white hover:bg-orange-600 focus:outline-none focus:ring-2 focus:ring-orange-300">
+              Cetak / Download PDF
+            </button>
+            <button type="button" onClick={onClose} className="min-h-11 rounded-xl border border-slate-200 px-4 text-sm font-semibold text-slate-600 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-slate-300">
+              Tutup
+            </button>
+          </div>
+        </div>
+
+        <article id="report-print-area" className="p-5 sm:p-8 print:p-0">
+          <div className="border-b-2 border-orange-500 pb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Laporan PIC Project</p>
+            <h2 className="mt-1 text-xl font-bold text-[#0F4C75]">{detail.proyek_nama || "Proyek"}</h2>
+            <p className="mt-1 text-sm text-slate-500">{detail.termin_nama || "Tanpa termin"} · {fmtDate(detail.tanggal)}</p>
+          </div>
+
+          <dl className="mt-5 grid gap-4 text-sm sm:grid-cols-2">
+            <div><dt className="text-slate-400">PIC Project</dt><dd className="mt-1 font-semibold text-slate-700">{detail.pic_nama}</dd></div>
+            <div><dt className="text-slate-400">Status</dt><dd className="mt-1 font-semibold text-slate-700">{detail.status}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-slate-400">Pekerjaan</dt><dd className="mt-1 text-slate-700">{detail.pekerjaan.map((item) => item.nama).filter(Boolean).join(", ") || "-"}</dd></div>
+            <div className="sm:col-span-2"><dt className="text-slate-400">Kegiatan</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-slate-700">{detail.kegiatan}</dd></div>
+            {detail.kendala && <div className="sm:col-span-2"><dt className="text-slate-400">Kendala</dt><dd className="mt-1 whitespace-pre-wrap leading-6 text-slate-700">{detail.kendala}</dd></div>}
+          </dl>
+
+          <section className="mt-7">
+            <h3 className="text-sm font-bold text-slate-700">Dokumentasi ({detail.images.length})</h3>
+            {detail.images.length === 0 ? (
+              <p className="mt-3 text-sm text-slate-400">Tidak ada foto pada laporan ini.</p>
+            ) : (
+              <div className="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2 print:grid-cols-2">
+                {detail.images.map((src, index) => (
+                  <figure key={`${src}-${index}`} className="break-inside-avoid overflow-hidden rounded-xl border border-slate-200 print:rounded-none">
+                    <img
+                      src={`${STORAGE_BASE}${detail.thumbnails[index] || src}`}
+                      alt={`Dokumentasi laporan ${index + 1}`}
+                      loading="lazy"
+                      decoding="async"
+                      className="aspect-[4/3] w-full object-cover print:h-auto print:object-contain"
+                      onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = `${STORAGE_BASE}${src}`; }}
+                    />
+                    <figcaption className="px-3 py-2 text-xs text-slate-500">Foto {index + 1}</figcaption>
+                  </figure>
+                ))}
+              </div>
+            )}
+          </section>
+        </article>
+      </div>
+    </div>
+    </>
+  );
+}
 
 export default function DokumenPage() {
   const [items, setItems] = useState<DokumenItem[]>([]);
@@ -57,6 +150,21 @@ export default function DokumenPage() {
   const [kategori, setKategori] = useState("Semua");
   const [loading, setLoading] = useState(true);
   const [activeFolder, setActiveFolder] = useState<string | null>(null);
+  const [reportDetail, setReportDetail] = useState<LaporanDetail | null>(null);
+  const [loadingReportId, setLoadingReportId] = useState<string | null>(null);
+  const [reportError, setReportError] = useState("");
+
+  async function openReport(reportId: string) {
+    setLoadingReportId(reportId);
+    setReportError("");
+    try {
+      setReportDetail(await portalApi.dokumenDetail(reportId));
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : "Laporan gagal dimuat");
+    } finally {
+      setLoadingReportId(null);
+    }
+  }
 
   const fetchData = useCallback((q: string, kat: string) => {
     setLoading(true);
@@ -120,7 +228,7 @@ export default function DokumenPage() {
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder="Cari folder dokumen"
-              className="w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white placeholder:text-slate-300"
+              className="min-h-11 w-full pl-11 pr-4 py-3 border border-slate-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-200 bg-white placeholder:text-slate-300"
             />
           </form>
 
@@ -130,7 +238,7 @@ export default function DokumenPage() {
               <button
                 key={k}
                 onClick={() => handleKategori(k)}
-                className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+                className={`min-h-11 px-3 py-1.5 rounded-full text-xs font-medium transition ${
                   kategori === k
                     ? "bg-orange-500 text-white"
                     : "bg-white border border-slate-200 text-slate-500 hover:bg-slate-50"
@@ -154,7 +262,7 @@ export default function DokumenPage() {
           <div className="flex items-center gap-2 mb-5">
             <button
               onClick={() => setActiveFolder(null)}
-              className="flex items-center gap-1.5 text-orange-500 hover:text-orange-600 text-sm font-medium"
+              className="min-h-11 flex items-center gap-1.5 text-orange-500 hover:text-orange-600 text-sm font-medium"
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
                 <path d="M10 12L6 8l4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -195,15 +303,28 @@ export default function DokumenPage() {
                     {doc.deskripsi && (
                       <p className="text-xs text-slate-400 mt-0.5 line-clamp-1">{doc.deskripsi}</p>
                     )}
+                    {doc.source === "laporan_pic" && (
+                      <p className="mt-1 text-xs text-slate-500">{doc.pic_nama || "PIC"} · {doc.image_count ?? 0} foto</p>
+                    )}
                   </div>
 
-                  {doc.file_url && (
+                  {doc.source === "laporan_pic" && doc.report_id ? (
+                    <button
+                      type="button"
+                      onClick={() => openReport(doc.report_id!)}
+                      disabled={loadingReportId === doc.report_id}
+                      className="min-h-11 shrink-0 rounded-xl border border-orange-200 px-3 text-xs font-semibold text-orange-600 hover:bg-orange-50 focus:outline-none focus:ring-2 focus:ring-orange-300 disabled:cursor-wait disabled:opacity-50"
+                    >
+                      {loadingReportId === doc.report_id ? "Memuat..." : "Buka laporan"}
+                    </button>
+                  ) : doc.file_url ? (
                     <a
                       href={`${STORAGE_BASE}${doc.file_url}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="p-2 rounded-xl text-slate-400 hover:text-orange-500 hover:bg-orange-50 transition shrink-0"
+                      className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-xl p-2 text-slate-400 transition hover:bg-orange-50 hover:text-orange-500 focus:outline-none focus:ring-2 focus:ring-orange-300"
                       title="Download"
+                      aria-label={`Download ${doc.nama_file}`}
                       onClick={(e) => e.stopPropagation()}
                     >
                       <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
@@ -211,7 +332,7 @@ export default function DokumenPage() {
                         <path d="M2 13v1.5a1 1 0 001 1h12a1 1 0 001-1V13" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
                       </svg>
                     </a>
-                  )}
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -225,10 +346,11 @@ export default function DokumenPage() {
           {folders.map((folder, i) => {
             const color = FOLDER_COLORS[i % FOLDER_COLORS.length];
             return (
-              <div
+              <button
+                type="button"
                 key={folder.name}
                 onClick={() => setActiveFolder(folder.name)}
-                className="bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition cursor-pointer group overflow-hidden"
+                className="group overflow-hidden rounded-2xl border border-slate-100 bg-white text-left shadow-sm transition hover:shadow-md focus:outline-none focus:ring-2 focus:ring-orange-300"
               >
                 {/* Folder visual */}
                 <div
@@ -263,11 +385,17 @@ export default function DokumenPage() {
                     {folder.items.map((d) => d.kategori).filter(Boolean).slice(0, 2).join(", ") || "Dokumen"}
                   </p>
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
       )}
+      {reportError && (
+        <div role="alert" className="fixed bottom-4 left-1/2 z-40 -translate-x-1/2 rounded-xl bg-red-600 px-4 py-3 text-sm font-medium text-white shadow-lg">
+          {reportError}
+        </div>
+      )}
+      {reportDetail && <LaporanModal detail={reportDetail} onClose={() => setReportDetail(null)} />}
     </div>
   );
 }

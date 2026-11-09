@@ -74,9 +74,16 @@ export async function resolveClientPortalScope(project: PortalProjectRef) {
   }
 
   const invoiceLinks: any[] = [
-    { lead_id: project.lead_id },
     { client_portal_project_id: project.id },
+    {
+      AND: [
+        { lead_id: project.lead_id },
+        { adm_finance_project_id: null },
+        { kategori: { in: ["Payment Projek", "Payment RKR"] } },
+      ],
+    },
   ];
+  if (admProject) invoiceLinks.unshift({ adm_finance_project_id: admProject.id });
   if (rabItemIds.size > 0) invoiceLinks.push({ rab_item_id: { in: Array.from(rabItemIds) } });
 
   return {
