@@ -8,13 +8,29 @@ export function PwaRegister() {
   const [prompt, setPrompt] = useState<InstallPromptEvent | null>(null);
   const [showIosHelp, setShowIosHelp] = useState(false);
   useEffect(() => {
-    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    let handleControllerChange: (() => void) | undefined;
+    const reloadGuardTimeout = window.setTimeout(() => sessionStorage.removeItem("rubahrumah-sw-reloaded"), 10_000);
+    if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      handleControllerChange = () => {
+        if (hadController && sessionStorage.getItem("rubahrumah-sw-reloaded") !== "1") {
+          sessionStorage.setItem("rubahrumah-sw-reloaded", "1");
+          window.location.reload();
+        }
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
+      navigator.serviceWorker.register("/sw.js").then((registration) => registration.update()).catch(() => undefined);
+    }
     const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone;
     const dismissed = localStorage.getItem("rubahrumah-client-pwa-dismissed") === "1";
     if (/iphone|ipad|ipod/i.test(navigator.userAgent) && !standalone && !dismissed) setShowIosHelp(true);
     const handler = (event: Event) => { event.preventDefault(); if (!dismissed) setPrompt(event as InstallPromptEvent); };
     window.addEventListener("beforeinstallprompt", handler);
-    return () => window.removeEventListener("beforeinstallprompt", handler);
+    return () => {
+      window.clearTimeout(reloadGuardTimeout);
+      window.removeEventListener("beforeinstallprompt", handler);
+      if (handleControllerChange) navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+    };
   }, []);
   if (!prompt && !showIosHelp) return null;
   const dismiss = () => { localStorage.setItem("rubahrumah-client-pwa-dismissed", "1"); setPrompt(null); setShowIosHelp(false); };

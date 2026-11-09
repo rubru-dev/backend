@@ -76,6 +76,7 @@ export default function LoginPage() {
                 <label className="block text-sm font-medium text-slate-600 mb-1.5">Username</label>
                 <input
                   type="text"
+                  autoComplete="username"
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="Username akun klien"
@@ -88,6 +89,7 @@ export default function LoginPage() {
                 <label className="block text-sm font-medium text-slate-600 mb-1.5">Kata Sandi</label>
                 <input
                   type="password"
+                  autoComplete="current-password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="Masukkan kata sandi"
