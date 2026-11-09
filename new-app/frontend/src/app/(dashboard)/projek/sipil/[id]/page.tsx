@@ -11,6 +11,7 @@ import { RappSipilView } from "@/components/rapp-sipil";
 import { LaporanPicProjekTab } from "@/components/laporan-pic-projek-tab";
 import { ProjectStockOpnameTab } from "@/components/project-stock-opname-tab";
 import { ChecklistTerminTab } from "@/components/checklist-termin-tab";
+import { GanttTaskGallery } from "@/components/gantt-task-gallery";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { sipilApi } from "@/lib/api/content";
@@ -520,6 +521,7 @@ function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
   onEditTask: (task: Task, termin: Termin) => void;
   onFotoTask?: (task: Task, termin: Termin) => void;
 }) {
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const filtered = filterTerminId === "all" ? termins : termins.filter((t) => t.id === filterTerminId);
   const allTasks = filtered.flatMap((t) => t.tasks.map((tk) => ({ ...tk, _terminId: t.id, _terminNama: t.nama })));
   const withDates = allTasks.filter((tk) => tk.tanggal_mulai || tk.tanggal_selesai);
@@ -626,16 +628,21 @@ function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
                 : null;
               const isLate = !!end && task.status !== "Selesai" && end < new Date(new Date().toDateString());
               const barColor = isLate ? "bg-red-500" : (GANTT_BAR_COLOR[task.status ?? ""] ?? "bg-gray-300");
+              const isExpanded = expandedTaskId === task.id;
 
               return (
-                <div key={task.id} className={`flex items-center py-1 border-b last:border-0 hover:bg-muted/20 ${isLate ? "bg-red-50 hover:bg-red-100/70" : ""}`}>
+                <div key={task.id} className="border-b last:border-0">
+                  <div className={`flex items-center py-1 hover:bg-muted/20 ${isLate ? "bg-red-50 hover:bg-red-100/70" : ""}`}>
                   <div className="w-64 flex-shrink-0 px-2 pl-5 flex items-center gap-1">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm truncate font-medium">{task.nama_pekerjaan ?? "—"}</div>
-                      {dateLabel && <div className="text-[10px] text-muted-foreground leading-tight">{dateLabel}</div>}
-                    </div>
+                    <button type="button" className="flex min-w-0 flex-1 items-center gap-1.5 rounded-sm text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-expanded={isExpanded} onClick={() => setExpandedTaskId(isExpanded ? null : task.id)}>
+                      {isExpanded ? <ChevronDown className="h-3.5 w-3.5 flex-none" /> : <ChevronRight className="h-3.5 w-3.5 flex-none" />}
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium">{task.nama_pekerjaan ?? "—"}</span>
+                        {dateLabel && <span className="block text-[10px] text-muted-foreground leading-tight">{dateLabel}</span>}
+                      </span>
+                    </button>
                     {onFotoTask && (
-                      <button className="text-blue-400 hover:text-blue-600 flex-shrink-0 p-0.5 rounded" title="Upload Foto" onClick={() => onFotoTask(task, termin)}>
+                      <button type="button" className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded text-blue-400 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" title="Upload Foto" aria-label={`Upload foto ${task.nama_pekerjaan ?? "pekerjaan"}`} onClick={() => onFotoTask(task, termin)}>
                         <Camera className="h-3.5 w-3.5" />
                       </button>
                     )}
@@ -656,6 +663,8 @@ function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
                       <div className="absolute top-4 left-0 right-0 border-t border-dashed border-muted-foreground/30" />
                     )}
                   </div>
+                  </div>
+                  {isExpanded && <div className="bg-muted/20 px-5 py-4"><GanttTaskGallery projectType="sipil" taskId={task.id} /></div>}
                 </div>
               );
             })}
@@ -681,7 +690,7 @@ function GanttChart({ termins, filterTerminId, onEditTask, onFotoTask }: {
             <div className="w-3 h-3 rounded-sm bg-red-500" />
             Terlambat
           </div>
-          <span className="text-xs text-muted-foreground ml-auto italic">Klik bar untuk edit · <Camera className="h-3 w-3 inline text-blue-400" /> untuk foto</span>
+          <span className="text-xs text-muted-foreground ml-auto italic">Klik pekerjaan untuk melihat foto · klik bar untuk edit · <Camera className="h-3 w-3 inline text-blue-400" /> untuk upload</span>
         </div>
       </div>
     </div>
@@ -951,12 +960,12 @@ export default function ProyekSipilDetailPage() {
   });
   const uploadFotoMut = useMutation({
     mutationFn: ({ taskId, files }: { taskId: string; files: File[] }) => sipilApi.uploadTaskFotos(taskId, files),
-    onSuccess: () => { toast.success("Foto diupload"); qc.invalidateQueries({ queryKey: ["sipil-task-fotos", fotoTask?.id] }); setFotoFiles([]); if (fotoInputRef.current) fotoInputRef.current.value = ""; },
+    onSuccess: () => { toast.success("Foto diupload"); qc.invalidateQueries({ queryKey: ["sipil-task-fotos", fotoTask?.id] }); qc.invalidateQueries({ queryKey: ["gantt-task-gallery", "sipil", fotoTask?.id] }); setFotoFiles([]); if (fotoInputRef.current) fotoInputRef.current.value = ""; },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal upload"),
   });
   const deleteFotoMut = useMutation({
     mutationFn: (fotoId: string) => sipilApi.deleteTaskFoto(fotoId),
-    onSuccess: () => { toast.success("Foto dihapus"); qc.invalidateQueries({ queryKey: ["sipil-task-fotos", fotoTask?.id] }); },
+    onSuccess: () => { toast.success("Foto dihapus"); qc.invalidateQueries({ queryKey: ["sipil-task-fotos", fotoTask?.id] }); qc.invalidateQueries({ queryKey: ["gantt-task-gallery", "sipil", fotoTask?.id] }); },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
 

@@ -23,7 +23,19 @@ export type LaporanPicItem = {
   user?: { name: string } | null;
 };
 
+export type TaskGalleryItem = {
+  id: string;
+  file_path: string;
+  original_name: string | null;
+  created_at: string;
+  source: "Dokumentasi" | "Laporan PIC";
+  uploader: string | null;
+};
+
 export const laporanPicApi = {
+  taskGallery: (projectType: "sipil" | "interior", taskId: string | number): Promise<TaskGalleryItem[]> =>
+    apiClient.get(`/pic/tasks/${projectType}/${taskId}/gallery`).then((r) => r.data),
+
   projekOptions: (type: "sipil" | "interior"): Promise<ProjekOption[]> =>
     apiClient.get(`/pic/laporan-pic/projek-options`, { params: { type } }).then((r) => r.data),
   terminOptions: (type: "sipil" | "interior", project_id: string): Promise<TerminOption[]> =>

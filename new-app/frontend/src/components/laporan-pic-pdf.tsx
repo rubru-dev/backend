@@ -106,7 +106,7 @@ export function LaporanPicPdf({ reports, logo, meta }: { reports: PdfReport[]; l
           <Text style={s.empty}>Tidak ada laporan pada filter yang dipilih.</Text>
         ) : (
           reports.map((r, i) => (
-            <View key={i} style={s.card} wrap={false}>
+            <View key={i} style={s.card}>
               <View style={s.cardHead}>
                 <View style={{ flexDirection: "row", alignItems: "center" }}>
                   <Text style={s.badge}>{r.project_type === "interior" ? "INTERIOR" : "SIPIL"}</Text>

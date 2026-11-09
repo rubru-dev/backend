@@ -238,6 +238,76 @@ async function attachLaporanPicImages<T extends { id: bigint; images?: unknown }
   });
 }
 
+// Galeri read-only untuk baris Gantt. Sumbernya digabung agar foto dokumentasi
+// task dan foto dari Laporan Harian PIC tampil di satu tempat tanpa mengubah
+// endpoint pengelolaan foto (upload/hapus) yang sudah ada.
+router.get("/tasks/:projectType/:taskId/gallery", async (req: Request, res: Response) => {
+  const projectType = req.params.projectType;
+  if (projectType !== "sipil" && projectType !== "interior") {
+    return res.status(400).json({ detail: "Jenis projek tidak valid" });
+  }
+  if (!/^\d+$/.test(req.params.taskId)) {
+    return res.status(400).json({ detail: "ID pekerjaan tidak valid" });
+  }
+
+  const taskId = BigInt(req.params.taskId);
+  const task = projectType === "sipil"
+    ? await prisma.proyekBerjalanTask.findUnique({ where: { id: taskId }, select: { id: true } })
+    : await prisma.proyekInteriorTask.findUnique({ where: { id: taskId }, select: { id: true } });
+  if (!task) return res.status(404).json({ detail: "Pekerjaan tidak ditemukan" });
+
+  const taskPhotos = projectType === "sipil"
+    ? await prisma.proyekBerjalanTaskFoto.findMany({
+        where: { task_id: taskId },
+        orderBy: { created_at: "desc" },
+        include: { uploader: { select: { name: true } } },
+      })
+    : await prisma.proyekInteriorTaskFoto.findMany({
+        where: { task_id: taskId },
+        orderBy: { created_at: "desc" },
+        include: { uploader: { select: { name: true } } },
+      });
+
+  const rawReports = await prisma.laporanPicProjek.findMany({
+    where: {
+      project_type: projectType,
+      OR: [
+        { task_id: taskId },
+        { tasks: { some: { task_id: taskId } } },
+      ],
+    },
+    include: { user: { select: { name: true } } },
+    orderBy: [{ tanggal: "desc" }, { created_at: "desc" }],
+  });
+  const reports = await attachLaporanPicImages(rawReports);
+
+  const items = [
+    ...taskPhotos.map((photo) => ({
+      id: `task-${String(photo.id)}`,
+      file_path: photo.file_path,
+      original_name: photo.original_name,
+      created_at: photo.created_at,
+      source: "Dokumentasi" as const,
+      uploader: photo.uploader?.name ?? null,
+    })),
+    ...reports.flatMap((report) => report.images.map((filePath: string, index: number) => ({
+      id: `report-${String(report.id)}-${index}`,
+      file_path: filePath,
+      original_name: null,
+      created_at: report.tanggal,
+      source: "Laporan PIC" as const,
+      uploader: report.user?.name ?? null,
+    }))),
+  ];
+
+  const seen = new Set<string>();
+  return res.json(items.filter((item) => {
+    if (!item.file_path || seen.has(item.file_path)) return false;
+    seen.add(item.file_path);
+    return true;
+  }));
+});
+
 // ── GET /pic/projek-list — combined sipil + interior projects ─────────────────
 router.get("/projek-list", async (req: Request, res: Response) => {
   const user = req.user!;

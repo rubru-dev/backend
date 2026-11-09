@@ -2,12 +2,57 @@
 
 import { useState } from "react";
 import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { pdf } from "@react-pdf/renderer";
+import { saveAs } from "file-saver";
+import { toast } from "sonner";
 import { laporanPicApi } from "@/lib/api/laporanPic";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { User, Calendar, ImageOff, Images, Check, X } from "lucide-react";
+import { User, Calendar, ImageOff, Images, Check, X, FileDown, Loader2 } from "lucide-react";
 import { storageUrl } from "@/lib/storage-url";
 import { useAuthStore } from "@/store/authStore";
+import { getLogoBase64 } from "@/lib/get-logo";
+import { LaporanPicPdf, type PdfReport } from "@/components/laporan-pic-pdf";
+
+const PDF_IMAGE_MAX_EDGE = 1100;
+const PDF_IMAGE_QUALITY = 0.68;
+
+async function imageBlobToCompressedDataUrl(blob: Blob) {
+  const objectUrl = URL.createObjectURL(blob);
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const element = new window.Image();
+      element.onload = () => resolve(element);
+      element.onerror = () => reject(new Error("Format gambar tidak dapat dibaca"));
+      element.src = objectUrl;
+    });
+    const scale = Math.min(1, PDF_IMAGE_MAX_EDGE / Math.max(image.naturalWidth, image.naturalHeight));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas tidak tersedia");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, canvas.width, canvas.height);
+    context.drawImage(image, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", PDF_IMAGE_QUALITY);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+async function preparePdfImage(path: string) {
+  const url = storageUrl(path);
+  try {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await imageBlobToCompressedDataUrl(await response.blob());
+  } catch {
+    // URL asli menjadi fallback agar satu foto yang gagal dikompresi tidak
+    // menggagalkan seluruh laporan dan tetap dapat dicoba oleh renderer PDF.
+    return url;
+  }
+}
 
 // Gambar disembunyikan di balik dropdown → <img> baru dirender (dan baru dimuat browser)
 // saat dibuka. Ini mencegah puluhan/ratusan gambar dimuat serentak saat tab dibuka.
@@ -72,6 +117,8 @@ export function LaporanPicProjekTab({
   projectId: string | number;
 }) {
   const qc = useQueryClient();
+  const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
+  const [pdfProgress, setPdfProgress] = useState({ done: 0, total: 0 });
   const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
   const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ["laporan-pic", projectType, String(projectId)],
@@ -94,6 +141,75 @@ export function LaporanPicProjekTab({
     return groups;
   }, {});
 
+  const downloadPdf = async () => {
+    setIsDownloadingPdf(true);
+    setPdfProgress({ done: 0, total: 0 });
+    try {
+      const allReports = await laporanPicApi.listByProject(projectType, projectId);
+      const totalImages = allReports.reduce((count, report) => count + (report.images?.length ?? 0), 0);
+      setPdfProgress({ done: 0, total: totalImages });
+
+      let completedImages = 0;
+      const preparedReports: PdfReport[] = [];
+      for (const report of allReports) {
+        const images: string[] = [];
+        // Diproses berurutan supaya banyak foto resolusi tinggi tidak memenuhi
+        // memori browser secara bersamaan sebelum PDF dirender.
+        for (const imagePath of report.images ?? []) {
+          images.push(await preparePdfImage(imagePath));
+          completedImages += 1;
+          setPdfProgress({ done: completedImages, total: totalImages });
+        }
+        const taskNames = (report.tasks?.length
+          ? report.tasks.map((task) => task.nama).filter(Boolean)
+          : [report.pekerjaan_nama].filter(Boolean)) as string[];
+        preparedReports.push({
+          tanggal: report.tanggal ? format(new Date(report.tanggal), "d MMMM yyyy", { locale: idLocale }) : "-",
+          project_type: report.project_type,
+          project_nama: report.project_nama || `Projek ${projectType}`,
+          termin_nama: report.termin_nama,
+          pekerjaan_nama: taskNames.join(", ") || "Tanpa pekerjaan",
+          pic_name: report.user?.name || "PIC",
+          kegiatan: report.kegiatan,
+          kendala: report.kendala,
+          images,
+        });
+      }
+
+      const reportDates = allReports
+        .map((report) => report.tanggal && new Date(report.tanggal))
+        .filter((date): date is Date => date instanceof Date && !Number.isNaN(date.getTime()))
+        .sort((a, b) => a.getTime() - b.getTime());
+      const periode = reportDates.length === 0
+        ? "-"
+        : reportDates.length === 1
+          ? format(reportDates[0], "d MMMM yyyy", { locale: idLocale })
+          : `${format(reportDates[0], "d MMM yyyy", { locale: idLocale })} - ${format(reportDates[reportDates.length - 1], "d MMM yyyy", { locale: idLocale })}`;
+      const projectName = allReports[0]?.project_nama || `Projek ${projectType}`;
+      const logo = await getLogoBase64();
+      const blob = await pdf(
+        <LaporanPicPdf
+          reports={preparedReports}
+          logo={logo}
+          meta={{
+            periode,
+            projek: projectName,
+            total: preparedReports.length,
+            dicetak: new Intl.DateTimeFormat("id-ID", { dateStyle: "long", timeStyle: "short", timeZone: "Asia/Jakarta" }).format(new Date()),
+          }}
+        />,
+      ).toBlob();
+      const safeName = projectName.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase() || String(projectId);
+      saveAs(blob, `laporan-pic-${safeName}.pdf`);
+      toast.success(`PDF berhasil dibuat dengan ${totalImages} foto`);
+    } catch (error: any) {
+      toast.error(error?.message || "PDF Laporan PIC gagal dibuat");
+    } finally {
+      setIsDownloadingPdf(false);
+      setPdfProgress({ done: 0, total: 0 });
+    }
+  };
+
   if (isLoading) {
     return <div className="py-10 text-center text-sm text-muted-foreground">Memuat laporan…</div>;
   }
@@ -112,6 +228,23 @@ export function LaporanPicProjekTab({
 
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold">Laporan PIC Project</p>
+          <p className="text-xs text-muted-foreground">PDF memuat seluruh laporan dan semua foto dengan resolusi yang diperkecil.</p>
+        </div>
+        <button
+          type="button"
+          onClick={downloadPdf}
+          disabled={isDownloadingPdf}
+          className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium text-foreground hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          {isDownloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+          {isDownloadingPdf && pdfProgress.total > 0
+            ? `Menyiapkan foto ${pdfProgress.done}/${pdfProgress.total}`
+            : isDownloadingPdf ? "Membuat PDF…" : "Download PDF"}
+        </button>
+      </div>
       {Object.entries(grouped).map(([key, reports]) => {
         const first = reports[0];
         const reportTitle = first.termin_nama || "Tanpa termin";
