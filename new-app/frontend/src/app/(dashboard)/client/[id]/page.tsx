@@ -47,6 +47,10 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
   const qc = useQueryClient();
   const [editAccount, setEditAccount] = useState(false);
   const [formA, setFormA] = useState({ password: "", is_active: true });
+  const connections = project.connections ?? {};
+  const operationalProjects = Array.isArray(connections.operational_projects) ? connections.operational_projects : [];
+  const admProject = connections.adm_finance_project;
+  const invoiceSummary = connections.invoices ?? { total: 0, lunas: 0 };
 
   const { mutate: saveAccount, isPending: savingA } = useMutation({
     mutationFn: (data: any) => clientApi.updateAccount(pid, data),
@@ -80,6 +84,35 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
                 </div>
               ))}
           </dl>
+          <div className="mt-5 border-t pt-4">
+            <p className="mb-3 text-sm font-semibold text-gray-800">Koneksi Data</p>
+            <dl className="space-y-3 text-sm">
+              <div className="grid grid-cols-5 gap-2">
+                <dt className="col-span-2 text-gray-500">Data Klien</dt>
+                <dd className="col-span-3 font-medium text-green-700">Terhubung ke {project.lead?.nama ?? project.klien}</dd>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                <dt className="col-span-2 text-gray-500">Proyek Operasional</dt>
+                <dd className={`col-span-3 font-medium ${operationalProjects.length > 0 ? "text-gray-800" : "text-amber-700"}`}>
+                  {operationalProjects.length > 0
+                    ? operationalProjects.map((item: any) => `${item.nama_proyek || `Proyek #${item.id}`} (${item.type === "interior" ? "Interior" : "Sipil"})`).join(", ")
+                    : "Belum terhubung"}
+                </dd>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                <dt className="col-span-2 text-gray-500">Administrasi Projek</dt>
+                <dd className={`col-span-3 font-medium ${admProject ? "text-gray-800" : "text-amber-700"}`}>
+                  {admProject ? `${admProject.nama_proyek || `Proyek #${admProject.id}`} (${admProject.status})` : "Belum terhubung"}
+                </dd>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                <dt className="col-span-2 text-gray-500">Invoice dan Kwitansi</dt>
+                <dd className="col-span-3 font-medium text-gray-800">
+                  {invoiceSummary.total} invoice, {invoiceSummary.lunas} lunas
+                </dd>
+              </div>
+            </dl>
+          </div>
         </CardContent>
       </Card>
 
@@ -111,7 +144,14 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
               <div className="grid grid-cols-5 gap-2"><dt className="col-span-2 text-gray-500">Last Login</dt><dd className="col-span-3">{fmtDate(project.account?.last_login_at)}</dd></div>
               <div className="mt-3 p-3 bg-gray-50 rounded-lg text-xs text-gray-500">
                 <p className="font-medium text-gray-700 mb-1">URL Portal Klien</p>
-                <p className="font-mono break-all">{process.env.NEXT_PUBLIC_CLIENT_PORTAL_URL ?? "http://localhost:3001"}</p>
+                <a
+                  href={project.portal_url ?? "https://client.rubru.id/"}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-11 items-center break-all font-mono font-medium text-blue-700 underline underline-offset-2"
+                >
+                  {project.portal_url ?? "https://client.rubru.id/"}
+                </a>
               </div>
             </dl>
           ) : (
@@ -1440,7 +1480,7 @@ export default function ClientDetailPage() {
   const [confirmDelProject, setConfirmDelProject] = useState(false);
   const qc = useQueryClient();
 
-  const { data: project, isLoading } = useQuery({
+  const { data: project, isLoading, isError, refetch } = useQuery({
     queryKey: ["client-project", pid],
     queryFn: () => clientApi.getProject(pid),
   });
@@ -1455,6 +1495,13 @@ export default function ClientDetailPage() {
     <div className="p-6 space-y-4">
       <Skeleton className="h-10 w-64" />
       <Skeleton className="h-64" />
+    </div>
+  );
+
+  if (isError) return (
+    <div className="p-6 text-center text-red-700">
+      <p>Data klien dan koneksi proyek gagal dimuat.</p>
+      <Button variant="outline" className="mt-4 min-h-11" onClick={() => refetch()}>Coba lagi</Button>
     </div>
   );
 

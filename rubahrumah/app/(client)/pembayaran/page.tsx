@@ -2,22 +2,9 @@
 import { useState, useEffect } from "react";
 import { portalApi } from "@/lib/apiClient";
 
-interface Invoice {
-  id: string;
-  invoice_number: string;
-  tanggal: string | null;
-  overdue_date: string | null;
-  grand_total: number;
-  subtotal: number;
-  ppn_amount: number;
-  status: string;
-  catatan: string | null;
-  kwitansi: { tanggal_bayar: string | null; metode_bayar: string | null; nomor_kwitansi: string | null } | null;
-  source?: "invoice" | "manual";
-}
-
 interface Payment {
   id: number;
+  invoice_id?: string;
   nama_termin: string | null;
   termin_ke: number;
   tagihan: number;
@@ -233,11 +220,11 @@ export default function PembayaranPage() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function handleDownload(inv: Invoice) {
-    if (inv.source === "manual") return;
-    setLoadingDetail(inv.id);
+  async function handleDownload(payment: Payment) {
+    if (payment.source !== "invoice" || !payment.invoice_id) return;
+    setLoadingDetail(payment.invoice_id);
     try {
-      const detail = await portalApi.invoiceDetail(inv.id);
+      const detail = await portalApi.invoiceDetail(payment.invoice_id);
       setViewDetail(detail);
     } catch (e) {
       console.error(e);
@@ -305,6 +292,7 @@ export default function PembayaranPage() {
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Status</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Jatuh Tempo</th>
                 <th className="text-left px-5 py-4 text-slate-400 font-medium">Tgl Bayar</th>
+                <th className="text-right px-5 py-4 text-slate-400 font-medium">Dokumen</th>
               </tr>
             </thead>
             <tbody>
@@ -316,6 +304,22 @@ export default function PembayaranPage() {
                   <td className="px-5 py-4"><StatusBadge status={item.status} /></td>
                   <td className="px-5 py-4 text-slate-600">{fmtDate(item.jatuh_tempo)}</td>
                   <td className="px-5 py-4 text-slate-600">{fmtDate(item.tanggal_bayar)}</td>
+                  <td className="px-5 py-4 text-right">
+                    {item.source === "invoice" && item.invoice_id && (
+                      <button
+                        type="button"
+                        onClick={() => handleDownload(item)}
+                        disabled={loadingDetail === item.invoice_id}
+                        className="text-xs font-semibold text-orange-600 hover:text-orange-700 disabled:cursor-wait disabled:opacity-50"
+                      >
+                        {loadingDetail === item.invoice_id
+                          ? "Memuat..."
+                          : item.status === "Sudah Dibayar"
+                            ? "Lihat invoice & kwitansi"
+                            : "Lihat invoice"}
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -354,6 +358,20 @@ export default function PembayaranPage() {
                     <span className="text-slate-400">Catatan</span>
                     <span className="text-slate-600">{item.catatan}</span>
                   </div>
+                )}
+                {item.source === "invoice" && item.invoice_id && (
+                  <button
+                    type="button"
+                    onClick={() => handleDownload(item)}
+                    disabled={loadingDetail === item.invoice_id}
+                    className="mt-3 min-h-11 w-full rounded-xl border border-orange-200 px-4 py-2.5 text-sm font-semibold text-orange-600 hover:bg-orange-50 disabled:cursor-wait disabled:opacity-50"
+                  >
+                    {loadingDetail === item.invoice_id
+                      ? "Memuat..."
+                      : item.status === "Sudah Dibayar"
+                        ? "Lihat invoice & kwitansi"
+                        : "Lihat invoice"}
+                  </button>
                 )}
               </div>
             </div>

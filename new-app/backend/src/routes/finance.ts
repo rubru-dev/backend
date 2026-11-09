@@ -1628,11 +1628,13 @@ router.post("/adm-projek", async (req: Request, res: Response) => {
   let resolvedNama = nama_proyek || null;
   let resolvedKlien = klien || null;
   let resolvedJenis = jenis || "Sipil";
+  let resolvedLeadId: bigint | null = null;
   if (proyek_berjalan_id) {
     const pb = await prisma.proyekBerjalan.findUnique({ where: { id: BigInt(proyek_berjalan_id) }, include: { lead: true } });
     if (pb) {
       resolvedNama = resolvedNama || pb.nama_proyek;
       resolvedKlien = resolvedKlien || (pb.lead ? pb.lead.nama : null);
+      resolvedLeadId = pb.lead_id;
       // ProyekBerjalan has no jenis field; keep resolvedJenis as-is
     }
   }
@@ -1644,6 +1646,7 @@ router.post("/adm-projek", async (req: Request, res: Response) => {
       tanggal_mulai: tanggal_mulai ? new Date(tanggal_mulai) : undefined,
       tanggal_selesai: tanggal_selesai ? new Date(tanggal_selesai) : undefined,
       proyek_berjalan_id: proyek_berjalan_id ? BigInt(proyek_berjalan_id) : undefined,
+      lead_id: resolvedLeadId,
       created_by: (req as any).user?.id ?? null,
     },
   });
@@ -1656,6 +1659,9 @@ router.patch("/adm-projek/:id", async (req: Request, res: Response) => {
   const { nama_proyek, klien, jenis, tanggal_mulai, tanggal_selesai, status, proyek_berjalan_id } = req.body;
   const project = await prisma.admFinanceProject.findUnique({ where: { id } });
   if (!project) return res.status(404).json({ detail: "Proyek tidak ditemukan" });
+  const linkedProject = proyek_berjalan_id
+    ? await prisma.proyekBerjalan.findUnique({ where: { id: BigInt(proyek_berjalan_id) }, select: { lead_id: true } })
+    : null;
   const updated = await prisma.admFinanceProject.update({
     where: { id },
     data: {
@@ -1668,6 +1674,7 @@ router.patch("/adm-projek/:id", async (req: Request, res: Response) => {
       proyek_berjalan_id: proyek_berjalan_id !== undefined
         ? (proyek_berjalan_id ? BigInt(proyek_berjalan_id) : null)
         : undefined,
+      lead_id: proyek_berjalan_id !== undefined ? linkedProject?.lead_id ?? null : undefined,
     },
   });
   return res.json({ message: "Proyek diupdate", data: { id: updated.id, nama_proyek: updated.nama_proyek, klien: updated.klien, jenis: updated.jenis, status: updated.status, proyek_berjalan_id: updated.proyek_berjalan_id } });

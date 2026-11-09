@@ -5,6 +5,7 @@ import fs from "fs";
 import { prisma } from "../lib/prisma";
 import { hashPassword } from "../lib/security";
 import { config } from "../config";
+import { paidClientInvoiceWhere, resolveClientPortalScope, visibleClientInvoiceWhere } from "../lib/clientPortalScope";
 
 const router = Router();
 
@@ -134,12 +135,20 @@ async function getLiveProjectSummary(leadId: bigint | null | undefined) {
   };
 }
 
-async function projectDetail(p: any) {
+async function projectDetail(p: any, includeConnections = true) {
   const live = await getLiveProjectSummary(p.lead_id);
+  const scope = includeConnections ? await resolveClientPortalScope(p) : null;
+  const [invoiceCount, paidInvoiceCount] = scope
+    ? await Promise.all([
+        prisma.invoice.count({ where: visibleClientInvoiceWhere(scope) }),
+        prisma.invoice.count({ where: paidClientInvoiceWhere(scope) }),
+      ])
+    : [0, 0];
+  const admProject = scope?.admProject ?? null;
   return {
     id: p.id,
     lead_id: p.lead_id,
-    adm_finance_project_id: p.adm_finance_project_id,
+    adm_finance_project_id: admProject?.id ?? p.adm_finance_project_id,
     nama_proyek: live?.nama_proyek ?? p.nama_proyek,
     klien: p.klien,
     alamat: live?.alamat ?? p.alamat,
@@ -161,6 +170,17 @@ async function projectDetail(p: any) {
     account: p.lead?.client_portal_account
       ? { username: p.lead.client_portal_account.username, is_active: p.lead.client_portal_account.is_active, last_login_at: p.lead.client_portal_account.last_login_at }
       : null,
+    portal_url: `${config.clientUrl.replace(/\/+$/, "")}/`,
+    connections: scope ? {
+      operational_projects: scope.operationalProjects,
+      adm_finance_project: admProject ? {
+        id: admProject.id,
+        nama_proyek: admProject.nama_proyek ?? admProject.lokasi,
+        jenis: admProject.jenis,
+        status: admProject.status,
+      } : null,
+      invoices: { total: invoiceCount, lunas: paidInvoiceCount },
+    } : undefined,
   };
 }
 
@@ -213,7 +233,7 @@ router.get("/projects", async (_req: Request, res: Response) => {
     },
     orderBy: { created_at: "desc" },
   });
-  return res.json(await Promise.all(projects.map(projectDetail)));
+  return res.json(await Promise.all(projects.map((project) => projectDetail(project, false))));
 });
 
 // ── POST /projects ────────────────────────────────────────────────────────────
@@ -234,7 +254,14 @@ router.post("/projects", async (req: Request, res: Response) => {
   // Cek lead exists
   const lead = await prisma.lead.findUnique({ where: { id: leadId } });
   if (!lead) { res.status(404).json({ detail: "Lead tidak ditemukan" }); return; }
-  const live = await getLiveProjectSummary(leadId);
+  const [live, scope] = await Promise.all([
+    getLiveProjectSummary(leadId),
+    resolveClientPortalScope({
+      id: BigInt(0),
+      lead_id: leadId,
+      adm_finance_project_id: adm_finance_project_id ? BigInt(adm_finance_project_id) : null,
+    }),
+  ]);
 
   // Cek belum ada project/account untuk lead ini
   const existing = await prisma.clientPortalProject.findUnique({ where: { lead_id: leadId } });
@@ -250,7 +277,7 @@ router.post("/projects", async (req: Request, res: Response) => {
     prisma.clientPortalProject.create({
       data: {
         lead_id: leadId,
-        adm_finance_project_id: adm_finance_project_id ? BigInt(adm_finance_project_id) : null,
+        adm_finance_project_id: adm_finance_project_id ? BigInt(adm_finance_project_id) : scope.admProject?.id ?? null,
         nama_proyek: nama_proyek || live?.nama_proyek || lead.nama,
         klien: klien ?? lead.nama,
         alamat: alamat ?? live?.alamat ?? lead.alamat ?? null,
@@ -724,14 +751,17 @@ router.get("/projects/:id/invoices", async (req: Request, res: Response) => {
 router.get("/projects/:id/kehadiran", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const project = await prisma.clientPortalProject.findUnique({ where: { id } });
-  if (!project || !project.adm_finance_project_id) {
+  if (!project) {
     return res.json([]);
   }
+  const scope = await resolveClientPortalScope(project);
+  const admProjectId = scope.admProject?.id;
+  if (!admProjectId) return res.json([]);
 
   const { tanggal_mulai, tanggal_selesai } = req.query;
   const absen = await prisma.absenTukang.findMany({
     where: {
-      adm_finance_project_id: project.adm_finance_project_id,
+      adm_finance_project_id: admProjectId,
       ...(tanggal_mulai && tanggal_selesai && {
         tanggal: { gte: new Date(tanggal_mulai as string), lte: new Date(tanggal_selesai as string) },
       }),

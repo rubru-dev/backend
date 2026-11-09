@@ -5,6 +5,7 @@ import { prisma } from "../lib/prisma";
 import { verifyPassword, createClientPortalToken } from "../lib/security";
 import { authenticateClientPortal } from "../middleware/auth";
 import { deliver, NOTIFY_USER_SELECT, type NotifyRecipient } from "../lib/notify";
+import { paidClientInvoiceWhere, resolveClientPortalScope, visibleClientInvoiceWhere } from "../lib/clientPortalScope";
 
 const router = Router();
 
@@ -163,6 +164,7 @@ router.get("/me", async (req: Request, res: Response) => {
 
   const liveProgress = await getLiveProjectProgress(project.lead_id);
   const liveProject = await getLiveProjectSummary(project.lead_id);
+  const scope = await resolveClientPortalScope(project);
 
   // Hitung summary
   const [paymentCount, paidCount, galeriCount, dokumenCount, aktivitasCount, invCount, invLunasCount] = await Promise.all([
@@ -171,8 +173,8 @@ router.get("/me", async (req: Request, res: Response) => {
     prisma.clientPortalGaleri.count({ where: { project_id: projectId } }),
     prisma.clientPortalDokumen.count({ where: { project_id: projectId } }),
     prisma.clientPortalAktivitas.count({ where: { project_id: projectId } }),
-    prisma.invoice.count({ where: { lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } } }),
-    prisma.invoice.count({ where: { lead_id: project.lead_id, status: "Lunas" } }),
+    prisma.invoice.count({ where: visibleClientInvoiceWhere(scope) }),
+    prisma.invoice.count({ where: paidClientInvoiceWhere(scope) }),
   ]);
 
   return res.json({
@@ -187,8 +189,8 @@ router.get("/me", async (req: Request, res: Response) => {
     catatan: project.catatan,
     jenis: project.lead?.jenis ?? null,
     summary: {
-      total_termin: paymentCount + invCount,
-      termin_lunas: paidCount + invLunasCount,
+      total_termin: invCount > 0 ? invCount : paymentCount,
+      termin_lunas: invCount > 0 ? invLunasCount : paidCount,
       total_foto: galeriCount,
       total_dokumen: dokumenCount,
       total_aktivitas: liveProgress.totalItems || aktivitasCount,
@@ -198,22 +200,23 @@ router.get("/me", async (req: Request, res: Response) => {
 });
 
 // ── GET /payments ─────────────────────────────────────────────────────────────
-// Mengembalikan ClientPortalPayment manual + Invoice Terbit/Lunas dari lead yang sama
+// Mengembalikan data manual lama + invoice resmi dari scope Administrasi Projek.
 router.get("/payments", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
-  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId }, select: { lead_id: true } });
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
   if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  const scope = await resolveClientPortalScope(project);
 
   const [payments, invoices] = await Promise.all([
     prisma.clientPortalPayment.findMany({
       where: { project_id: projectId },
       orderBy: { termin_ke: "asc" },
     }),
-    // Invoice resmi Finance terbit/lunas langsung tampil berdasarkan lead.
-    // Tidak perlu assign ulang dari menu Data Klien.
+    // Ambil invoice dari scope Administrasi Projek. Relasi lead, assignment lama,
+    // dan item RAB digabung agar invoice lama tidak hilang dari portal.
     prisma.invoice.findMany({
-      where: { lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } },
-      include: { kwitansi: { select: { tanggal: true } } },
+      where: visibleClientInvoiceWhere(scope),
+      include: { kwitansi: { select: { tanggal: true, jumlah_diterima: true } } },
       orderBy: { tanggal: "asc" },
     }),
   ]);
@@ -233,27 +236,31 @@ router.get("/payments", async (req: Request, res: Response) => {
 
   const invoicePayments = invoices.map((inv, idx) => ({
     id: Number(inv.id) + 100000, // offset agar tidak tabrakan dengan manual payments
-    termin_ke: payments.length + idx + 1,
+    invoice_id: String(inv.id),
+    termin_ke: idx + 1,
     nama_termin: inv.invoice_number ?? `Invoice`,
     tagihan: toNum(inv.grand_total),
     retensi: 0,
-    status: inv.status === "Lunas" ? "Sudah Dibayar" : "Belum Dibayar",
+    status: inv.status === "Lunas" || inv.kwitansi ? "Sudah Dibayar" : "Belum Dibayar",
     jatuh_tempo: inv.overdue_date,
     tanggal_bayar: inv.kwitansi?.tanggal ?? null,
     catatan: inv.catatan,
     source: "invoice",
   }));
 
-  return res.json([...manualPayments, ...invoicePayments]);
+  // Finance menjadi sumber utama. Baris manual lama hanya dipakai untuk proyek
+  // yang belum memiliki invoice resmi agar data historis tidak langsung hilang.
+  return res.json(invoicePayments.length > 0 ? invoicePayments : manualPayments);
 });
 
 // ── GET /invoices — invoice Finance terbit/lunas berdasarkan lead ────────────
 router.get("/invoices", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
-  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId }, select: { lead_id: true } });
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
   if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  const scope = await resolveClientPortalScope(project);
   const invoices = await prisma.invoice.findMany({
-    where: { lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } },
+    where: visibleClientInvoiceWhere(scope),
     include: { kwitansi: { select: { tanggal: true, nomor_kwitansi: true, metode_bayar: true } } },
     orderBy: { tanggal: "asc" },
   });
@@ -265,7 +272,7 @@ router.get("/invoices", async (req: Request, res: Response) => {
     grand_total: toNum(inv.grand_total),
     subtotal: toNum(inv.subtotal),
     ppn_amount: toNum(inv.ppn_amount),
-    status: inv.status,
+    status: inv.status === "Lunas" || inv.kwitansi ? "Lunas" : inv.status,
     catatan: inv.catatan,
     kwitansi: inv.kwitansi ? {
       tanggal_bayar: inv.kwitansi.tanggal,
@@ -279,10 +286,14 @@ router.get("/invoices", async (req: Request, res: Response) => {
 router.get("/invoices/:id", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const invId = BigInt(req.params.id);
-  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId }, select: { lead_id: true } });
+  const project = await prisma.clientPortalProject.findUnique({
+    where: { id: projectId },
+    include: { lead: { select: { nama: true, jenis: true, alamat: true, nomor_telepon: true } } },
+  });
   if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  const scope = await resolveClientPortalScope(project);
   const inv = await prisma.invoice.findFirst({
-    where: { id: invId, lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } },
+    where: { id: invId, ...visibleClientInvoiceWhere(scope) },
     include: {
       items: { orderBy: { id: "asc" } },
       lead: { select: { nama: true, jenis: true, alamat: true, nomor_telepon: true } },
@@ -301,12 +312,12 @@ router.get("/invoices/:id", async (req: Request, res: Response) => {
     ppn_percentage: toNum(inv.ppn_percentage),
     ppn_amount: toNum(inv.ppn_amount),
     grand_total: toNum(inv.grand_total),
-    status: inv.status,
+    status: inv.status === "Lunas" || inv.kwitansi ? "Lunas" : inv.status,
     catatan: inv.catatan,
-    klien: inv.lead?.nama ?? null,
-    jenis: inv.lead?.jenis ?? null,
-    alamat: inv.lead?.alamat ?? null,
-    telepon: inv.lead?.nomor_telepon ?? null,
+    klien: inv.lead?.nama ?? project.lead.nama,
+    jenis: inv.lead?.jenis ?? project.lead.jenis,
+    alamat: inv.lead?.alamat ?? project.lead.alamat,
+    telepon: inv.lead?.nomor_telepon ?? project.lead.nomor_telepon,
     bank_account: inv.bank_account ?? null,
     items: inv.items.map(it => ({
       description: it.description,
@@ -405,12 +416,9 @@ router.get("/kehadiran", async (req: Request, res: Response) => {
   const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
   if (!project) return res.json([]);
 
-  // Cari adm_finance_project_id: pakai yang tersimpan, atau auto-find via lead_id
-  let admProjectId = project.adm_finance_project_id;
-  if (!admProjectId && project.lead_id) {
-    const admProject = await prisma.admFinanceProject.findFirst({ where: { lead_id: project.lead_id }, select: { id: true } });
-    admProjectId = admProject?.id ?? null;
-  }
+  // Gunakan relasi Administrasi Projek yang sama dengan invoice dan info client.
+  const scope = await resolveClientPortalScope(project);
+  const admProjectId = scope.admProject?.id ?? null;
   if (!admProjectId) return res.json([]);
 
   // Ambil semua tukang di project ini
