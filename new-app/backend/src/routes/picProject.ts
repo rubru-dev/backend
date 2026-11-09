@@ -1165,6 +1165,50 @@ router.get("/laporan-pic", async (req: Request, res: Response) => {
   return res.json(await attachLaporanPicImages(rows));
 });
 
+// Hapus satu foto laporan. Aksi ini khusus Super Admin karena foto juga tampil
+// pada galeri pekerjaan, PDF laporan, dan portal client.
+router.delete("/laporan-pic/:id/image", async (req: Request, res: Response) => {
+  if (!isSuperAdmin(req.user)) {
+    return res.status(403).json({ detail: "Hanya Super Admin yang dapat menghapus foto laporan PIC" });
+  }
+
+  const id = BigInt(req.params.id);
+  const requestedPath = typeof req.body?.file_path === "string" ? req.body.file_path.trim() : "";
+  if (!requestedPath) return res.status(400).json({ detail: "Foto yang akan dihapus wajib dipilih" });
+
+  const row = await prisma.laporanPicProjek.findUnique({ where: { id } });
+  if (!row) return res.status(404).json({ detail: "Laporan tidak ditemukan" });
+
+  const attached = await attachLaporanPicImages([row]);
+  const currentImages = attached[0]?.images ?? [];
+  if (!currentImages.includes(requestedPath)) {
+    return res.status(404).json({ detail: "Foto tidak ditemukan pada laporan ini" });
+  }
+
+  const remainingImages = currentImages.filter((imagePath: string) => imagePath !== requestedPath);
+  await ensureLaporanPicImagesTable();
+  await prisma.$transaction([
+    prisma.$executeRawUnsafe(
+      "DELETE FROM laporan_pic_projek_images WHERE laporan_id = $1 AND file_path = $2",
+      id,
+      requestedPath,
+    ),
+    prisma.laporanPicProjek.update({ where: { id }, data: { images: remainingImages } }),
+    prisma.clientPortalGaleri.deleteMany({ where: { file_path: requestedPath } }),
+  ]);
+
+  if (requestedPath.startsWith("/storage/")) {
+    const storageRoot = path.resolve(config.storagePath);
+    const storedFile = path.resolve(storageRoot, requestedPath.replace(/^\/storage\//, ""));
+    if (storedFile.startsWith(`${storageRoot}${path.sep}`) && fs.existsSync(storedFile)) {
+      fs.unlinkSync(storedFile);
+    }
+    deleteImageThumbnail(requestedPath);
+  }
+
+  return res.json({ success: true, images: remainingImages });
+});
+
 // Hapus laporan (pemilik atau Super Admin)
 router.delete("/laporan-pic/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);

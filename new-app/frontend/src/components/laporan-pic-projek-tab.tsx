@@ -8,11 +8,21 @@ import { toast } from "sonner";
 import { laporanPicApi } from "@/lib/api/laporanPic";
 import { format } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
-import { User, Calendar, ImageOff, Images, Check, X, FileDown, Loader2 } from "lucide-react";
+import { User, Calendar, ImageOff, Images, Check, X, FileDown, Loader2, Trash2 } from "lucide-react";
 import { storageUrl } from "@/lib/storage-url";
 import { useAuthStore } from "@/store/authStore";
 import { getLogoBase64 } from "@/lib/get-logo";
 import { LaporanPicPdf, type PdfReport } from "@/components/laporan-pic-pdf";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const PDF_IMAGE_MAX_EDGE = 1100;
 const PDF_IMAGE_QUALITY = 0.68;
@@ -56,7 +66,21 @@ async function preparePdfImage(path: string) {
 
 // Gambar disembunyikan di balik dropdown → <img> baru dirender (dan baru dimuat browser)
 // saat dibuka. Ini mencegah puluhan/ratusan gambar dimuat serentak saat tab dibuka.
-function ReportImages({ images }: { images: string[] }) {
+function ReportImages({
+  reportId,
+  images,
+  canDelete,
+  isDeleting,
+  deletingPath,
+  onDelete,
+}: {
+  reportId: number;
+  images: string[];
+  canDelete: boolean;
+  isDeleting: boolean;
+  deletingPath?: string;
+  onDelete: (target: { reportId: number; filePath: string }) => void;
+}) {
   const [open, setOpen] = useState(false);
   if (!Array.isArray(images) || images.length === 0) return null;
   return (
@@ -64,24 +88,47 @@ function ReportImages({ images }: { images: string[] }) {
       <button
         type="button"
         onClick={() => setOpen((o) => !o)}
-        className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium text-foreground hover:bg-slate-50"
+        aria-expanded={open}
+        className="inline-flex min-h-11 items-center gap-1.5 rounded-md border px-3 text-xs font-medium text-foreground hover:bg-slate-50"
       >
-        <Images className="h-3.5 w-3.5" />
+        <Images className="h-3.5 w-3.5" aria-hidden="true" />
         {open ? "Sembunyikan gambar" : `Lihat ${images.length} gambar`}
       </button>
       {open && (
         <div className="mt-2 flex flex-wrap gap-2">
           {images.map((p, i) => (
-            <a key={i} href={storageUrl(p)} target="_blank" rel="noreferrer" title="Buka gambar">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={storageUrl(p)}
-                alt={`Foto ${i + 1}`}
-                loading="lazy"
-                decoding="async"
-                className="h-24 w-24 rounded border bg-slate-50 object-contain transition-opacity hover:opacity-90"
-              />
-            </a>
+            <div key={`${p}-${i}`} className="w-24 overflow-hidden rounded-md border bg-background">
+              <a
+                href={storageUrl(p)}
+                target="_blank"
+                rel="noreferrer"
+                title="Buka gambar"
+                className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={storageUrl(p)}
+                  alt={`Foto ${i + 1}`}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-24 w-24 bg-slate-50 object-contain transition-opacity hover:opacity-90"
+                />
+              </a>
+              {canDelete && (
+                <button
+                  type="button"
+                  aria-label={`Hapus foto ${i + 1}`}
+                  disabled={isDeleting}
+                  onClick={() => onDelete({ reportId, filePath: p })}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-1 border-t px-2 text-xs font-semibold text-destructive hover:bg-destructive/10 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isDeleting && deletingPath === p
+                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                    : <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />}
+                  Hapus
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -119,8 +166,9 @@ export function LaporanPicProjekTab({
   const qc = useQueryClient();
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [pdfProgress, setPdfProgress] = useState({ done: 0, total: 0 });
+  const [deleteTarget, setDeleteTarget] = useState<{ reportId: number; filePath: string } | null>(null);
   const isSuperAdmin = useAuthStore((state) => state.isSuperAdmin());
-  const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
+  const { data, isLoading, isError, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteQuery({
     queryKey: ["laporan-pic", projectType, String(projectId)],
     queryFn: ({ pageParam }) => laporanPicApi.listByProjectPaged(projectType, projectId, pageParam, 15),
     initialPageParam: 1,
@@ -132,6 +180,18 @@ export function LaporanPicProjekTab({
   const approvalMutation = useMutation({
     mutationFn: ({ id, action }: { id: number; action: "approve" | "reject" }) => laporanPicApi.approveStatus(id, action),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["laporan-pic", projectType, String(projectId)] }),
+  });
+  const deleteImageMutation = useMutation({
+    mutationFn: ({ reportId, filePath }: { reportId: number; filePath: string }) => laporanPicApi.removeImage(reportId, filePath),
+    onSuccess: async () => {
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: ["laporan-pic", projectType, String(projectId)] }),
+        qc.invalidateQueries({ queryKey: ["gantt-task-gallery"] }),
+      ]);
+      toast.success("Foto laporan berhasil dihapus");
+    },
+    onError: (error: any) => toast.error(error?.response?.data?.detail || "Foto laporan gagal dihapus"),
+    onSettled: () => setDeleteTarget(null),
   });
 
   const rows = data?.pages.flatMap((p) => p.items) ?? [];
@@ -214,6 +274,21 @@ export function LaporanPicProjekTab({
     return <div className="py-10 text-center text-sm text-muted-foreground">Memuat laporan…</div>;
   }
 
+  if (isError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-10 text-center text-sm text-red-700">
+        <p>Laporan PIC gagal dimuat.</p>
+        <button
+          type="button"
+          onClick={() => refetch()}
+          className="min-h-11 rounded-md border border-red-300 bg-white px-4 font-semibold hover:bg-red-100"
+        >
+          Coba lagi
+        </button>
+      </div>
+    );
+  }
+
   if (rows.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed py-12 text-center">
@@ -237,9 +312,9 @@ export function LaporanPicProjekTab({
           type="button"
           onClick={downloadPdf}
           disabled={isDownloadingPdf}
-          className="inline-flex min-h-10 items-center gap-2 rounded-md border px-3 text-sm font-medium text-foreground hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm font-medium text-foreground hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isDownloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <FileDown className="h-4 w-4" />}
+          {isDownloadingPdf ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <FileDown className="h-4 w-4" aria-hidden="true" />}
           {isDownloadingPdf && pdfProgress.total > 0
             ? `Menyiapkan foto ${pdfProgress.done}/${pdfProgress.total}`
             : isDownloadingPdf ? "Membuat PDF…" : "Download PDF"}
@@ -270,11 +345,11 @@ export function LaporanPicProjekTab({
             {r.status_approval === "Ditolak" && <span className="rounded-full bg-red-50 px-2 py-0.5 font-medium text-red-700">Ditolak</span>}
             {isSuperAdmin && r.status_approval === "Menunggu Approval" && (
               <span className="ml-auto inline-flex gap-1">
-                <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" disabled={approvalMutation.isPending} onClick={() => approvalMutation.mutate({ id: r.id, action: "approve" })}>
-                  <Check className="h-3.5 w-3.5" /> Setujui
+                <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-md bg-emerald-600 px-2.5 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-60" disabled={approvalMutation.isPending} onClick={() => approvalMutation.mutate({ id: r.id, action: "approve" })}>
+                  <Check className="h-3.5 w-3.5" aria-hidden="true" /> Setujui
                 </button>
-                <button type="button" className="inline-flex min-h-9 items-center gap-1 rounded-md border border-red-200 px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60" disabled={approvalMutation.isPending} onClick={() => approvalMutation.mutate({ id: r.id, action: "reject" })}>
-                  <X className="h-3.5 w-3.5" /> Tolak
+                <button type="button" className="inline-flex min-h-11 items-center gap-1 rounded-md border border-red-200 px-2.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60" disabled={approvalMutation.isPending} onClick={() => approvalMutation.mutate({ id: r.id, action: "reject" })}>
+                  <X className="h-3.5 w-3.5" aria-hidden="true" /> Tolak
                 </button>
               </span>
             )}
@@ -289,7 +364,14 @@ export function LaporanPicProjekTab({
             <ReportText text={[r.kegiatan, r.kendala ? `- Kendala: ${r.kendala}` : ""].filter(Boolean).join("\n")} />
           </div>
 
-          <ReportImages images={r.images} />
+          <ReportImages
+            reportId={r.id}
+            images={r.images}
+            canDelete={isSuperAdmin}
+            isDeleting={deleteImageMutation.isPending}
+            deletingPath={deleteTarget?.filePath}
+            onDelete={setDeleteTarget}
+          />
           </div>)}
         </div>;
       })}
@@ -300,12 +382,42 @@ export function LaporanPicProjekTab({
             type="button"
             onClick={() => fetchNextPage()}
             disabled={isFetchingNextPage}
-            className="rounded-md border px-4 py-2 text-sm font-medium text-foreground hover:bg-slate-50 disabled:opacity-60"
+            className="min-h-11 rounded-md border px-4 py-2 text-sm font-medium text-foreground hover:bg-slate-50 disabled:opacity-60"
           >
             {isFetchingNextPage ? "Memuat…" : "Muat lebih banyak"}
           </button>
         </div>
       )}
+
+      <AlertDialog
+        open={deleteTarget !== null}
+        onOpenChange={(open) => {
+          if (!open && !deleteImageMutation.isPending) setDeleteTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus foto laporan?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Foto akan dihapus permanen dari laporan PIC, PDF, galeri pekerjaan, dan portal client.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="min-h-11" disabled={deleteImageMutation.isPending}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!deleteTarget || deleteImageMutation.isPending}
+              className="min-h-11 bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && deleteImageMutation.mutate(deleteTarget)}
+            >
+              {deleteImageMutation.isPending ? (
+                <><Loader2 className="mr-2 h-4 w-4 animate-spin" aria-hidden="true" />Menghapus...</>
+              ) : (
+                "Hapus foto"
+              )}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

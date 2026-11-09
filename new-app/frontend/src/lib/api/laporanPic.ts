@@ -69,6 +69,9 @@ export const laporanPicApi = {
   remove: (id: number | string): Promise<{ success: boolean }> =>
     apiClient.delete(`/pic/laporan-pic/${id}`).then((r) => r.data),
 
+  removeImage: (id: number | string, file_path: string): Promise<{ success: boolean; images: string[] }> =>
+    apiClient.delete(`/pic/laporan-pic/${id}/image`, { data: { file_path } }).then((r) => r.data),
+
   approveStatus: (id: number | string, action: "approve" | "reject", reason?: string): Promise<LaporanPicItem> =>
     apiClient.patch(`/pic/laporan-pic/${id}/status-approval`, { action, reason }).then((r) => r.data),
 };
