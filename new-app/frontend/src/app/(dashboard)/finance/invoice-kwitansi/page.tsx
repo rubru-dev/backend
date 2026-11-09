@@ -43,6 +43,8 @@ const api = {
     apiClient.post(`/finance/invoices/${id}/sign-head`, { signature_data }).then(r => r.data),
   markPaid: (id: number, data: any) =>
     apiClient.post(`/finance/invoices/${id}/mark-paid`, data).then(r => r.data),
+  moveToProject: (id: number, adm_finance_project_id: string) =>
+    apiClient.patch(`/finance/invoices/${id}/move-project`, { adm_finance_project_id }).then(r => r.data),
   getKwitansi: (id: number) =>
     apiClient.get(`/finance/invoices/${id}/kwitansi`).then(r => r.data),
   bankAccounts: () => apiClient.get("/finance/bank-accounts").then(r => r.data),
@@ -468,6 +470,10 @@ export default function InvoiceKwitansiPage() {
   const [kategoriForm, setKategoriForm] = useState({ kategori: "", paket_desain: "", rab_item_id: "", adm_finance_project_id: "" });
   const [kategoriRabItems, setKategoriRabItems] = useState<{ id: number; label: string; nilai: number; tipe: string; adm_finance_project_id?: number | null }[]>([]);
 
+  // Koreksi relasi proyek invoice lama, khusus Super Admin.
+  const [moveProjectTarget, setMoveProjectTarget] = useState<any | null>(null);
+  const [moveProjectId, setMoveProjectId] = useState("");
+
   useEffect(() => {
     if (kategoriTarget && kategoriForm.kategori === "Payment Projek" && kategoriTarget.lead_id) {
       apiClient.get(`/finance/leads/${kategoriTarget.lead_id}/rab-items`).then((r) => {
@@ -541,6 +547,10 @@ export default function InvoiceKwitansiPage() {
     queryFn: api.admProjects,
   });
   const admProjects: any[] = admProjectsData?.items ?? [];
+  const selectedMoveProject = admProjects.find((project: any) => String(project.id) === moveProjectId) ?? null;
+  const currentMoveProject = moveProjectTarget
+    ? admProjects.find((project: any) => String(project.id) === String(moveProjectTarget.adm_finance_project_id ?? "")) ?? null
+    : null;
 
   // Auto-generate nomor invoice when kategori, lead, paket, or tanggal changes
   useEffect(() => {
@@ -592,6 +602,18 @@ export default function InvoiceKwitansiPage() {
       setKategoriForm({ kategori: "", paket_desain: "", rab_item_id: "", adm_finance_project_id: "" });
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memperbarui kategori"),
+  });
+
+  const moveProjectMut = useMutation({
+    mutationFn: ({ id, projectId }: { id: number; projectId: string }) => api.moveToProject(id, projectId),
+    onSuccess: (result: any) => {
+      if (result.project?.portal_terhubung) toast.success(result.message || "Invoice berhasil dipindahkan");
+      else toast.warning("Invoice sudah dipindahkan, tetapi proyek tujuan belum terhubung ke portal klien");
+      qc.invalidateQueries({ queryKey: ["invoices"] });
+      setMoveProjectTarget(null);
+      setMoveProjectId("");
+    },
+    onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal memindahkan invoice"),
   });
 
   const signMut = useMutation({
@@ -965,6 +987,19 @@ export default function InvoiceKwitansiPage() {
                                   }}>
                                   <Pencil className="h-3 w-3" /> Kategori
                                 </Button>
+                                {isSuperAdmin() && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="min-h-11 text-xs gap-1"
+                                    onClick={() => {
+                                      setMoveProjectTarget(inv);
+                                      setMoveProjectId(inv.adm_finance_project_id ? String(inv.adm_finance_project_id) : "");
+                                    }}
+                                  >
+                                    <Building2 className="h-3 w-3" /> Pindahkan ke Proyek
+                                  </Button>
+                                )}
                                 {canEditNominal && !inv.nominal_locked && (
                                   <Button size="sm" variant="outline" className="h-7 text-xs gap-1"
                                     onClick={() => {
@@ -1570,6 +1605,92 @@ export default function InvoiceKwitansiPage() {
                 }}
               >
                 {setKategoriMut.isPending ? "Menyimpan..." : "Simpan"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pindahkan invoice ke proyek */}
+      <Dialog
+        open={!!moveProjectTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setMoveProjectTarget(null);
+            setMoveProjectId("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" /> Pindahkan ke Proyek
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="rounded-md border bg-muted/30 p-3 text-sm">
+              <p className="font-medium text-foreground">{moveProjectTarget?.nomor_invoice || "Invoice"}</p>
+              <p className="mt-1 text-muted-foreground">
+                Klien saat ini: {moveProjectTarget?.klien || "Belum dipilih"}
+              </p>
+              <p className="text-muted-foreground">
+                Proyek saat ini: {currentMoveProject?.nama_proyek || "Belum terhubung"}
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="invoice-project-target">Proyek tujuan</Label>
+              <select
+                id="invoice-project-target"
+                className="mt-1 min-h-11 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={moveProjectId}
+                onChange={(event) => setMoveProjectId(event.target.value)}
+              >
+                <option value="">Pilih proyek tujuan</option>
+                {[...admProjects]
+                  .sort((a, b) => String(a.nama_proyek || "").localeCompare(String(b.nama_proyek || ""), "id"))
+                  .map((project: any) => (
+                    <option key={project.id} value={project.id}>
+                      {project.nama_proyek || "Proyek tanpa nama"}
+                      {project.portal_klien ? ` | Portal: ${project.portal_klien}` : project.klien ? ` | ${project.klien}` : ""}
+                    </option>
+                  ))}
+              </select>
+            </div>
+
+            {selectedMoveProject && (
+              <div className={`rounded-md border p-3 text-sm ${selectedMoveProject.portal_project_id ? "border-green-200 bg-green-50 text-green-800" : "border-amber-200 bg-amber-50 text-amber-800"}`}>
+                {selectedMoveProject.portal_project_id
+                  ? `Terhubung ke portal ${selectedMoveProject.portal_klien || selectedMoveProject.portal_nama_proyek || "klien"}.`
+                  : "Proyek ini belum terhubung ke portal klien."}
+              </div>
+            )}
+
+            <p className="text-xs text-muted-foreground">
+              Nomor invoice, nominal, status pembayaran, tanda tangan, dan kwitansi tidak akan berubah.
+            </p>
+
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <Button
+                variant="outline"
+                className="min-h-11"
+                onClick={() => {
+                  setMoveProjectTarget(null);
+                  setMoveProjectId("");
+                }}
+              >
+                Batal
+              </Button>
+              <Button
+                className="min-h-11"
+                disabled={!moveProjectId || moveProjectId === String(moveProjectTarget?.adm_finance_project_id ?? "") || moveProjectMut.isPending}
+                onClick={() => {
+                  if (!moveProjectTarget || !moveProjectId) return;
+                  moveProjectMut.mutate({ id: moveProjectTarget.id, projectId: moveProjectId });
+                }}
+              >
+                {moveProjectMut.isPending ? "Memindahkan..." : "Pindahkan Invoice"}
               </Button>
             </div>
           </div>

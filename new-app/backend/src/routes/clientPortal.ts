@@ -30,11 +30,11 @@ function progressFromCounts(done: number, total: number) {
   return total > 0 ? Math.round((done / total) * 100) : null;
 }
 
-async function getLiveProjectProgress(leadId: bigint | null | undefined) {
-  if (!leadId) return { progress: null as number | null, totalItems: 0, doneItems: 0 };
+async function getLiveProjectProgress(sipilProjectIds: bigint[]) {
+  if (sipilProjectIds.length === 0) return { progress: null as number | null, totalItems: 0, doneItems: 0 };
 
   const sipilProyeks = await prisma.proyekBerjalan.findMany({
-    where: { lead_id: leadId },
+    where: { id: { in: sipilProjectIds } },
     select: {
       id: true,
       termins: { select: { tasks: { select: { status: true } } } },
@@ -55,22 +55,125 @@ async function getLiveProjectProgress(leadId: bigint | null | undefined) {
   return { progress: 0, totalItems: 0, doneItems: 0 };
 }
 
-async function getLiveProjectSummary(leadId: bigint | null | undefined) {
-  if (!leadId) return null;
+async function getLiveProjectSummary(projects: Array<{ id: bigint; type: "sipil" | "interior" }>) {
+  const sipilIds = projects.filter((item) => item.type === "sipil").map((item) => item.id);
+  const interiorIds = projects.filter((item) => item.type === "interior").map((item) => item.id);
+  if (sipilIds.length === 0 && interiorIds.length === 0) return null;
   const [sipilProyeks, interiorProyeks] = await Promise.all([
     prisma.proyekBerjalan.findMany({
-      where: { lead_id: leadId },
+      where: { id: { in: sipilIds } },
       select: { nama_proyek: true, lokasi: true, tanggal_mulai: true, tanggal_selesai: true, updated_at: true },
       orderBy: { updated_at: "desc" },
     }),
     prisma.proyekInterior.findMany({
-      where: { lead_id: leadId },
+      where: { id: { in: interiorIds } },
       select: { nama_proyek: true, lokasi: true, tanggal_mulai: true, tanggal_selesai: true, updated_at: true },
       orderBy: { updated_at: "desc" },
     }),
   ]);
   const allProjects = [...sipilProyeks, ...interiorProyeks].sort((a, b) => b.updated_at.getTime() - a.updated_at.getTime());
   return allProjects[0] ?? null;
+}
+
+function portalGalleryFileUrl(filePath: string | null) {
+  if (!filePath) return null;
+  return filePath.startsWith("/storage/")
+    ? filePath
+    : `/storage/client-portal/galeri/${path.basename(filePath)}`;
+}
+
+async function getPortalGalleryItems(
+  projectId: bigint,
+  scope: Awaited<ReturnType<typeof resolveClientPortalScope>>,
+  search = "",
+) {
+  const query = search.trim();
+  const sipilIds = scope.operationalProjects.filter((item) => item.type === "sipil").map((item) => item.id);
+  const interiorIds = scope.operationalProjects.filter((item) => item.type === "interior").map((item) => item.id);
+  const reportProjectFilters: any[] = [];
+  if (sipilIds.length > 0) reportProjectFilters.push({ project_type: "sipil", project_id: { in: sipilIds } });
+  if (interiorIds.length > 0) reportProjectFilters.push({ project_type: "interior", project_id: { in: interiorIds } });
+
+  const [manualItems, reports] = await Promise.all([
+    prisma.clientPortalGaleri.findMany({
+      where: {
+        project_id: projectId,
+        ...(query && {
+          OR: [
+            { judul: { contains: query, mode: "insensitive" } },
+            { deskripsi: { contains: query, mode: "insensitive" } },
+          ],
+        }),
+      },
+      orderBy: [{ tanggal_foto: "desc" }, { created_at: "desc" }],
+    }),
+    reportProjectFilters.length === 0
+      ? []
+      : prisma.laporanPicProjek.findMany({
+          where: {
+            OR: reportProjectFilters,
+            ...(query && {
+              AND: [{
+                OR: [
+                  { termin_nama: { contains: query, mode: "insensitive" } },
+                  { pekerjaan_nama: { contains: query, mode: "insensitive" } },
+                  { kegiatan: { contains: query, mode: "insensitive" } },
+                  { tasks: { some: { pekerjaan_nama: { contains: query, mode: "insensitive" } } } },
+                ],
+              }],
+            }),
+          },
+          include: {
+            tasks: { orderBy: { id: "asc" } },
+            image_files: { orderBy: { id: "asc" } },
+          },
+          orderBy: [{ tanggal: "desc" }, { created_at: "desc" }],
+        }),
+  ]);
+
+  const reportItems = reports.flatMap((report) => {
+    const relationalImages = report.image_files.map((image) => image.file_path);
+    const legacyImages = Array.isArray(report.images)
+      ? report.images.filter((item): item is string => typeof item === "string")
+      : [];
+    const images = relationalImages.length > 0 ? relationalImages : legacyImages;
+    const taskNames = report.tasks.map((task) => task.pekerjaan_nama).filter(Boolean);
+    const taskLabel = taskNames.join(", ") || report.pekerjaan_nama || "Dokumentasi";
+    const title = `${report.termin_nama || "Umum"} ‖ ${taskLabel}`;
+    const description = [report.kegiatan, report.kendala ? `Kendala: ${report.kendala}` : ""].filter(Boolean).join("\n");
+    return images.map((filePath, index) => ({
+      id: `laporan-${report.id}-${index}`,
+      judul: title,
+      deskripsi: description || null,
+      tanggal_foto: report.tanggal,
+      file_url: thumbnailStoragePath(filePath),
+      original_url: filePath,
+      source: "laporan_pic",
+    }));
+  });
+
+  const manualGalleryItems = manualItems.map((item) => {
+    const fileUrl = portalGalleryFileUrl(item.file_path);
+    return {
+      id: `manual-${item.id}`,
+      judul: item.judul,
+      deskripsi: item.deskripsi,
+      tanggal_foto: item.tanggal_foto,
+      file_url: fileUrl,
+      original_url: fileUrl,
+      source: "manual",
+    };
+  });
+
+  const seenFiles = new Set<string>();
+  return [...reportItems, ...manualGalleryItems]
+    .filter((item) => {
+      const filePath = item.original_url || item.file_url;
+      if (!filePath || seenFiles.has(filePath)) return false;
+      seenFiles.add(filePath);
+      return true;
+    })
+    .sort((a, b) => new Date(b.tanggal_foto ?? 0).getTime() - new Date(a.tanggal_foto ?? 0).getTime());
 }
 
 // ── POST /login ───────────────────────────────────────────────────────────────
@@ -128,18 +231,20 @@ router.get("/me", async (req: Request, res: Response) => {
   });
   if (!project) { res.status(404).json({ detail: "Project tidak ditemukan" }); return; }
 
-  const liveProgress = await getLiveProjectProgress(project.lead_id);
-  const liveProject = await getLiveProjectSummary(project.lead_id);
   const scope = await resolveClientPortalScope(project);
   const sipilProjectIds = scope.operationalProjects
     .filter((item) => item.type === "sipil")
     .map((item) => item.id);
+  const [liveProgress, liveProject, galleryItems] = await Promise.all([
+    getLiveProjectProgress(sipilProjectIds),
+    getLiveProjectSummary(scope.operationalProjects),
+    getPortalGalleryItems(projectId, scope),
+  ]);
 
   // Hitung summary
-  const [paymentCount, paidCount, galeriCount, dokumenManualCount, laporanPicCount, aktivitasCount, invCount, invLunasCount] = await Promise.all([
+  const [paymentCount, paidCount, dokumenManualCount, laporanPicCount, aktivitasCount, invCount, invLunasCount] = await Promise.all([
     prisma.clientPortalPayment.count({ where: { project_id: projectId } }),
     prisma.clientPortalPayment.count({ where: { project_id: projectId, status: "Sudah Dibayar" } }),
-    prisma.clientPortalGaleri.count({ where: { project_id: projectId } }),
     prisma.clientPortalDokumen.count({ where: { project_id: projectId } }),
     sipilProjectIds.length
       ? prisma.laporanPicProjek.count({ where: { project_type: "sipil", project_id: { in: sipilProjectIds } } })
@@ -163,7 +268,7 @@ router.get("/me", async (req: Request, res: Response) => {
     summary: {
       total_termin: invCount > 0 ? invCount : paymentCount,
       termin_lunas: invCount > 0 ? invLunasCount : paidCount,
-      total_foto: galeriCount,
+      total_foto: galleryItems.length,
       total_dokumen: laporanPicCount + dokumenManualCount,
       total_aktivitas: liveProgress.totalItems || aktivitasCount,
       aktivitas_selesai: liveProgress.doneItems,
@@ -311,22 +416,11 @@ router.get("/invoices/:id", async (req: Request, res: Response) => {
 router.get("/galeri", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const { search } = req.query;
-  const items = await prisma.clientPortalGaleri.findMany({
-    where: {
-      project_id: projectId,
-      ...(search && { judul: { contains: search as string, mode: "insensitive" } }),
-    },
-    orderBy: { tanggal_foto: "desc" },
-  });
-  return res.json(items.map((g) => ({
-    id: g.id,
-    judul: g.judul,
-    deskripsi: g.deskripsi,
-    tanggal_foto: g.tanggal_foto,
-    file_url: g.file_path
-      ? (g.file_path.startsWith("/storage/") ? g.file_path : `/storage/client-portal/galeri/${path.basename(g.file_path)}`)
-      : null,
-  })));
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  const scope = await resolveClientPortalScope(project);
+  const items = await getPortalGalleryItems(projectId, scope, typeof search === "string" ? search : "");
+  return res.json(items);
 });
 
 // ── GET /dokumen ──────────────────────────────────────────────────────────────
@@ -549,16 +643,23 @@ router.get("/kehadiran", async (req: Request, res: Response) => {
 // Returns aktivitas items formatted as gantt — auto-synced from aktivitas CRUD
 router.get("/gantt", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
-  const items = await prisma.clientPortalAktivitas.findMany({
-    where: { project_id: projectId },
-    orderBy: [{ tanggal_mulai: "asc" }, { tanggal: "asc" }],
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
+  const scope = await resolveClientPortalScope(project);
+  const sipilProjectIds = scope.operationalProjects.filter((item) => item.type === "sipil").map((item) => item.id);
+  const items = await prisma.proyekBerjalanTask.findMany({
+    where: { termin: { proyek_berjalan_id: { in: sipilProjectIds } } },
+    include: { termin: { select: { nama: true, proyek_berjalan: { select: { nama_proyek: true } } } } },
+    orderBy: [{ tanggal_mulai: "asc" }, { created_at: "asc" }],
   });
   return res.json(items.map((a, idx) => ({
     id: a.id,
-    nama_pekerjaan: a.judul,
-    tanggal_mulai: a.tanggal_mulai ?? a.tanggal,
-    tanggal_selesai: a.tanggal_selesai,
-    status: a.status,
+    nama_pekerjaan: a.nama_pekerjaan,
+    proyek_nama: a.termin.proyek_berjalan.nama_proyek,
+    termin_nama: a.termin.nama,
+    tanggal_mulai: a.tanggal_mulai,
+    tanggal_selesai: clientTargetDate(a.tanggal_selesai),
+    status: clientTaskStatus(a.status),
     urutan: idx + 1,
   })));
 });
@@ -671,12 +772,15 @@ router.get("/kontak", async (req: Request, res: Response) => {
 router.get("/aktivitas-projek", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId } });
-  if (!project?.lead_id) return res.json([]);
-
-  const leadId = project.lead_id;
+  if (!project) return res.json([]);
+  const scope = await resolveClientPortalScope(project);
+  const sipilProjectIds = scope.operationalProjects
+    .filter((item) => item.type === "sipil")
+    .map((item) => item.id);
+  if (sipilProjectIds.length === 0) return res.json([]);
 
   const sipilProyeks = await prisma.proyekBerjalan.findMany({
-      where: { lead_id: leadId },
+      where: { id: { in: sipilProjectIds } },
       include: {
         termins: {
           orderBy: { urutan: "asc" },

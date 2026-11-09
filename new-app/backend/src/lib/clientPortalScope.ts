@@ -53,43 +53,52 @@ export async function resolveClientPortalScope(project: PortalProjectRef) {
     : null;
   const admProject = explicitAdm ?? admProjects[0] ?? null;
 
-  const rabItemIds = new Set(sipilProjects.flatMap((item) => item.rab_items.map((rab) => rab.id)));
+  // Relasi Administrasi Projek yang dipilih di Data Klien adalah jangkar utama.
+  // Fallback berbasis lead hanya dipakai untuk data lama yang belum mempunyai relasi itu.
+  const hasExplicitOperationalProject = Boolean(explicitAdm?.proyek_berjalan || explicitAdm?.proyek_interior);
+  const scopedSipilProjects = hasExplicitOperationalProject
+    ? explicitAdm?.proyek_berjalan ? [explicitAdm.proyek_berjalan] : []
+    : sipilProjects;
+  const scopedInteriorProjects = hasExplicitOperationalProject
+    ? explicitAdm?.proyek_interior ? [explicitAdm.proyek_interior] : []
+    : interiorProjects;
+
+  const rabItemIds = new Set(scopedSipilProjects.flatMap((item) => item.rab_items.map((rab) => rab.id)));
   const operationalProjects = new Map<string, { id: bigint; type: "sipil" | "interior"; nama_proyek: string | null }>();
-  for (const item of sipilProjects) {
+  for (const item of scopedSipilProjects) {
     operationalProjects.set(`sipil:${item.id}`, { id: item.id, type: "sipil", nama_proyek: item.nama_proyek });
   }
-  for (const item of interiorProjects) {
+  for (const item of scopedInteriorProjects) {
     operationalProjects.set(`interior:${item.id}`, { id: item.id, type: "interior", nama_proyek: item.nama_proyek });
   }
-  for (const adm of admProjects) {
-    if (adm.proyek_berjalan) {
-      const item = adm.proyek_berjalan;
-      operationalProjects.set(`sipil:${item.id}`, { id: item.id, type: "sipil", nama_proyek: item.nama_proyek });
-      item.rab_items.forEach((rab) => rabItemIds.add(rab.id));
-    }
-    if (adm.proyek_interior) {
-      const item = adm.proyek_interior;
-      operationalProjects.set(`interior:${item.id}`, { id: item.id, type: "interior", nama_proyek: item.nama_proyek });
-    }
-  }
+
+  const relatedLeadIds = new Set<bigint>([project.lead_id]);
+  if (admProject?.lead_id) relatedLeadIds.add(admProject.lead_id);
+  if (admProject?.proyek_berjalan?.lead_id) relatedLeadIds.add(admProject.proyek_berjalan.lead_id);
+  if (admProject?.proyek_interior?.lead_id) relatedLeadIds.add(admProject.proyek_interior.lead_id);
+
+  const legacyProjectInvoiceLink = {
+    AND: [
+      { lead_id: { in: Array.from(relatedLeadIds) } },
+      { adm_finance_project_id: null },
+      { kategori: { in: ["Payment Projek", "Payment RKR"] } },
+    ],
+  };
 
   const invoiceLinks: any[] = [
     { client_portal_project_id: project.id },
-    {
-      AND: [
-        { lead_id: project.lead_id },
-        { adm_finance_project_id: null },
-        { kategori: { in: ["Payment Projek", "Payment RKR"] } },
-      ],
-    },
+    legacyProjectInvoiceLink,
   ];
-  if (admProject) invoiceLinks.unshift({ adm_finance_project_id: admProject.id });
+  if (admProject) {
+    invoiceLinks.unshift({ adm_finance_project_id: admProject.id });
+  }
   if (rabItemIds.size > 0) invoiceLinks.push({ rab_item_id: { in: Array.from(rabItemIds) } });
 
   return {
     admProject,
     admProjects,
     operationalProjects: Array.from(operationalProjects.values()),
+    relatedLeadIds: Array.from(relatedLeadIds),
     invoiceLinks,
   };
 }

@@ -1150,6 +1150,48 @@ router.patch("/invoices/:id/set-kategori", requirePermission("finance", "view"),
 });
 
 // PATCH /finance/invoices/:id/set-nominal — one-time nominal edit (Super Admin + Sales Admin)
+// Koreksi relasi invoice lama tanpa mengubah isi dokumen, nominal, status,
+// tanda tangan, atau kwitansi. Aksi dibatasi untuk Super Admin.
+router.patch("/invoices/:id/move-project", requireRole("Super Admin"), async (req: Request, res: Response) => {
+  const invoiceId = BigInt(req.params.id);
+  const rawProjectId = req.body?.adm_finance_project_id;
+  if (!rawProjectId || !/^\d+$/.test(String(rawProjectId))) {
+    return res.status(400).json({ detail: "Proyek tujuan wajib dipilih" });
+  }
+  const projectId = BigInt(String(rawProjectId));
+  const [invoice, project] = await Promise.all([
+    prisma.invoice.findUnique({ where: { id: invoiceId }, select: { id: true } }),
+    prisma.admFinanceProject.findUnique({
+      where: { id: projectId },
+      select: {
+        id: true,
+        nama_proyek: true,
+        client_portal_project: { select: { id: true, nama_proyek: true, klien: true } },
+      },
+    }),
+  ]);
+  if (!invoice) return res.status(404).json({ detail: "Invoice tidak ditemukan" });
+  if (!project) return res.status(404).json({ detail: "Proyek tujuan tidak ditemukan" });
+
+  await prisma.invoice.update({
+    where: { id: invoiceId },
+    data: {
+      adm_finance_project_id: project.id,
+      client_portal_project_id: project.client_portal_project?.id ?? null,
+    },
+  });
+
+  return res.json({
+    message: `Invoice dipindahkan ke ${project.nama_proyek || "proyek tujuan"}`,
+    project: {
+      id: project.id,
+      nama_proyek: project.nama_proyek,
+      portal_terhubung: Boolean(project.client_portal_project),
+      portal_klien: project.client_portal_project?.klien ?? null,
+    },
+  });
+});
+
 router.patch("/invoices/:id/set-nominal", requirePermission("finance", "view"), async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const inv = await prisma.invoice.findUnique({ where: { id } });
@@ -1638,7 +1680,7 @@ router.get("/adm-projek", async (req: Request, res: Response) => {
   const [total, items] = await Promise.all([
     prisma.admFinanceProject.count(),
     prisma.admFinanceProject.findMany({
-      include: { lead: true, termins: true, proyek_berjalan: true },
+      include: { lead: true, termins: true, proyek_berjalan: true, client_portal_project: true },
       orderBy: { id: "desc" },
       skip: (page - 1) * perPage,
       take: perPage,
@@ -1665,12 +1707,15 @@ function mapAdmProject(p: any) {
     proyek_berjalan_id: p.proyek_berjalan_id,
     lead_id: p.lead_id,
     proyek_berjalan: p.proyek_berjalan ? { id: p.proyek_berjalan.id, nama_proyek: p.proyek_berjalan.nama_proyek } : null,
+    portal_project_id: p.client_portal_project?.id ?? null,
+    portal_nama_proyek: p.client_portal_project?.nama_proyek ?? null,
+    portal_klien: p.client_portal_project?.klien ?? null,
   };
 }
 
 // GET /finance/adm-projek/:id — satu projek (dipakai deep-link ?proyek=&tab= dari PB Projek)
 router.get("/adm-projek/:id(\\d+)", async (req: Request, res: Response) => {
-  const p = await prisma.admFinanceProject.findUnique({ where: { id: BigInt(req.params.id) }, include: { lead: true, termins: true, proyek_berjalan: true } });
+  const p = await prisma.admFinanceProject.findUnique({ where: { id: BigInt(req.params.id) }, include: { lead: true, termins: true, proyek_berjalan: true, client_portal_project: true } });
   if (!p) return res.status(404).json({ detail: "Projek tidak ditemukan" });
   return res.json(mapAdmProject(p));
 });

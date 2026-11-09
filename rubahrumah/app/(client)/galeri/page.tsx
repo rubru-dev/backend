@@ -3,11 +3,12 @@ import { useState, useEffect, useCallback } from "react";
 import { portalApi, STORAGE_BASE } from "@/lib/apiClient";
 
 interface GaleriItem {
-  id: number;
+  id: number | string;
   judul: string;
   deskripsi: string | null;
   tanggal_foto: string | null;
   file_url: string | null;
+  original_url?: string | null;
 }
 
 interface SubFolder {
@@ -108,7 +109,7 @@ function PhotoModal({ photo, onClose, onPrev, onNext, hasPrev, hasNext }: {
           )}
           {photo.file_url ? (
             <img
-              src={`${STORAGE_BASE}${photo.file_url}`}
+              src={`${STORAGE_BASE}${photo.original_url || photo.file_url}`}
               alt={photo.judul}
               className="max-w-full max-h-[75vh] rounded-xl object-contain"
             />
@@ -306,6 +307,12 @@ export default function GaleriPage() {
                           <img
                             src={`${STORAGE_BASE}${sub.cover.file_url}`}
                             alt={sub.name}
+                            loading="lazy"
+                            onError={(event) => {
+                              if (sub.cover?.original_url && event.currentTarget.src !== `${window.location.origin}${sub.cover.original_url}`) {
+                                event.currentTarget.src = sub.cover.original_url;
+                              }
+                            }}
                             className="w-full h-full object-cover absolute inset-0 opacity-70"
                           />
                           <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition" />
@@ -349,6 +356,12 @@ export default function GaleriPage() {
                         <img
                           src={`${STORAGE_BASE}${item.file_url}`}
                           alt={item.judul}
+                          loading="lazy"
+                          onError={(event) => {
+                            if (item.original_url && event.currentTarget.src !== `${window.location.origin}${item.original_url}`) {
+                              event.currentTarget.src = item.original_url;
+                            }
+                          }}
                           className="w-full h-full object-cover absolute inset-0 group-hover:opacity-90 transition"
                         />
                       ) : (
@@ -393,6 +406,12 @@ export default function GaleriPage() {
                       <img
                         src={`${STORAGE_BASE}${folder.cover.file_url}`}
                         alt={folder.name}
+                        loading="lazy"
+                        onError={(event) => {
+                          if (folder.cover?.original_url && event.currentTarget.src !== `${window.location.origin}${folder.cover.original_url}`) {
+                            event.currentTarget.src = folder.cover.original_url;
+                          }
+                        }}
                         className="w-full h-full object-cover absolute inset-0 opacity-70"
                       />
                       <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition" />
