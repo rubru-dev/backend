@@ -33,12 +33,6 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
   const qc = useQueryClient();
   const [form, setForm] = useState({
     lead_id: "",
-    nama_proyek: "",
-    klien: "",
-    alamat: "",
-    tanggal_mulai: "",
-    tanggal_selesai: "",
-    status_proyek: "Berjalan",
     username: "",
     password: "",
   });
@@ -55,22 +49,13 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
       toast.success("Akun klien berhasil dibuat");
       qc.invalidateQueries({ queryKey: ["client-projects"] });
       onClose();
-      setForm({ lead_id: "", nama_proyek: "", klien: "", alamat: "", tanggal_mulai: "", tanggal_selesai: "", status_proyek: "Berjalan", username: "", password: "" });
+      setForm({ lead_id: "", username: "", password: "" });
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal membuat akun"),
   });
 
   function handleLeadChange(leadId: string) {
-    const lead = leads.find((l: any) => String(l.id) === leadId);
-    setForm((f) => ({
-      ...f,
-      lead_id: leadId,
-      nama_proyek: lead?.proyek?.nama_proyek ?? f.nama_proyek,
-      klien: lead?.nama ?? f.klien,
-      alamat: lead?.proyek?.lokasi ?? lead?.alamat ?? f.alamat,
-      tanggal_mulai: lead?.proyek?.tanggal_mulai ? lead.proyek.tanggal_mulai.slice(0, 10) : f.tanggal_mulai,
-      tanggal_selesai: lead?.proyek?.tanggal_selesai ? lead.proyek.tanggal_selesai.slice(0, 10) : f.tanggal_selesai,
-    }));
+    setForm((f) => ({ ...f, lead_id: leadId }));
   }
 
   return (
@@ -91,38 +76,8 @@ function CreateDialog({ open, onClose }: { open: boolean; onClose: () => void })
               </SelectContent>
             </Select>
           </div>
-          <div>
-            <Label>Nama Proyek *</Label>
-            <Input value={form.nama_proyek} onChange={(e) => setForm((f) => ({ ...f, nama_proyek: e.target.value }))} placeholder="Renovasi Rumah Pak Budi..." />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Klien</Label>
-              <Input value={form.klien} onChange={(e) => setForm((f) => ({ ...f, klien: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Status Proyek</Label>
-              <Select value={form.status_proyek} onValueChange={(v) => setForm((f) => ({ ...f, status_proyek: v }))}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {["Berjalan", "Selesai", "Ditunda"].map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <div>
-            <Label>Alamat</Label>
-            <Input value={form.alamat} onChange={(e) => setForm((f) => ({ ...f, alamat: e.target.value }))} />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Tanggal Mulai</Label>
-              <Input type="date" value={form.tanggal_mulai} onChange={(e) => setForm((f) => ({ ...f, tanggal_mulai: e.target.value }))} />
-            </div>
-            <div>
-              <Label>Tanggal Selesai</Label>
-              <Input type="date" value={form.tanggal_selesai} onChange={(e) => setForm((f) => ({ ...f, tanggal_selesai: e.target.value }))} />
-            </div>
+          <div className="rounded-lg border bg-slate-50 px-3 py-2 text-xs leading-relaxed text-slate-600">
+            Informasi proyek, timeline, foto, dokumen, dan administrasi akan diambil otomatis dari project yang terhubung ke lead ini.
           </div>
           <div className="border-t pt-3">
             <p className="text-sm font-medium text-gray-600 mb-2">Login Akun Portal Klien</p>

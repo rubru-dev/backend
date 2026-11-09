@@ -45,35 +45,8 @@ const STATUS_BAYAR = ["Belum Dibayar", "Sudah Dibayar"];
 // ─────────────────────────────────────────────────────────────────────────────
 function TabInfo({ pid, project }: { pid: number; project: any }) {
   const qc = useQueryClient();
-  const [editProyek, setEditProyek] = useState(false);
   const [editAccount, setEditAccount] = useState(false);
-  const [formP, setFormP] = useState<any>({});
   const [formA, setFormA] = useState({ password: "", is_active: true });
-
-  const { data: admProjects = [] } = useQuery({
-    queryKey: ["adm-projects-dropdown"],
-    queryFn: () => clientApi.admProjectsDropdown(),
-  });
-
-  function startEditProyek() {
-    setFormP({
-      nama_proyek: project.nama_proyek,
-      klien: project.klien,
-      alamat: project.alamat,
-      tanggal_mulai: project.tanggal_mulai?.slice(0, 10) ?? "",
-      tanggal_selesai: project.tanggal_selesai?.slice(0, 10) ?? "",
-      status_proyek: project.status_proyek,
-      catatan: project.catatan ?? "",
-      adm_finance_project_id: project.adm_finance_project_id ? String(project.adm_finance_project_id) : "",
-    });
-    setEditProyek(true);
-  }
-
-  const { mutate: saveProyek, isPending: savingP } = useMutation({
-    mutationFn: (data: any) => clientApi.updateProject(pid, data),
-    onSuccess: () => { toast.success("Info proyek diperbarui"); qc.invalidateQueries({ queryKey: ["client-project", pid] }); setEditProyek(false); },
-    onError: (e: any) => toast.error(e?.response?.data?.detail ?? "Gagal menyimpan"),
-  });
 
   const { mutate: saveAccount, isPending: savingA } = useMutation({
     mutationFn: (data: any) => clientApi.updateAccount(pid, data),
@@ -82,22 +55,15 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
   });
 
   return (
-    <div className="grid grid-cols-2 gap-5">
+    <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
       {/* Info Proyek */}
       <Card>
         <CardContent className="pt-5">
-          <div className="flex items-center justify-between mb-4">
+          <div className="mb-4">
             <h3 className="font-semibold text-gray-800">Info Proyek</h3>
-            {!editProyek
-              ? <Button size="sm" variant="outline" onClick={startEditProyek}><Pencil className="w-3 h-3 mr-1" />Edit</Button>
-              : <div className="flex gap-2">
-                  <Button size="sm" variant="outline" onClick={() => setEditProyek(false)}><X className="w-3 h-3" /></Button>
-                  <Button size="sm" disabled={savingP} onClick={() => saveProyek(formP)}><Save className="w-3 h-3 mr-1" />Simpan</Button>
-                </div>
-            }
+            <p className="mt-1 text-xs text-gray-500">Data teknis dibaca otomatis dari Projek Sipil/Interior dan tidak diinput ulang di sini.</p>
           </div>
-          {!editProyek ? (
-            <dl className="space-y-3 text-sm">
+          <dl className="space-y-3 text-sm">
               {[
                 { label: "Nama Proyek", value: project.nama_proyek },
                 { label: "Klien", value: project.klien },
@@ -105,69 +71,15 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
                 { label: "Status", value: project.status_proyek },
                 { label: "Progress", value: `${project.progress_persen}%` },
                 { label: "Mulai", value: fmtDate(project.tanggal_mulai) },
-                { label: "Target Internal", value: fmtDate(project.live_project?.tanggal_selesai) },
-                { label: "Deadline Klien", value: fmtDate(project.tanggal_selesai) },
-                { label: "Catatan", value: project.catatan || "-" },
+                { label: "Target Internal", value: fmtDate(project.live_project?.tanggal_selesai ?? project.tanggal_selesai) },
+                { label: "Timeline Client", value: "Target setiap pekerjaan otomatis H+7" },
               ].map(({ label, value }) => (
                 <div key={label} className="grid grid-cols-5 gap-2">
                   <dt className="col-span-2 text-gray-500">{label}</dt>
                   <dd className="col-span-3 font-medium">{value ?? "-"}</dd>
                 </div>
               ))}
-              <div className="grid grid-cols-5 gap-2">
-                <dt className="col-span-2 text-gray-500">Link Adm Projek</dt>
-                <dd className={`col-span-3 font-medium ${!project.adm_finance_project_id ? "text-orange-500 text-xs" : "text-sm"}`}>
-                  {project.adm_finance_project_id
-                    ? (admProjects as any[]).find((p: any) => String(p.id) === String(project.adm_finance_project_id))?.label ?? `#${project.adm_finance_project_id}`
-                    : "Belum dihubungkan"}
-                </dd>
-              </div>
-              {!project.adm_finance_project_id && (
-                <div className="p-2 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-600">
-                  ⚠ Hubungkan ke Administrasi Projek agar kehadiran tukang muncul di portal klien.
-                </div>
-              )}
-            </dl>
-          ) : (
-            <div className="space-y-3">
-              <div><Label>Nama Proyek</Label><Input value={formP.nama_proyek} onChange={(e) => setFormP((f: any) => ({ ...f, nama_proyek: e.target.value }))} /></div>
-              <div><Label>Klien</Label><Input value={formP.klien} onChange={(e) => setFormP((f: any) => ({ ...f, klien: e.target.value }))} /></div>
-              <div><Label>Alamat</Label><Input value={formP.alamat} onChange={(e) => setFormP((f: any) => ({ ...f, alamat: e.target.value }))} /></div>
-              <div>
-                <Label>Status Proyek</Label>
-                <Select value={formP.status_proyek} onValueChange={(v) => setFormP((f: any) => ({ ...f, status_proyek: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>{STATUS_PROYEK.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div><Label>Tgl Mulai</Label><Input type="date" value={formP.tanggal_mulai} onChange={(e) => setFormP((f: any) => ({ ...f, tanggal_mulai: e.target.value }))} /></div>
-                <div><Label>Deadline Klien</Label><Input type="date" value={formP.tanggal_selesai} onChange={(e) => setFormP((f: any) => ({ ...f, tanggal_selesai: e.target.value }))} /></div>
-              </div>
-              {project.live_project?.tanggal_selesai && (
-                <p className="text-xs text-gray-400">
-                  Target internal dari Projek Sipil/Interior: {fmtDate(project.live_project.tanggal_selesai)}. Deadline klien boleh dibuat berbeda untuk buffer waktu.
-                </p>
-              )}
-              <div><Label>Catatan (tampil di portal klien)</Label><Textarea value={formP.catatan} onChange={(e) => setFormP((f: any) => ({ ...f, catatan: e.target.value }))} /></div>
-              <div>
-                <Label>Link ke Administrasi Projek (kehadiran tukang)</Label>
-                <Select
-                  value={formP.adm_finance_project_id || "none"}
-                  onValueChange={(v) => setFormP((f: any) => ({ ...f, adm_finance_project_id: v === "none" ? "" : v }))}
-                >
-                  <SelectTrigger><SelectValue placeholder="Pilih Adm Projek..." /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">— Tidak dihubungkan —</SelectItem>
-                    {(admProjects as any[]).map((p: any) => (
-                      <SelectItem key={String(p.id)} value={String(p.id)}>{p.label}{p.klien ? ` (${p.klien})` : ""}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-gray-400 mt-1">Data kehadiran tukang di portal diambil dari projek ini.</p>
-              </div>
-            </div>
-          )}
+          </dl>
         </CardContent>
       </Card>
 
@@ -1588,23 +1500,13 @@ export default function ClientDetailPage() {
       <Tabs defaultValue="info">
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="info"><User className="w-3 h-3 mr-1" />Info</TabsTrigger>
-          <TabsTrigger value="galeri"><ImageIcon className="w-3 h-3 mr-1" />Galeri</TabsTrigger>
-          <TabsTrigger value="dokumen"><FileText className="w-3 h-3 mr-1" />Dokumen</TabsTrigger>
-          <TabsTrigger value="aktivitas"><Calendar className="w-3 h-3 mr-1" />Aktivitas</TabsTrigger>
           <TabsTrigger value="kontak"><Phone className="w-3 h-3 mr-1" />Kontak</TabsTrigger>
-          <TabsTrigger value="kehadiran"><Users className="w-3 h-3 mr-1" />Kehadiran</TabsTrigger>
-          <TabsTrigger value="pembayaran"><Receipt className="w-3 h-3 mr-1" />Pembayaran</TabsTrigger>
           <TabsTrigger value="cctv"><Video className="w-3 h-3 mr-1" />CCTV Online</TabsTrigger>
         </TabsList>
 
         <div className="mt-5">
           <TabsContent value="info"><TabInfo pid={pid} project={project} /></TabsContent>
-          <TabsContent value="galeri"><TabGaleri pid={pid} /></TabsContent>
-          <TabsContent value="dokumen"><TabDokumen pid={pid} /></TabsContent>
-          <TabsContent value="aktivitas"><TabAktivitas pid={pid} /></TabsContent>
           <TabsContent value="kontak"><TabKontak pid={pid} /></TabsContent>
-          <TabsContent value="kehadiran"><TabKehadiran pid={pid} /></TabsContent>
-          <TabsContent value="pembayaran"><TabPembayaran pid={pid} /></TabsContent>
           <TabsContent value="cctv"><TabCctv pid={pid} /></TabsContent>
         </div>
       </Tabs>

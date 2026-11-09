@@ -11,6 +11,19 @@ const router = Router();
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toNum(v: unknown) { return parseFloat(String(v ?? 0)); }
 
+const CLIENT_TIMELINE_BUFFER_DAYS = 7;
+
+function clientTargetDate(date: Date | null) {
+  if (!date) return null;
+  const result = new Date(date);
+  result.setUTCDate(result.getUTCDate() + CLIENT_TIMELINE_BUFFER_DAYS);
+  return result;
+}
+
+function clientTaskStatus(status: string) {
+  return status === "Proses" ? "Dalam Proses" : status;
+}
+
 function progressFromCounts(done: number, total: number) {
   return total > 0 ? Math.round((done / total) * 100) : null;
 }
@@ -158,8 +171,8 @@ router.get("/me", async (req: Request, res: Response) => {
     prisma.clientPortalGaleri.count({ where: { project_id: projectId } }),
     prisma.clientPortalDokumen.count({ where: { project_id: projectId } }),
     prisma.clientPortalAktivitas.count({ where: { project_id: projectId } }),
-    prisma.invoice.count({ where: { client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } } }),
-    prisma.invoice.count({ where: { client_portal_project_id: projectId, status: "Lunas" } }),
+    prisma.invoice.count({ where: { lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } } }),
+    prisma.invoice.count({ where: { lead_id: project.lead_id, status: "Lunas" } }),
   ]);
 
   return res.json({
@@ -188,15 +201,18 @@ router.get("/me", async (req: Request, res: Response) => {
 // Mengembalikan ClientPortalPayment manual + Invoice Terbit/Lunas dari lead yang sama
 router.get("/payments", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId }, select: { lead_id: true } });
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
 
   const [payments, invoices] = await Promise.all([
     prisma.clientPortalPayment.findMany({
       where: { project_id: projectId },
       orderBy: { termin_ke: "asc" },
     }),
-    // Hanya invoice yang di-assign ke portal project ini
+    // Invoice resmi Finance terbit/lunas langsung tampil berdasarkan lead.
+    // Tidak perlu assign ulang dari menu Data Klien.
     prisma.invoice.findMany({
-      where: { client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } },
+      where: { lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } },
       include: { kwitansi: { select: { tanggal: true } } },
       orderBy: { tanggal: "asc" },
     }),
@@ -231,11 +247,13 @@ router.get("/payments", async (req: Request, res: Response) => {
   return res.json([...manualPayments, ...invoicePayments]);
 });
 
-// ── GET /invoices — invoice yang di-assign ke portal (untuk tab Invoice di rubahrumah) ──
+// ── GET /invoices — invoice Finance terbit/lunas berdasarkan lead ────────────
 router.get("/invoices", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId }, select: { lead_id: true } });
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
   const invoices = await prisma.invoice.findMany({
-    where: { client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } },
+    where: { lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } },
     include: { kwitansi: { select: { tanggal: true, nomor_kwitansi: true, metode_bayar: true } } },
     orderBy: { tanggal: "asc" },
   });
@@ -261,8 +279,10 @@ router.get("/invoices", async (req: Request, res: Response) => {
 router.get("/invoices/:id", async (req: Request, res: Response) => {
   const projectId = req.clientPortal!.projectId;
   const invId = BigInt(req.params.id);
+  const project = await prisma.clientPortalProject.findUnique({ where: { id: projectId }, select: { lead_id: true } });
+  if (!project) return res.status(404).json({ detail: "Project tidak ditemukan" });
   const inv = await prisma.invoice.findFirst({
-    where: { id: invId, client_portal_project_id: projectId, status: { in: ["Terbit", "Lunas"] } },
+    where: { id: invId, lead_id: project.lead_id, status: { in: ["Terbit", "Lunas"] } },
     include: {
       items: { orderBy: { id: "asc" } },
       lead: { select: { nama: true, jenis: true, alamat: true, nomor_telepon: true } },
@@ -611,8 +631,9 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
           termin_nama: t.nama,
           judul: task.nama_pekerjaan,
           tanggal_mulai: task.tanggal_mulai,
-          tanggal_selesai: task.tanggal_selesai,
-          status: task.status,
+          tanggal_selesai: clientTargetDate(task.tanggal_selesai),
+          status: clientTaskStatus(task.status),
+          timeline_buffer_days: CLIENT_TIMELINE_BUFFER_DAYS,
         });
       }
     }
@@ -629,8 +650,9 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
           termin_nama: t.nama,
           judul: task.nama_pekerjaan,
           tanggal_mulai: task.tanggal_mulai,
-          tanggal_selesai: task.tanggal_selesai,
-          status: task.status,
+          tanggal_selesai: clientTargetDate(task.tanggal_selesai),
+          status: clientTaskStatus(task.status),
+          timeline_buffer_days: CLIENT_TIMELINE_BUFFER_DAYS,
         });
       }
     }
