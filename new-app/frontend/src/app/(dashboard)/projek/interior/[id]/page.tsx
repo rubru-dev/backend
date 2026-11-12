@@ -15,6 +15,8 @@ import { GanttTaskGallery } from "@/components/gantt-task-gallery";
 import { differenceInDays, format, eachMonthOfInterval, startOfMonth, addDays } from "date-fns";
 import { id as idLocale } from "date-fns/locale";
 import { interiorProjekApi } from "@/lib/api/content";
+import { laporanPicApi } from "@/lib/api/laporanPic";
+import { collectProjectPdfPhotos } from "@/lib/project-pdf-photos";
 import { storageUrl } from "@/lib/storage-url";
 import { useAuthStore } from "@/store/authStore";
 import { Button } from "@/components/ui/button";
@@ -816,39 +818,32 @@ export default function ProyekInteriorDetailPage() {
 
   function toggleTermin(tid: string) { setExpandedTermins((prev) => ({ ...prev, [tid]: !(prev[tid] !== false) })); }
 
-  async function fetchImageBase64(url: string): Promise<string | null> {
-    try {
-      const res = await fetch(url);
-      if (!res.ok) return null;
-      const blob = await res.blob();
-      return new Promise((resolve) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = () => resolve(null);
-        reader.readAsDataURL(blob);
-      });
-    } catch { return null; }
-  }
-
   async function handleDownloadPDF() {
     if (!detail) return;
     setDownloadingPdf(true);
     try {
       const logoUrl = await getLogoBase64();
-      const apiBase = "";
-      // Fetch fotos for all tasks
-      const taskFotosMap: Record<string, string[]> = {};
-      await Promise.all(
-        detail.termins.flatMap((t) => t.tasks).map(async (task) => {
-          try {
-            const fotos = await interiorProjekApi.getTaskFotos(task.id);
-            if (fotos.length > 0) {
-              const b64s = await Promise.all(fotos.map((f: any) => fetchImageBase64(storageUrl(`${apiBase}${f.file_path}`))));
-              taskFotosMap[task.id] = b64s.filter(Boolean) as string[];
-            }
-          } catch {}
-        })
-      );
+      const taskIds = detail.termins.flatMap((termin) => termin.tasks.map((task) => task.id));
+      const reports = await laporanPicApi.listByProject("interior", detail.id);
+      const { taskPhotos, unassignedPhotos } = await collectProjectPdfPhotos({
+        taskIds,
+        getTaskPhotos: (taskId) => interiorProjekApi.getTaskFotos(taskId),
+        reports,
+      });
+      const pdfTermins = (detail.termins ?? []).map((t) => ({
+        nama: t.nama ?? `Termin ${t.urutan}`,
+        tanggal_mulai: t.tanggal_mulai ?? null,
+        tanggal_selesai: t.tanggal_selesai ?? null,
+        tasks: (t.tasks ?? []).map((tk) => ({ nama_pekerjaan: tk.nama_pekerjaan ?? "—", tanggal_mulai: tk.tanggal_mulai ?? null, tanggal_selesai: tk.tanggal_selesai ?? null, pic: tk.pic?.nama ?? "—", status: tk.status ?? "Belum Mulai", fotos: taskPhotos[tk.id] || [] })),
+      }));
+      if (unassignedPhotos.length > 0) {
+        pdfTermins.push({
+          nama: "Tanpa Termin",
+          tanggal_mulai: null,
+          tanggal_selesai: null,
+          tasks: [{ nama_pekerjaan: "Tanpa Pekerjaan", tanggal_mulai: null, tanggal_selesai: null, pic: "—", status: "Belum Mulai", fotos: unassignedPhotos }],
+        });
+      }
       const pdfData = {
         type: "interior" as const,
         judul: detail.nama_proyek ?? "Proyek Interior",
@@ -861,12 +856,7 @@ export default function ProyekInteriorDetailPage() {
           : undefined,
         progress: detail.progress,
         dibuat_oleh: detail.dibuat_oleh?.nama,
-        termins: (detail.termins ?? []).map((t) => ({
-          nama: t.nama ?? `Termin ${t.urutan}`,
-          tanggal_mulai: t.tanggal_mulai ?? null,
-          tanggal_selesai: t.tanggal_selesai ?? null,
-          tasks: (t.tasks ?? []).map((tk) => ({ nama_pekerjaan: tk.nama_pekerjaan ?? "—", tanggal_mulai: tk.tanggal_mulai ?? null, tanggal_selesai: tk.tanggal_selesai ?? null, pic: tk.pic?.nama ?? "—", status: tk.status ?? "Belum Mulai", fotos: taskFotosMap[tk.id] || [] })),
-        })),
+        termins: pdfTermins,
         logoUrl,
       };
       const { ProyekPDF } = await import("@/components/projek-pdf");
