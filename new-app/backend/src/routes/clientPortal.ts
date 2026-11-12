@@ -7,20 +7,12 @@ import { authenticateClientPortal } from "../middleware/auth";
 import { deliver, NOTIFY_USER_SELECT, type NotifyRecipient } from "../lib/notify";
 import { paidClientInvoiceWhere, resolveClientPortalScope, visibleClientInvoiceWhere } from "../lib/clientPortalScope";
 import { thumbnailStoragePath } from "../lib/imageThumbnail";
+import { CLIENT_TIMELINE_BUFFER_DAYS, clientTargetDate } from "../lib/clientTimeline";
 
 const router = Router();
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function toNum(v: unknown) { return parseFloat(String(v ?? 0)); }
-
-const CLIENT_TIMELINE_BUFFER_DAYS = 7;
-
-function clientTargetDate(date: Date | null) {
-  if (!date) return null;
-  const result = new Date(date);
-  result.setUTCDate(result.getUTCDate() + CLIENT_TIMELINE_BUFFER_DAYS);
-  return result;
-}
 
 function clientTaskStatus(status: string) {
   return status === "Proses" ? "Dalam Proses" : status;
@@ -658,8 +650,10 @@ router.get("/gantt", async (req: Request, res: Response) => {
     proyek_nama: a.termin.proyek_berjalan.nama_proyek,
     termin_nama: a.termin.nama,
     tanggal_mulai: a.tanggal_mulai,
+    tanggal_selesai_internal: a.tanggal_selesai,
     tanggal_selesai: clientTargetDate(a.tanggal_selesai),
     status: clientTaskStatus(a.status),
+    timeline_buffer_days: CLIENT_TIMELINE_BUFFER_DAYS,
     urutan: idx + 1,
   })));
 });
@@ -802,6 +796,7 @@ router.get("/aktivitas-projek", async (req: Request, res: Response) => {
           termin_nama: t.nama,
           judul: task.nama_pekerjaan,
           tanggal_mulai: task.tanggal_mulai,
+          tanggal_selesai_internal: task.tanggal_selesai,
           tanggal_selesai: clientTargetDate(task.tanggal_selesai),
           status: clientTaskStatus(task.status),
           timeline_buffer_days: CLIENT_TIMELINE_BUFFER_DAYS,

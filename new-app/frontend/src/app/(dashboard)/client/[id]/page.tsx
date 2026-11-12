@@ -76,7 +76,7 @@ function TabInfo({ pid, project }: { pid: number; project: any }) {
                 { label: "Progress", value: `${project.progress_persen}%` },
                 { label: "Mulai", value: fmtDate(project.tanggal_mulai) },
                 { label: "Target Internal", value: fmtDate(project.live_project?.tanggal_selesai ?? project.tanggal_selesai) },
-                { label: "Timeline Client", value: "Target setiap pekerjaan otomatis H+7" },
+                { label: "Timeline Client", value: "Target setiap pekerjaan otomatis H+10 hari kalender" },
               ].map(({ label, value }) => (
                 <div key={label} className="grid grid-cols-5 gap-2">
                   <dt className="col-span-2 text-gray-500">{label}</dt>
@@ -985,7 +985,9 @@ function TabAktivitas({ pid }: { pid: number }) {
     setForm({
       status: item.status,
       tanggal_mulai: item.tanggal_mulai ? item.tanggal_mulai.slice(0, 10) : "",
-      tanggal_selesai: item.tanggal_selesai ? item.tanggal_selesai.slice(0, 10) : "",
+      tanggal_selesai: item.tanggal_selesai_internal
+        ? item.tanggal_selesai_internal.slice(0, 10)
+        : "",
     });
   }
 
@@ -1061,10 +1063,17 @@ function TabAktivitas({ pid }: { pid: number }) {
                             <span className="text-xs text-gray-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3" />
                               {fmtDate(item.tanggal_mulai)}
-                              {item.tanggal_selesai && <> → {fmtDate(item.tanggal_selesai)}</>}
+                              {(item.tanggal_selesai_internal ?? item.tanggal_selesai) && (
+                                <> → {fmtDate(item.tanggal_selesai_internal ?? item.tanggal_selesai)}</>
+                              )}
                             </span>
                             <span className="text-xs text-gray-300 capitalize">[{item.type}]</span>
                           </div>
+                          {item.tanggal_selesai && (
+                            <p className="mb-1 text-xs text-orange-600">
+                              Target klien H+{item.timeline_buffer_days ?? 10}: {fmtDate(item.tanggal_selesai)}
+                            </p>
+                          )}
                            <p className="font-medium text-gray-800 truncate">{item.judul ?? "-"}</p>
                            {item.is_laporan_pic && (
                              <div className="mt-2 space-y-1">
