@@ -12,7 +12,17 @@ export function PwaRegister() {
   const [showIosHelp, setShowIosHelp] = useState(false);
 
   useEffect(() => {
+    let handleControllerChange: (() => void) | undefined;
+    const reloadGuardTimeout = window.setTimeout(() => sessionStorage.removeItem("report-rubru-sw-reloaded"), 10_000);
     if (process.env.NODE_ENV === "production" && "serviceWorker" in navigator) {
+      const hadController = Boolean(navigator.serviceWorker.controller);
+      handleControllerChange = () => {
+        if (hadController && sessionStorage.getItem("report-rubru-sw-reloaded") !== "1") {
+          sessionStorage.setItem("report-rubru-sw-reloaded", "1");
+          window.location.reload();
+        }
+      };
+      navigator.serviceWorker.addEventListener("controllerchange", handleControllerChange);
       navigator.serviceWorker.register("/sw.js").then((registration) => registration.update()).catch(() => undefined);
     }
     const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone;
@@ -21,7 +31,11 @@ export function PwaRegister() {
     if (ios && !standalone && !dismissed) setShowIosHelp(true);
     const handlePrompt = (event: Event) => { event.preventDefault(); if (!dismissed) setPrompt(event as InstallPromptEvent); };
     window.addEventListener("beforeinstallprompt", handlePrompt);
-    return () => window.removeEventListener("beforeinstallprompt", handlePrompt);
+    return () => {
+      window.clearTimeout(reloadGuardTimeout);
+      window.removeEventListener("beforeinstallprompt", handlePrompt);
+      if (handleControllerChange) navigator.serviceWorker.removeEventListener("controllerchange", handleControllerChange);
+    };
   }, []);
 
   if (!prompt && !showIosHelp) return null;
