@@ -1473,9 +1473,20 @@ const REIMBURSE_INCLUDE_LIST = {
   buktis: { select: { id: true, nama: true } },
 };
 
-// Hanya Super Admin yang boleh melihat atau mengajukan reimburse lintas user.
+// Administrasi Kantor dikelola oleh Super Admin dan Admin Finance.
+// Permission tanda tangan tetap diperiksa terpisah pada endpoint terkait.
+function canManageOfficeReimburse(req: Request): boolean {
+  return req.user!.roles.some((r: any) =>
+    ["Super Admin", "Admin Finance"].includes(r.role.name)
+  );
+}
+
 function isReimburseSuperAdmin(req: Request): boolean {
   return req.user!.roles.some((r: any) => r.role.name === "Super Admin");
+}
+
+function isReimburseAdminFinance(req: Request): boolean {
+  return req.user!.roles.some((r: any) => r.role.name === "Admin Finance");
 }
 
 function canAccessOwnReimburse(req: Request, reimburse: { user_id: bigint | null }): boolean {
@@ -1499,7 +1510,7 @@ router.get("/reimburse", async (req: Request, res: Response) => {
 
   const where: any = {};
   // Non-privileged users can only see their own reimburse
-  if (!isReimburseSuperAdmin(req)) {
+  if (!canManageOfficeReimburse(req)) {
     where.user_id = req.user!.id;
   } else {
     if (user_id) where.user_id = BigInt(user_id);
@@ -1543,14 +1554,17 @@ router.get("/reimburse/:id/buktis", async (req: Request, res: Response) => {
     select: { user_id: true, buktis: { select: { id: true, data: true, nama: true } } },
   });
   if (!r) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
-  if (!isReimburseSuperAdmin(req) && !canAccessOwnReimburse(req, r)) {
+  if (!canManageOfficeReimburse(req) && !canAccessOwnReimburse(req, r)) {
     return res.status(403).json({ detail: "Tidak memiliki akses" });
   }
   return res.json(r.buktis.map((b) => ({ id: b.id, data: b.data, nama: b.nama })));
 });
 
 // GET /finance/reimburse/users  – user dropdown for reimburse form
-router.get("/reimburse/users", requireRole("Super Admin"), async (_req: Request, res: Response) => {
+router.get("/reimburse/users", async (req: Request, res: Response) => {
+  if (!canManageOfficeReimburse(req)) {
+    return res.status(403).json({ detail: "Tidak memiliki akses ke daftar karyawan" });
+  }
   const users = await prisma.user.findMany({
     include: { roles: { include: { role: true } } },
     orderBy: { name: "asc" },
@@ -1566,7 +1580,7 @@ router.get("/reimburse/users", requireRole("Super Admin"), async (_req: Request,
 router.post("/reimburse", async (req: Request, res: Response) => {
   const { tanggal, kategori, keterangan, items, buktis } = req.body;
   // Non-privileged users can only submit for themselves
-  const user_id = isReimburseSuperAdmin(req)
+  const user_id = canManageOfficeReimburse(req)
     ? (req.body.user_id || String(req.user!.id))
     : String(req.user!.id);
   if (!user_id) return res.status(400).json({ detail: "user_id wajib diisi" });
@@ -1614,7 +1628,7 @@ router.post("/reimburse/:id/sign-head", requirePermission("finance", "sign_head"
 
   const existing = await prisma.reimburse.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
-  if (!isReimburseSuperAdmin(req) && !canAccessOwnReimburse(req, existing)) {
+  if (!canManageOfficeReimburse(req) && !canAccessOwnReimburse(req, existing)) {
     return res.status(403).json({ detail: "Tidak bisa memproses reimburse milik orang lain" });
   }
   if (existing.status === "Ditolak") return res.status(400).json({ detail: "Reimburse sudah ditolak" });
@@ -1646,7 +1660,7 @@ router.post("/reimburse/:id/sign-admin", requirePermission("finance", "sign_admi
 
 // POST /finance/reimburse/:id/reject
 router.post("/reimburse/:id/reject", async (req: Request, res: Response) => {
-  if (!isReimburseSuperAdmin(req)) {
+  if (!canManageOfficeReimburse(req)) {
     return res.status(403).json({ detail: "Tidak memiliki akses untuk menolak reimburse" });
   }
   const id = BigInt(req.params.id);
@@ -1666,6 +1680,11 @@ router.delete("/reimburse/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const existing = await prisma.reimburse.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
+
+  // Admin Finance mengelola proses reimburse, tetapi tidak memiliki hak hapus.
+  if (isReimburseAdminFinance(req) && !isReimburseSuperAdmin(req)) {
+    return res.status(403).json({ detail: "Admin Finance tidak memiliki akses untuk menghapus reimburse" });
+  }
   if (!isReimburseSuperAdmin(req) && !canAccessOwnReimburse(req, existing)) {
     return res.status(403).json({ detail: "Tidak bisa menghapus reimburse milik orang lain" });
   }

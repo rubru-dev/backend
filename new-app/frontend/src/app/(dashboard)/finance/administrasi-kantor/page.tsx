@@ -542,9 +542,10 @@ function AbsenKaryawanTab({ canManage }: { canManage: boolean }) {
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function AdministrasiKantorPage() {
   const qc = useQueryClient();
-  const { user, isSuperAdmin, hasPermission } = useAuthStore();
-  // Hanya Super Admin yang boleh melihat dan mengajukan reimburse lintas user.
-  const isPrivileged    = isSuperAdmin();
+  const { user, isSuperAdmin, hasAnyRole, hasPermission } = useAuthStore();
+  // Administrasi Kantor dikelola lintas karyawan oleh Super Admin dan Admin Finance.
+  const isPrivileged    = isSuperAdmin() || hasAnyRole("Admin Finance");
+  const canDeleteReimburse = isSuperAdmin() || !hasAnyRole("Admin Finance");
   const canSignHead     = isSuperAdmin() || hasPermission("finance", "sign_head");
   const canSignAdmin    = isSuperAdmin() || hasPermission("finance", "sign_admin");
   const canManageAbsen  = isSuperAdmin() || hasPermission("absen", "manage");
@@ -582,7 +583,7 @@ export default function AdministrasiKantorPage() {
   // Expanded row
   const [expandedId, setExpandedId] = useState<number | null>(null);
 
-  // Daftar user hanya diperlukan oleh Super Admin untuk memilih pengaju.
+  // Daftar user hanya diperlukan pengelola untuk memilih pengaju.
   const { data: usersData } = useQuery({
     queryKey: ["reimburse-users", user?.id],
     queryFn: reimburseApi.users,
@@ -951,10 +952,12 @@ export default function AdministrasiKantorPage() {
                                 <XCircle className="h-3 w-3 mr-1" /> Tolak
                               </Button>
                             )}
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"
-                              onClick={() => deleteMut.mutate(r.id)} disabled={deleteMut.isPending}>
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {canDeleteReimburse && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"
+                                onClick={() => deleteMut.mutate(r.id)} disabled={deleteMut.isPending}>
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>

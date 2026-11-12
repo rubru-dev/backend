@@ -62,57 +62,71 @@ function StatusBadge({ status }: { status: string }) {
 
 // ── Print-friendly Invoice Modal ─────────────────────────────────────────────
 function InvoicePrintModal({ detail, onClose }: { detail: InvoiceDetail; onClose: () => void }) {
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [onClose]);
+
   function handlePrint() {
     window.print();
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 overflow-y-auto py-8">
-      <div className="bg-white w-full max-w-[800px] rounded-2xl shadow-2xl relative">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 sm:p-4 sm:py-8">
+      <div className="relative min-h-dvh w-full bg-white shadow-2xl sm:min-h-0 sm:max-w-[800px] sm:rounded-2xl">
         {/* Action bar — hidden when printing */}
-        <div className="print:hidden flex justify-between items-center px-6 py-4 border-b border-slate-100">
-          <h2 className="text-base font-bold text-slate-800">Detail Invoice</h2>
-          <div className="flex gap-2">
+        <div className="print:hidden sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-100 bg-white px-4 py-3 sm:static sm:px-6 sm:py-4">
+          <h2 className="min-w-0 text-base font-bold text-slate-800">Detail Invoice</h2>
+          <div className="flex shrink-0 gap-2">
             <button onClick={handlePrint}
-              className="flex items-center gap-1.5 px-4 py-2 bg-orange-500 text-white text-sm font-medium rounded-xl hover:bg-orange-600 transition">
+              className="flex min-h-11 items-center gap-1.5 rounded-xl bg-orange-500 px-3 py-2 text-sm font-medium text-white transition hover:bg-orange-600 sm:px-4">
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6V1h8v5M4 12H2.5A1.5 1.5 0 011 10.5v-3A1.5 1.5 0 012.5 6h11A1.5 1.5 0 0115 7.5v3a1.5 1.5 0 01-1.5 1.5H12" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/><rect x="4" y="10" width="8" height="5" rx="1" stroke="currentColor" strokeWidth="1.2"/></svg>
-              Cetak / Download PDF
+              <span className="sm:hidden">Cetak / PDF</span>
+              <span className="hidden sm:inline">Cetak / Download PDF</span>
             </button>
-            <button onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:bg-slate-100 transition">
+            <button onClick={onClose} aria-label="Tutup detail invoice"
+              className="flex min-h-11 min-w-11 items-center justify-center rounded-xl text-slate-400 transition hover:bg-slate-100">
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none"><path d="M4 4l10 10M14 4L4 14" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></svg>
             </button>
           </div>
         </div>
 
         {/* Invoice content — print-friendly */}
-        <div className="p-8 print:p-0" id="invoice-print-area">
+        <div className="p-4 sm:p-8 print:p-0" id="invoice-print-area">
           {/* Header */}
-          <div className="flex justify-between items-start border-b-[3px] border-orange-500 pb-4 mb-6">
-            <div className="flex items-center gap-3">
-              <img src="/images/logo.png" alt="Logo" className="h-12 w-12 object-contain" />
-              <div>
+          <div className="mb-5 flex flex-col gap-4 border-b-[3px] border-orange-500 pb-4 sm:mb-6 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex min-w-0 items-center gap-3">
+              <img src="/images/logo.png" alt="Logo RubahRumah" className="h-10 w-10 shrink-0 object-contain sm:h-12 sm:w-12" />
+              <div className="min-w-0">
                 <h1 className="text-lg font-bold text-orange-500">RubahRumah</h1>
                 <p className="text-[10px] text-slate-500">Platform Desain and Build</p>
                 <p className="text-[10px] text-slate-500">Jl. Pandu II No.420. Sepanjang Jaya. Kec. Rawalumbu. Kota Bekasi</p>
               </div>
             </div>
-            <div className="text-right">
-              <h2 className="text-2xl font-bold text-orange-500 tracking-wider">INVOICE</h2>
-              <p className="text-sm text-slate-500 mt-1">{detail.invoice_number}</p>
+            <div className="min-w-0 text-left sm:text-right">
+              <h2 className="text-xl font-bold tracking-wider text-orange-500 sm:text-2xl">INVOICE</h2>
+              <p className="mt-1 break-all text-sm text-slate-500">{detail.invoice_number}</p>
             </div>
           </div>
 
           {/* Meta */}
-          <div className="flex justify-between mb-6">
-            <div>
+          <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+            <div className="min-w-0">
               <p className="text-[10px] font-bold text-white bg-orange-500 px-2 py-0.5 rounded inline-block mb-1">TAGIHAN KEPADA</p>
               <p className="text-sm font-bold text-slate-700">{detail.klien || "-"}</p>
               {detail.jenis && <p className="text-xs text-slate-500">{detail.jenis}</p>}
-              {detail.alamat && <p className="text-xs text-slate-500">{detail.alamat}</p>}
+              {detail.alamat && <p className="break-words text-xs text-slate-500">{detail.alamat}</p>}
               {detail.telepon && <p className="text-xs text-slate-500">{detail.telepon}</p>}
             </div>
-            <div className="text-right">
+            <div className="text-left sm:text-right">
               <p className="text-[10px] font-bold text-white bg-orange-500 px-2 py-0.5 rounded inline-block mb-1">TANGGAL</p>
               <p className="text-sm font-bold text-slate-700">{fmtDateLong(detail.tanggal)}</p>
               {detail.overdue_date && (
@@ -125,7 +139,7 @@ function InvoicePrintModal({ detail, onClose }: { detail: InvoiceDetail; onClose
           </div>
 
           {/* Items table */}
-          <table className="w-full text-sm mb-4">
+          <table className="mb-4 hidden w-full text-sm sm:table print:table">
             <thead>
               <tr className="bg-slate-600 text-white">
                 <th className="text-left px-3 py-2 rounded-l">Keterangan</th>
@@ -146,9 +160,25 @@ function InvoicePrintModal({ detail, onClose }: { detail: InvoiceDetail; onClose
             </tbody>
           </table>
 
+          <div className="mb-4 space-y-3 sm:hidden print:hidden">
+            {detail.items.map((item, index) => (
+              <div key={index} className="rounded-xl border border-slate-200 p-3">
+                <p className="break-words text-sm font-medium text-slate-700">{item.description || "-"}</p>
+                <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                  <dt className="text-slate-500">Qty</dt>
+                  <dd className="text-right font-medium text-slate-700">{item.quantity}</dd>
+                  <dt className="text-slate-500">Harga satuan</dt>
+                  <dd className="text-right font-medium text-slate-700">{fmtRupiah(item.unit_price)}</dd>
+                  <dt className="border-t border-slate-100 pt-2 text-slate-500">Subtotal</dt>
+                  <dd className="border-t border-slate-100 pt-2 text-right font-semibold text-slate-800">{fmtRupiah(item.subtotal)}</dd>
+                </dl>
+              </div>
+            ))}
+          </div>
+
           {/* Totals */}
-          <div className="flex justify-end mb-6">
-            <div className="w-64">
+          <div className="mb-6 flex justify-end">
+            <div className="w-full sm:w-64">
               <div className="flex justify-between py-1.5 text-sm">
                 <span className="text-slate-500">Subtotal</span>
                 <span className="font-medium">{fmtRupiah(detail.subtotal)}</span>
@@ -169,7 +199,7 @@ function InvoicePrintModal({ detail, onClose }: { detail: InvoiceDetail; onClose
             <div className="bg-slate-50 rounded-xl p-4 mb-4">
               <p className="text-xs font-bold text-slate-600 mb-2">PEMBAYARAN KE:</p>
               <p className="text-sm font-medium">{detail.bank_account.bank_name}</p>
-              <p className="text-sm text-slate-600">No. Rek: {detail.bank_account.account_number}</p>
+              <p className="break-all text-sm text-slate-600">No. Rek: {detail.bank_account.account_number}</p>
               <p className="text-sm text-slate-600">a.n. {detail.bank_account.account_name}</p>
             </div>
           )}
@@ -178,7 +208,7 @@ function InvoicePrintModal({ detail, onClose }: { detail: InvoiceDetail; onClose
           {detail.catatan && (
             <div className="bg-orange-50 rounded-xl p-4 mb-4">
               <p className="text-xs font-bold text-orange-600 mb-1">CATATAN:</p>
-              <p className="text-sm text-slate-600">{detail.catatan}</p>
+              <p className="whitespace-pre-wrap break-words text-sm text-slate-600">{detail.catatan}</p>
             </div>
           )}
 
@@ -186,13 +216,13 @@ function InvoicePrintModal({ detail, onClose }: { detail: InvoiceDetail; onClose
           {detail.kwitansi && (
             <div className="bg-green-50 rounded-xl p-4 border border-green-100">
               <p className="text-xs font-bold text-green-700 mb-2">KWITANSI PEMBAYARAN</p>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div><span className="text-slate-500">No. Kwitansi:</span> <span className="font-medium">{detail.kwitansi.nomor_kwitansi || "-"}</span></div>
+              <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+                <div className="break-words"><span className="text-slate-500">No. Kwitansi:</span> <span className="font-medium">{detail.kwitansi.nomor_kwitansi || "-"}</span></div>
                 <div><span className="text-slate-500">Tanggal:</span> <span className="font-medium">{fmtDateLong(detail.kwitansi.tanggal)}</span></div>
                 <div><span className="text-slate-500">Jumlah:</span> <span className="font-medium text-green-700">{fmtRupiah(detail.kwitansi.jumlah_diterima)}</span></div>
                 <div><span className="text-slate-500">Metode:</span> <span className="font-medium">{detail.kwitansi.metode_bayar || "-"}</span></div>
                 {detail.kwitansi.detail_bayar && (
-                  <div className="col-span-2"><span className="text-slate-500">Detail:</span> <span className="font-medium">{detail.kwitansi.detail_bayar}</span></div>
+                  <div className="break-words sm:col-span-2"><span className="text-slate-500">Detail:</span> <span className="font-medium">{detail.kwitansi.detail_bayar}</span></div>
                 )}
               </div>
             </div>
@@ -261,7 +291,7 @@ export default function PembayaranPage() {
       </p>
 
       {/* Summary */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="mb-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
         {[
           { label: "Total Tagihan", value: fmtRupiah(totalTagihan), color: "text-slate-700" },
           { label: "Sudah Dibayar", value: fmtRupiah(totalLunas), color: "text-green-600" },
@@ -330,33 +360,33 @@ export default function PembayaranPage() {
         <div className="md:hidden space-y-3">
           {payments.map((item) => (
             <div key={item.id} className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4">
-              <div className="flex items-center justify-between mb-3">
-                <span className="text-sm font-bold text-[#0F4C75]">{item.nama_termin || `Termin ${item.termin_ke}`}</span>
+              <div className="mb-3 flex items-start justify-between gap-3">
+                <span className="min-w-0 break-words text-sm font-bold text-[#0F4C75]">{item.nama_termin || `Termin ${item.termin_ke}`}</span>
                 <StatusBadge status={item.status} />
               </div>
               <div className="space-y-1.5 text-sm">
-                <div className="flex justify-between">
+                <div className="flex justify-between gap-3">
                   <span className="text-slate-400">No</span>
                   <span className="text-slate-700 font-medium">{item.termin_ke}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Tagihan</span>
-                  <span className="text-slate-700 font-medium">{fmtRupiah(item.tagihan)}</span>
+                  <span className="break-words text-right font-medium text-slate-700">{fmtRupiah(item.tagihan)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-400">Jatuh Tempo</span>
                   <span className="text-slate-600">{fmtDate(item.jatuh_tempo)}</span>
                 </div>
                 {item.tanggal_bayar && (
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-3">
                     <span className="text-slate-400">Tgl Bayar</span>
                     <span className="text-slate-600">{fmtDate(item.tanggal_bayar)}</span>
                   </div>
                 )}
                 {item.catatan && (
-                  <div className="flex justify-between">
+                  <div className="flex justify-between gap-3">
                     <span className="text-slate-400">Catatan</span>
-                    <span className="text-slate-600">{item.catatan}</span>
+                    <span className="min-w-0 break-words text-right text-slate-600">{item.catatan}</span>
                   </div>
                 )}
                 {item.source === "invoice" && item.invoice_id && (

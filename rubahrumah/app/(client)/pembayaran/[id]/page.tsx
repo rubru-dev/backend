@@ -67,7 +67,7 @@ export default function PembayaranDetailPage() {
     <div className="max-w-xl mx-auto">
       <button
         onClick={() => router.back()}
-        className="flex items-center gap-2 text-slate-500 hover:text-slate-700 text-sm mb-5"
+        className="mb-5 flex min-h-11 items-center gap-2 text-sm text-slate-500 hover:text-slate-700"
       >
         <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
           <path d="M11 4L7 9l4 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -75,7 +75,7 @@ export default function PembayaranDetailPage() {
         Kembali
       </button>
 
-      <h1 className="text-xl font-bold text-[#0F4C75] mb-6">
+      <h1 className="mb-6 break-words text-xl font-bold text-[#0F4C75]">
         Detail Pembayaran — {payment.nama_termin || `Termin ${payment.termin_ke}`}
       </h1>
 
@@ -93,9 +93,9 @@ export default function PembayaranDetailPage() {
           { label: "Tanggal Bayar", value: fmtDate(payment.tanggal_bayar) },
           ...(payment.catatan ? [{ label: "Catatan", value: payment.catatan }] : []),
         ] as { label: string; value: React.ReactNode }[]).map((row, i) => (
-          <div key={i} className="flex items-start justify-between px-5 py-4">
+          <div key={i} className="flex flex-col gap-1 px-4 py-4 sm:flex-row sm:items-start sm:justify-between sm:px-5">
             <span className="text-sm text-slate-400">{row.label}</span>
-            <span className="text-sm font-medium text-slate-700 text-right ml-4">{row.value}</span>
+            <span className="min-w-0 break-words text-left text-sm font-medium text-slate-700 sm:ml-4 sm:text-right">{row.value}</span>
           </div>
         ))}
       </div>
