@@ -1427,6 +1427,9 @@ router.get("/invoices/:id/kwitansi", async (req: Request, res: Response) => {
 function reimburseDict(r: any) {
   const karyawan = r.user;
   const roleNames = karyawan?.roles?.map((ur: any) => ur.role?.name).filter(Boolean).join(", ") || null;
+  const status = r.status === "Disetujui" && (!r.head_finance_id || !r.admin_finance_id)
+    ? "Pending"
+    : r.status;
   return {
     id: r.id,
     tanggal: r.tanggal,
@@ -1436,7 +1439,7 @@ function reimburseDict(r: any) {
     kategori: r.kategori,
     keterangan: r.keterangan,
     total: Number(r.total),
-    status: r.status,
+    status,
     alasan_tolak: r.alasan_tolak,
     head_finance_id: r.head_finance_id,
     head_finance_at: r.head_finance_at,
@@ -1481,6 +1484,12 @@ function canManageOfficeReimburse(req: Request): boolean {
   );
 }
 
+function canViewAllOfficeReimburse(req: Request): boolean {
+  return req.user!.roles.some((r: any) =>
+    ["Super Admin", "Head Finance", "Admin Finance"].includes(r.role.name)
+  );
+}
+
 function isReimburseSuperAdmin(req: Request): boolean {
   return req.user!.roles.some((r: any) => r.role.name === "Super Admin");
 }
@@ -1510,12 +1519,24 @@ router.get("/reimburse", async (req: Request, res: Response) => {
 
   const where: any = {};
   // Non-privileged users can only see their own reimburse
-  if (!canManageOfficeReimburse(req)) {
+  if (!canViewAllOfficeReimburse(req)) {
     where.user_id = req.user!.id;
   } else {
     if (user_id) where.user_id = BigInt(user_id);
   }
-  if (status) where.status = status;
+  if (status === "Pending") {
+    where.OR = [
+      { status: "Pending" },
+      { status: "Disetujui", head_finance_id: null },
+      { status: "Disetujui", admin_finance_id: null },
+    ];
+  } else if (status === "Disetujui") {
+    where.status = "Disetujui";
+    where.head_finance_id = { not: null };
+    where.admin_finance_id = { not: null };
+  } else if (status) {
+    where.status = status;
+  }
   if (dari_tanggal || sampai_tanggal) {
     where.tanggal = {};
     if (dari_tanggal) where.tanggal.gte = parseDateOnlyUtc(dari_tanggal);
@@ -1554,7 +1575,7 @@ router.get("/reimburse/:id/buktis", async (req: Request, res: Response) => {
     select: { user_id: true, buktis: { select: { id: true, data: true, nama: true } } },
   });
   if (!r) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
-  if (!canManageOfficeReimburse(req) && !canAccessOwnReimburse(req, r)) {
+  if (!canViewAllOfficeReimburse(req) && !canAccessOwnReimburse(req, r)) {
     return res.status(403).json({ detail: "Tidak memiliki akses" });
   }
   return res.json(r.buktis.map((b) => ({ id: b.id, data: b.data, nama: b.nama })));
@@ -1562,7 +1583,7 @@ router.get("/reimburse/:id/buktis", async (req: Request, res: Response) => {
 
 // GET /finance/reimburse/users  – user dropdown for reimburse form
 router.get("/reimburse/users", async (req: Request, res: Response) => {
-  if (!canManageOfficeReimburse(req)) {
+  if (!canViewAllOfficeReimburse(req)) {
     return res.status(403).json({ detail: "Tidak memiliki akses ke daftar karyawan" });
   }
   const users = await prisma.user.findMany({
@@ -1628,34 +1649,56 @@ router.post("/reimburse/:id/sign-head", requirePermission("finance", "sign_head"
 
   const existing = await prisma.reimburse.findUnique({ where: { id } });
   if (!existing) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
-  if (!canManageOfficeReimburse(req) && !canAccessOwnReimburse(req, existing)) {
-    return res.status(403).json({ detail: "Tidak bisa memproses reimburse milik orang lain" });
-  }
   if (existing.status === "Ditolak") return res.status(400).json({ detail: "Reimburse sudah ditolak" });
 
-  const updated = await prisma.reimburse.update({
+  await prisma.reimburse.update({
     where: { id },
     data: {
       head_finance_id: req.user!.id,
       head_finance_at: new Date(),
       head_finance_signature: signature_data,
-      status: "Disetujui",
+      status: "Pending",
     },
-    include: REIMBURSE_INCLUDE,
   });
+  await prisma.reimburse.updateMany({
+    where: { id, head_finance_id: { not: null }, admin_finance_id: { not: null } },
+    data: { status: "Disetujui" },
+  });
+  const updated = await prisma.reimburse.findUniqueOrThrow({ where: { id }, include: REIMBURSE_INCLUDE });
   const reimburseAmt2 = new Intl.NumberFormat("id-ID", { maximumFractionDigits: 0 }).format(Number(updated.total ?? 0));
   triggerEventReminder("pr_sign_head", {
     nomor_pr: `RBR-${String(updated.id)}`,
     total: reimburseAmt2,
     pengaju: (updated as any).user?.name ?? "—",
-    aksi: "Disetujui oleh Head Finance",
+    aksi: updated.status === "Disetujui" ? "Disetujui lengkap" : "Ditandatangani Head Finance, menunggu Admin Finance",
   }).catch(() => {});
   return res.json({ message: "Tanda tangan Head Finance disimpan", data: reimburseDict(updated) });
 });
 
-// Legacy endpoint: approval now uses Head Finance only.
 router.post("/reimburse/:id/sign-admin", requirePermission("finance", "sign_admin"), async (req: Request, res: Response) => {
-  return res.status(410).json({ detail: "Endpoint ini tidak digunakan lagi. Gunakan tanda tangan Head Finance." });
+  const id = BigInt(req.params.id);
+  const { signature_data } = req.body;
+  if (!signature_data) return res.status(400).json({ detail: "signature_data wajib diisi" });
+
+  const existing = await prisma.reimburse.findUnique({ where: { id } });
+  if (!existing) return res.status(404).json({ detail: "Reimburse tidak ditemukan" });
+  if (existing.status === "Ditolak") return res.status(400).json({ detail: "Reimburse sudah ditolak" });
+
+  await prisma.reimburse.update({
+    where: { id },
+    data: {
+      admin_finance_id: req.user!.id,
+      admin_finance_at: new Date(),
+      admin_finance_signature: signature_data,
+      status: "Pending",
+    },
+  });
+  await prisma.reimburse.updateMany({
+    where: { id, head_finance_id: { not: null }, admin_finance_id: { not: null } },
+    data: { status: "Disetujui" },
+  });
+  const updated = await prisma.reimburse.findUniqueOrThrow({ where: { id }, include: REIMBURSE_INCLUDE });
+  return res.json({ message: "Tanda tangan Admin Finance disimpan", data: reimburseDict(updated) });
 });
 
 // POST /finance/reimburse/:id/reject

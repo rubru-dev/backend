@@ -55,6 +55,8 @@ const reimburseApi = {
   create: (data: any) => apiClient.post("/finance/reimburse", data).then((r) => r.data),
   signHead: (id: number, signature_data: string) =>
     apiClient.post(`/finance/reimburse/${id}/sign-head`, { signature_data }).then((r) => r.data),
+  signAdmin: (id: number, signature_data: string) =>
+    apiClient.post(`/finance/reimburse/${id}/sign-admin`, { signature_data }).then((r) => r.data),
   reject: (id: number, alasan: string) =>
     apiClient.post(`/finance/reimburse/${id}/reject`, { alasan }).then((r) => r.data),
   delete: (id: number) => apiClient.delete(`/finance/reimburse/${id}`).then((r) => r.data),
@@ -544,8 +546,8 @@ export default function AdministrasiKantorPage() {
   const qc = useQueryClient();
   const { user, isSuperAdmin, hasAnyRole, hasPermission } = useAuthStore();
   // Administrasi Kantor dikelola lintas karyawan oleh Super Admin dan Admin Finance.
-  const isPrivileged    = isSuperAdmin() || hasAnyRole("Admin Finance");
-  const canDeleteReimburse = isSuperAdmin() || !hasAnyRole("Admin Finance");
+  const canViewAllReimburse = isSuperAdmin() || hasAnyRole("Head Finance", "Admin Finance");
+  const canManageReimburse = isSuperAdmin() || hasAnyRole("Admin Finance");
   const canSignHead     = isSuperAdmin() || hasPermission("finance", "sign_head");
   const canSignAdmin    = isSuperAdmin() || hasPermission("finance", "sign_admin");
   const canManageAbsen  = isSuperAdmin() || hasPermission("absen", "manage");
@@ -575,7 +577,7 @@ export default function AdministrasiKantorPage() {
   const [reimbursePage, setReimbursePage] = useState(1);
 
   // Signature dialog
-  const [signTarget, setSignTarget] = useState<{ id: number; type: "head" } | null>(null);
+  const [signTarget, setSignTarget] = useState<{ id: number; type: "head" | "admin" } | null>(null);
 
   // Reject dialog
   const [rejectDialog, setRejectDialog] = useState<{ id: number; alasan: string } | null>(null);
@@ -587,7 +589,7 @@ export default function AdministrasiKantorPage() {
   const { data: usersData } = useQuery({
     queryKey: ["reimburse-users", user?.id],
     queryFn: reimburseApi.users,
-    enabled: isPrivileged,
+    enabled: canViewAllReimburse,
   });
   const users: any[] = Array.isArray(usersData) ? usersData : [];
   const filteredUsers = users.filter(u =>
@@ -600,12 +602,12 @@ export default function AdministrasiKantorPage() {
 
   function buildReimburseParams(extra?: Record<string, any>) {
     return {
-      ...(isPrivileged && filterStatus ? { status: filterStatus } : {}),
-      ...(isPrivileged && filterUserId ? { user_id: filterUserId } : {}),
-      ...(isPrivileged && filterDariTanggal ? { dari_tanggal: filterDariTanggal } : {}),
-      ...(isPrivileged && filterSampaiTanggal ? { sampai_tanggal: filterSampaiTanggal } : {}),
+      ...(canViewAllReimburse && filterStatus ? { status: filterStatus } : {}),
+      ...(canViewAllReimburse && filterUserId ? { user_id: filterUserId } : {}),
+      ...(canViewAllReimburse && filterDariTanggal ? { dari_tanggal: filterDariTanggal } : {}),
+      ...(canViewAllReimburse && filterSampaiTanggal ? { sampai_tanggal: filterSampaiTanggal } : {}),
       ...(filterBulan ? { bulan: filterBulan } : {}),
-      ...(isPrivileged && !filterDariTanggal && !filterSampaiTanggal && filterTahun ? { tahun: filterTahun } : {}),
+      ...(canViewAllReimburse && !filterDariTanggal && !filterSampaiTanggal && filterTahun ? { tahun: filterTahun } : {}),
       ...extra,
     };
   }
@@ -638,8 +640,8 @@ export default function AdministrasiKantorPage() {
   });
 
   const signMut = useMutation({
-    mutationFn: ({ id, sig }: { id: number; type: "head"; sig: string }) =>
-      reimburseApi.signHead(id, sig),
+    mutationFn: ({ id, type, sig }: { id: number; type: "head" | "admin"; sig: string }) =>
+      type === "head" ? reimburseApi.signHead(id, sig) : reimburseApi.signAdmin(id, sig),
     onSuccess: (data) => {
       toast.success(data.message || "Tanda tangan disimpan");
       qc.invalidateQueries({ queryKey: ["reimburse"] });
@@ -668,9 +670,9 @@ export default function AdministrasiKantorPage() {
   });
 
   function resetForm() {
-    const uid = !isPrivileged && user ? String(user.id) : "";
-    const uname = !isPrivileged && user ? user.name : "";
-    const urole = !isPrivileged && user ? (user.roles?.[0]?.name ?? "") : "";
+    const uid = !canManageReimburse && user ? String(user.id) : "";
+    const uname = !canManageReimburse && user ? user.name : "";
+    const urole = !canManageReimburse && user ? (user.roles?.[0]?.name ?? "") : "";
     setForm({ user_id: uid, user_name: uname, user_role: urole, tanggal: today, kategori: "Transport", keterangan: "" });
     setFormItems([{ deskripsi: "", jumlah: 0 }]);
     setFormBuktis([]);
@@ -764,6 +766,7 @@ export default function AdministrasiKantorPage() {
           logoUrl={logoUrl}
           buktis={buktis}
           head_finance={r.head_finance ? { name: r.head_finance.name, at: r.head_finance_at, signature: r.head_finance_signature } : null}
+          admin_finance={r.admin_finance ? { name: r.admin_finance.name, at: r.admin_finance_at, signature: r.admin_finance_signature } : null}
         />
       ).toBlob();
       saveAs(blob, `reimburse-${String(r.id).padStart(4, "0")}.pdf`);
@@ -804,7 +807,7 @@ export default function AdministrasiKantorPage() {
         <div className="space-y-5">
         <div className="flex gap-2 items-center flex-wrap justify-end">
           {/* Filter: Karyawan — hanya untuk privileged */}
-          {isPrivileged && (
+          {canViewAllReimburse && (
             <select className="border rounded-md px-3 py-2 text-sm" value={filterUserId}
               onChange={e => setFilterUserId(e.target.value)}>
               <option value="">Semua Karyawan</option>
@@ -817,7 +820,7 @@ export default function AdministrasiKantorPage() {
             <option value="">Semua Bulan</option>
             {BULAN_OPTIONS.map(b => <option key={b.value} value={b.value}>{b.label}</option>)}
           </select>
-          {isPrivileged && <>
+          {canViewAllReimburse && <>
           {/* Filter: Tahun */}
           <select className="border rounded-md px-3 py-2 text-sm" value={filterTahun}
             onChange={e => setFilterTahun(e.target.value)}>
@@ -885,12 +888,12 @@ export default function AdministrasiKantorPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Tanggal</TableHead>
-                {isPrivileged && <TableHead>Karyawan</TableHead>}
-                {isPrivileged && <TableHead>Role</TableHead>}
+                {canViewAllReimburse && <TableHead>Karyawan</TableHead>}
+                {canViewAllReimburse && <TableHead>Role</TableHead>}
                 <TableHead>Kategori</TableHead>
                 <TableHead className="text-right">Total</TableHead>
                 <TableHead>Status</TableHead>
-                {canSignHead && <TableHead>Tanda Tangan</TableHead>}
+                {(canSignHead || canSignAdmin) && <TableHead>Tanda Tangan</TableHead>}
                 <TableHead className="w-36" />
               </TableRow>
             </TableHeader>
@@ -898,7 +901,7 @@ export default function AdministrasiKantorPage() {
               {isLoading
                 ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      {Array.from({ length: isPrivileged ? 8 : 6 }).map((__, j) => (
+                      {Array.from({ length: canViewAllReimburse ? 8 : 6 }).map((__, j) => (
                         <TableCell key={j}><Skeleton className="h-5 w-full" /></TableCell>
                       ))}
                     </TableRow>
@@ -910,8 +913,8 @@ export default function AdministrasiKantorPage() {
                         <TableCell className="whitespace-nowrap">
                           {r.tanggal ? new Date(r.tanggal).toLocaleDateString("id-ID", { day: "numeric", month: "short", year: "numeric" }) : "—"}
                         </TableCell>
-                        {isPrivileged && <TableCell className="font-medium">{r.nama_karyawan || "—"}</TableCell>}
-                        {isPrivileged && (
+                        {canViewAllReimburse && <TableCell className="font-medium">{r.nama_karyawan || "—"}</TableCell>}
+                        {canViewAllReimburse && (
                           <TableCell>
                             <Badge variant="outline" className="text-xs">{r.role_karyawan || "—"}</Badge>
                           </TableCell>
@@ -919,7 +922,7 @@ export default function AdministrasiKantorPage() {
                         <TableCell>{r.kategori || "—"}</TableCell>
                         <TableCell className="text-right font-semibold">{formatRp(r.total)}</TableCell>
                         <TableCell><StatusBadge status={r.status} /></TableCell>
-                        {canSignHead && (
+                        {(canSignHead || canSignAdmin) && (
                           <TableCell onClick={e => e.stopPropagation()}>
                             {r.status !== "Ditolak" && (
                               <div className="flex flex-col gap-1">
@@ -934,6 +937,29 @@ export default function AdministrasiKantorPage() {
                                     <CheckCircle2 className="h-3 w-3" /> Head Finance
                                   </button>
                                 ))}
+                                {!canSignHead && (
+                                  <div className={`flex items-center gap-1 text-xs ${r.head_finance ? "text-green-600" : "text-amber-600"}`}>
+                                    {r.head_finance ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                                    Head Finance
+                                  </div>
+                                )}
+                                {canSignAdmin && (!r.admin_finance ? (
+                                  <Button size="sm" variant="outline" className="h-6 text-xs"
+                                    onClick={() => setSignTarget({ id: r.id, type: "admin" })}>
+                                    <PenLine className="h-3 w-3 mr-1" /> Admin Finance
+                                  </Button>
+                                ) : (
+                                  <button className="text-xs text-green-600 flex items-center gap-1 hover:underline"
+                                    onClick={() => setSignTarget({ id: r.id, type: "admin" })}>
+                                    <CheckCircle2 className="h-3 w-3" /> Admin Finance
+                                  </button>
+                                ))}
+                                {!canSignAdmin && (
+                                  <div className={`flex items-center gap-1 text-xs ${r.admin_finance ? "text-green-600" : "text-amber-600"}`}>
+                                    {r.admin_finance ? <CheckCircle2 className="h-3 w-3" /> : <Clock className="h-3 w-3" />}
+                                    Admin Finance
+                                  </div>
+                                )}
                               </div>
                             )}
                           </TableCell>
@@ -946,13 +972,13 @@ export default function AdministrasiKantorPage() {
                                 <Download className="h-3 w-3 mr-1" /> Cetak PDF
                               </Button>
                             )}
-                            {isPrivileged && r.status === "Pending" && (
+                            {canManageReimburse && r.status === "Pending" && (
                               <Button size="sm" variant="outline" className="h-7 text-xs text-destructive border-destructive/30"
                                 onClick={() => setRejectDialog({ id: r.id, alasan: "" })}>
                                 <XCircle className="h-3 w-3 mr-1" /> Tolak
                               </Button>
                             )}
-                            {canDeleteReimburse && (
+                            {(isSuperAdmin() || (!hasAnyRole("Admin Finance") && String(r.user_id) === String(user?.id))) && (
                               <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive"
                                 onClick={() => deleteMut.mutate(r.id)} disabled={deleteMut.isPending}>
                                 <Trash2 className="h-3.5 w-3.5" />
@@ -964,7 +990,7 @@ export default function AdministrasiKantorPage() {
 
                       {expandedId === r.id && (
                         <TableRow>
-                          <TableCell colSpan={isPrivileged ? 8 : 6} className="bg-muted/20 px-8 py-4">
+                          <TableCell colSpan={canViewAllReimburse ? 8 : 6} className="bg-muted/20 px-8 py-4">
                             <div className="grid md:grid-cols-2 gap-6">
                               {/* Detail bon */}
                               <div className="space-y-3">
@@ -995,6 +1021,8 @@ export default function AdministrasiKantorPage() {
                                   <p className="text-xs text-muted-foreground font-medium mb-1">Status Tanda Tangan</p>
                                   <SignBadge signed={!!r.head_finance} name={r.head_finance?.name} at={r.head_finance_at} />
                                   <div className="text-xs text-muted-foreground">Head Finance</div>
+                                  <SignBadge signed={!!r.admin_finance} name={r.admin_finance?.name} at={r.admin_finance_at} />
+                                  <div className="text-xs text-muted-foreground">Admin Finance</div>
                                 </div>
                                 {r.alasan_tolak && (
                                   <div className="border border-destructive/30 rounded-md p-3 bg-red-50">
@@ -1016,7 +1044,7 @@ export default function AdministrasiKantorPage() {
                   ))}
               {!isLoading && items.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={isPrivileged ? 8 : 6} className="text-center py-16 text-muted-foreground">
+                  <TableCell colSpan={canViewAllReimburse ? 8 : 6} className="text-center py-16 text-muted-foreground">
                     <Folder className="mx-auto h-10 w-10 opacity-20 mb-3" />
                     <p>Belum ada pengajuan reimburse</p>
                     <p className="text-xs mt-1">Klik "Ajukan Reimburse" untuk menambahkan</p>
@@ -1064,7 +1092,7 @@ export default function AdministrasiKantorPage() {
           </DialogHeader>
           <div className="space-y-4">
             {/* Karyawan picker — hanya untuk privileged; non-privileged auto-fill sendiri */}
-            {isPrivileged ? (
+            {canManageReimburse ? (
               <div className="relative">
                 <Label>Karyawan *</Label>
                 <Input
@@ -1164,7 +1192,7 @@ export default function AdministrasiKantorPage() {
       <SignatureDialog
         open={!!signTarget}
         onOpenChange={v => { if (!v) setSignTarget(null); }}
-        title="Tanda Tangan Head Finance"
+        title={signTarget?.type === "admin" ? "Tanda Tangan Admin Finance" : "Tanda Tangan Head Finance"}
         loading={signMut.isPending}
         onSave={sig => {
           if (!signTarget) return;
