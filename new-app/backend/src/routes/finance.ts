@@ -30,7 +30,7 @@ const cashflowAttachmentUpload = multer({
     const allowed = [".png", ".jpg", ".jpeg", ".svg"];
     const allowedMime = ["image/png", "image/jpeg", "image/svg+xml"];
     if (allowed.includes(ext) && allowedMime.includes(file.mimetype)) cb(null, true);
-    else cb(new Error("File gajian hanya boleh PNG, JPG, JPEG, atau SVG."));
+    else cb(new Error("Lampiran hanya boleh PNG, JPG, JPEG, atau SVG."));
   },
 });
 
@@ -2556,38 +2556,66 @@ router.get("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: Re
 });
 
 // POST /finance/adm-projek/:id/termins/:tid/cashflow — pull PR into termin cashflow
-router.post("/adm-projek/:id/termins/:tid/cashflow", async (req: Request, res: Response) => {
+router.post("/adm-projek/:id/termins/:tid/cashflow", cashflowAttachmentUpload.array("files", 20), async (req: Request, res: Response) => {
   const pid = BigInt(req.params.id);
   const tid = BigInt(req.params.tid);
   const { projek_pr_id, tanggal, nota_image } = req.body;
-  if (!projek_pr_id) return res.status(400).json({ detail: "projek_pr_id wajib diisi" });
+  const files = (req.files as Express.Multer.File[] | undefined) ?? [];
+  const fail = (status: number, detail: string) => {
+    files.forEach((file) => {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    });
+    return res.status(status).json({ detail });
+  };
+  if (!projek_pr_id) return fail(400, "projek_pr_id wajib diisi");
   if (typeof tanggal !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(tanggal)) {
-    return res.status(400).json({ detail: "Tanggal cashflow wajib diisi dengan format YYYY-MM-DD" });
+    return fail(400, "Tanggal cashflow wajib diisi dengan format YYYY-MM-DD");
   }
   const cashflowDate = new Date(`${tanggal}T00:00:00.000Z`);
   if (!Number.isFinite(cashflowDate.getTime()) || cashflowDate.toISOString().slice(0, 10) !== tanggal || cashflowDate.getUTCFullYear() < 1) {
-    return res.status(400).json({ detail: "Tanggal cashflow tidak valid" });
+    return fail(400, "Tanggal cashflow tidak valid");
   }
   const prId = BigInt(projek_pr_id);
   const pr = await prisma.projekPR.findUnique({ where: { id: prId }, include: { items: true } });
-  if (!pr) return res.status(404).json({ detail: "PR tidak ditemukan" });
-  if (!pr.hf_signed_at) return res.status(400).json({ detail: "PR belum ditandatangani Head Finance" });
+  if (!pr || pr.adm_finance_project_id !== pid) return fail(404, "PR tidak ditemukan pada proyek ini");
+  if (!pr.hf_signed_at) return fail(400, "PR belum ditandatangani Head Finance");
   const subtotal = pr.items.reduce((s, it) => s + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan ?? 0)), 0);
   const total = subtotal - Number(pr.diskon_harga_keseluruhan ?? 0);
-  const item = await prisma.projekCashflow.create({
-    data: {
-      adm_finance_project_id: pid,
-      adm_finance_termin_id: tid,
-      projek_pr_id: prId,
-      tanggal: cashflowDate,
-      no_pr: pr.nomor_pr || null,
-      keterangan: pr.nama_toko || pr.keperluan || null,
-      debit: total,
-      kredit: 0,
-      nota_image: nota_image || null,
-    },
-  });
-  return res.json({ message: "PR ditarik ke cashflow", data: { id: item.id, no_pr: item.no_pr, debit: Number(item.debit) } });
+  try {
+    const item = await prisma.$transaction(async (tx) => {
+      const cashflow = await tx.projekCashflow.create({
+        data: {
+          adm_finance_project_id: pid,
+          adm_finance_termin_id: tid,
+          projek_pr_id: prId,
+          tanggal: cashflowDate,
+          no_pr: pr.nomor_pr || null,
+          keterangan: pr.nama_toko || pr.keperluan || null,
+          debit: total,
+          kredit: 0,
+          nota_image: nota_image || null,
+        },
+      });
+      if (files.length > 0) {
+        await tx.projekCashflowAttachment.createMany({
+          data: files.map((file) => ({
+            cashflow_id: cashflow.id,
+            file_path: `/storage/cashflow-attachments/${file.filename}`,
+            original_name: file.originalname,
+            mime_type: file.mimetype,
+            file_size: file.size,
+          })),
+        });
+      }
+      return cashflow;
+    });
+    return res.json({ message: "PR ditarik ke cashflow", data: { id: item.id, no_pr: item.no_pr, debit: Number(item.debit), attachments: files.length } });
+  } catch (error) {
+    files.forEach((file) => {
+      if (fs.existsSync(file.path)) fs.unlinkSync(file.path);
+    });
+    throw error;
+  }
 });
 
 // DELETE /finance/adm-projek/:id/termins/:tid/cashflow/:cid
@@ -2686,6 +2714,12 @@ router.get("/adm-projek/:id/pr/available", requirePRAccess, async (req: Request,
     id: pr.id, nomor_pr: pr.nomor_pr, tanggal: pr.tanggal, keperluan: pr.keperluan, nama_toko: pr.nama_toko,
     hf_signed_at: pr.hf_signed_at, hf_name: pr.hf_name,
     total: pr.items.reduce((s, it) => s + Number(it.qty) * (Number(it.harga_perkiraan) - Number(it.diskon_harga_satuan ?? 0)), 0) - Number(pr.diskon_harga_keseluruhan ?? 0),
+    items: pr.items.map((item) => ({
+      id: item.id,
+      nama_item: item.nama_item,
+      qty: Number(item.qty),
+      satuan: item.satuan,
+    })),
   })));
 });
 

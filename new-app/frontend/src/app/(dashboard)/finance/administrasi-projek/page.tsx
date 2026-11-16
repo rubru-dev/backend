@@ -51,6 +51,20 @@ function safePdfFilename(value: unknown, fallback: string) {
   return normalized || fallback;
 }
 
+function LocalImagePreview({ file }: { file: File }) {
+  const [url, setUrl] = useState("");
+
+  useEffect(() => {
+    const objectUrl = URL.createObjectURL(file);
+    setUrl(objectUrl);
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [file]);
+
+  if (!url) return <div className="h-20 w-full animate-pulse rounded bg-muted" />;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt={file.name} className="h-20 w-full rounded object-cover" />;
+}
+
 function RappFinanceSummary({ termins, proyekNama, proyekLokasi }: { termins: any[]; proyekNama: string; proyekLokasi?: string | null }) {
   const [selectedTerminId, setSelectedTerminId] = useState(String(termins[0]?.id ?? ""));
   const selectedTermin = termins.find((t) => String(t.id) === selectedTerminId) ?? termins[0];
@@ -428,8 +442,14 @@ const admApi = {
     apiClient.delete(`/finance/adm-projek/${id}/termins/${tid}/extra-deposit/${did}`).then((r) => r.data),
   getTerminCashflow: (id: number, tid: number) =>
     apiClient.get(`/finance/adm-projek/${id}/termins/${tid}/cashflow`).then((r) => r.data),
-  pullPRtoCashflow: (id: number, tid: number, data: { projek_pr_id: number | null; tanggal: string; nota_image?: string | null }) =>
-    apiClient.post(`/finance/adm-projek/${id}/termins/${tid}/cashflow`, data).then((r) => r.data),
+  pullPRtoCashflow: (id: number, tid: number, data: { projek_pr_id: number | null; tanggal: string; files?: File[]; nota_image?: string | null }) => {
+    const payload = new FormData();
+    if (data.projek_pr_id != null) payload.append("projek_pr_id", String(data.projek_pr_id));
+    payload.append("tanggal", data.tanggal);
+    if (data.nota_image) payload.append("nota_image", data.nota_image);
+    for (const file of data.files ?? []) payload.append("files", file);
+    return apiClient.post(`/finance/adm-projek/${id}/termins/${tid}/cashflow`, payload, { headers: { "Content-Type": "multipart/form-data" } }).then((r) => r.data);
+  },
   deleteTerminCashflow: (id: number, tid: number, cid: number) =>
     apiClient.delete(`/finance/adm-projek/${id}/termins/${tid}/cashflow/${cid}`).then((r) => r.data),
   getAvailablePR: (id: number) =>
@@ -997,10 +1017,11 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
   const [extraDepositForm, setExtraDepositForm] = useState({ jumlah: 0, catatan: "" });
   const [selectedPRId, setSelectedPRId] = useState<number | null>(null);
   const [pullPRTanggal, setPullPRTanggal] = useState(() => formatInTimeZone(new Date(), "Asia/Jakarta", "yyyy-MM-dd"));
-  const [pullPRNotaImage, setPullPRNotaImage] = useState<string | null>(null);
+  const [pullPRFiles, setPullPRFiles] = useState<File[]>([]);
+  const pullPRFileRef = useRef<HTMLInputElement>(null);
   // Signature dialog state
   const [sigDialog, setSigDialog] = useState<{ open: boolean; mode: "deposit" | "extraDeposit" | "pr"; targetId?: number }>({ open: false, mode: "deposit" });
-  const [viewNotaDialog, setViewNotaDialog] = useState<string | null>(null);
+  const [viewNotaDialog, setViewNotaDialog] = useState<{ title: string; files: { url: string; name: string }[] } | null>(null);
 
   // Queries
   const { data: terminsData, isLoading: terminsLoading } = useQuery({
@@ -1025,6 +1046,32 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
     enabled: openPullPR,
     retry: false,
   });
+  const availablePRList: any[] = Array.isArray(availablePRs) ? availablePRs : [];
+  const selectedAvailablePR = availablePRList.find((pr: any) => Number(pr.id) === selectedPRId) ?? null;
+
+  function resetPullPRForm() {
+    setSelectedPRId(null);
+    setPullPRFiles([]);
+    if (pullPRFileRef.current) pullPRFileRef.current.value = "";
+  }
+
+  function addPullPRFiles(fileList: FileList | null) {
+    const incoming = Array.from(fileList ?? []);
+    const allowed = incoming.filter((file) => ["image/png", "image/jpeg", "image/svg+xml"].includes(file.type));
+    if (allowed.length !== incoming.length) toast.error("Lampiran hanya boleh PNG, JPG, JPEG, atau SVG");
+    const withinSize = allowed.filter((file) => file.size <= 20 * 1024 * 1024);
+    if (withinSize.length !== allowed.length) toast.error("Ukuran maksimal setiap foto adalah 20MB");
+    setPullPRFiles((current) => {
+      const merged = [...current];
+      withinSize.forEach((file) => {
+        const duplicate = merged.some((existing) => existing.name === file.name && existing.size === file.size && existing.lastModified === file.lastModified);
+        if (!duplicate) merged.push(file);
+      });
+      if (merged.length > 20) toast.error("Maksimal 20 foto untuk satu transaksi cashflow");
+      return merged.slice(0, 20);
+    });
+    if (pullPRFileRef.current) pullPRFileRef.current.value = "";
+  }
 
   const { data: availableGajians } = useQuery({
     queryKey: ["adm-gajian-available", proyekId],
@@ -1085,14 +1132,13 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
   });
 
   const pullPRMut = useMutation({
-    mutationFn: () => admApi.pullPRtoCashflow(proyekId, selectedTerminId!, { projek_pr_id: selectedPRId, tanggal: pullPRTanggal, nota_image: pullPRNotaImage }),
+    mutationFn: () => admApi.pullPRtoCashflow(proyekId, selectedTerminId!, { projek_pr_id: selectedPRId, tanggal: pullPRTanggal, files: pullPRFiles }),
     onSuccess: () => {
       toast.success("PR ditarik ke cashflow");
       qc.invalidateQueries({ queryKey: ["adm-termin-cf", proyekId, selectedTerminId] });
       qc.invalidateQueries({ queryKey: ["adm-termins", proyekId] });
       setOpenPullPR(false);
-      setSelectedPRId(null);
-      setPullPRNotaImage(null);
+      resetPullPRForm();
     },
     onError: (e: any) => toast.error(e?.response?.data?.detail || "Gagal"),
   });
@@ -1347,15 +1393,24 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                     </TableCell>
                     <TableCell className="text-right font-medium text-red-600">{formatRp(it.debit)}</TableCell>
                     <TableCell>
-                      {(it.attachments ?? []).map((file: any) => (
-                        <Button key={file.id} variant="ghost" size="sm" className="h-7 max-w-[150px] px-2 text-blue-600" title={file.original_name ?? "Foto gajian"} onClick={() => setViewNotaDialog(storageUrl(file.file_path))}>
-                          <Eye className="h-3.5 w-3.5 mr-1 shrink-0" />
-                          <span className="truncate">{file.original_name ?? "Foto"}</span>
-                        </Button>
-                      ))}
-                      {it.nota_image ? (
-                        <Button variant="ghost" size="sm" className="h-7 px-2 text-blue-600" onClick={() => setViewNotaDialog(storageUrl(it.nota_image))}>
-                          <Eye className="h-3.5 w-3.5 mr-1" /> Lihat
+                      {((it.attachments?.length ?? 0) + (it.nota_image ? 1 : 0)) > 0 ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-blue-600"
+                          onClick={() => setViewNotaDialog({
+                            title: it.no_pr || it.keterangan || "Bukti Cashflow",
+                            files: [
+                              ...(it.attachments ?? []).map((file: any, index: number) => ({
+                                url: storageUrl(file.file_path),
+                                name: file.original_name || `Foto ${index + 1}`,
+                              })),
+                              ...(it.nota_image ? [{ url: storageUrl(it.nota_image), name: "Nota lama" }] : []),
+                            ],
+                          })}
+                        >
+                          <Images className="mr-1 h-3.5 w-3.5" />
+                          {((it.attachments?.length ?? 0) + (it.nota_image ? 1 : 0))} Foto
                         </Button>
                       ) : <span className="text-xs text-muted-foreground">—</span>}
                     </TableCell>
@@ -1440,8 +1495,8 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
       </Dialog>
 
       {/* Dialog: Pull PR */}
-      <Dialog open={openPullPR} onOpenChange={(v) => { setOpenPullPR(v); if (!v) { setSelectedPRId(null); setPullPRNotaImage(null); } }}>
-        <DialogContent className="max-w-md">
+      <Dialog open={openPullPR} onOpenChange={(v) => { setOpenPullPR(v); if (!v) resetPullPRForm(); }}>
+        <DialogContent className="max-h-[calc(100dvh-2rem)] max-w-lg overflow-y-auto">
           <DialogHeader><DialogTitle>Tarik PR ke Cashflow</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <p className="text-xs text-muted-foreground">Hanya PR berstatus Disetujui dan sudah ditandatangani HF yang tersedia.</p>
@@ -1452,7 +1507,7 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                 onChange={(e) => setSelectedPRId(e.target.value ? Number(e.target.value) : null)}
               >
                 <option value="">— pilih PR —</option>
-                {(Array.isArray(availablePRs) ? availablePRs : []).map((pr: any) => (
+                {availablePRList.map((pr: any) => (
                   <option key={pr.id} value={pr.id}>
                     {pr.nomor_pr} — {pr.nama_toko || "—"} ({formatRp(pr.total)})
                   </option>
@@ -1461,6 +1516,22 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
             </div>
             {Array.isArray(availablePRs) && availablePRs.length === 0 && (
               <p className="text-sm text-center text-muted-foreground py-2">Tidak ada PR yang tersedia</p>
+            )}
+            {selectedAvailablePR && (
+              <div className="rounded-md border bg-muted/20 p-3">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <p className="text-xs font-medium">Material pada PR</p>
+                  <span className="text-xs text-muted-foreground">{selectedAvailablePR.items?.length ?? 0} item</span>
+                </div>
+                <div className="max-h-28 space-y-1 overflow-y-auto pr-1">
+                  {(selectedAvailablePR.items ?? []).map((item: any) => (
+                    <div key={item.id} className="flex items-start justify-between gap-3 text-xs">
+                      <span className="min-w-0 flex-1 break-words">{item.nama_item}</span>
+                      <span className="shrink-0 text-muted-foreground">{Number(item.qty).toLocaleString("id-ID")} {item.satuan || ""}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
             <div>
               <Label htmlFor="pull-pr-tanggal">Tanggal Cashflow</Label>
@@ -1474,34 +1545,45 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
                 onChange={(e) => setPullPRTanggal(e.target.value)}
               />
             </div>
-            {/* Nota upload */}
-            <div>
-              <Label>Upload Nota (opsional)</Label>
-              {pullPRNotaImage ? (
-                <div className="border rounded-md p-2 mt-1">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={pullPRNotaImage} alt="nota" className="max-h-32 mx-auto object-contain rounded" />
-                  <Button variant="ghost" size="sm" className="mt-1 text-destructive w-full" onClick={() => setPullPRNotaImage(null)}>
-                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Hapus Nota
-                  </Button>
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-3">
+                <Label>Foto Nota / Bukti (opsional)</Label>
+                <span className="text-xs text-muted-foreground">{pullPRFiles.length}/20 foto</span>
+              </div>
+              <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border-2 border-dashed p-3 text-sm text-muted-foreground transition-colors hover:border-orange-400 hover:bg-orange-50">
+                <Upload className="h-4 w-4" />
+                {pullPRFiles.length > 0 ? "Tambah foto lagi" : "Pilih banyak foto"}
+                <input
+                  ref={pullPRFileRef}
+                  type="file"
+                  multiple
+                  accept=".png,.jpg,.jpeg,.svg"
+                  className="hidden"
+                  onChange={(e) => addPullPRFiles(e.target.files)}
+                />
+              </label>
+              {pullPRFiles.length > 0 && (
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+                  {pullPRFiles.map((file, index) => (
+                    <div key={`${file.name}-${file.size}-${file.lastModified}`} className="relative min-w-0 rounded-md border bg-background p-1.5">
+                      <LocalImagePreview file={file} />
+                      <p className="mt-1 truncate px-0.5 text-[11px]" title={file.name}>{file.name}</p>
+                      <button
+                        type="button"
+                        aria-label={`Hapus ${file.name}`}
+                        className="absolute right-2 top-2 flex h-7 w-7 items-center justify-center rounded-full bg-black/70 text-white hover:bg-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500"
+                        onClick={() => setPullPRFiles((files) => files.filter((_, fileIndex) => fileIndex !== index))}
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              ) : (
-                <label className="mt-1 border-2 border-dashed rounded-md flex items-center justify-center gap-2 p-3 cursor-pointer hover:border-orange-400 hover:bg-orange-50 transition-colors">
-                  <Upload className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm text-muted-foreground">Klik untuk upload foto nota</span>
-                  <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (!file) return;
-                    const reader = new FileReader();
-                    reader.onload = (ev) => setPullPRNotaImage(ev.target?.result as string);
-                    reader.readAsDataURL(file);
-                    e.target.value = "";
-                  }} />
-                </label>
               )}
+              <p className="text-[11px] text-muted-foreground">PNG, JPG, JPEG, atau SVG. Maksimal 20 foto dan 20MB per foto.</p>
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => { setOpenPullPR(false); setSelectedPRId(null); setPullPRNotaImage(null); }}>Batal</Button>
+              <Button variant="outline" onClick={() => { setOpenPullPR(false); resetPullPRForm(); }}>Batal</Button>
               <Button disabled={!selectedPRId || !pullPRTanggal || pullPRMut.isPending} onClick={() => pullPRMut.mutate()}>
                 {pullPRMut.isPending ? "Menarik..." : "Tarik ke Cashflow"}
               </Button>
@@ -1591,11 +1673,18 @@ function CashflowTab({ proyekId }: { proyekId: number }) {
 
       {/* View Nota Dialog */}
       <Dialog open={!!viewNotaDialog} onOpenChange={(v) => { if (!v) setViewNotaDialog(null); }}>
-        <DialogContent className="min-w-0 max-w-lg max-h-[calc(100dvh-2rem)] overflow-y-auto">
-          <DialogHeader><DialogTitle>Bukti Nota</DialogTitle></DialogHeader>
+        <DialogContent className="min-w-0 max-h-[calc(100dvh-2rem)] max-w-3xl overflow-y-auto">
+          <DialogHeader><DialogTitle>Bukti Nota · {viewNotaDialog?.title}</DialogTitle></DialogHeader>
           {viewNotaDialog && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img src={viewNotaDialog} alt="nota" className="w-full max-h-[70vh] object-contain rounded" />
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {viewNotaDialog.files.map((file, index) => (
+                <figure key={`${file.url}-${index}`} className="min-w-0 rounded-md border bg-muted/20 p-2">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={file.url} alt={file.name} className="h-auto max-h-[60vh] w-full rounded object-contain" />
+                  <figcaption className="mt-2 truncate text-xs text-muted-foreground" title={file.name}>{file.name}</figcaption>
+                </figure>
+              ))}
+            </div>
           )}
         </DialogContent>
       </Dialog>
