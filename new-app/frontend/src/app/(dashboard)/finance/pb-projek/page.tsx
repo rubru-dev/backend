@@ -11,6 +11,7 @@ import { PBStatusBadge, PB_STATUS_OPTIONS } from "@/components/pb-status-badge";
 import { useAuthStore } from "@/store/authStore";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { HorizontalDragScroll } from "@/components/ui/horizontal-drag-scroll";
 
 const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 const prLink = (admId: string) => `/finance/administrasi-projek?proyek=${admId}&tab=pr`;
@@ -101,7 +102,7 @@ export default function FinancePBProjekPage() {
 
     <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2"><label className="space-y-1 text-sm font-medium">Filter Projek<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="">Semua projek</option>{projects.map((name) => <option key={name} value={name}>{name}</option>)}</select></label><label className="space-y-1 text-sm font-medium">Filter Status<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Semua status</option>{PB_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status === "Disetujui" ? "Disetujui Super Admin" : status}</option>)}</select></label></div>
 
-    <div className="overflow-x-auto rounded-lg border"><table className="w-full min-w-[1240px] text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-3 text-left">No. PB</th><th className="px-3 py-3 text-left">Nama Projek</th><th className="px-3 py-3 text-left">PIC / Pengaju</th><th className="px-3 py-3 text-left">Item</th><th className="px-3 py-3 text-left">Status PB</th><th className="px-3 py-3 text-left">Approval</th><th className="px-3 py-3 text-left">PR</th><th className="px-3 py-3 text-right">Aksi</th></tr></thead>
+    <HorizontalDragScroll className="rounded-lg border" ariaLabel="Daftar PB Projek; geser ke kiri atau kanan untuk melihat seluruh kolom"><table className="w-full min-w-[1240px] text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-3 text-left">No. PB</th><th className="px-3 py-3 text-left">Nama Projek</th><th className="px-3 py-3 text-left">PIC / Pengaju</th><th className="px-3 py-3 text-left">Item</th><th className="px-3 py-3 text-left">Status PB</th><th className="px-3 py-3 text-left">Approval</th><th className="px-3 py-3 text-left">PR</th><th className="px-3 py-3 text-right">Aksi</th></tr></thead>
       <tbody className="divide-y">{filtered.map((pb) => <tr key={pb.id} className="align-top">
         <td className="px-3 py-3 font-medium">{pb.nomor_pb}<div className="text-xs font-normal text-muted-foreground">{pb.submitted_at ? "Dikirim" : "Disimpan"} {fmtDate(pb.submitted_at ?? pb.created_at)}</div></td>
         <td className="px-3 py-3">
@@ -125,7 +126,7 @@ export default function FinancePBProjekPage() {
       {rows.isLoading && <tr><td colSpan={8} className="px-4 py-10 text-center">Memuat daftar PB...</td></tr>}
       {rows.isError && <tr><td colSpan={8} className="px-4 py-10 text-center text-red-600">Gagal memuat daftar PB. <button type="button" className="underline" onClick={() => rows.refetch()}>Coba lagi</button></td></tr>}
       {rows.isSuccess && !filtered.length && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Belum ada PB yang sesuai filter.</td></tr>}
-      </tbody></table></div>
+      </tbody></table></HorizontalDragScroll>
 
     <Dialog open={Boolean(approveTarget)} onOpenChange={(open) => !open && setApproveTarget(null)}>
       <DialogContent className="max-w-md">
