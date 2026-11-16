@@ -15,6 +15,7 @@ import { HorizontalDragScroll } from "@/components/ui/horizontal-drag-scroll";
 
 const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 const prLink = (admId: string) => `/finance/administrasi-projek?proyek=${admId}&tab=pr`;
+const PB_PAGE_SIZE = 10;
 
 type ReviewAction = { pb: any; status: "Ditolak" | "Draft" };
 
@@ -28,6 +29,7 @@ export default function FinancePBProjekPage() {
 
   const [projectFilter, setProjectFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [pbPage, setPbPage] = useState(1);
   const [review, setReview] = useState<ReviewAction | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [approveTarget, setApproveTarget] = useState<{ pb: any; status: "Disetujui Finance" | "Disetujui" } | null>(null);
@@ -62,6 +64,10 @@ export default function FinancePBProjekPage() {
   const data = rows.data ?? [];
   const projects = useMemo(() => [...new Set(data.map((pb) => pb.project_name).filter(Boolean))].sort(), [data]);
   const filtered = data.filter((pb) => (!projectFilter || pb.project_name === projectFilter) && (!statusFilter || pb.status === statusFilter));
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PB_PAGE_SIZE));
+  const currentPage = Math.min(pbPage, totalPages);
+  const pageStart = (currentPage - 1) * PB_PAGE_SIZE;
+  const paginatedPBs = filtered.slice(pageStart, pageStart + PB_PAGE_SIZE);
   const counts = {
     finance: data.filter((pb) => pb.status === "Diajukan").length,
     sa: data.filter((pb) => pb.status === "Disetujui Finance" || (pb.status === "Disetujui" && !pb.sa_approved_at)).length,
@@ -97,13 +103,13 @@ export default function FinancePBProjekPage() {
     <div><h1 className="flex items-center gap-2 text-2xl font-bold"><ClipboardCheck className="h-6 w-6 text-teal-600" /> PB Projek</h1><p className="mt-1 text-sm text-muted-foreground">PB dari PIC disetujui Finance, lalu Super Admin, baru bisa dibuat menjadi PR.</p></div>
 
     <div className="grid gap-3 sm:grid-cols-3">
-      {[{ label: "Menunggu Finance", value: counts.finance, status: "Diajukan" }, { label: "Menunggu Super Admin", value: counts.sa, status: "Disetujui Finance" }, { label: "Siap Dibuat PR", value: counts.pr, status: "Disetujui" }].map((c) => <button key={c.label} type="button" onClick={() => setStatusFilter(statusFilter === c.status ? "" : c.status)} className={`rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/40 ${statusFilter === c.status ? "border-teal-500 ring-1 ring-teal-500" : ""}`}><div className="text-xs text-muted-foreground">{c.label}</div><div className="text-2xl font-bold">{c.value}</div></button>)}
+      {[{ label: "Menunggu Finance", value: counts.finance, status: "Diajukan" }, { label: "Menunggu Super Admin", value: counts.sa, status: "Disetujui Finance" }, { label: "Siap Dibuat PR", value: counts.pr, status: "Disetujui" }].map((c) => <button key={c.label} type="button" onClick={() => { setStatusFilter(statusFilter === c.status ? "" : c.status); setPbPage(1); }} className={`rounded-lg border bg-card p-3 text-left transition-colors hover:bg-muted/40 ${statusFilter === c.status ? "border-teal-500 ring-1 ring-teal-500" : ""}`}><div className="text-xs text-muted-foreground">{c.label}</div><div className="text-2xl font-bold">{c.value}</div></button>)}
     </div>
 
-    <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2"><label className="space-y-1 text-sm font-medium">Filter Projek<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={projectFilter} onChange={(e) => setProjectFilter(e.target.value)}><option value="">Semua projek</option>{projects.map((name) => <option key={name} value={name}>{name}</option>)}</select></label><label className="space-y-1 text-sm font-medium">Filter Status<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}><option value="">Semua status</option>{PB_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status === "Disetujui" ? "Disetujui Super Admin" : status}</option>)}</select></label></div>
+    <div className="grid gap-3 rounded-lg border bg-card p-4 md:grid-cols-2"><label className="space-y-1 text-sm font-medium">Filter Projek<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={projectFilter} onChange={(e) => { setProjectFilter(e.target.value); setPbPage(1); }}><option value="">Semua projek</option>{projects.map((name) => <option key={name} value={name}>{name}</option>)}</select></label><label className="space-y-1 text-sm font-medium">Filter Status<select className="h-10 w-full rounded-md border bg-background px-3 font-normal" value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPbPage(1); }}><option value="">Semua status</option>{PB_STATUS_OPTIONS.map((status) => <option key={status} value={status}>{status === "Disetujui" ? "Disetujui Super Admin" : status}</option>)}</select></label></div>
 
     <HorizontalDragScroll className="rounded-lg border" ariaLabel="Daftar PB Projek; geser ke kiri atau kanan untuk melihat seluruh kolom"><table className="w-full min-w-[1240px] text-sm"><thead className="bg-muted/50"><tr><th className="px-3 py-3 text-left">No. PB</th><th className="px-3 py-3 text-left">Nama Projek</th><th className="px-3 py-3 text-left">PIC / Pengaju</th><th className="px-3 py-3 text-left">Item</th><th className="px-3 py-3 text-left">Status PB</th><th className="px-3 py-3 text-left">Approval</th><th className="px-3 py-3 text-left">PR</th><th className="px-3 py-3 text-right">Aksi</th></tr></thead>
-      <tbody className="divide-y">{filtered.map((pb) => <tr key={pb.id} className="align-top">
+      <tbody className="divide-y">{paginatedPBs.map((pb) => <tr key={pb.id} className="align-top">
         <td className="px-3 py-3 font-medium">{pb.nomor_pb}<div className="text-xs font-normal text-muted-foreground">{pb.submitted_at ? "Dikirim" : "Disimpan"} {fmtDate(pb.submitted_at ?? pb.created_at)}</div></td>
         <td className="px-3 py-3">
           <Link
@@ -127,6 +133,15 @@ export default function FinancePBProjekPage() {
       {rows.isError && <tr><td colSpan={8} className="px-4 py-10 text-center text-red-600">Gagal memuat daftar PB. <button type="button" className="underline" onClick={() => rows.refetch()}>Coba lagi</button></td></tr>}
       {rows.isSuccess && !filtered.length && <tr><td colSpan={8} className="px-4 py-10 text-center text-muted-foreground">Belum ada PB yang sesuai filter.</td></tr>}
       </tbody></table></HorizontalDragScroll>
+
+    {filtered.length > 0 && <div className="flex flex-col gap-2 text-sm sm:flex-row sm:items-center sm:justify-between">
+      <p className="text-muted-foreground">Menampilkan {pageStart + 1}–{Math.min(pageStart + PB_PAGE_SIZE, filtered.length)} dari {filtered.length} PB</p>
+      <div className="flex items-center justify-between gap-2 sm:justify-end">
+        <Button type="button" variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setPbPage(currentPage - 1)}>Sebelumnya</Button>
+        <span className="min-w-24 text-center text-xs font-medium">Halaman {currentPage} dari {totalPages}</span>
+        <Button type="button" variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setPbPage(currentPage + 1)}>Berikutnya</Button>
+      </div>
+    </div>}
 
     <Dialog open={Boolean(approveTarget)} onOpenChange={(open) => !open && setApproveTarget(null)}>
       <DialogContent className="max-w-md">
