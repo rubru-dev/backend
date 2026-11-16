@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CheckCircle2, ClipboardCheck, ExternalLink, FilePlus2, RotateCcw, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, ClipboardCheck, ExternalLink, FilePlus2, RotateCcw, ShieldCheck, Trash2, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { projectStockApi } from "@/lib/api/projectStock";
 import { PBStatusBadge, PB_STATUS_OPTIONS } from "@/components/pb-status-badge";
@@ -30,6 +30,7 @@ export default function FinancePBProjekPage() {
   const [review, setReview] = useState<ReviewAction | null>(null);
   const [reviewNote, setReviewNote] = useState("");
   const [approveTarget, setApproveTarget] = useState<{ pb: any; status: "Disetujui Finance" | "Disetujui" } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null);
 
   // Jangan pakai initialData: dengan staleTime global 60 detik, initialData kosong
   // dianggap fresh sehingga PB dari PIC tidak pernah diambil dari server.
@@ -50,7 +51,12 @@ export default function FinancePBProjekPage() {
     onSuccess: (result) => { toast.success(`PR ${result.nomor_pr} berhasil dibuat`); refresh(); router.push(prLink(result.adm_finance_project_id)); },
     onError: onError("Gagal membuat PR dari PB"),
   });
-  const busy = update.isPending || createPr.isPending;
+  const remove = useMutation({
+    mutationFn: (id: string) => projectStockApi.deletePB(id),
+    onSuccess: () => { toast.success("PB berhasil dihapus"); setDeleteTarget(null); refresh(); },
+    onError: onError("Gagal menghapus PB"),
+  });
+  const busy = update.isPending || createPr.isPending || remove.isPending;
 
   const data = rows.data ?? [];
   const projects = useMemo(() => [...new Set(data.map((pb) => pb.project_name).filter(Boolean))].sort(), [data]);
@@ -78,6 +84,7 @@ export default function FinancePBProjekPage() {
         <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-orange-700 hover:bg-orange-50 disabled:opacity-60" disabled={busy} onClick={() => openReview(pb, "Draft")}><RotateCcw className="h-3.5 w-3.5" />Minta Revisi</button>
         <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60" disabled={busy} onClick={() => openReview(pb, "Ditolak")}><XCircle className="h-3.5 w-3.5" />Tolak</button>
       </>}
+      {isSuperAdmin && !pb.pr_id && <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50 disabled:opacity-60" disabled={busy} onClick={() => setDeleteTarget(pb)}><Trash2 className="h-3.5 w-3.5" />Hapus PB</button>}
       {pb.pr_id && pb.adm_finance_project_id && <Link href={prLink(pb.adm_finance_project_id)} className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted"><ExternalLink className="h-3.5 w-3.5" />Lihat PR</Link>}
     </div>;
   };
@@ -133,6 +140,26 @@ export default function FinancePBProjekPage() {
         <DialogHeader><DialogTitle>{review?.status === "Ditolak" ? "Tolak" : "Minta Revisi"} {review?.pb.nomor_pb}</DialogTitle><DialogDescription>{review?.status === "Ditolak" ? "PB dibatalkan dan kuota item dikembalikan. PIC perlu membuat PB baru." : "PB dikembalikan ke PIC sebagai Draft untuk diperbaiki, lalu dikirim ulang. Approval sebelumnya akan direset."}</DialogDescription></DialogHeader>
         <label className="block space-y-1 text-sm font-medium">{review?.status === "Ditolak" ? "Alasan penolakan" : "Yang perlu diperbaiki"} <span className="text-red-600">*</span><textarea autoFocus className="min-h-[96px] w-full rounded-md border bg-background px-3 py-2 text-sm font-normal" value={reviewNote} onChange={(e) => setReviewNote(e.target.value)} placeholder={review?.status === "Ditolak" ? "Contoh: barang sudah tersedia di gudang" : "Contoh: qty semen terlalu banyak, maksimal 20 sak"} /></label>
         <DialogFooter className="gap-2"><Button type="button" variant="outline" onClick={() => setReview(null)}>Batal</Button><Button type="button" variant={review?.status === "Ditolak" ? "destructive" : "default"} className={review?.status === "Draft" ? "bg-orange-500 hover:bg-orange-600" : undefined} disabled={!reviewNote.trim() || update.isPending} onClick={() => review && update.mutate({ id: review.pb.id, status: review.status, catatan: reviewNote.trim() })}>{update.isPending ? "Menyimpan..." : review?.status === "Ditolak" ? "Tolak PB" : "Kembalikan ke PIC"}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
+
+    <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Hapus {deleteTarget?.nomor_pb}?</DialogTitle>
+          <DialogDescription>
+            PB ini belum memiliki PR. Penghapusan akan menghapus seluruh item dan jejak approval PB secara permanen, tetapi item Stock Opname proyek tetap tersedia.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="rounded-md border bg-muted/20 p-3 text-sm">
+          <div className="flex justify-between gap-4"><span className="text-muted-foreground">Proyek</span><span className="text-right font-medium">{deleteTarget?.project_name || "-"}</span></div>
+          <div className="mt-1 flex justify-between gap-4"><span className="text-muted-foreground">Status</span><span className="font-medium">{deleteTarget?.status || "-"}</span></div>
+          <div className="mt-1 flex justify-between gap-4"><span className="text-muted-foreground">Jumlah item</span><span className="font-medium">{deleteTarget?.items?.length ?? 0}</span></div>
+        </div>
+        <DialogFooter className="gap-2">
+          <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>Batal</Button>
+          <Button type="button" variant="destructive" disabled={remove.isPending} onClick={() => deleteTarget && remove.mutate(deleteTarget.id)}>{remove.isPending ? "Menghapus..." : "Hapus PB"}</Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
 

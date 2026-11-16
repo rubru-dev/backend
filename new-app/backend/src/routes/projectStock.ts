@@ -592,6 +592,14 @@ router.delete("/pb/:id", async (req: Request, res: Response) => {
   const id = BigInt(req.params.id);
   const pb = await prisma.projectPB.findUnique({ where: { id } });
   if (!pb) return res.status(404).json({ detail: "PB tidak ditemukan" });
+
+  if (isSuperAdmin(req)) {
+    if (pb.pr_id) return res.status(409).json({ detail: "PB tidak dapat dihapus karena PR sudah dibuat" });
+    const deleted = await prisma.projectPB.deleteMany({ where: { id, pr_id: null } });
+    if (!deleted.count) return res.status(409).json({ detail: "PB tidak dapat dihapus karena PR sudah dibuat" });
+    return res.json({ message: "PB dihapus oleh Super Admin" });
+  }
+
   if (!(await canManageDraft(req, pb))) return res.status(403).json({ detail: "Hanya PIC projek yang bisa menghapus PB ini" });
   const deleted = await prisma.projectPB.deleteMany({ where: { id, status: PB_DRAFT } });
   if (!deleted.count) return res.status(400).json({ detail: "Hanya PB berstatus Draft yang bisa dihapus" });
