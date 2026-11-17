@@ -329,10 +329,12 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
                 </div>
                 <div>{documentation(item)}{uploadControl(item)}</div>
                 <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                  <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf PIC</p><ParafButton value={item.pic_paraf} label="PIC" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "pic", value: !item.pic_paraf })} /></div>
-                  <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf Client</p><ParafButton value={item.client_paraf} label="Client" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "client", value: !item.client_paraf })} /></div>
                   {projectInfo?.tipe === "SIPIL"
                     ? <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf Mandor</p><ParafButton value={item.mandor_paraf ?? false} label="Mandor" disabled={mandorParafMutation.isPending} onClick={() => mandorParafMutation.mutate({ id: item.id, value: !(item.mandor_paraf ?? false) })} /></div>
+                    : <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf PIC</p><ParafButton value={item.pic_paraf} label="PIC" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "pic", value: !item.pic_paraf })} /></div>}
+                  <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf Client</p><ParafButton value={item.client_paraf} label="Client" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "client", value: !item.client_paraf })} /></div>
+                  {projectInfo?.tipe === "SIPIL"
+                    ? <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf PIC</p><ParafButton value={item.pic_paraf} label="PIC" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "pic", value: !item.pic_paraf })} /></div>
                     : <div className="flex flex-col items-center"><p className="mb-1 text-center text-xs text-muted-foreground">Paraf Head Teknik</p><ParafButton value={item.head_teknik_paraf} label="Head Teknik" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "head_teknik", value: !item.head_teknik_paraf })} /></div>}
                 </div>
               </article>
@@ -346,9 +348,9 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
                   <TableHead className="min-w-[260px]">Item Pekerjaan</TableHead>
                   <TableHead className="w-28">Jenis</TableHead>
                   <TableHead className="min-w-[220px]">Dokumentasi</TableHead>
-                  <TableHead className="w-32 text-center">Paraf PIC</TableHead>
+                  <TableHead className="w-32 text-center">{projectInfo?.tipe === "SIPIL" ? "Paraf Mandor" : "Paraf PIC"}</TableHead>
                   <TableHead className="w-32 text-center">Paraf Client</TableHead>
-                  <TableHead className="w-36 text-center">{projectInfo?.tipe === "SIPIL" ? "Paraf Mandor" : "Paraf Head Teknik"}</TableHead>
+                  <TableHead className="w-36 text-center">{projectInfo?.tipe === "SIPIL" ? "Paraf PIC" : "Paraf Head Teknik"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -366,14 +368,16 @@ export function ChecklistTerminTab({ projectId, api, projectInfo }: { projectId:
                       {uploadControl(item)}
                     </TableCell>
                     <TableCell className="text-center">
-                      <ParafButton value={item.pic_paraf} label="PIC" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "pic", value: !item.pic_paraf })} />
+                      {projectInfo?.tipe === "SIPIL"
+                        ? <ParafButton value={item.mandor_paraf ?? false} label="Mandor" disabled={mandorParafMutation.isPending} onClick={() => mandorParafMutation.mutate({ id: item.id, value: !(item.mandor_paraf ?? false) })} />
+                        : <ParafButton value={item.pic_paraf} label="PIC" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "pic", value: !item.pic_paraf })} />}
                     </TableCell>
                     <TableCell className="text-center">
                       <ParafButton value={item.client_paraf} label="Client" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "client", value: !item.client_paraf })} />
                     </TableCell>
                     <TableCell className="text-center">
                       {projectInfo?.tipe === "SIPIL"
-                        ? <ParafButton value={item.mandor_paraf ?? false} label="Mandor" disabled={mandorParafMutation.isPending} onClick={() => mandorParafMutation.mutate({ id: item.id, value: !(item.mandor_paraf ?? false) })} />
+                        ? <ParafButton value={item.pic_paraf} label="PIC" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "pic", value: !item.pic_paraf })} />
                         : <ParafButton value={item.head_teknik_paraf} label="Head Teknik" disabled={parafMutation.isPending} onClick={() => parafMutation.mutate({ id: item.id, party: "head_teknik", value: !item.head_teknik_paraf })} />}
                     </TableCell>
                   </TableRow>

@@ -139,8 +139,8 @@ export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
           {sipilInternal
             ? <><View style={[s.cell, s.date]}><Text style={s.headerText}>Tanggal Mulai</Text></View><View style={[s.cell, s.date]}><Text style={s.headerText}>Tanggal Selesai</Text></View></>
             : <View style={[s.cell, s.doc]}><Text style={s.headerText}>Dokumentasi</Text></View>}
-          <View style={[s.cell, s.paraf]}><Text style={s.headerText}>Paraf PIC</Text></View>
-          <View style={[s.cell, s.paraf, { borderRightWidth: 0 }]}><Text style={s.headerText}>{sipilInternal ? "Paraf Mandor" : internal ? "Paraf Head Teknik" : "Paraf Client"}</Text></View>
+          <View style={[s.cell, s.paraf]}><Text style={s.headerText}>{sipilInternal ? "Paraf Mandor" : "Paraf PIC"}</Text></View>
+          <View style={[s.cell, s.paraf, { borderRightWidth: 0 }]}><Text style={s.headerText}>{sipilInternal ? "Paraf PIC" : internal ? "Paraf Head Teknik" : "Paraf Client"}</Text></View>
         </View>
         {tableRows.length === 0 ? <View style={s.row}><View style={[s.cell, { flex: 1, borderRightWidth: 0 }]}><Text style={s.empty}>Belum ada item pekerjaan pada termin ini.</Text></View></View> : tableRows.map((item) => <View style={s.row} key={`${item.no}-${item.continuation}`} wrap={false}>
           <View style={[s.cell, s.no]}><Text>{item.no}</Text></View>
@@ -148,8 +148,8 @@ export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
           {sipilInternal
             ? <><View style={[s.cell, s.date]}><Text>{formatDate(item.tanggal_mulai)}</Text></View><View style={[s.cell, s.date]}><Text>{formatDate(item.tanggal_selesai)}</Text></View></>
             : <View style={[s.cell, s.doc]}>{item.dokumentasi_b64s.length ? <View style={s.photos}>{item.dokumentasi_b64s.map((src, index) => <Image key={index} src={src} style={s.photo} />)}</View> : <Text style={s.empty}>Belum ada dokumentasi</Text>}</View>}
-          <View style={[s.cell, s.paraf, { backgroundColor: "#fff" }]}><Text style={item.pic_paraf ? s.parafMark : s.parafEmpty}>{item.pic_paraf ? "✓" : " "}</Text></View>
-          <View style={[s.cell, s.paraf, { borderRightWidth: 0, backgroundColor: "#fff" }]}><Text style={(sipilInternal ? item.mandor_paraf : internal ? item.head_teknik_paraf : item.client_paraf) ? s.parafMark : s.parafEmpty}>{(sipilInternal ? item.mandor_paraf : internal ? item.head_teknik_paraf : item.client_paraf) ? "✓" : " "}</Text></View>
+          <View style={[s.cell, s.paraf, { backgroundColor: "#fff" }]}><Text style={(sipilInternal ? item.mandor_paraf : item.pic_paraf) ? s.parafMark : s.parafEmpty}>{(sipilInternal ? item.mandor_paraf : item.pic_paraf) ? "✓" : " "}</Text></View>
+          <View style={[s.cell, s.paraf, { borderRightWidth: 0, backgroundColor: "#fff" }]}><Text style={(sipilInternal ? item.pic_paraf : internal ? item.head_teknik_paraf : item.client_paraf) ? s.parafMark : s.parafEmpty}>{(sipilInternal ? item.pic_paraf : internal ? item.head_teknik_paraf : item.client_paraf) ? "✓" : " "}</Text></View>
         </View>)}
       </View>
 
