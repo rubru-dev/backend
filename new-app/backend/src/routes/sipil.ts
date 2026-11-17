@@ -1064,6 +1064,8 @@ router.get("/projeks/:id/checklist", async (req: Request, res: Response) => {
       ...checklist,
       task_id: String(task.id), termin_id: String(termin.id), termin_nama: termin.nama ?? `Termin ${termin.urutan}`,
       nama_pekerjaan: task.nama_pekerjaan ?? "Pekerjaan tanpa nama", item_jenis: task.checklist_jenis,
+      tanggal_mulai: task.tanggal_mulai,
+      tanggal_selesai: task.tanggal_selesai,
       dokumentasi_paths: [...(checklist.gambar_paths ?? []), ...(images.get(String(task.id)) ?? [])],
       dokumentasi_thumbnails: [...(checklist.gambar_paths ?? []), ...(images.get(String(task.id)) ?? [])].map(thumbnailStoragePath),
       status: task.status,
@@ -1075,14 +1077,16 @@ router.patch("/checklist/:cid/paraf", requirePermission("projek_sipil", "checkli
   const cid = BigInt(req.params.cid);
   const item = await prisma.checklistSipil.findUnique({ where: { id: cid } });
   if (!item) return res.status(404).json({ detail: "Checklist item tidak ditemukan" });
-  const party = ["pic", "client", "head_teknik"].includes(req.body.party) ? req.body.party as "pic" | "client" | "head_teknik" : null;
-  if (!party) return res.status(400).json({ detail: "party harus pic, client, atau head_teknik" });
+  const party = ["pic", "client", "head_teknik", "mandor"].includes(req.body.party) ? req.body.party as "pic" | "client" | "head_teknik" | "mandor" : null;
+  if (!party) return res.status(400).json({ detail: "party harus pic, client, head_teknik, atau mandor" });
   const value = req.body.value === true || req.body.value === "true";
   const data = party === "pic"
     ? { pic_paraf: value, pic_paraf_by: value ? req.user!.id : null, pic_paraf_at: value ? new Date() : null }
     : party === "client"
       ? { client_paraf: value, client_paraf_by: value ? req.user!.id : null, client_paraf_at: value ? new Date() : null }
-      : { head_teknik_paraf: value, head_teknik_paraf_by: value ? req.user!.id : null, head_teknik_paraf_at: value ? new Date() : null };
+      : party === "head_teknik"
+        ? { head_teknik_paraf: value, head_teknik_paraf_by: value ? req.user!.id : null, head_teknik_paraf_at: value ? new Date() : null }
+        : { mandor_paraf: value, mandor_paraf_by: value ? req.user!.id : null, mandor_paraf_at: value ? new Date() : null };
   return res.json(serializeChecklist(await prisma.checklistSipil.update({ where: { id: cid }, data })));
 });
 

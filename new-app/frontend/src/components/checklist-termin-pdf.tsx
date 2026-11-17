@@ -35,6 +35,7 @@ const s = StyleSheet.create({
   no: { width: 30, textAlign: "center" },
   item: { flex: 1 },
   doc: { width: 168 },
+  date: { width: 68, textAlign: "center" },
   paraf: { width: 58, textAlign: "center" },
   headerText: { fontSize: 7.5, fontWeight: "bold", textAlign: "center" },
   itemText: { fontSize: 8.5, fontWeight: "bold" },
@@ -66,10 +67,13 @@ export type ChecklistTerminPdfItem = {
   no: number;
   nama_pekerjaan: string;
   item_jenis?: string;
+  tanggal_mulai?: string | null;
+  tanggal_selesai?: string | null;
   dokumentasi_b64s: string[];
   pic_paraf: boolean;
   client_paraf: boolean;
   head_teknik_paraf: boolean;
+  mandor_paraf?: boolean;
 };
 
 export type ChecklistTerminPdfData = {
@@ -83,11 +87,21 @@ export type ChecklistTerminPdfData = {
   logoUrl?: string | null;
   catatan?: string | null;
   audience: "client" | "internal";
+  internalFormat?: "sipil" | "default";
 };
+
+function formatDate(value?: string | null) {
+  if (!value) return "-";
+  const datePart = value.slice(0, 10);
+  const [year, month, day] = datePart.split("-");
+  return year && month && day ? `${day}/${month}/${year}` : "-";
+}
 
 export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
   const internal = data.audience === "internal";
+  const sipilInternal = internal && data.internalFormat === "sipil";
   const tableRows = data.items.flatMap((item) => {
+    if (sipilInternal) return [{ ...item, continuation: 0, continuationCount: 1 }];
     if (item.dokumentasi_b64s.length <= 12) return [{ ...item, continuation: 0, continuationCount: 1 }];
     const chunks: string[][] = [];
     for (let index = 0; index < item.dokumentasi_b64s.length; index += 12) {
@@ -122,23 +136,33 @@ export function ChecklistTerminPDF({ data }: { data: ChecklistTerminPdfData }) {
         <View style={[s.row, s.head]} fixed>
           <View style={[s.cell, s.no]}><Text style={s.headerText}>No</Text></View>
           <View style={[s.cell, s.item]}><Text style={s.headerText}>Item Pekerjaan</Text></View>
-          <View style={[s.cell, s.doc]}><Text style={s.headerText}>Dokumentasi</Text></View>
+          {sipilInternal
+            ? <><View style={[s.cell, s.date]}><Text style={s.headerText}>Tanggal Mulai</Text></View><View style={[s.cell, s.date]}><Text style={s.headerText}>Tanggal Selesai</Text></View></>
+            : <View style={[s.cell, s.doc]}><Text style={s.headerText}>Dokumentasi</Text></View>}
           <View style={[s.cell, s.paraf]}><Text style={s.headerText}>Paraf PIC</Text></View>
-          <View style={[s.cell, s.paraf, { borderRightWidth: 0 }]}><Text style={s.headerText}>{internal ? "Paraf Head Teknik" : "Paraf Client"}</Text></View>
+          <View style={[s.cell, s.paraf, { borderRightWidth: 0 }]}><Text style={s.headerText}>{sipilInternal ? "Paraf Mandor" : internal ? "Paraf Head Teknik" : "Paraf Client"}</Text></View>
         </View>
         {tableRows.length === 0 ? <View style={s.row}><View style={[s.cell, { flex: 1, borderRightWidth: 0 }]}><Text style={s.empty}>Belum ada item pekerjaan pada termin ini.</Text></View></View> : tableRows.map((item) => <View style={s.row} key={`${item.no}-${item.continuation}`} wrap={false}>
           <View style={[s.cell, s.no]}><Text>{item.no}</Text></View>
           <View style={[s.cell, s.item]}><Text style={s.itemText}>{item.nama_pekerjaan}</Text><Text style={s.typeText}>{item.item_jenis === "TAMBAHAN" ? "PEKERJAAN TAMBAHAN" : "RAB AWAL"}{item.continuationCount > 1 ? ` · FOTO ${item.continuation + 1}/${item.continuationCount}` : ""}</Text></View>
-          <View style={[s.cell, s.doc]}>{item.dokumentasi_b64s.length ? <View style={s.photos}>{item.dokumentasi_b64s.map((src, index) => <Image key={index} src={src} style={s.photo} />)}</View> : <Text style={s.empty}>Belum ada dokumentasi</Text>}</View>
+          {sipilInternal
+            ? <><View style={[s.cell, s.date]}><Text>{formatDate(item.tanggal_mulai)}</Text></View><View style={[s.cell, s.date]}><Text>{formatDate(item.tanggal_selesai)}</Text></View></>
+            : <View style={[s.cell, s.doc]}>{item.dokumentasi_b64s.length ? <View style={s.photos}>{item.dokumentasi_b64s.map((src, index) => <Image key={index} src={src} style={s.photo} />)}</View> : <Text style={s.empty}>Belum ada dokumentasi</Text>}</View>}
           <View style={[s.cell, s.paraf, { backgroundColor: "#fff" }]}><Text style={item.pic_paraf ? s.parafMark : s.parafEmpty}>{item.pic_paraf ? "✓" : " "}</Text></View>
-          <View style={[s.cell, s.paraf, { borderRightWidth: 0, backgroundColor: "#fff" }]}><Text style={(internal ? item.head_teknik_paraf : item.client_paraf) ? s.parafMark : s.parafEmpty}>{(internal ? item.head_teknik_paraf : item.client_paraf) ? "✓" : " "}</Text></View>
+          <View style={[s.cell, s.paraf, { borderRightWidth: 0, backgroundColor: "#fff" }]}><Text style={(sipilInternal ? item.mandor_paraf : internal ? item.head_teknik_paraf : item.client_paraf) ? s.parafMark : s.parafEmpty}>{(sipilInternal ? item.mandor_paraf : internal ? item.head_teknik_paraf : item.client_paraf) ? "✓" : " "}</Text></View>
         </View>)}
       </View>
 
       <View style={s.noteBox}><Text style={s.noteTitle}>Catatan / Pekerjaan yang Masih Kurang</Text><Text style={s.noteText}>{data.catatan || " "}</Text></View>
 
       <View style={s.signatures} wrap={false}>
-        {internal ? <View style={s.signatureGrid}>
+        {sipilInternal ? <View style={[s.signatureGrid, { justifyContent: "center" }]}>
+          <View style={s.signature}>
+            <Text style={s.signatureLabel}>Tanda Tangan Head Teknik</Text>
+            <View style={s.signatureArea} />
+            <Text style={s.signatureRole}>Head Teknik</Text>
+          </View>
+        </View> : internal ? <View style={s.signatureGrid}>
           {["PIC", "Tukang", "Mandor", "Head Teknik"].map((role) => <View key={role} style={s.signatureInternal}>
             <Text style={s.signatureLabel}>Tanda tangan {role}</Text>
             <View style={s.signatureArea} />

@@ -193,6 +193,7 @@ export const sipilApi = {
   // Checklist
   getChecklist: (projekId: string) => apiClient.get(`/sipil/projeks/${projekId}/checklist`).then((r) => r.data),
   updateChecklistParaf: (cid: string, party: "pic" | "client" | "head_teknik", value: boolean) => apiClient.patch(`/sipil/checklist/${cid}/paraf`, { party, value }).then((r) => r.data),
+  updateChecklistMandorParaf: (cid: string, value: boolean) => apiClient.patch(`/sipil/checklist/${cid}/paraf`, { party: "mandor", value }).then((r) => r.data),
   addChecklistItem: (projekId: string, data: { nama_pekerjaan: string; area_pekerjaan?: string; gambars?: File[] }) => {
     const form = new FormData();
     form.append("nama_pekerjaan", data.nama_pekerjaan);
