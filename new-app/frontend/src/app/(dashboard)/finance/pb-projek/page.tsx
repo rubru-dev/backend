@@ -12,6 +12,7 @@ import { useAuthStore } from "@/store/authStore";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { HorizontalDragScroll } from "@/components/ui/horizontal-drag-scroll";
+import { PBExportButton } from "@/components/pb-export-button";
 
 const fmtDate = (value?: string | null) => (value ? new Date(value).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" }) : "-");
 const prLink = (admId: string) => `/finance/administrasi-projek?proyek=${admId}&tab=pr`;
@@ -80,6 +81,7 @@ export default function FinancePBProjekPage() {
     const canReview = ["Diajukan", "Disetujui Finance", "Disetujui"].includes(pb.status) && !pb.pr_id;
     const needsSa = pb.status === "Disetujui Finance" || (pb.status === "Disetujui" && !pb.sa_approved_at);
     return <div className="flex flex-wrap justify-end gap-1">
+      <PBExportButton pbId={pb.id} pbNumber={pb.nomor_pb} />
       {pb.status === "Diajukan" && (isFinance
         ? <button type="button" className="inline-flex items-center gap-1 rounded-md bg-emerald-600 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-60" disabled={busy} onClick={() => setApproveTarget({ pb, status: "Disetujui Finance" })}><CheckCircle2 className="h-3.5 w-3.5" />Setujui (Finance)</button>
         : <span className="self-center text-xs text-muted-foreground">Menunggu Finance</span>)}

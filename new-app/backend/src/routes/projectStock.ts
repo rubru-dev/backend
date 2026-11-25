@@ -104,7 +104,7 @@ function serializePB(pb: PBWithRelations) {
   return {
     id: String(pb.id), project_type: pb.project_type, project_id: String(pb.project_id),
     nomor_pb: pb.nomor_pb, status: pb.status, catatan: pb.catatan,
-    created_by: pb.created_by ? String(pb.created_by) : null, creator: pb.creator?.name ?? null, created_at: pb.created_at,
+    created_by: pb.created_by ? String(pb.created_by) : null, creator: pb.creator?.name ?? null, created_at: pb.created_at, updated_at: pb.updated_at,
     submitted_at: pb.submitted_at,
     finance_approver: pb.finance_approver?.name ?? null, finance_approved_at: pb.finance_approved_at,
     sa_approver: pb.sa_approver?.name ?? null, sa_approved_at: pb.sa_approved_at,
@@ -115,6 +115,67 @@ function serializePB(pb: PBWithRelations) {
       jenis: i.stock_item.jenis, satuan: i.stock_item.satuan, qty: num(i.qty),
       qty_received: num(i.qty_received), qty_remaining: remainingQuantity(num(i.qty), num(i.qty_received)), catatan: i.catatan,
     })),
+  };
+}
+
+const PB_PROJECT_DETAIL_SELECT = {
+  id: true,
+  nama_proyek: true,
+  lokasi: true,
+  tanggal_mulai: true,
+  tanggal_selesai: true,
+  pic_nama_snapshot: true,
+  client_nama_snapshot: true,
+  lead: { select: { nama: true } },
+  pic_user: { select: { name: true } },
+  pic_assignments: { include: { user: { select: { name: true } } } },
+} as const;
+
+async function serializePBDetail(pb: PBWithRelations) {
+  const [project, pr] = await Promise.all([
+    pb.project_type === "interior"
+      ? prisma.proyekInterior.findUnique({ where: { id: pb.project_id }, select: PB_PROJECT_DETAIL_SELECT })
+      : prisma.proyekBerjalan.findUnique({ where: { id: pb.project_id }, select: PB_PROJECT_DETAIL_SELECT }),
+    pb.pr_id
+      ? prisma.projekPR.findUnique({
+          where: { id: pb.pr_id },
+          select: {
+            id: true,
+            nomor_pr: true,
+            status: true,
+            hf_signed_at: true,
+            adm_finance_project_id: true,
+            items: { select: { project_pb_item_id: true, qty: true } },
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+  const serialized = serializePB(pb);
+  const picNames = project
+    ? [project.pic_nama_snapshot, project.pic_user?.name, ...project.pic_assignments.map((assignment) => assignment.user.name)].filter(Boolean) as string[]
+    : [];
+
+  return {
+    ...serialized,
+    project_name: project?.nama_proyek ?? `Projek #${pb.project_id}`,
+    project_location: project?.lokasi ?? null,
+    project_client: project?.client_nama_snapshot ?? project?.lead?.nama ?? null,
+    project_start_date: project?.tanggal_mulai ?? null,
+    project_end_date: project?.tanggal_selesai ?? null,
+    pic_names: [...new Set(picNames)],
+    nomor_pr: pr?.nomor_pr ?? null,
+    pr_status: pr?.status ?? null,
+    pr_hf_signed_at: pr?.hf_signed_at ?? null,
+    adm_finance_project_id: pr?.adm_finance_project_id ? String(pr.adm_finance_project_id) : null,
+    items: serialized.items.map((item) => {
+      const prItem = pr?.items.find((row) => row.project_pb_item_id !== null && String(row.project_pb_item_id) === item.id);
+      const ordered = prItem ? num(prItem.qty) : item.qty;
+      return {
+        ...item,
+        ordered_qty: prItem ? ordered : null,
+        qty_remaining: remainingQuantity(ordered, item.qty_received),
+      };
+    }),
   };
 }
 
@@ -560,7 +621,7 @@ router.get("/pb/:id", async (req: Request, res: Response) => {
   const pb = await prisma.projectPB.findUnique({ where: { id: BigInt(req.params.id) }, include: PB_INCLUDE });
   if (!pb) return res.status(404).json({ detail: "PB tidak ditemukan" });
   if (!(await canAccessProject(req, pb.project_type, pb.project_id)) && pb.created_by !== req.user!.id) return res.status(403).json({ detail: "Anda tidak ditugaskan pada projek ini" });
-  return res.json(serializePB(pb));
+  return res.json(await serializePBDetail(pb));
 });
 
 // Edit Draft (termasuk PB yang dikembalikan Finance/Super Admin untuk revisi).

@@ -10,6 +10,7 @@ import { PBStatusBadge } from "@/components/pb-status-badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { PBReceiveDialog } from "@/components/pb-receive-dialog";
+import { PBExportButton } from "@/components/pb-export-button";
 import { useAuthStore } from "@/store/authStore";
 
 type ProjectType = "sipil" | "interior";
@@ -181,6 +182,7 @@ export default function PBProjekPage() {
         <td className="px-3 py-3 text-xs"><ApprovalLine label="Finance" name={pb.finance_approver} at={pb.finance_approved_at} /><ApprovalLine label="Super Admin" name={pb.sa_approver} at={pb.sa_approved_at} /></td>
         <td className="px-3 py-3">{pb.pr_id ? (pb.nomor_pr || "PR dibuat") : "-"}</td>
         <td className="px-3 py-3"><div className="flex justify-end gap-1">
+          <PBExportButton pbId={pb.id} pbNumber={pb.nomor_pb} />
           {pb.status === "Draft" && <>
             <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold hover:bg-muted" onClick={() => startEdit(pb)}><Pencil className="h-3.5 w-3.5" />Edit</button>
             <button type="button" className="inline-flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold text-red-700 hover:bg-red-50" onClick={() => setDeleteTarget(pb)}><Trash2 className="h-3.5 w-3.5" />Hapus</button>
